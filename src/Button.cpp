@@ -184,14 +184,25 @@ static void Button_ReadAllStates(void) {
 #endif
 }
 
+static const char* buttonNames[] = {
+	"NEXT",
+	"PREVIOUS",
+	"PAUSEPLAY",
+	"ROTARYENCODER",
+	"BUTTON_4",
+	"BUTTON_5",
+	"BUTTON_6"
+};
+
 // Update press/release state for a single button with debouncing
-static void Button_UpdateState(t_button &btn, unsigned long currentTimestamp) {
+static void Button_UpdateState(uint8_t i, t_button &btn, unsigned long currentTimestamp) {
 	bool const stateChanged = btn.currentState != btn.lastState;
 	bool const debounceElapsed = currentTimestamp - btn.lastPressedTimestamp > buttonDebounceInterval;
 
 	if (stateChanged && debounceElapsed) {
 		bool const buttonPressed = !btn.currentState;
 		if (buttonPressed) {
+			Log_Printf(LOGLEVEL_INFO, "Button %d (%s) pressed", i, buttonNames[i]);
 			btn.isPressed = true;
 			btn.lastPressedTimestamp = currentTimestamp;
 			if (!btn.firstPressedTimestamp) {
@@ -225,7 +236,7 @@ void Button_Cyclic() {
 	Button_ReadAllStates();
 
 	for (uint8_t i = 0; i < sizeof(gButtons) / sizeof(gButtons[0]); i++) {
-		Button_UpdateState(gButtons[i], currentTimestamp);
+		Button_UpdateState(i, gButtons[i], currentTimestamp);
 	}
 
 	gButtonInitComplete = true;

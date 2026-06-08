@@ -599,6 +599,7 @@ void AudioPlayer_Loop() {
 		if (newPlayListAvailable) {
 			newPlayListAvailable = false;
 			audio->stopSong();
+			Rfid_ResetOldRfid();
 
 			// destroy the old playlist and assign the new one
 			freePlaylist(gPlayProperties.playlist);
