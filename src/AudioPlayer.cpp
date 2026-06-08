@@ -728,9 +728,16 @@ void AudioPlayer_Loop() {
 						audio->stopSong();
 					}
 				} else {
-					Log_Println(lastTrackAlreadyActive, LOGLEVEL_NOTICE);
-					System_IndicateError();
-					return;
+					if (gPlayProperties.playlist->size() == 1 && audio->getAudioFileDuration() > 300) {
+						audio->setTimeOffset(300);
+						Log_Printf(LOGLEVEL_NOTICE, secondsJumpForward, 300);
+						trackCommand = NO_ACTION;
+						return;
+					} else {
+						Log_Println(lastTrackAlreadyActive, LOGLEVEL_NOTICE);
+						System_IndicateError();
+						return;
+					}
 				}
 				break;
 
@@ -763,12 +770,10 @@ void AudioPlayer_Loop() {
 					}
 				} else {
 					if (gPlayProperties.currentTrackNumber > 0 || gPlayProperties.repeatPlaylist) {
-						if (audio->getAudioCurrentTime() < 5) { // play previous track when current track time is small, else play current track again
-							if (gPlayProperties.currentTrackNumber == 0 && gPlayProperties.repeatPlaylist) {
-								gPlayProperties.currentTrackNumber = gPlayProperties.playlist->size() - 1; // Go back to last track in loop-mode when first track is played
-							} else {
-								gPlayProperties.currentTrackNumber--;
-							}
+						if (gPlayProperties.currentTrackNumber == 0 && gPlayProperties.repeatPlaylist) {
+							gPlayProperties.currentTrackNumber = gPlayProperties.playlist->size() - 1; // Go back to last track in loop-mode when first track is played
+						} else {
+							gPlayProperties.currentTrackNumber--;
 						}
 
 						if (gPlayProperties.saveLastPlayPosition) {
@@ -781,6 +786,12 @@ void AudioPlayer_Loop() {
 							audio->stopSong();
 						}
 					} else {
+						if (gPlayProperties.playlist->size() == 1 && audio->getAudioFileDuration() > 300) {
+							audio->setTimeOffset(-300);
+							Log_Printf(LOGLEVEL_NOTICE, secondsJumpBackward, 300);
+							trackCommand = NO_ACTION;
+							return;
+						}
 						if (gPlayProperties.saveLastPlayPosition) {
 							AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
 						}
