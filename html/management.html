@@ -974,6 +974,18 @@
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.rfid.pn5180LpcdExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
+							</div><br>
+							<div class="mb-3">
+								<label for="slix2Password" data-i18n="general.rfid.slix2Password.title"></label>
+								<div class="input-group">
+									<input type="text" class="form-control" id="slix2Password" name="slix2Password"
+										maxlength="8" placeholder="e.g. 01020304">
+									<span class="input-group-text bg-transparent border-0">
+										<a href="#" class="link-secondary" data-bs-toggle="popover"
+											data-i18n="[data-bs-content]general.rfid.slix2Password.description" tabindex="0">
+											<i class="fas fa-circle-question"></i></a>
+									</span>
+								</div>
 							</div>
 						</fieldset>
 					</div>
@@ -1255,18 +1267,12 @@
 								<label for="led_idleDots" data-i18n="settingsex.led.numidledots"></label>: <br>
 								<input type="number" class="form-control" id="led_idleDots" name="led_idleDots" min="0"
 									max="128"><br>
-								<label for="led_hueStart" data-i18n="settingsex.led.huestart"></label>: <br>
-								<div class="hue-slider">
-									<input id="led_hueStart" type="number" data-provide="slider" data-slider-min="-1"
-										data-slider-max="255" min="-1" max="255" class="form-control"
-										name="led_hueStart" data-slider-value="-1" value="-1">
-								</div>
-								<label for="led_hueEnd" data-i18n="settingsex.led.hueend"></label>: <br>
-								<div class="hue-slider">
-									<input id="led_hueEnd" type="number" data-provide="slider" data-slider-min="-1"
-										data-slider-max="255" min="-1" max="255" class="form-control" name="led_hueEnd"
-										data-slider-value="-1" value="-1">
-								</div>
+								<label for="led_idleColor" data-i18n="settingsex.led.idlecolor"></label>: <br>
+								<input type="color" class="form-control" id="led_idleColor" name="led_idleColor"><br>
+								<label for="led_progColorStart" data-i18n="settingsex.led.progcolorstart"></label>: <br>
+								<input type="color" class="form-control" id="led_progColorStart" name="led_progColorStart"><br>
+								<label for="led_progColorEnd" data-i18n="settingsex.led.progcolorend"></label>: <br>
+								<input type="color" class="form-control" id="led_progColorEnd" name="led_progColorEnd"><br>
 								<label for="led_hueAtmo" data-i18n="settingsex.led.hueatmo"></label>: <br>
 								<div class="hue-slider">
 									<input id="led_hueAtmo" type="number" data-provide="slider" data-slider-min="-1"
@@ -2537,9 +2543,18 @@
 				$('#pauseOnMinVolume').prop('checked', genSettings.pauseOnMinVol);
 				$('#recoverVolBoot').prop('checked', genSettings.recoverVolBoot);
 				$('#volumeCurve').prop('checked', genSettings.volumeCurve > 0);
-				$('#rfidReaderType').val(genSettings.rfidReaderType);
-				$('#pn5180Lpcd').prop('checked', genSettings.pn5180Lpcd);
-				$('#mfrc522Gain').val(genSettings.mfrc522Gain);
+				if (genSettings.rfidReaderType !== undefined) {
+					$('#rfidReaderType').val(genSettings.rfidReaderType);
+				}
+				if (genSettings.pn5180Lpcd !== undefined) {
+					$('#pn5180Lpcd').prop('checked', genSettings.pn5180Lpcd);
+				}
+				if (genSettings.slix2Password !== undefined) {
+					$('#slix2Password').val(genSettings.slix2Password);
+				}
+				if (genSettings.mfrc522Gain !== undefined) {
+					document.getElementById('mfrc522Gain').value = genSettings.mfrc522Gain;
+				}
 			}
 			// current values
 			let currSettings = settings.current;
@@ -2581,8 +2596,9 @@
 				document.getElementById('led_numControl').value = ledSettings.numControl;
 				listControlColors(ledSettings.numControl, ledSettings.controlColors);
 				document.getElementById('led_idleDots').value = ledSettings.numIdleDots;
-				$('#led_hueStart').bootstrapSlider('setValue', ledSettings.hueStart);
-				$('#led_hueEnd').bootstrapSlider('setValue', ledSettings.hueEnd);
+				document.getElementById('led_idleColor').value = getHexColor(ledSettings.idleColor);
+				document.getElementById('led_progColorStart').value = getHexColor(ledSettings.progColorStart);
+				document.getElementById('led_progColorEnd').value = getHexColor(ledSettings.progColorEnd);
 				$('#led_hueAtmo').bootstrapSlider('setValue', ledSettings.hueAtmo);
 				$('#led_satAtmo').bootstrapSlider('setValue', ledSettings.satAtmo);
 				document.getElementById('led_dimStates').value = ledSettings.dimStates;
@@ -2954,6 +2970,7 @@
 					volumeCurve: $("#volumeCurve").prop('checked') ? 1 : 0,
 					rfidReaderType: Number($('#rfidReaderType').val()),
 					pn5180Lpcd: $('#pn5180Lpcd').prop('checked'),
+					slix2Password: $('#slix2Password').val(),
 					mfrc522Gain: Number($('#mfrc522Gain').val())
 				},
 				"led": {
@@ -2964,8 +2981,9 @@
 					numControl: Number(document.getElementById("led_numControl").value),
 					controlColors: [],
 					numIdleDots: Number(document.getElementById("led_idleDots").value),
-					hueStart: Number($('#led_hueStart').val()),
-					hueEnd: Number($('#led_hueEnd').val()),
+					idleColor: hexColorToInt(document.getElementById("led_idleColor").value),
+					progColorStart: hexColorToInt(document.getElementById("led_progColorStart").value),
+					progColorEnd: hexColorToInt(document.getElementById("led_progColorEnd").value),
 					hueAtmo: Number($('#led_hueAtmo').val()),
 					satAtmo: Number($('#led_satAtmo').val()),
 					dimStates: Number(document.getElementById("led_dimStates").value),
