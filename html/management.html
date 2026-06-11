@@ -420,6 +420,61 @@
 			box-shadow: inset 0 0 18px rgba(252, 238, 10, .25);
 		}
 
+		.btn-outline-primary {
+			--bs-btn-color: var(--cp-cyan);
+			--bs-btn-border-color: rgba(0, 240, 255, .55);
+			--bs-btn-hover-color: #021019;
+			--bs-btn-hover-bg: var(--cp-cyan);
+			--bs-btn-hover-border-color: var(--cp-cyan);
+			--bs-btn-active-color: #021019;
+			--bs-btn-active-bg: #7df9ff;
+			--bs-btn-active-border-color: #7df9ff;
+			--bs-btn-disabled-color: var(--cp-dim);
+			--bs-btn-disabled-border-color: var(--cp-border);
+			clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+		}
+
+		.btn-success {
+			--bs-btn-color: var(--cp-green);
+			--bs-btn-bg: rgba(10, 255, 157, .08);
+			--bs-btn-border-color: rgba(10, 255, 157, .55);
+			--bs-btn-hover-color: #02190f;
+			--bs-btn-hover-bg: var(--cp-green);
+			--bs-btn-hover-border-color: var(--cp-green);
+			--bs-btn-active-color: #02190f;
+			--bs-btn-active-bg: #6bffc4;
+			--bs-btn-active-border-color: #6bffc4;
+			--bs-btn-disabled-color: var(--cp-dim);
+			--bs-btn-disabled-bg: transparent;
+			--bs-btn-disabled-border-color: transparent;
+			box-shadow: inset 0 0 12px rgba(10, 255, 157, .12);
+			clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+		}
+
+		.btn-success:hover {
+			box-shadow: inset 0 0 18px rgba(10, 255, 157, .3);
+		}
+
+		/* tables (e.g. bluetooth scan results) */
+		.table {
+			--bs-table-bg: transparent;
+			--bs-table-color: var(--cp-text);
+			--bs-table-border-color: var(--cp-border);
+			--bs-table-striped-bg: rgba(0, 240, 255, .03);
+			--bs-table-striped-color: var(--cp-text);
+			--bs-table-hover-bg: rgba(0, 240, 255, .08);
+			--bs-table-hover-color: var(--cp-cyan);
+			font-family: "Share Tech Mono", monospace;
+			font-size: .9rem;
+		}
+
+		.table thead th {
+			color: var(--cp-cyan);
+			text-transform: uppercase;
+			letter-spacing: .08em;
+			border-bottom: 1px solid var(--cp-cyan);
+		}
+
 		/* Overwrite some Bootstrap styles (remove border around disabled buttons) */
 		.btn.disabled {
 			border-color: rgb(0, 0, 0, 0);
