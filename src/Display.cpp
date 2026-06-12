@@ -23,8 +23,15 @@ extern TwoWire i2cBusTwo;
 		#define DISPLAY_I2C_ADDRESS 0x3C
 	#endif
 
-	#define DISPLAY_REFRESH_INTERVAL_MS 250u // how often the display is redrawn at most
-	#define DISPLAY_SCROLL_STEP_PX		3u	 // horizontal scroll speed for long titles
+	#define DISPLAY_REFRESH_INTERVAL_MS 400u // how often the display is redrawn at most
+	#define DISPLAY_SCROLL_STEP_PX		5u	 // horizontal scroll speed for long titles
+
+// I2C clock for the display. 100 kHz is the safe default and matches the rest of
+// the system; externally wired OLEDs (long Dupont cables, extra bus capacitance)
+// often fail at 400 kHz. Override in settings-*.h if your wiring is short.
+	#ifndef DISPLAY_I2C_CLOCK
+		#define DISPLAY_I2C_CLOCK 100000UL
+	#endif
 
 // ----- U8g2 byte transport routed through ESPuino's shared i2cBusTwo -----
 // Streams straight into i2cBusTwo (like the canonical Arduino HW-I2C callback,
@@ -250,9 +257,8 @@ void Display_Init(void) {
 		Log_Println("Display disabled in settings", LOGLEVEL_NOTICE);
 		return;
 	}
-	// SH1106/SSD1306 and the PCA9555 port-expander all handle 400 kHz; speeds up
-	// the ~1 KB full-buffer transfer (≈25 ms instead of ≈100 ms at 100 kHz)
-	i2cBusTwo.setClock(400000);
+	// conservative bus clock - externally wired OLEDs often don't ACK at 400 kHz
+	i2cBusTwo.setClock(DISPLAY_I2C_CLOCK);
 
 	// log every device found on the external bus (helps diagnose wiring/address)
 	String found;
@@ -263,7 +269,7 @@ void Display_Init(void) {
 			found += buf;
 		}
 	}
-	Log_Printf(LOGLEVEL_NOTICE, "Display: I2C devices on external bus: %s", found.length() ? found.c_str() : "(none)");
+	Log_Printf(LOGLEVEL_NOTICE, "Display: I2C devices on external bus @%lukHz: %s", (unsigned long) (DISPLAY_I2C_CLOCK / 1000), found.length() ? found.c_str() : "(none)");
 
 	// auto-detect the display address: prefer the configured one, fall back to the
 	// alternate (0x3C <-> 0x3D) so both common module variants work out of the box
