@@ -254,8 +254,17 @@
 		constexpr bool s_vCharge = false;                   // true if charge voltage is greater than 4.275V
 	#endif
 
+	// OLED display (SH1106 / SSD1306 128x64) on the external I2C bus.
+	// Enable by defining DISPLAY_ENABLE in your platform settings-*.h. The display
+	// shares the external I2C bus, so I2C_2_ENABLE is required (set below).
+	#ifdef DISPLAY_ENABLE
+		#ifndef DISPLAY_I2C_ADDRESS
+			#define DISPLAY_I2C_ADDRESS 0x3C // most SH1106/SSD1306 modules use 0x3C (some 0x3D)
+		#endif
+	#endif
+
 	// enable I2C if necessary
-	#if defined(RFID_READER_TYPE_RUNTIME) || defined(PORT_EXPANDER_ENABLE) || defined(MEASURE_BATTERY_MAX17055)
+	#if defined(RFID_READER_TYPE_RUNTIME) || defined(PORT_EXPANDER_ENABLE) || defined(MEASURE_BATTERY_MAX17055) || defined(DISPLAY_ENABLE)
 		#define I2C_2_ENABLE
 	#endif
 

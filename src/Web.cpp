@@ -10,6 +10,7 @@
 #include "Bluetooth.h"
 #include "Cmd.h"
 #include "Common.h"
+#include "Display.h"
 #include "ESPAsyncWebServer.h"
 #include "EnumUtils.h"
 #include "Ftp.h"
@@ -881,6 +882,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "general");
 			return WebsocketCodeType::Error;
 		}
+		if (generalObj["displayEnable"].is<bool>()) {
+			Display_SetEnabled(generalObj["displayEnable"].as<bool>()); // persists to NVS and applies live
+		}
 		gPlayProperties.newPlayMono = generalObj["playMono"].as<bool>();
 		gPlayProperties.SavePlayPosRfidChange = generalObj["savePosRfidChge"].as<bool>();
 		gPlayProperties.pauseOnMinVolume = generalObj["pauseOnMinVol"].as<bool>();
@@ -1228,6 +1232,12 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["pn5180Lpcd"].set(gPrefsRfid.getBool("pn5180Lpcd", false)); // PN5180 LPCD
 		generalObj["slix2Password"].set(gPrefsRfid.getString("slix2Pwd", "")); // SLIX2 Password
 		generalObj["mfrc522Gain"].set(gPrefsRfid.getUChar("mfrc522Gain", 7)); // MFRC522_GAIN
+#ifdef DISPLAY_ENABLE
+		generalObj["displayAvailable"].set(true);
+		generalObj["displayEnable"].set(gPrefsSettings.getBool("displayEnable", true));
+#else
+		generalObj["displayAvailable"].set(false);
+#endif
 		generalObj["pauseOnMinVol"].set(gPrefsSettings.getBool("pauseOnMinVol", false)); // PAUSE_ON_MIN_VOLUME
 		generalObj["recoverVolBoot"].set(gPrefsSettings.getBool("recoverVolBoot", false)); // USE_LAST_VOLUME_AFTER_REBOOT
 		generalObj["volumeCurve"].set(gPrefsSettings.getUChar("volumeCurve", 0)); // VOLUMECURVE

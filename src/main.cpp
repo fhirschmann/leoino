@@ -8,6 +8,7 @@
 #include "Battery.h"
 #include "Bluetooth.h"
 #include "Button.h"
+#include "Display.h"
 #include "Cmd.h"
 #include "Common.h"
 #include "Ftp.h"
@@ -155,6 +156,9 @@ void setup() {
 
 	Led_Init();
 
+	// OLED display on the external I2C bus (optional, see DISPLAY_ENABLE)
+	Display_Init();
+
 	// Needs power first
 	SdCard_Init();
 
@@ -234,6 +238,7 @@ void loop() {
 	Ftp_Cyclic();
 	AudioPlayer_Cyclic();
 	Battery_Cyclic();
+	Display_Cyclic();
 	Button_Cyclic();
 	System_Cyclic();
 	Rfid_PreferenceLookupHandler();

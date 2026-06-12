@@ -1900,6 +1900,13 @@
 									data-i18n="[data-bs-content]general.options.volumeCurveExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
+							<div class="d-flex gap-2" id="displayEnableRow" data-visible="false">
+								<input type="checkbox" id="displayEnable" name="displayEnable" value="false">
+								<label for="displayEnable" data-i18n="general.options.displayEnable"></label>
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.options.displayEnableExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
 							<br>
 							<label for="readyPath" data-i18n="general.options.readypath"></label>
 							<input type="text" class="form-control" id="readyPath" name="readyPath">
@@ -3453,6 +3460,10 @@
 				$('#pauseOnMinVolume').prop('checked', genSettings.pauseOnMinVol);
 				$('#recoverVolBoot').prop('checked', genSettings.recoverVolBoot);
 				$('#volumeCurve').prop('checked', genSettings.volumeCurve > 0);
+				if (genSettings.displayAvailable) {
+					document.getElementById('displayEnableRow').setAttribute('data-visible', true);
+					$('#displayEnable').prop('checked', genSettings.displayEnable);
+				}
 				if (genSettings.rfidReaderType !== undefined) {
 					$('#rfidReaderType').val(genSettings.rfidReaderType);
 				}
@@ -3881,6 +3892,7 @@
 					pauseOnMinVol: $('#pauseOnMinVolume').prop('checked'),
 					recoverVolBoot: $('#recoverVolBoot').prop('checked'),
 					volumeCurve: $("#volumeCurve").prop('checked') ? 1 : 0,
+					displayEnable: $('#displayEnable').prop('checked'),
 					rfidReaderType: Number($('#rfidReaderType').val()),
 					pn5180Lpcd: $('#pn5180Lpcd').prop('checked'),
 					slix2Password: $('#slix2Password').val(),

@@ -435,6 +435,8 @@
 			"recoverVolBootExp": "Le boîtier se souvient, après un redémarrage, du dernier volume utilisé et le rétablit automatiquement.",
 			"volumeCurve": "Des nuances plus fines à faible volume",
 			"volumeCurveExp": "Utilisation du calcul logarithmique du volume. Peut aider si les nuances sont trop grossières dans la plage de volume inférieure.",
+			"displayEnable": "Activer l'écran OLED",
+			"displayEnableExp": "Active ou désactive l'écran OLED (SH1106/SSD1306 128x64) connecté au port I2C externe. Affiche le titre, la lecture, le volume, le WiFi et la batterie.",
 			"readypath": "Chemin vers le MP3 de bienvenue"
 		},
 		"neopixel": {

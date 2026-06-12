@@ -7,6 +7,7 @@
 #include "AudioPlayer.h"
 #include "Bluetooth.h"
 #include "Ftp.h"
+#include "Display.h"
 #include "Led.h"
 #include "Log.h"
 #include "MemX.h"
@@ -222,6 +223,7 @@ void System_PreparePowerDown(void) {
 	Ftp_Exit();
 	Mqtt_Exit();
 	Led_Exit();
+	Display_Exit();
 	Bluetooth_Exit();
 
 	if (gPrefsSettings.getBool("recoverVolBoot", false)) {
