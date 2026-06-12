@@ -99,6 +99,12 @@ neon logo that doubles as the SVG favicon ([`8d9725c`](../../commit/8d9725c)):
 | Unlocking controls via button press while locked | [`d83e15f`](../../commit/d83e15f) |
 | Support for a 6th button | [`b116151`](../../commit/b116151) |
 
+### Peripherals
+
+| Change | Commit |
+| --- | --- |
+| Optional 128x64 OLED (SH1106/SSD1306) on the external I2C port — shows title (scrolling), play/pause, progress, volume, track counter, WiFi/Bluetooth state and battery; idle screen shows branding + IP. Enabled per board via `DISPLAY_ENABLE` and toggleable at runtime in the web interface | [`6af6772`](../../commit/6af6772) |
+
 ## // Flashing
 
 ```bash
