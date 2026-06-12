@@ -30,6 +30,7 @@ BINARY_FILES = [
     Path("accesspoint.html"),
     Path("manifest.json"),
     Path("appicon.svg"),
+    Path("logo.svg"),
     Path("js/i18next.min.js"),
     Path("js/i18nextHttpBackend.min.js"),
     Path("REST_API.yaml"),

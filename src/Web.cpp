@@ -526,7 +526,7 @@ void webserverStart(void) {
 				return next();
 			}
 			const String &url = request->url();
-			if (url.equals("/login") || url.equals("/logo") || url.equals("/favicon.ico") || url.equals("/manifest.json") || url.equals("/appicon.svg")) {
+			if (url.equals("/login") || url.equals("/logo") || url.equals("/logo.svg") || url.equals("/favicon.ico") || url.equals("/manifest.json") || url.equals("/appicon.svg")) {
 				// manifest/icon: the browser fetches the web-app-manifest without cookies
 				return next();
 			}
@@ -792,7 +792,8 @@ void webserverStart(void) {
 				return;
 			};
 #endif
-			request->redirect("https://www.espuino.de/Espuino.webp");
+			// embedded Leo Industries AT-1 logo
+			request->redirect("/logo.svg");
 		});
 		// ESPuino favicon
 		wServer.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request) {
