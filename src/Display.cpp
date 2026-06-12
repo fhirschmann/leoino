@@ -27,20 +27,14 @@ extern TwoWire i2cBusTwo;
 	#define DISPLAY_SCROLL_STEP_PX		3u	 // horizontal scroll speed for long titles
 
 // ----- U8g2 byte transport routed through ESPuino's shared i2cBusTwo -----
+// Streams straight into i2cBusTwo (like the canonical Arduino HW-I2C callback,
+// but on the shared bus instead of the global Wire) so large page writes are
+// not truncated. Counts NACKs so a wrong address / wiring is visible in the log.
+static volatile uint8_t displayI2cErrors = 0;
 static uint8_t Display_I2CByteCb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
-	static uint8_t buffer[34];
-	static uint8_t bufIdx;
-	uint8_t *data;
 	switch (msg) {
 		case U8X8_MSG_BYTE_SEND:
-			data = (uint8_t *) arg_ptr;
-			while (arg_int > 0) {
-				if (bufIdx < sizeof(buffer)) {
-					buffer[bufIdx++] = *data;
-				}
-				data++;
-				arg_int--;
-			}
+			i2cBusTwo.write((uint8_t *) arg_ptr, arg_int);
 			break;
 		case U8X8_MSG_BYTE_INIT:
 			// bus already initialized in main.cpp (i2cBusTwo.begin)
@@ -48,17 +42,25 @@ static uint8_t Display_I2CByteCb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, voi
 		case U8X8_MSG_BYTE_SET_DC:
 			break;
 		case U8X8_MSG_BYTE_START_TRANSFER:
-			bufIdx = 0;
+			i2cBusTwo.beginTransmission(u8x8_GetI2CAddress(u8x8) >> 1);
 			break;
 		case U8X8_MSG_BYTE_END_TRANSFER:
-			i2cBusTwo.beginTransmission(u8x8_GetI2CAddress(u8x8) >> 1);
-			i2cBusTwo.write(buffer, bufIdx);
-			i2cBusTwo.endTransmission();
+			if (i2cBusTwo.endTransmission() != 0) {
+				if (displayI2cErrors < 255) {
+					displayI2cErrors++;
+				}
+			}
 			break;
 		default:
 			return 0;
 	}
 	return 1;
+}
+
+// Probe an I2C device on the shared bus (true if it ACKs)
+static bool Display_ProbeAddress(uint8_t addr7) {
+	i2cBusTwo.beginTransmission(addr7);
+	return i2cBusTwo.endTransmission() == 0;
 }
 
 static U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
@@ -251,18 +253,41 @@ void Display_Init(void) {
 	// SH1106/SSD1306 and the PCA9555 port-expander all handle 400 kHz; speeds up
 	// the ~1 KB full-buffer transfer (≈25 ms instead of ≈100 ms at 100 kHz)
 	i2cBusTwo.setClock(400000);
-	u8g2.setI2CAddress(DISPLAY_I2C_ADDRESS << 1);
+
+	// log every device found on the external bus (helps diagnose wiring/address)
+	String found;
+	for (uint8_t a = 0x08; a <= 0x77; a++) {
+		if (Display_ProbeAddress(a)) {
+			char buf[8];
+			snprintf(buf, sizeof(buf), "0x%02X ", a);
+			found += buf;
+		}
+	}
+	Log_Printf(LOGLEVEL_NOTICE, "Display: I2C devices on external bus: %s", found.length() ? found.c_str() : "(none)");
+
+	// auto-detect the display address: prefer the configured one, fall back to the
+	// alternate (0x3C <-> 0x3D) so both common module variants work out of the box
+	uint8_t addr = DISPLAY_I2C_ADDRESS;
+	const uint8_t alt = (DISPLAY_I2C_ADDRESS == 0x3C) ? 0x3D : 0x3C;
+	if (!Display_ProbeAddress(addr) && Display_ProbeAddress(alt)) {
+		addr = alt;
+	}
+	if (!Display_ProbeAddress(addr)) {
+		Log_Printf(LOGLEVEL_ERROR, "Display: no OLED found at 0x%02X or 0x%02X - check wiring (SDA=%d, SCL=%d)", DISPLAY_I2C_ADDRESS, alt, ext_IIC_DATA, ext_IIC_CLK);
+		// still attempt the configured address in case the probe is unreliable
+	}
+
+	u8g2.setI2CAddress(addr << 1);
 	// route the U8g2 byte transport through the shared bus instead of the global Wire
 	u8g2.getU8g2()->u8x8.byte_cb = Display_I2CByteCb;
-	if (!u8g2.begin()) {
-		Log_Println("Display init failed", LOGLEVEL_ERROR);
-		return;
-	}
+	displayI2cErrors = 0;
+	u8g2.begin(); // always returns 1; rely on the probe / error counter instead
+	u8g2.setContrast(255);
 	u8g2.setPowerSave(0);
 	displayInitialized = true;
 	displayPoweredOff = false;
-	Log_Println("Display initialized (SH1106 128x64)", LOGLEVEL_NOTICE);
 	Display_Render();
+	Log_Printf(LOGLEVEL_NOTICE, "Display initialized at 0x%02X (%u I2C errors during init)", addr, displayI2cErrors);
 }
 
 void Display_Cyclic(void) {
