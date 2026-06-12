@@ -188,18 +188,32 @@
 			filter: drop-shadow(0 0 6px rgba(0, 240, 255, .7));
 		}
 
+		#navbar-brand-co,
 		#navbar-heading {
 			font-family: "Orbitron", "Rajdhani", sans-serif;
 			font-weight: 700;
 			text-transform: uppercase;
 			letter-spacing: .28em;
+		}
+
+		#navbar-brand-co {
 			color: var(--cp-cyan);
 			text-shadow: 0 0 14px rgba(0, 240, 255, .8);
 			animation: cp-flicker 9s linear infinite;
+			margin-right: .6em;
+		}
+
+		#navbar-heading {
+			color: var(--cp-magenta);
+			text-shadow: 0 0 14px rgba(255, 42, 109, .8);
+		}
+
+		body[data-bs-theme="light"] #navbar-brand-co {
+			color: #00f0ff;
 		}
 
 		body[data-bs-theme="light"] #navbar-heading {
-			color: #00f0ff;
+			color: #ff2a6d;
 		}
 
 		#menuToggle {
@@ -1007,6 +1021,7 @@
 		<div class="container-fluid">
 			<a class="navbar-brand overflow-hidden">
 				<img src="/logo" width="35" height="35" class="d-inline-block align-top nav-logo" alt="" />
+				<span id="navbar-brand-co" class="d-none d-md-inline">Leo Industries AT-1</span>
 				<span id="navbar-heading" data-i18n="title"></span>
 			</a>
 			<div class="collapse navbar-collapse justify-content-end">
