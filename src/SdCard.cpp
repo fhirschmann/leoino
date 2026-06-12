@@ -29,6 +29,16 @@ void SdCard_Init(void) {
 	return;
 #endif
 
+#if defined(SD_MMC_1BIT_MODE) && CONFIG_IDF_TARGET_ESP32
+	// Restrict SD-MMC to CLK/CMD/D0 (GPIO14/15/2) only. With the default config
+	// the driver also configures the unused 4-bit data lines DAT1/DAT3 (GPIO4 and
+	// GPIO13) - the same pins as the external I2C bus. An external I2C device
+	// (e.g. an OLED with its own pull-ups) on those pins then disturbs SD init,
+	// making the card fail to mount (sdmmc send_op_cond timeout 0x107). Limiting
+	// the driver to 3 pins leaves GPIO4/13 untouched for I2C.
+	SD_MMC.setPins(14, 15, 2);
+#endif
+
 #ifndef SINGLE_SPI_ENABLE
 	#ifdef SD_MMC_1BIT_MODE
 	pinMode(2, INPUT_PULLUP);
