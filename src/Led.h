@@ -61,6 +61,7 @@ typedef struct {
 		std::vector<uint32_t> controlLedColors;
 		uint8_t numIdleDots = NUM_LEDS_IDLE_DOTS;
 		uint32_t idleColor = IDLE_COLOR;
+		uint8_t idleAnimation = 0; // 0 = standard idle dots, 1 = cyberpunk "Data Drop"
 		bool offsetLedPause = OFFSET_PAUSE_LEDS;
 		uint32_t progressColorStart = PROGRESS_COLOR_START;
 		uint32_t progressColorEnd = PROGRESS_COLOR_END;

@@ -111,6 +111,10 @@ bool Led_LoadSettings(LedSettings &settings) {
 	// Get the idle color from NVS
 	settings.idleColor = gPrefsSettings.getUInt("idleColor", IDLE_COLOR);
 
+	// Get the idle animation style from NVS (0 = standard idle dots, 1 = cyberpunk "Data Drop").
+	// Defaults to standard so a freshly flashed device starts with the standard animation.
+	settings.idleAnimation = gPrefsSettings.getUChar("idleAnim", 0);
+
 	// Get offset LED pause from NVS
 	settings.offsetLedPause = gPrefsSettings.getBool("offsetPause", OFFSET_PAUSE_LEDS);
 
@@ -925,26 +929,48 @@ AnimationReturnType Animation_Rewind(const bool startNewAnimation, CRGBSet &leds
 // --------------------------------
 AnimationReturnType Animation_Idle(const bool startNewAnimation, CRGBSet &leds) {
 	// return values
-	int32_t animationDelay = 120;
+	int32_t animationDelay = 0;
 	bool animationActive = true;
 	bool animationRefresh = true;
 
-	// static vars
-	static int16_t step = 0;
-
-	if (startNewAnimation) {
-		step = 0;
-	}
-
-	CRGB idleColor = (CRGB)Led_GetIdleColor();
-
-	leds.fadeToBlackBy(40);
-	if (leds.size() > 0) {
-		int16_t idx = (leds.size() - 1) - (step % leds.size());
-		if (idx >= 0 && idx < leds.size()) {
-			leds[idx] = idleColor;
+	if (gLedSettings.idleAnimation == 1) {
+		// Cyberpunk "Data Drop": a single dot travels along the ring, leaving a fading trail
+		static int16_t step = 0;
+		if (startNewAnimation) {
+			step = 0;
 		}
-		step = (step + 1) % leds.size();
+		CRGB idleColor = (CRGB)Led_GetIdleColor();
+		leds.fadeToBlackBy(40);
+		if (leds.size() > 0) {
+			int16_t idx = (leds.size() - 1) - (step % leds.size());
+			if (idx >= 0 && idx < leds.size()) {
+				leds[idx] = idleColor;
+			}
+			step = (step + 1) % leds.size();
+		}
+		animationDelay = 120;
+	} else {
+		// Standard ESPuino idle animation: evenly spaced idle dots rotating around the ring
+		static int16_t ledIndex = 0;
+		if (startNewAnimation) {
+			ledIndex = 0;
+		}
+		if (ledIndex < leds.size()) {
+			CRGB::HTMLColorCode idleColor = Led_GetIdleColor();
+			leds = CRGB::Black;
+			Led_DrawIdleDots(leds, ledIndex, idleColor);
+			if (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode()) {
+				// animate a bit faster in BT-Source to distinguish between the bluetooth modes
+				animationDelay = 30 * 10;
+			} else {
+				animationDelay = 50 * 10;
+			}
+			ledIndex++;
+		} else {
+			animationActive = false;
+			animationRefresh = false;
+			ledIndex = 0;
+		}
 	}
 
 	return AnimationReturnType(animationActive, animationDelay, animationRefresh);
