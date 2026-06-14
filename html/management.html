@@ -2371,11 +2371,23 @@
 									min="0" max="128"><br>
 								<label for="led_numControl" data-i18n="settingsex.led.numcontrol"></label>: <br>
 								<input type="number" class="form-control" id="led_numControl" name="led_numcontrol"
-									min="0" max="128" onChange="listControlColors(Number(this.value), null)"><br>
+									min="0" max="128" onChange="listControlColors(Number(this.value), null, null)"><br>
 								<div id="controlColorList" class="mb-2 d-none"></div>
 								<div id="controlColorTemp" class="pb-2 d-none">
 									<span data-i18n="settingsex.led.controlled"></span>&nbsp;<span
-										class="ledNumber"></span>:&nbsp;<input type="color" value="#ffffff">
+										class="ledNumber"></span>:&nbsp;<select class="form-control form-select controlFunc d-inline-block w-auto">
+										<option value="0" data-i18n="settingsex.led.controlfunc.static"></option>
+										<option value="1" data-i18n="settingsex.led.controlfunc.keylock"></option>
+										<option value="2" data-i18n="settingsex.led.controlfunc.repeat"></option>
+										<option value="3" data-i18n="settingsex.led.controlfunc.bluetooth"></option>
+										<option value="4" data-i18n="settingsex.led.controlfunc.off"></option>
+									</select>&nbsp;<input type="color" class="controlColorInput" value="#ffffff">
+								</div>
+								<div id="controlLedsEnabledWrap" class="pb-2 d-none">
+									<input type="checkbox" id="led_controlLedsEnabled"
+										name="led_controlLedsEnabled" value="true">&nbsp;
+									<label for="led_controlLedsEnabled"
+										data-i18n="settingsex.led.controlledsenabled"></label><br>
 								</div>
 								<label for="led_idleDots" data-i18n="settingsex.led.numidledots"></label>: <br>
 								<input type="number" class="form-control" id="led_idleDots" name="led_idleDots" min="0"
@@ -4195,22 +4207,37 @@
 			return "#" + ('000000' + ((number) >>> 0).toString(16)).slice(-6);
 		}
 
-		// list the LED control colors
-		function listControlColors(numControlColor, data) {
-			console.log(data);
+		// the control LED color picker is only relevant for the 'Static' function (value 0)
+		function updateControlColorState(select) {
+			const colorInput = $(select).closest("div").find(".controlColorInput");
+			colorInput.prop("disabled", Number(select.value) !== 0);
+		}
+
+		// list the LED control LEDs with their function dropdown and (static) color
+		function listControlColors(numControlColor, colorData, funcData) {
 			const list = $("#controlColorList");
 			list.toggleClass("d-none", numControlColor <= 0).empty();
+			$("#controlLedsEnabledWrap").toggleClass("d-none", numControlColor <= 0);
 			if (numControlColor > 0) {
 				const t = $("#controlColorTemp");
 				for (let i = 0; i < numControlColor; i++) {
-					const ledN = t.clone().removeClass("d-none");
-					const input = $("input", ledN).attr("id", `controlColor${i}`);
+					const ledN = t.clone().removeClass("d-none").attr("id", `controlLed${i}`);
+					const colorInput = $(".controlColorInput", ledN).attr("id", `controlColor${i}`);
+					const funcSelect = $(".controlFunc", ledN).attr("id", `controlFunc${i}`);
 					$(".ledNumber", ledN).text(i + 1);
-					if (data) {
-						input.val(getHexColor(data[i]));
+					if (colorData && colorData[i] != null) {
+						colorInput.val(getHexColor(colorData[i]));
 					}
+					if (funcData && funcData[i] != null) {
+						funcSelect.val(funcData[i]);
+					}
+					funcSelect.on("change", function () { updateControlColorState(this); });
 					list.append(ledN);
 				}
+				if (localize) {
+					localize("#controlColorList");
+				}
+				$(".controlFunc", list).each(function () { updateControlColorState(this); });
 			}
 		}
 
@@ -4348,7 +4375,8 @@
 				$('#atmoBrightness').bootstrapSlider('setValue', ledSettings.atmoBrightness);
 				document.getElementById('led_numIndicator').value = ledSettings.numIndicator;
 				document.getElementById('led_numControl').value = ledSettings.numControl;
-				listControlColors(ledSettings.numControl, ledSettings.controlColors);
+				document.getElementById('led_controlLedsEnabled').checked = ledSettings.controlLedsEnabled !== false;
+				listControlColors(ledSettings.numControl, ledSettings.controlColors, ledSettings.controlFuncs);
 				document.getElementById('led_idleDots').value = ledSettings.numIdleDots;
 				document.getElementById('led_idleColor').value = getHexColor(ledSettings.idleColor);
 				document.getElementById('led_idleAnimation').value = ledSettings.idleAnimation != null ? ledSettings.idleAnimation : 0;
@@ -4780,7 +4808,9 @@
 					atmoBrightness: Number($('#atmoBrightness').val()),
 					numIndicator: Number(document.getElementById("led_numIndicator").value),
 					numControl: Number(document.getElementById("led_numControl").value),
+					controlLedsEnabled: document.getElementById("led_controlLedsEnabled").checked,
 					controlColors: [],
+					controlFuncs: [],
 					numIdleDots: Number(document.getElementById("led_idleDots").value),
 					idleColor: hexColorToInt(document.getElementById("led_idleColor").value),
 					idleAnimation: Number(document.getElementById("led_idleAnimation").value),
@@ -4845,12 +4875,14 @@
 					reverse: $('#rotaryReverse').prop('checked')
 				}
 			};
-			// fill LED control colors
+			// fill LED control colors and functions
 			for (var i = 0; i < myObj.led.numControl; i++) {
 				var element = document.getElementById('controlColor' + i);
 				if (element) {
 					myObj.led.controlColors.push(hexColorToInt(element.value));
 				}
+				var funcElement = document.getElementById('controlFunc' + i);
+				myObj.led.controlFuncs.push(funcElement ? Number(funcElement.value) : 0);
 			}
 			console.log(myObj);
 			var myJSON = JSON.stringify(myObj);
@@ -5980,7 +6012,7 @@
 			const cmdElem = document.createElement('select');
 			const cmdNothing = addOption(cmdElem, 0);
 			cmdNothing.setAttribute('data-i18n', "settingsex.buttons.noaction");
-			const cmds = [170, 171, 172, 173, 174, 184, 185, 175, 176, 177, 178, 179, 180, 181, 182, 183, 186, 199, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 120, 100, 101, 102, 103, 104, 105, 106, 107, 110, 111, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
+			const cmds = [170, 171, 172, 173, 174, 184, 185, 175, 176, 177, 178, 179, 180, 181, 182, 183, 186, 199, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 120, 121, 100, 101, 102, 103, 104, 105, 106, 107, 110, 111, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
 			for (const cmd of cmds) {
 				const opt = addOption(cmdElem, cmd);
 				if ([140, 141, 142, 143, 144].includes(cmd)) {
@@ -5994,7 +6026,7 @@
 
 			/* The <select /> that houses all commands for the modification selectors */
 			const modElem = document.createElement('select');
-			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 110, 111, 120, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
+			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 110, 111, 120, 121, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
 			for (const mod of mods) {
 				const opt = addOption(modElem, mod);
 				if ([140, 141, 142, 143, 144].includes(mod)) {

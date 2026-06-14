@@ -356,6 +356,9 @@ static void Mqtt_PublishHassDiscovery(void) {
 	mqttHassPublish("switch", "lock", "\"name\":\"Lock controls\",\"icon\":\"mdi:lock\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + lockCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicLockControls)) + "\"");
 	mqttHassPublish("switch", "ambient", "\"name\":\"Ambient light\",\"icon\":\"mdi:lightbulb\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"optimistic\":true,\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicAmbientLight)) + "\"");
 
+	const String controlLedsCmd = Mqtt_GetCommandTopic(topicControlLeds);
+	mqttHassPublish("switch", "controlleds", "\"name\":\"Control LEDs\",\"icon\":\"mdi:led-on\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + controlLedsCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicControlLeds)) + "\"");
+
 	// select
 	const String eqCmd = Mqtt_GetCommandTopic(topicEqualizer);
 	mqttHassPublish("select", "equalizer", "\"name\":\"Equalizer\",\"icon\":\"mdi:equalizer\",\"options\":[\"flat\",\"music\",\"speech\",\"voiceBoost\"],\"command_topic\":\"" + eqCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicEqualizer)) + "\"");
@@ -417,6 +420,9 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			// LED-brightness
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicLedBrightness), qos);
 
+			// Control-LEDs on/off
+			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicControlLeds), qos);
+
 			// Equalizer-profile
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicEqualizer), qos);
 
@@ -444,6 +450,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 				}
 			}
 			publishMqtt(topicLedBrightness, static_cast<uint32_t>(Led_GetBrightness()), false);
+			publishMqtt(topicControlLeds, Led_GetControlLeds() ? "ON" : "OFF", false);
 			publishMqtt(topicCurrentIPv4IP, Wlan_GetIpAddress().c_str(), false);
 			publishMqtt(topicRepeatMode, static_cast<uint32_t>(AudioPlayer_GetRepeatMode()), false);
 			publishMqtt(topicEqualizer, AudioPlayer_GetEqualizerProfile().c_str(), false);
@@ -639,6 +646,19 @@ void Mqtt_ClientCallback(const char *topic_buf, uint32_t topic_length, const cha
 				System_SetLockControls(true);
 				Log_Println(lockButtons, LOGLEVEL_NOTICE);
 				publishMqtt(topicLockControls, "ON", false);
+				System_IndicateOk();
+			}
+		}
+
+		// Check if the status control-LEDs should be enabled/disabled
+		else if (reduced_topic_str == topicControlLeds) {
+			if (payload_str == "OFF") {
+				Led_SetControlLeds(false);
+				publishMqtt(topicControlLeds, "OFF", false);
+				System_IndicateOk();
+			} else if (payload_str == "ON") {
+				Led_SetControlLeds(true);
+				publishMqtt(topicControlLeds, "ON", false);
 				System_IndicateOk();
 			}
 		}

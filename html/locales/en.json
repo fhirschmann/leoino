@@ -48,6 +48,14 @@
 			"numindicator": "Number of indicator LEDs",
 			"numcontrol": "Number of control LEDs",
 			"controlled": "Control-LED",
+			"controlledsenabled": "Control LEDs enabled",
+			"controlfunc": {
+				"static": "Static color",
+				"keylock": "Key lock",
+				"repeat": "Repeat mode",
+				"bluetooth": "Bluetooth",
+				"off": "Off"
+			},
 			"numidledots": "Number of LEDs in idle state",
 			"idlecolor": "Color of the idle dots",
 			"idleanimation": "Idle animation",
@@ -279,6 +287,7 @@
 					"110": "Loop playlist",
 					"111": "Loop track",
 					"120": "Dimm LEDs (nightmode)",
+					"121": "Toggle control LEDs",
 					"130": "Toggle WiFi",
 					"140": "Toggle Bluetooth Speaker",
 					"141": "Toggle Bluetooth Headphones",

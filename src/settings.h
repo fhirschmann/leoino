@@ -217,7 +217,8 @@
 	#ifdef NEOPIXEL_ENABLE
 		#define NUM_INDICATOR_LEDS		24          	// number of Neopixel LEDs (formerly NUM_LEDS)
 		#define NUM_CONTROL_LEDS		0		// optional control leds (https://forum.espuino.de/t/statische-ws2812-leds/1703)
-                #define CONTROL_LEDS_COLORS		{}		// Colors for the control LEDs. Make sure it lists at least NUM_CONTROL_LEDS colors, e.g. for three control LEDs define: CONTROL_LEDS_COLORS {CRGB::Yellow, CRGB::Blue, 0xFFFFFF} (predefined colors: http://fastled.io/docs/3.1/struct_c_r_g_b.html)
+                #define CONTROL_LEDS_COLORS		{}		// Colors for control LEDs in 'Static' function. Make sure it lists at least NUM_CONTROL_LEDS colors, e.g. for three control LEDs define: CONTROL_LEDS_COLORS {CRGB::Yellow, CRGB::Blue, 0xFFFFFF} (predefined colors: http://fastled.io/docs/3.1/struct_c_r_g_b.html)
+		#define CONTROL_LEDS_FUNCTIONS	{}		// Function per control LED (LedControlFunction: 0=Static, 1=KeyLock, 2=Repeat, 3=Bluetooth, 4=Off). Empty defaults every slot to Static. Configurable per LED in the web interface.
 		#define CHIPSET					WS2812B     	// type of Neopixel
 		#define COLOR_ORDER				GRB
 		#define NUM_LEDS_IDLE_DOTS		4           	// count of LEDs, which are shown when Idle
@@ -292,6 +293,7 @@
 		constexpr const char topicLockControls[] ="lock_controls"; // Cmnd/State: lock or unlock physical controls (ON/OFF)
 		constexpr const char topicRepeatMode[] = "repeatmode"; // Cmnd/State: set repeat mode (0=no,1=track,2=playlist,3=both)
 		constexpr const char topicLedBrightness[] = "led_brightness"; // Cmnd/State: set LED brightness 0..255
+		constexpr const char topicControlLeds[] = "control_leds"; // Cmnd/State: enable/disable the status control-LEDs (ON/OFF)
 		constexpr const char topicAmbientLight[] = "ambient_light"; // Cmnd/State: set ambient light (ON/OFF)
 		constexpr const char topicEqualizer[] = "equalizer"; // Cmnd/State: set / report equalizer profile (flat/music/speech/voiceBoost)
 		constexpr const char topicFirmwareUpdate[] = "firmware_update"; // Cmnd: trigger GitHub OTA (ON/1/update/check); State: idle/updating/up_to_date/failed

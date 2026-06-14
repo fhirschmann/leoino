@@ -55,10 +55,23 @@ enum class LedPlaylistProgressStates : uint8_t {
 	Done
 };
 
+// Function assigned to a single control LED. The control LEDs sit at the end of
+// the same data line as the indicator LEDs and can either show a fixed color
+// (Static, the legacy behaviour) or mirror a runtime state.
+enum class LedControlFunction : uint8_t {
+	Static = 0, // fixed color taken from controlLedColors (legacy behaviour)
+	KeyLock, // lit (red) while physical controls are locked
+	Repeat, // reflects the repeat mode (track/playlist/both)
+	Bluetooth, // reflects the bluetooth mode and connection state
+	Off // always off
+};
+
 struct LedSettings {
 	uint8_t numIndicatorLeds = NUM_INDICATOR_LEDS;
 	uint8_t numControlLeds = NUM_CONTROL_LEDS;
 	std::vector<uint32_t> controlLedColors;
+	std::vector<uint8_t> controlLedFunctions; // per control LED: LedControlFunction
+	bool controlLedsEnabled = true; // master switch to mute all control LEDs (e.g. at night)
 	uint8_t numIdleDots = NUM_LEDS_IDLE_DOTS;
 	uint32_t idleColor = IDLE_COLOR;
 	uint8_t idleAnimation = 0; // 0 = standard idle dots, 1 = cyberpunk "Data Drop"
@@ -99,3 +112,6 @@ void Led_SetNightmode(bool enabled);
 void Led_ToggleNightmode();
 void Led_SetAmbientLight(bool enabled);
 void Led_ToggleAmbientLight();
+void Led_SetControlLeds(bool enabled);
+void Led_ToggleControlLeds();
+bool Led_GetControlLeds();

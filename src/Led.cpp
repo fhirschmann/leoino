@@ -158,6 +158,19 @@ bool Led_LoadSettings(LedSettings &settings) {
 			gPrefsSettings.getBytes("controlColors", settings.controlLedColors.data(), keySize);
 		}
 	}
+
+	// load control LED functions from NVS (defaults to Static for every slot to keep legacy behaviour)
+	settings.controlLedFunctions = CONTROL_LEDS_FUNCTIONS;
+	settings.controlLedFunctions.resize(settings.numControlLeds, static_cast<uint8_t>(LedControlFunction::Static));
+	if ((settings.numControlLeds > 0) && gPrefsSettings.isKey("controlFuncs")) {
+		size_t keySize = gPrefsSettings.getBytesLength("controlFuncs");
+		if (keySize == (settings.numControlLeds * sizeof(uint8_t))) {
+			gPrefsSettings.getBytes("controlFuncs", settings.controlLedFunctions.data(), keySize);
+		}
+	}
+
+	// load the control LED master switch from NVS (defaults to enabled)
+	settings.controlLedsEnabled = gPrefsSettings.getBool("ctrlLedsOn", true);
 	return true;
 }
 #endif
@@ -325,6 +338,29 @@ void Led_ToggleAmbientLight() {
 #endif
 }
 
+void Led_SetControlLeds(bool enabled) {
+#ifdef NEOPIXEL_ENABLE
+	if (gLedSettings.controlLedsEnabled != enabled) {
+		gLedSettings.controlLedsEnabled = enabled;
+		gPrefsSettings.putBool("ctrlLedsOn", enabled);
+	}
+#endif
+}
+
+bool Led_GetControlLeds() {
+#ifdef NEOPIXEL_ENABLE
+	return gLedSettings.controlLedsEnabled;
+#else
+	return false;
+#endif
+}
+
+void Led_ToggleControlLeds() {
+#ifdef NEOPIXEL_ENABLE
+	Led_SetControlLeds(!gLedSettings.controlLedsEnabled);
+#endif
+}
+
 // Calculates physical address for a virtual LED address. This handles reversing the rotation direction of the ring and shifting the starting LED
 #ifdef NEOPIXEL_ENABLE
 uint8_t Led_Address(uint8_t number) {
@@ -345,11 +381,54 @@ uint8_t Led_Address(uint8_t number) {
 #endif
 
 #ifdef NEOPIXEL_ENABLE
-void Led_DrawControls(CRGB *leds) {
-	if (gLedSettings.numControlLeds > 0) {
-		for (uint8_t controlLed = 0; controlLed < gLedSettings.numControlLeds; controlLed++) {
-			leds[gLedSettings.numIndicatorLeds + controlLed] = gLedSettings.controlLedColors[controlLed];
+// Resolves the color a control LED should show for its assigned function. The
+// returned color is at full scale; the global FastLED master brightness handles
+// dimming (incl. night mode), keeping legacy static control LEDs unchanged.
+CRGB Led_GetControlColor(LedControlFunction function, uint32_t staticColor) {
+	switch (function) {
+		case LedControlFunction::KeyLock:
+			return System_AreControlsLocked() ? CRGB(CRGB::Red) : CRGB(CRGB::Black);
+		case LedControlFunction::Repeat:
+			switch (AudioPlayer_GetRepeatMode()) {
+				case TRACK:
+					return CRGB(CRGB::Green);
+				case PLAYLIST:
+					return CRGB(CRGB::Blue);
+				case TRACK_N_PLAYLIST:
+					return CRGB(CRGB::Purple);
+				default:
+					return CRGB(CRGB::Black);
+			}
+		case LedControlFunction::Bluetooth: {
+			const uint8_t opMode = System_GetOperationMode();
+			if ((opMode == OPMODE_BLUETOOTH_SINK) || (opMode == OPMODE_BLUETOOTH_SOURCE)) {
+				return Bluetooth_Device_Connected() ? CRGB(CRGB::Blue) : CRGB(CRGB::BlueViolet);
+			}
+			return CRGB(CRGB::Black);
 		}
+		case LedControlFunction::Off:
+			return CRGB(CRGB::Black);
+		case LedControlFunction::Static:
+		default:
+			return CRGB(staticColor);
+	}
+}
+
+void Led_DrawControls(CRGB *leds) {
+	if (gLedSettings.numControlLeds == 0) {
+		return;
+	}
+	for (uint8_t controlLed = 0; controlLed < gLedSettings.numControlLeds; controlLed++) {
+		CRGB color = CRGB::Black;
+		if (gLedSettings.controlLedsEnabled) {
+			LedControlFunction function = LedControlFunction::Static;
+			if (controlLed < gLedSettings.controlLedFunctions.size()) {
+				function = static_cast<LedControlFunction>(gLedSettings.controlLedFunctions[controlLed]);
+			}
+			const uint32_t staticColor = (controlLed < gLedSettings.controlLedColors.size()) ? gLedSettings.controlLedColors[controlLed] : 0u;
+			color = Led_GetControlColor(function, staticColor);
+		}
+		leds[gLedSettings.numIndicatorLeds + controlLed] = color;
 	}
 }
 #endif

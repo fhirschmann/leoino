@@ -48,6 +48,14 @@
 			"numindicator": "Nombre d'indicateurs LED",
 			"numcontrol": "Nombre de LED de contrôle",
 			"controlled": "LED de contrôle",
+			"controlledsenabled": "LED de contrôle activées",
+			"controlfunc": {
+				"static": "Couleur statique",
+				"keylock": "Verrouillage des touches",
+				"repeat": "Mode répétition",
+				"bluetooth": "Bluetooth",
+				"off": "Éteint"
+			},
 			"numidledots": "Nombre de LED en état de veille",
 			"idlecolor": "Couleur des LED en veille",
 			"idleanimation": "Animation de veille",
@@ -271,6 +279,7 @@
 					"110": "Boucler la liste de lecture",
 					"111": "Boucler la piste",
 					"120": "Diminuer la luminosité des LED (mode nuit)",
+					"121": "Activer/désactiver les LED de contrôle",
 					"130": "Basculer le WiFi",
 					"140": "Basculer le haut-parleur Bluetooth",
 					"141": "Basculer le casque Bluetooth",

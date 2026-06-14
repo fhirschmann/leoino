@@ -1165,6 +1165,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putUChar("dimStates", ledObj["dimStates"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putBool("ledReverseRot", ledObj["reverseRot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUChar("ledOffset", ledObj["offsetStart"].as<uint8_t>()) != 0);
+		gPrefsSettings.putBool("ctrlLedsOn", ledObj["controlLedsEnabled"] | true);
 
 		if (!success) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "led");
@@ -1176,6 +1177,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			if (gPrefsSettings.isKey("controlColors")) {
 				gPrefsSettings.remove("controlColors");
 			}
+			if (gPrefsSettings.isKey("controlFuncs")) {
+				gPrefsSettings.remove("controlFuncs");
+			}
 			gPrefsSettings.putUChar("numControl", 0);
 		} else {
 			std::vector<uint32_t> controlLedColors;
@@ -1183,6 +1187,14 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 				controlLedColors.push_back(colorArr[controlLed].as<uint32_t>());
 			}
 			gPrefsSettings.putBytes("controlColors", controlLedColors.data(), controlLedColors.size() * sizeof(uint32_t));
+
+			// write led control function array to NVS (defaults to Static when absent)
+			JsonArray funcArr = ledObj["controlFuncs"].as<JsonArray>();
+			std::vector<uint8_t> controlLedFunctions;
+			for (uint8_t controlLed = 0; controlLed < colorArr.size(); controlLed++) {
+				controlLedFunctions.push_back((controlLed < funcArr.size()) ? funcArr[controlLed].as<uint8_t>() : 0);
+			}
+			gPrefsSettings.putBytes("controlFuncs", controlLedFunctions.data(), controlLedFunctions.size() * sizeof(uint8_t));
 		}
 		Led_Init();
 	}
@@ -1503,6 +1515,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		ledObj["numIndicator"].set(gPrefsSettings.getUChar("numIndicator", NUM_INDICATOR_LEDS));
 		uint8_t numControlLeds = gPrefsSettings.getUChar("numControl", NUM_CONTROL_LEDS);
 		ledObj["numControl"].set(numControlLeds);
+		ledObj["controlLedsEnabled"].set(gPrefsSettings.getBool("ctrlLedsOn", true));
 		if (numControlLeds > 0) {
 			// get control led colors from NVS
 			std::vector<uint32_t> controlLedColors = CONTROL_LEDS_COLORS;
@@ -1516,6 +1529,17 @@ static void settingsToJSON(JsonObject obj, const String section) {
 				for (uint8_t controlLed = 0; controlLed < controlLedColors.size(); controlLed++) {
 					colorArr.add(controlLedColors[controlLed]);
 				}
+			}
+			// get control led functions from NVS (defaults to Static for every slot)
+			std::vector<uint8_t> controlLedFunctions = CONTROL_LEDS_FUNCTIONS;
+			controlLedFunctions.resize(numControlLeds, 0);
+			size_t funcSize = gPrefsSettings.getBytesLength("controlFuncs");
+			if (funcSize == (numControlLeds * sizeof(uint8_t))) {
+				gPrefsSettings.getBytes("controlFuncs", controlLedFunctions.data(), funcSize);
+			}
+			JsonArray funcArr = ledObj["controlFuncs"].to<JsonArray>();
+			for (uint8_t controlLed = 0; controlLed < controlLedFunctions.size(); controlLed++) {
+				funcArr.add(controlLedFunctions[controlLed]);
 			}
 		}
 		ledObj["numIdleDots"].set(gPrefsSettings.getUChar("numIdleDots", NUM_LEDS_IDLE_DOTS));
@@ -1629,6 +1653,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		ledSettings["atmoBrightness"].set(30u); // LED_INITIAL_NIGHT_BRIGHTNESS
 		ledSettings["numIndicator"].set(NUM_INDICATOR_LEDS); // NUM_INDICATOR_LEDS
 		ledSettings["numControl"].set(NUM_CONTROL_LEDS); // NUM_CONTROL_LEDS
+		ledSettings["controlLedsEnabled"].set(true); // control LEDs enabled by default
 		ledSettings["numIdleDots"].set(NUM_LEDS_IDLE_DOTS); // NUM_LEDS_IDLE_DOTS
 		ledSettings["idleColor"].set(IDLE_COLOR); // IDLE_COLOR
 		ledSettings["idleAnimation"].set(0u); // standard idle animation

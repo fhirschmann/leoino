@@ -200,6 +200,15 @@ void Cmd_Action(const uint16_t mod) {
 			break;
 		}
 
+		case CMD_TOGGLE_CONTROL_LEDS: {
+			Led_ToggleControlLeds();
+#ifdef MQTT_ENABLE
+			publishMqtt(topicControlLeds, Led_GetControlLeds() ? "ON" : "OFF", false);
+#endif
+			System_IndicateOk();
+			break;
+		}
+
 		case CMD_TOGGLE_EQUALIZER: {
 			AudioPlayer_CycleEqualizerProfile();
 			System_IndicateOk();

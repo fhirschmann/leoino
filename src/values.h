@@ -50,6 +50,7 @@
 #define CMD_REPEAT_PLAYLIST				 110 // Changes active playmode to endless-loop (for a playlist)
 #define CMD_REPEAT_TRACK				 111 // Changes active playmode to endless-loop (for a single track)
 #define CMD_DIMM_LEDS_NIGHTMODE			 120 // Changes LED-brightness
+#define CMD_TOGGLE_CONTROL_LEDS			 121 // Toggles the status control-LEDs on/off (e.g. to mute them at night)
 #define CMD_TOGGLE_WIFI_STATUS			 130 // Toggles WiFi-status
 #define CMD_TOGGLE_BLUETOOTH_SINK_MODE	 140 // Toggles Normal/Bluetooth sink Mode
 #define CMD_TOGGLE_BLUETOOTH_SOURCE_MODE 141 // Toggles Normal/Bluetooth source Mode
