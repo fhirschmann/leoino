@@ -544,7 +544,18 @@
 		},
 		"fwupdate": {
 			"title": "Firmware-Update",
-			"desc": "Firmware can be updated right here."
+			"desc": "Firmware can be updated right here.",
+			"manual": "Or upload a firmware.bin manually:",
+			"github": {
+				"desc": "The device downloads the latest firmware straight from GitHub (HTTPS) and installs it itself.",
+				"apply": "Update from GitHub",
+				"confirm": "Download and install the latest firmware from GitHub? The device will restart afterwards.",
+				"checking": "Checking version…",
+				"uptodate": "Already up to date – no update needed.",
+				"flashing": "Downloading & installing…",
+				"started": "Device is installing the firmware and will restart – the page will reload shortly…",
+				"error": "Update failed (see console/log)."
+			}
 		}
 	},
 	"help": {
