@@ -538,9 +538,11 @@ static char gGithubOtaMsg[96] = "";
 static bool githubOtaIsUpToDate() {
 	WiFiClientSecure client;
 	client.setInsecure();
+	client.setHandshakeTimeout(15); // bound the TLS handshake (default is 120s); GitHub's release CDN can stall after wake-from-sleep
 	HTTPClient http;
 	http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 	http.setConnectTimeout(8000);
+	http.setTimeout(8000); // read timeout, so a half-open connection can't hang the check
 	bool upToDate = false;
 	if (http.begin(client, githubVersionUrl)) {
 		if (http.GET() == 200) {
@@ -580,6 +582,7 @@ static void githubOtaTask(void *parameter) {
 	WiFiClientSecure *secureClient = new WiFiClientSecure;
 	if (secureClient != nullptr) {
 		secureClient->setInsecure(); // GitHub uses valid certs, but we don't bundle a CA store
+		secureClient->setHandshakeTimeout(20); // bound the TLS handshake so a stuck GitHub-CDN connection fails instead of hanging the OTA forever
 		httpUpdate.rebootOnUpdate(true);
 		httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // github.com -> release-assets.githubusercontent.com
 		httpUpdate.onProgress([](int cur, int total) {
@@ -642,14 +645,17 @@ void Web_TriggerGithubOta(void) {
 static volatile int8_t gFirmwareUpToDate = -1;
 static char gLatestBuild[24] = "";
 static volatile uint32_t gLastVersionCheckMs = 0; // 0 = never; used to rate-limit re-checks
+static volatile bool gVersionCheckRunning = false; // single-flight guard, see Web_CheckForUpdate()
 
 // Fetches the rolling release's version.json and compares it to the running build (background task).
 static void versionCheckTask(void *parameter) {
 	WiFiClientSecure client;
 	client.setInsecure();
+	client.setHandshakeTimeout(15); // bound the TLS handshake (default is 120s); GitHub's release CDN can stall after wake-from-sleep
 	HTTPClient http;
 	http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 	http.setConnectTimeout(8000);
+	http.setTimeout(8000); // read timeout, so a half-open connection can't pin this task (and its ~40 KB TLS context)
 	if (http.begin(client, githubVersionUrl)) {
 		if (http.GET() == 200) {
 			JsonDocument doc;
@@ -669,6 +675,7 @@ static void versionCheckTask(void *parameter) {
 		}
 		http.end();
 	}
+	gVersionCheckRunning = false;
 	vTaskDelete(NULL);
 }
 
@@ -677,12 +684,21 @@ static void versionCheckTask(void *parameter) {
 // without re-checking the stored result going stale after new releases.
 void Web_CheckForUpdate(void) {
 #ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
+	// One check at a time: a stalled TLS handshake to GitHub's release CDN after wake-from-sleep would
+	// otherwise let checks stack up (one per /version poll), each pinning ~40 KB of scarce internal heap
+	// until the async webserver can no longer allocate response buffers and the web UI "loads forever".
+	if (gVersionCheckRunning) {
+		return;
+	}
 	uint32_t now = millis();
 	if (gLastVersionCheckMs != 0 && (now - gLastVersionCheckMs) < 60000u) {
 		return;
 	}
 	gLastVersionCheckMs = now;
-	xTaskCreatePinnedToCore(versionCheckTask, "verCheck", 8192, NULL, 1, NULL, 1);
+	gVersionCheckRunning = true;
+	if (xTaskCreatePinnedToCore(versionCheckTask, "verCheck", 8192, NULL, 1, NULL, 1) != pdPASS) {
+		gVersionCheckRunning = false;
+	}
 #endif
 }
 
