@@ -34,6 +34,7 @@
 		"wifi": "WiFi",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
+		"sync": "Sync",
 		"bluetooth": "Bluetooth",
 		"general": "Général",
 		"settings": "Paramètres",
@@ -386,6 +387,40 @@
 			"desc": "Active le serveur FTP jusqu'au redémarrage du périphérique.",
 			"button": "Démarrer le serveur FTP",
 			"stopButton": "Arrêter le serveur FTP"
+		}
+	},
+	"sync": {
+		"title": "Synchronisation de fichiers",
+		"intro": "Télécharge des fichiers depuis un serveur web (p.ex. nginx) vers la carte SD. L'ESPuino récupère un <b>manifeste JSON</b> à l'URL ci-dessous et télécharge tous les fichiers listés qui manquent localement ou ont une taille différente. C'est <b>uniquement additif</b> – aucun fichier local n'est supprimé. La synchronisation ne s'exécute que lorsqu'aucune lecture n'est en cours depuis la carte SD.",
+		"url": {
+			"title": "URL du manifeste",
+			"placeholder": "https://server/audio/manifest.json"
+		},
+		"user": {
+			"title": "Nom d'utilisateur (optionnel)",
+			"placeholder": "laisser vide si pas de connexion"
+		},
+		"pwd": {
+			"title": "Mot de passe (optionnel)",
+			"placeholder": "Mot de passe",
+			"show": "Afficher/masquer le mot de passe"
+		},
+		"pwd.hint": "Le nom d'utilisateur et le mot de passe sont envoyés au serveur via HTTP Basic Auth (p.ex. nginx auth_basic).",
+		"run": {
+			"title": "Synchroniser maintenant",
+			"desc": "Récupère le manifeste et télécharge les fichiers manquants/modifiés. Peut prendre du temps selon le volume de données.",
+			"button": "Synchroniser maintenant"
+		},
+		"manifest": {
+			"title": "Format du manifeste",
+			"desc": "Le manifeste est un fichier JSON listant tous les fichiers à synchroniser. Placez-le sur le serveur web (l'URL ci-dessus pointe dessus) :",
+			"fields": "<b>path</b> : chemin relatif au répertoire du manifeste – utilisé à la fois comme URL de téléchargement (répertoire du manifeste + path) et comme chemin cible sur la carte SD. <b>size</b> : taille du fichier en octets – utilisée pour détecter si le fichier local est à jour.",
+			"nginx": "Exemple nginx : placez les fichiers audio et <code>manifest.json</code> dans un répertoire servi via un bloc <code>location</code> ; pour une connexion, ajoutez <code>auth_basic</code> + <code>auth_basic_user_file</code>."
+		},
+		"status": {
+			"syncing": "Synchronisation… {{percent}}%",
+			"done": "Synchronisation terminée",
+			"failed": "Échec de la synchronisation"
 		}
 	},
 	"bt": {

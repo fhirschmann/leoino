@@ -859,6 +859,17 @@
 			border-color: var(--cp-cyan);
 		}
 
+		/* monospace code block used for inline documentation (e.g. the sync manifest example) */
+		.cp-code-block {
+			border: 1px solid var(--cp-border);
+			background: rgba(5, 7, 13, .6);
+			color: var(--cp-cyan);
+			padding: .75rem 1rem;
+			border-radius: 4px;
+			overflow-x: auto;
+			font-size: .85rem;
+		}
+
 		#track {
 			font-family: "Share Tech Mono", monospace;
 			color: var(--cp-cyan);
@@ -2001,6 +2012,7 @@
 					<a class="nav-item nav-link" id="nav-wifi-tab" data-bs-toggle="tab" data-bs-target="#nav-wifi" href="#nav-wifi" role="tab" aria-controls="nav-wifi"><i class="fas fa-wifi"></i> <span class="d-none d-md-inline" data-i18n="nav.wifi"></span></a>
 					<a class="nav-item nav-link" id="nav-mqtt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-mqtt" href="#nav-mqtt" role="tab" aria-controls="nav-mqtt"><i class="fas fa-network-wired"></i> <span class="d-none d-md-inline" data-i18n="nav.mqtt"></span></a>
 					<a class="nav-item nav-link" id="nav-ftp-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-ftp" href="#nav-ftp" role="tab" aria-controls="nav-ftp"><i class="fas fa-folder"></i> <span class="d-none d-md-inline" data-i18n="nav.ftp"></span></a>
+					<a class="nav-item nav-link" id="nav-sync-tab" data-bs-toggle="tab" data-bs-target="#nav-sync" href="#nav-sync" role="tab" aria-controls="nav-sync"><i class="fas fa-sync"></i> <span class="d-none d-md-inline" data-i18n="nav.sync"></span></a>
 					<a class="nav-item nav-link" id="nav-bt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-bt" href="#nav-bt" role="tab" aria-controls="nav-bt"><i class="fab fa-bluetooth"></i> <span class="d-none d-md-inline" data-i18n="nav.bluetooth"></span></a>
 				</div>
 			</nav>
@@ -2730,6 +2742,67 @@
 						<button type="button" class="btn btn-primary" id="ftpModeBtn" onclick="ftpSetStatus(1)"
 							data-i18n="ftp.start.button"></button>
 					</div>
+				</div>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="nav-sync" role="tabpanel" aria-labelledby="nav-sync-tab">
+			<div class="container" id="syncConfig">
+				<form action="#syncConfig" method="POST" onsubmit="syncSettings(); return false">
+					<div class="mb-3 col-md-12">
+						<legend data-i18n="sync.title"></legend>
+						<p data-i18n="[html]sync.intro"></p>
+						<label for="syncUrl" data-i18n="[prepend]sync.url.title">:</label>
+						<input type="url" class="form-control" id="syncUrl" data-i18n="[placeholder]sync.url.placeholder"
+							name="syncUrl" value="">
+						<label for="syncUser" data-i18n="[prepend]sync.user.title">:</label>
+						<input type="text" class="form-control" id="syncUser"
+							data-i18n="[placeholder]sync.user.placeholder" name="syncUser" value="" autocomplete="off">
+						<label for="syncPwd" data-i18n="[prepend]sync.pwd.title">:</label>
+						<div class="input-group">
+							<input type="password" class="form-control" id="syncPwd"
+								data-i18n="[placeholder]sync.pwd.placeholder" name="syncPwd" value="" autocomplete="off">
+							<button class="btn cp-reveal-btn" type="button" id="syncPwdToggle" tabindex="-1"
+								data-i18n="[title]sync.pwd.show" onclick="togglePasswordField('syncPwd', 'syncPwdToggle')">
+								<i class="fas fa-eye"></i>
+							</button>
+						</div>
+						<small class="text-muted" data-i18n="sync.pwd.hint"></small>
+					</div>
+					<div class="text-center">
+						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
+							type="submit" class="btn btn-primary" data-i18n="submit"></button>
+					</div>
+				</form>
+				<hr>
+				<div class="col-md-12">
+					<legend data-i18n="sync.run.title"></legend>
+					<div data-i18n="sync.run.desc"></div>
+					<br>
+					<div id="syncProgress" class="progress upload-progress-bar position-relative">
+						<div class="progress-bar" role="progressbar"></div>
+						<div
+							class="label d-flex position-absolute flex-column align-self-center text-center w-100 text-nowrap text-light">
+						</div>
+					</div>
+					<br>
+					<div class="text-center">
+						<button type="button" class="btn btn-primary" id="syncRunBtn" onclick="startSync()"
+							data-i18n="sync.run.button"></button>
+					</div>
+				</div>
+				<hr>
+				<div class="col-md-12">
+					<legend data-i18n="sync.manifest.title"></legend>
+					<p data-i18n="[html]sync.manifest.desc"></p>
+					<pre class="cp-code-block"><code>{
+  "version": 1,
+  "files": [
+    { "path": "Pumuckl/01.mp3", "size": 4823104 },
+    { "path": "Pumuckl/02.mp3", "size": 5012992 }
+  ]
+}</code></pre>
+					<p data-i18n="[html]sync.manifest.fields"></p>
+					<p data-i18n="[html]sync.manifest.nginx"></p>
 				</div>
 			</div>
 		</div>
@@ -4465,6 +4538,13 @@
 				document.getElementById("ftpPwd").value = (ftpSettings.password === "-1") ? "" : ftpSettings.password;
 				document.getElementById("ftpPwd").setAttribute('maxlength', ftpSettings.maxPwdLength);
 			}
+			// http file sync
+			let syncSettingsData = settings.sync;
+			if (syncSettingsData) {
+				document.getElementById("syncUrl").value = syncSettingsData.url || "";
+				document.getElementById("syncUser").value = syncSettingsData.username || "";
+				document.getElementById("syncPwd").value = syncSettingsData.password || "";
+			}
 			// mqtt
 			let mqttSettings = settings.mqtt;
 			if (mqttSettings) {
@@ -4926,6 +5006,68 @@
 			};
 			var myJSON = JSON.stringify(myObj);
 			socket.send(myJSON);
+		}
+
+		/* save the HTTP file-sync configuration (manifest URL + optional Basic Auth) */
+		async function syncSettings() {
+			var myObj = {
+				"sync": {
+					url: document.getElementById('syncUrl').value,
+					username: document.getElementById('syncUser').value,
+					password: document.getElementById('syncPwd').value
+				}
+			};
+			await fetch("http://" + host + "/settings", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(myObj)
+			});
+			toaster.info(i18next.t("toast.saved"));
+		}
+
+		let syncPollTimer = null;
+		function renderSyncProgress(status, progress, message) {
+			const bar = document.querySelector('#syncProgress .progress-bar');
+			const label = document.querySelector('#syncProgress .label');
+			if (bar) bar.style.width = progress + '%';
+			let text = '';
+			if (status === 1) text = i18next.t('sync.status.syncing', { percent: progress });
+			else if (status === 2) text = i18next.t('sync.status.done') + (message ? ' (' + message + ')' : '');
+			else if (status === 3) text = i18next.t('sync.status.failed') + (message ? ': ' + message : '');
+			if (label) label.textContent = text;
+		}
+
+		async function pollSync() {
+			try {
+				const r = await fetch("http://" + host + "/sync");
+				const d = await r.json();
+				renderSyncProgress(d.status, d.progress, d.message);
+				if (d.status === 1) return; // keep polling
+				// terminal state reached
+				clearInterval(syncPollTimer);
+				syncPollTimer = null;
+				document.getElementById('syncRunBtn').disabled = false;
+				if (d.status === 2) toaster.info(i18next.t('sync.status.done'));
+				else if (d.status === 3) toaster.error(i18next.t('sync.status.failed') + (d.message ? ': ' + d.message : ''));
+			} catch (e) {
+				console.warn('sync poll failed', e);
+			}
+		}
+
+		/* kick off a sync and poll the device for progress */
+		async function startSync() {
+			const btn = document.getElementById('syncRunBtn');
+			btn.disabled = true;
+			renderSyncProgress(1, 0, '');
+			try {
+				await fetch("http://" + host + "/sync", { method: "POST" });
+			} catch (e) {
+				btn.disabled = false;
+				toaster.error(i18next.t('toast.error') + ': ' + e.message);
+				return;
+			}
+			if (syncPollTimer) clearInterval(syncPollTimer);
+			syncPollTimer = setInterval(pollSync, 1500);
 		}
 
 		/* Turns the FTP start button into a stop button while the server is running */

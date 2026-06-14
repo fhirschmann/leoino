@@ -34,6 +34,7 @@
 		"wifi": "WLAN",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
+		"sync": "Sync",
 		"bluetooth": "Bluetooth",
 		"general": "Allgemein",
 		"settings": "Einstellungen",
@@ -393,6 +394,40 @@
 			"desc": "Aktiviert den FTP-Server bis zum Neustart des Geräts.",
 			"button": "FTP-Server starten",
 			"stopButton": "FTP-Server stoppen"
+		}
+	},
+	"sync": {
+		"title": "Datei-Synchronisation",
+		"intro": "Lädt Dateien von einem Webserver (z.B. nginx) auf die SD-Karte. Der ESPuino holt ein <b>JSON-Manifest</b> von der angegebenen URL und lädt alle darin gelisteten Dateien, die lokal fehlen oder eine andere Größe haben. Es wird <b>nur hinzugefügt</b> – lokale Dateien werden nie gelöscht. Die Synchronisation läuft nur, wenn gerade nichts von der SD-Karte abgespielt wird.",
+		"url": {
+			"title": "Manifest-URL",
+			"placeholder": "https://server/audio/manifest.json"
+		},
+		"user": {
+			"title": "Benutzername (optional)",
+			"placeholder": "leer lassen, wenn kein Login"
+		},
+		"pwd": {
+			"title": "Passwort (optional)",
+			"placeholder": "Passwort",
+			"show": "Passwort anzeigen/verbergen"
+		},
+		"pwd.hint": "Benutzername und Passwort werden per HTTP Basic Auth an den Server gesendet (z.B. nginx auth_basic).",
+		"run": {
+			"title": "Jetzt synchronisieren",
+			"desc": "Holt das Manifest und lädt fehlende/geänderte Dateien herunter. Je nach Datenmenge kann das dauern.",
+			"button": "Jetzt synchronisieren"
+		},
+		"manifest": {
+			"title": "Aufbau des Manifests",
+			"desc": "Das Manifest ist eine JSON-Datei, die alle zu synchronisierenden Dateien auflistet. Lege sie auf dem Webserver ab (die URL oben zeigt darauf):",
+			"fields": "<b>path</b>: Pfad relativ zum Verzeichnis des Manifests – wird sowohl als Download-URL (Manifest-Verzeichnis + path) als auch als Zielpfad auf der SD-Karte verwendet. <b>size</b>: Dateigröße in Bytes – dient zum Erkennen, ob die lokale Datei aktuell ist.",
+			"nginx": "Beispiel nginx: lege Audiodateien und <code>manifest.json</code> in ein Verzeichnis, das per <code>location</code> ausgeliefert wird; für Login <code>auth_basic</code> + <code>auth_basic_user_file</code> setzen."
+		},
+		"status": {
+			"syncing": "Synchronisiere… {{percent}}%",
+			"done": "Synchronisation abgeschlossen",
+			"failed": "Synchronisation fehlgeschlagen"
 		}
 	},
 	"bt": {

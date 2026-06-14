@@ -1,0 +1,286 @@
+#include <Arduino.h>
+#include "settings.h"
+
+#include "Sync.h"
+
+#include "AudioPlayer.h"
+#include "Log.h"
+#include "SdCard.h"
+#include "System.h"
+#include "Wlan.h"
+
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
+#include <memory>
+
+// State of the HTTP sync, polled by the web interface via GET /sync.
+// 0 = idle, 1 = running, 2 = done, 3 = failed
+static volatile uint8_t gSyncStatus = 0;
+static volatile uint8_t gSyncProgress = 0; // percent (files processed / total)
+static char gSyncMsg[96] = "";
+
+uint8_t Sync_GetStatus(void) {
+	return gSyncStatus;
+}
+
+uint8_t Sync_GetProgress(void) {
+	return gSyncProgress;
+}
+
+const char *Sync_GetStatusText(void) {
+	switch (gSyncStatus) {
+		case 1:
+			return "syncing";
+		case 2:
+			return "done";
+		case 3:
+			return "failed";
+		default:
+			return "idle";
+	}
+}
+
+const char *Sync_GetMessage(void) {
+	return gSyncMsg;
+}
+
+static void syncFail(const char *msg) {
+	snprintf(gSyncMsg, sizeof(gSyncMsg), "%s", msg);
+	Log_Printf(LOGLEVEL_ERROR, "Sync failed: %s", msg);
+	gSyncStatus = 3;
+}
+
+// Creates a HTTP(S) client matching the URL scheme. https uses an insecure TLS
+// client (no bundled CA store), mirroring the GitHub OTA path.
+static std::unique_ptr<WiFiClient> syncMakeClient(const String &url) {
+	if (url.startsWith("https://")) {
+		auto *secure = new WiFiClientSecure;
+		secure->setInsecure();
+		secure->setHandshakeTimeout(20);
+		return std::unique_ptr<WiFiClient>(secure);
+	}
+	return std::unique_ptr<WiFiClient>(new WiFiClient);
+}
+
+static void syncSetupHttp(HTTPClient &http, const String &user, const String &pass) {
+	http.setConnectTimeout(8000);
+	http.setTimeout(15000);
+	http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+	if (user.length() > 0) {
+		http.setAuthorization(user.c_str(), pass.c_str()); // HTTP Basic Auth
+	}
+}
+
+// Percent-encodes a path for use in a URL, leaving '/' and unreserved characters intact.
+static String syncUrlEncodePath(const String &path) {
+	static const char *hex = "0123456789ABCDEF";
+	String out;
+	out.reserve(path.length() * 2);
+	for (size_t i = 0; i < path.length(); i++) {
+		const char c = path[i];
+		if (isalnum((unsigned char) c) || c == '/' || c == '-' || c == '_' || c == '.' || c == '~') {
+			out += c;
+		} else {
+			out += '%';
+			out += hex[(c >> 4) & 0xF];
+			out += hex[c & 0xF];
+		}
+	}
+	return out;
+}
+
+// Creates every missing parent directory of a "/dir/sub/file" path on the SD card.
+static void syncEnsureParentDirs(const String &path) {
+	int slash = path.indexOf('/', 1);
+	while (slash > 0) {
+		const String dir = path.substring(0, slash);
+		if (dir.length() > 0 && !gFSystem.exists(dir)) {
+			gFSystem.mkdir(dir);
+		}
+		slash = path.indexOf('/', slash + 1);
+	}
+}
+
+// Downloads a single file to the SD card, streaming in small chunks so the whole
+// file never has to fit in RAM. Returns true only on a complete download.
+static bool syncDownloadFile(const String &url, const String &user, const String &pass, const String &localPath) {
+	std::unique_ptr<WiFiClient> client = syncMakeClient(url);
+	HTTPClient http;
+	syncSetupHttp(http, user, pass);
+	if (!http.begin(*client, url)) {
+		return false;
+	}
+	const int code = http.GET();
+	if (code != 200) {
+		http.end();
+		return false;
+	}
+
+	syncEnsureParentDirs(localPath);
+	File file = gFSystem.open(localPath, "w", true);
+	if (!file) {
+		http.end();
+		return false;
+	}
+
+	int remaining = http.getSize(); // -1 if the server didn't send a length
+	uint8_t buf[1024];
+	WiFiClient *stream = http.getStreamPtr();
+	bool ok = true;
+	while (http.connected() && (remaining > 0 || remaining == -1)) {
+		const size_t avail = stream->available();
+		if (avail) {
+			const int read = stream->readBytes(buf, (avail > sizeof(buf)) ? sizeof(buf) : avail);
+			if (file.write(buf, read) != (size_t) read) {
+				ok = false;
+				break;
+			}
+			if (remaining > 0) {
+				remaining -= read;
+			}
+		} else {
+			vTaskDelay(pdMS_TO_TICKS(1)); // yield while waiting for more data
+		}
+	}
+	file.close();
+	http.end();
+	// if a length was announced but not fully received, treat it as a failure
+	return ok && (remaining <= 0);
+}
+
+static void syncTask(void *parameter) {
+	gSyncProgress = 0;
+	gSyncMsg[0] = '\0';
+
+	if (!Wlan_IsConnected()) {
+		syncFail("no WiFi connection");
+		vTaskDelete(NULL);
+		return;
+	}
+	// don't touch the SD card while it is being read for playback
+	if (gPlayProperties.playMode != NO_PLAYLIST) {
+		syncFail("busy: playback active");
+		vTaskDelete(NULL);
+		return;
+	}
+
+	const String manifestUrl = gPrefsSettings.getString("syncUrl", "");
+	if (manifestUrl.length() == 0) {
+		syncFail("no sync URL configured");
+		vTaskDelete(NULL);
+		return;
+	}
+	const String user = gPrefsSettings.getString("syncUser", "");
+	const String pass = gPrefsSettings.getString("syncPwd", "");
+
+	// fetch the manifest
+	String manifestRaw;
+	{
+		std::unique_ptr<WiFiClient> client = syncMakeClient(manifestUrl);
+		HTTPClient http;
+		syncSetupHttp(http, user, pass);
+		if (!http.begin(*client, manifestUrl)) {
+			syncFail("manifest connection failed");
+			vTaskDelete(NULL);
+			return;
+		}
+		const int code = http.GET();
+		if (code != 200) {
+			char msg[64];
+			snprintf(msg, sizeof(msg), "manifest HTTP %d", code);
+			syncFail(msg);
+			http.end();
+			vTaskDelete(NULL);
+			return;
+		}
+		manifestRaw = http.getString();
+		http.end();
+	}
+
+	JsonDocument doc;
+	if (deserializeJson(doc, manifestRaw) != DeserializationError::Ok) {
+		syncFail("manifest parse error");
+		vTaskDelete(NULL);
+		return;
+	}
+	JsonArray files = doc["files"].as<JsonArray>();
+	if (files.isNull()) {
+		syncFail("manifest has no \"files\" array");
+		vTaskDelete(NULL);
+		return;
+	}
+
+	// base URL = manifest URL up to (and including) the last '/'
+	String baseUrl = manifestUrl;
+	const int lastSlash = baseUrl.lastIndexOf('/');
+	if (lastSlash >= 0) {
+		baseUrl = baseUrl.substring(0, lastSlash + 1);
+	}
+
+	const size_t total = files.size();
+	size_t processed = 0;
+	size_t downloaded = 0;
+	size_t failed = 0;
+
+	Log_Printf(LOGLEVEL_NOTICE, "Sync: %u files in manifest", (unsigned) total);
+	System_PauseTasksDuringUpload(true); // free SD/CPU and stop RFID from starting playback mid-sync
+
+	for (JsonObject entry : files) {
+		String path = entry["path"].as<String>();
+		const long size = entry["size"] | -1;
+		while (path.startsWith("/")) {
+			path = path.substring(1);
+		}
+		if (path.length() == 0) {
+			processed++;
+			continue;
+		}
+		const String localPath = "/" + path;
+
+		// additive diff: skip if a local file of the same size already exists
+		bool needDownload = true;
+		if ((size >= 0) && gFSystem.exists(localPath)) {
+			File existing = gFSystem.open(localPath, "r");
+			if (existing) {
+				if ((long) existing.size() == size) {
+					needDownload = false;
+				}
+				existing.close();
+			}
+		}
+
+		if (needDownload) {
+			const String fileUrl = baseUrl + syncUrlEncodePath(path);
+			if (syncDownloadFile(fileUrl, user, pass, localPath)) {
+				downloaded++;
+				Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+			} else {
+				failed++;
+				Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+			}
+		}
+
+		processed++;
+		gSyncProgress = (total > 0) ? (uint8_t) ((processed * 100) / total) : 100;
+		vTaskDelay(pdMS_TO_TICKS(1));
+	}
+
+	System_PauseTasksDuringUpload(false);
+
+	snprintf(gSyncMsg, sizeof(gSyncMsg), "%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) total);
+	Log_Printf(LOGLEVEL_NOTICE, "Sync finished: %s", gSyncMsg);
+	gSyncStatus = (failed > 0) ? 3 : 2;
+	vTaskDelete(NULL);
+}
+
+void Sync_Trigger(void) {
+	if (gSyncStatus == 1) {
+		return; // already running
+	}
+	gSyncStatus = 1;
+	gSyncProgress = 0;
+	gSyncMsg[0] = '\0';
+	xTaskCreatePinnedToCore(syncTask, "httpSync", 16384, NULL, 1, NULL, 1);
+}
