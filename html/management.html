@@ -2784,10 +2784,13 @@
 							class="label d-flex position-absolute flex-column align-self-center text-center w-100 text-nowrap text-light">
 						</div>
 					</div>
+					<div id="syncCurrent" class="small text-muted text-truncate mt-1">&nbsp;</div>
 					<br>
 					<div class="text-center">
 						<button type="button" class="btn btn-primary" id="syncRunBtn" onclick="startSync()"
 							data-i18n="sync.run.button"></button>
+						<button type="button" class="btn btn-danger d-none" id="syncStopBtn" onclick="stopSync()"
+							data-i18n="sync.run.stop"></button>
 					</div>
 				</div>
 				<hr>
@@ -5026,15 +5029,26 @@
 		}
 
 		let syncPollTimer = null;
+		/* toggles the Sync now / Stop buttons depending on whether a sync is running */
+		function setSyncRunning(running) {
+			document.getElementById('syncRunBtn').classList.toggle('d-none', running);
+			const stopBtn = document.getElementById('syncStopBtn');
+			stopBtn.classList.toggle('d-none', !running);
+			stopBtn.disabled = false;
+		}
 		function renderSyncProgress(status, progress, message) {
 			const bar = document.querySelector('#syncProgress .progress-bar');
 			const label = document.querySelector('#syncProgress .label');
+			const current = document.getElementById('syncCurrent');
 			if (bar) bar.style.width = progress + '%';
 			let text = '';
 			if (status === 1) text = i18next.t('sync.status.syncing', { percent: progress });
-			else if (status === 2) text = i18next.t('sync.status.done') + (message ? ' (' + message + ')' : '');
-			else if (status === 3) text = i18next.t('sync.status.failed') + (message ? ': ' + message : '');
+			else if (status === 2) text = i18next.t('sync.status.done');
+			else if (status === 3) text = i18next.t('sync.status.failed');
+			else if (status === 4) text = i18next.t('sync.status.stopped');
 			if (label) label.textContent = text;
+			// show the file currently being synced (status 1) or the result message otherwise
+			if (current) current.textContent = message || ' ';
 		}
 
 		async function pollSync() {
@@ -5046,9 +5060,10 @@
 				// terminal state reached
 				clearInterval(syncPollTimer);
 				syncPollTimer = null;
-				document.getElementById('syncRunBtn').disabled = false;
+				setSyncRunning(false);
 				if (d.status === 2) toaster.info(i18next.t('sync.status.done'));
 				else if (d.status === 3) toaster.error(i18next.t('sync.status.failed') + (d.message ? ': ' + d.message : ''));
+				else if (d.status === 4) toaster.info(i18next.t('sync.status.stopped'));
 			} catch (e) {
 				console.warn('sync poll failed', e);
 			}
@@ -5056,18 +5071,30 @@
 
 		/* kick off a sync and poll the device for progress */
 		async function startSync() {
-			const btn = document.getElementById('syncRunBtn');
-			btn.disabled = true;
+			setSyncRunning(true);
 			renderSyncProgress(1, 0, '');
 			try {
 				await fetch("http://" + host + "/sync", { method: "POST" });
 			} catch (e) {
-				btn.disabled = false;
+				setSyncRunning(false);
 				toaster.error(i18next.t('toast.error') + ': ' + e.message);
 				return;
 			}
 			if (syncPollTimer) clearInterval(syncPollTimer);
 			syncPollTimer = setInterval(pollSync, 1500);
+		}
+
+		/* ask the device to stop the running sync */
+		async function stopSync() {
+			const stopBtn = document.getElementById('syncStopBtn');
+			stopBtn.disabled = true;
+			try {
+				await fetch("http://" + host + "/syncstop", { method: "POST" });
+			} catch (e) {
+				stopBtn.disabled = false;
+				toaster.error(i18next.t('toast.error') + ': ' + e.message);
+			}
+			// the poll loop will pick up the "stopped" state and reset the buttons
 		}
 
 		/* Turns the FTP start button into a stop button while the server is running */

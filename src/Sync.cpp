@@ -16,9 +16,10 @@
 #include <memory>
 
 // State of the HTTP sync, polled by the web interface via GET /sync.
-// 0 = idle, 1 = running, 2 = done, 3 = failed
+// 0 = idle, 1 = running, 2 = done, 3 = failed, 4 = stopped (cancelled by user)
 static volatile uint8_t gSyncStatus = 0;
 static volatile uint8_t gSyncProgress = 0; // percent (files processed / total)
+static volatile bool gSyncCancel = false; // cooperative cancel flag
 static char gSyncMsg[96] = "";
 
 uint8_t Sync_GetStatus(void) {
@@ -37,8 +38,16 @@ const char *Sync_GetStatusText(void) {
 			return "done";
 		case 3:
 			return "failed";
+		case 4:
+			return "stopped";
 		default:
 			return "idle";
+	}
+}
+
+void Sync_Cancel(void) {
+	if (gSyncStatus == 1) {
+		gSyncCancel = true;
 	}
 }
 
@@ -130,6 +139,10 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 	WiFiClient *stream = http.getStreamPtr();
 	bool ok = true;
 	while (http.connected() && (remaining > 0 || remaining == -1)) {
+		if (gSyncCancel) { // user pressed stop
+			ok = false;
+			break;
+		}
 		const size_t avail = stream->available();
 		if (avail) {
 			const int read = stream->readBytes(buf, (avail > sizeof(buf)) ? sizeof(buf) : avail);
@@ -146,8 +159,13 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 	}
 	file.close();
 	http.end();
-	// if a length was announced but not fully received, treat it as a failure
-	return ok && (remaining <= 0);
+	// if the download was aborted or a known length wasn't fully received, drop the
+	// partial file so a later sync re-fetches it (the size mismatch triggers a redownload)
+	const bool complete = ok && (remaining <= 0);
+	if (!complete) {
+		gFSystem.remove(localPath);
+	}
+	return complete;
 }
 
 static void syncTask(void *parameter) {
@@ -227,7 +245,12 @@ static void syncTask(void *parameter) {
 	Log_Printf(LOGLEVEL_NOTICE, "Sync: %u files in manifest", (unsigned) total);
 	System_PauseTasksDuringUpload(true); // free SD/CPU and stop RFID from starting playback mid-sync
 
+	bool cancelled = false;
 	for (JsonObject entry : files) {
+		if (gSyncCancel) {
+			cancelled = true;
+			break;
+		}
 		String path = entry["path"].as<String>();
 		const long size = entry["size"] | -1;
 		while (path.startsWith("/")) {
@@ -252,6 +275,8 @@ static void syncTask(void *parameter) {
 		}
 
 		if (needDownload) {
+			// expose the file currently being downloaded so the web UI can show it
+			snprintf(gSyncMsg, sizeof(gSyncMsg), "%s", path.c_str());
 			const String fileUrl = baseUrl + syncUrlEncodePath(path);
 			if (syncDownloadFile(fileUrl, user, pass, localPath)) {
 				downloaded++;
@@ -270,8 +295,8 @@ static void syncTask(void *parameter) {
 	System_PauseTasksDuringUpload(false);
 
 	snprintf(gSyncMsg, sizeof(gSyncMsg), "%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) total);
-	Log_Printf(LOGLEVEL_NOTICE, "Sync finished: %s", gSyncMsg);
-	gSyncStatus = (failed > 0) ? 3 : 2;
+	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", gSyncMsg);
+	gSyncStatus = cancelled ? 4 : ((failed > 0) ? 3 : 2);
 	vTaskDelete(NULL);
 }
 
@@ -279,6 +304,7 @@ void Sync_Trigger(void) {
 	if (gSyncStatus == 1) {
 		return; // already running
 	}
+	gSyncCancel = false;
 	gSyncStatus = 1;
 	gSyncProgress = 0;
 	gSyncMsg[0] = '\0';

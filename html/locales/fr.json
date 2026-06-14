@@ -409,7 +409,8 @@
 		"run": {
 			"title": "Synchroniser maintenant",
 			"desc": "Récupère le manifeste et télécharge les fichiers manquants/modifiés. Peut prendre du temps selon le volume de données.",
-			"button": "Synchroniser maintenant"
+			"button": "Synchroniser maintenant",
+			"stop": "Arrêter"
 		},
 		"manifest": {
 			"title": "Format du manifeste",
@@ -420,7 +421,8 @@
 		"status": {
 			"syncing": "Synchronisation… {{percent}}%",
 			"done": "Synchronisation terminée",
-			"failed": "Échec de la synchronisation"
+			"failed": "Échec de la synchronisation",
+			"stopped": "Synchronisation arrêtée"
 		}
 	},
 	"bt": {

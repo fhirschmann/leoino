@@ -417,7 +417,8 @@
 		"run": {
 			"title": "Sync now",
 			"desc": "Fetches the manifest and downloads missing/changed files. May take a while depending on the amount of data.",
-			"button": "Sync now"
+			"button": "Sync now",
+			"stop": "Stop"
 		},
 		"manifest": {
 			"title": "Manifest format",
@@ -428,7 +429,8 @@
 		"status": {
 			"syncing": "Syncing… {{percent}}%",
 			"done": "Synchronization complete",
-			"failed": "Synchronization failed"
+			"failed": "Synchronization failed",
+			"stopped": "Synchronization stopped"
 		}
 	},
 	"bt": {

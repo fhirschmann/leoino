@@ -416,7 +416,8 @@
 		"run": {
 			"title": "Jetzt synchronisieren",
 			"desc": "Holt das Manifest und lädt fehlende/geänderte Dateien herunter. Je nach Datenmenge kann das dauern.",
-			"button": "Jetzt synchronisieren"
+			"button": "Jetzt synchronisieren",
+			"stop": "Stopp"
 		},
 		"manifest": {
 			"title": "Aufbau des Manifests",
@@ -427,7 +428,8 @@
 		"status": {
 			"syncing": "Synchronisiere… {{percent}}%",
 			"done": "Synchronisation abgeschlossen",
-			"failed": "Synchronisation fehlgeschlagen"
+			"failed": "Synchronisation fehlgeschlagen",
+			"stopped": "Synchronisation gestoppt"
 		}
 	},
 	"bt": {

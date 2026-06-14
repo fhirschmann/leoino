@@ -8,6 +8,9 @@
 // by the web endpoint, a bindable command and/or MQTT.
 void Sync_Trigger(void);
 
+// Requests a running sync to stop as soon as possible (cooperative cancel).
+void Sync_Cancel(void);
+
 // Current state, polled by the web interface / reported via MQTT.
 uint8_t Sync_GetStatus(void); // 0 = idle, 1 = syncing, 2 = done, 3 = failed
 uint8_t Sync_GetProgress(void); // percent (files processed / total)

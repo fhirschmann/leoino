@@ -865,6 +865,11 @@ void webserverStart(void) {
 			Sync_Trigger();
 			request->send(200, "text/plain", "started");
 		});
+		// request a running sync to stop
+		wServer.on("/syncstop", HTTP_POST, [](AsyncWebServerRequest *request) {
+			Sync_Cancel();
+			request->send(200, "text/plain", "stopping");
+		});
 		// progress/result of the HTTP sync, polled by the web interface
 		wServer.on("/sync", HTTP_GET, [](AsyncWebServerRequest *request) {
 			char buf[160];
