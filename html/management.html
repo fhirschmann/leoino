@@ -2563,6 +2563,24 @@
 			</div>
 			<div class="container" id="httpUpdate">
 				<legend id="legendfwupdate" data-i18n="tools.fwupdate.title"></legend>
+				<div id="githubUpdate" class="mb-3">
+					<p data-i18n="tools.fwupdate.github.desc"></p>
+					<button type="button" class="btn btn-primary" id="checkUpdateBtn"
+						onclick="checkGithubUpdate()" data-i18n="tools.fwupdate.github.check"></button>
+					<span id="updateStatus" class="ms-2" style="font-family: 'Share Tech Mono', monospace;"></span>
+					<div id="githubUpdateProgress" class="progress upload-progress-bar position-relative mt-2"
+						style="display: none;">
+						<div class="progress-bar" role="progressbar"></div>
+						<div
+							class="label d-flex position-absolute flex-column align-self-center text-center w-100 text-nowrap text-light">
+						</div>
+					</div>
+					<br>
+					<button type="button" class="btn btn-success" id="applyUpdateBtn" onclick="applyGithubUpdate()"
+						style="display: none;" data-i18n="tools.fwupdate.github.apply"></button>
+				</div>
+				<hr>
+				<p data-i18n="tools.fwupdate.manual"></p>
 				<form id="firmwareUploadForm" method="POST" enctype="multipart/form-data" action="/update">
 					<div class="mb-3">
 						<label for="firmwareUpload" data-i18n="tools.fwupdate.desc"></label><br><br>
@@ -2979,6 +2997,83 @@
 				tryRedirect();
 			}, 2000);
 		} /* restart */
+		/* GitHub firmware auto-update (rolling "latest" release) */
+		const githubRepo = "fhirschmann/leoino";
+		const githubFwBase = "https://github.com/" + githubRepo + "/releases/download/latest/";
+		// strip everything but the hex sha from a "Git-revision: <sha>" string
+		function extractSha(s) {
+			let m = (s || "").match(/[0-9a-f]{7,40}/i);
+			return m ? m[0] : "";
+		}
+		async function checkGithubUpdate() {
+			const status = document.getElementById('updateStatus');
+			const applyBtn = document.getElementById('applyUpdateBtn');
+			applyBtn.style.display = 'none';
+			status.textContent = i18next.t("tools.fwupdate.github.checking");
+			try {
+				const info = await (await fetch("http://" + host + "/info?section=software")).json();
+				const curSha = extractSha(info && info.software ? info.software.git : "");
+				const rel = await (await fetch(githubFwBase + "version.json", { cache: "no-store" })).json();
+				const relSha = (rel.version || "");
+				const relShort = (rel.short || relSha).substring(0, 7);
+				const curShort = curSha.substring(0, 7);
+				if (curShort && relShort && curShort === relShort) {
+					status.textContent = i18next.t("tools.fwupdate.github.uptodate", { version: curShort });
+				} else {
+					status.textContent = i18next.t("tools.fwupdate.github.available", { current: curShort || "?", latest: relShort || "?" });
+					applyBtn.style.display = '';
+				}
+			} catch (e) {
+				console.error("update check failed", e);
+				status.textContent = i18next.t("tools.fwupdate.github.error");
+			}
+		}
+		async function applyGithubUpdate() {
+			const status = document.getElementById('updateStatus');
+			const applyBtn = document.getElementById('applyUpdateBtn');
+			const prog = $('#githubUpdateProgress');
+			applyBtn.style.display = 'none';
+			status.textContent = i18next.t("tools.fwupdate.github.downloading");
+			let blob;
+			try {
+				const resp = await fetch(githubFwBase + "firmware.bin", { cache: "no-store" });
+				if (!resp.ok) throw new Error("HTTP " + resp.status);
+				blob = await resp.blob();
+			} catch (e) {
+				console.error("firmware download failed", e);
+				status.textContent = i18next.t("tools.fwupdate.github.error");
+				return;
+			}
+			status.textContent = i18next.t("tools.fwupdate.github.flashing");
+			prog.show();
+			const data = new FormData();
+			data.append("firmwareUpload", blob, "firmware.bin");
+			$.ajax({
+				url: '/update', type: 'POST', data: data, contentType: false, processData: false,
+				xhr: function () {
+					const xhr = new window.XMLHttpRequest();
+					xhr.upload.addEventListener("progress", function (evt) {
+						if (evt.lengthComputable) {
+							const percent = parseInt(evt.loaded * 100 / evt.total);
+							$(".progress-bar", prog).css('width', percent + "%");
+							$(".label", prog).text(percent + "%");
+						}
+					}, false);
+					prog.addClass('bg-primary bg-opacity-75');
+					$('.progress-bar', prog).removeClass('bg-danger');
+					return xhr;
+				},
+				success: function () {
+					$(".label", prog).text(i18next.t("tools.fwupdate.github.done"));
+					restartDevice();
+				},
+				error: function (req) {
+					console.error("OTA upload failed", req);
+					$('.progress-bar', prog).addClass('bg-danger');
+					status.textContent = i18next.t("tools.fwupdate.github.error");
+				}
+			});
+		}
 		/* Firmware Upload (OTA) */
 		$('#firmwareUploadForm').submit(function (e) {
 			e.preventDefault();

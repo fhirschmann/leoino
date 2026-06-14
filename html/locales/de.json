@@ -542,7 +542,20 @@
 		},
 		"fwupdate": {
 			"title": "Firmware-Update",
-			"desc": "Hier kann ein Firmware-Update durchgeführt werden."
+			"desc": "Hier kann ein Firmware-Update durchgeführt werden.",
+			"manual": "Oder eine firmware.bin manuell hochladen:",
+			"github": {
+				"desc": "Automatisch die neueste Firmware von GitHub holen und installieren.",
+				"check": "Auf Updates prüfen",
+				"checking": "Prüfe…",
+				"uptodate": "Aktuell ({{version}}).",
+				"available": "Update verfügbar: {{current}} → {{latest}}",
+				"apply": "Jetzt aktualisieren",
+				"downloading": "Lade Firmware von GitHub…",
+				"flashing": "Installiere Firmware…",
+				"done": "Fertig – starte neu…",
+				"error": "Update fehlgeschlagen (siehe Konsole)."
+			}
 		}
 	},
 	"help": {
