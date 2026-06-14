@@ -94,6 +94,7 @@ static void handleBluetoothConnectRequest(AsyncWebServerRequest *request, JsonVa
 static void handleWiFiScanRequest(AsyncWebServerRequest *request);
 static void handleGetRFIDRequest(AsyncWebServerRequest *request);
 static void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json);
+static void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleDeleteRFIDRequest(AsyncWebServerRequest *request);
 static void handleGetInfo(AsyncWebServerRequest *request);
 static void handleGetSettings(AsyncWebServerRequest *request);
@@ -985,6 +986,8 @@ void webserverStart(void) {
 		wServer.on("/sdclean", HTTP_POST, handleCleanSdRequest);
 
 		wServer.on("/exploreraudio", HTTP_POST, explorerHandleAudioRequest);
+
+		wServer.addHandler(new AsyncCallbackJsonWebHandler("/playlist", handleCreatePlaylistRequest));
 
 		wServer.on("/trackprogress", HTTP_GET, handleTrackProgressRequest);
 
@@ -2753,6 +2756,51 @@ void explorerHandleCreateRequest(AsyncWebServerRequest *request) {
 		Log_Println("CREATE:  No path variable set", LOGLEVEL_ERROR);
 	}
 	request->send(200);
+}
+
+// Writes an .m3u playlist to the SD card. Body: {"path":"/Playlists/x.m3u","tracks":["/dir/a.mp3","http://stream", ...]}
+// Each track becomes one line; the player's LOCAL_M3U mode plays SD files and webradio URLs alike.
+static void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &json) {
+	JsonObject obj = json.as<JsonObject>();
+	String path = obj["path"] | "";
+	JsonArray tracks = obj["tracks"].as<JsonArray>();
+	if (path.length() == 0 || tracks.isNull()) {
+		request->send(400, "text/plain", "missing path or tracks");
+		return;
+	}
+	if (!path.startsWith("/")) {
+		path = "/" + path;
+	}
+	if (!path.endsWith(".m3u")) {
+		path += ".m3u";
+	}
+	System_UpdateActivityTimer();
+	// create the parent directory (one level, e.g. /Playlists) if it doesn't exist yet
+	const int slash = path.lastIndexOf('/');
+	if (slash > 0) {
+		const String dir = path.substring(0, slash);
+		if (!gFSystem.exists(dir)) {
+			gFSystem.mkdir(dir);
+		}
+	}
+	File file = gFSystem.open(path, "w", true);
+	if (!file) {
+		Log_Printf(LOGLEVEL_ERROR, "PLAYLIST: cannot create %s", path.c_str());
+		request->send(500, "text/plain", "cannot create file");
+		return;
+	}
+	file.print("#EXTM3U\n");
+	for (JsonVariant t : tracks) {
+		String line = t.as<String>();
+		line.trim();
+		if (line.length() > 0) {
+			file.print(line);
+			file.print("\n");
+		}
+	}
+	file.close();
+	Log_Printf(LOGLEVEL_NOTICE, "PLAYLIST: wrote %s (%u entries)", path.c_str(), (unsigned) tracks.size());
+	request->send(200, "application/json", "{\"ok\":true}");
 }
 
 // Handles rename request of a file or directory

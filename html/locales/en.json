@@ -433,6 +433,21 @@
 			"stopped": "Synchronization stopped"
 		}
 	},
+	"playlist": {
+		"button": "Create playlist (.m3u)",
+		"title": "Create playlist",
+		"browse": "Pick files",
+		"tracks": "Playlist",
+		"addFolder": "Add all tracks in this folder",
+		"urlPlaceholder": "Webradio URL (http://…)",
+		"addUrl": "Add",
+		"name": "File name",
+		"namePlaceholder": "e.g. Favourites",
+		"save": "Save",
+		"saved": "Playlist saved: {{path}}",
+		"noName": "Please enter a file name",
+		"empty": "The playlist is empty"
+	},
 	"bt": {
 		"sink": {
 			"title": "ESPuino as Bluetooth speaker",

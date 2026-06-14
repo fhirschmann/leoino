@@ -842,6 +842,32 @@
 			border-color: var(--cp-cyan);
 		}
 
+		/* playlist builder: scrollable file-browser / track panes */
+		.cp-pl-list {
+			height: 320px;
+			overflow-y: auto;
+		}
+
+		.cp-pl-list .list-group-item {
+			display: flex;
+			align-items: center;
+			gap: .5rem;
+			padding: .35rem .6rem;
+			cursor: pointer;
+		}
+
+		.cp-pl-list .pl-grip {
+			cursor: grab;
+			opacity: .6;
+		}
+
+		.cp-pl-list .pl-label {
+			flex: 1 1 auto;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
 		/* monospace code block used for inline documentation (e.g. the sync manifest example) */
 		.cp-code-block {
 			border: 1px solid var(--cp-border);
@@ -1671,6 +1697,49 @@
 			</div>
 		</div>
 	</div>
+	<!-- Modal dialog: build an .m3u playlist from SD files / folders / webradio URLs -->
+	<div class="modal fade" data-bs-backdrop="static" id="playlistModal" role="dialog">
+		<div class="modal-dialog modal-xl" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" data-i18n="playlist.title"></h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<div class="row g-3">
+						<div class="col-md-6">
+							<label class="form-label fw-bold" data-i18n="playlist.browse"></label>
+							<div class="input-group input-group-sm mb-1">
+								<button class="btn btn-secondary" type="button" id="plUpBtn" onclick="plNavigateUp()"><span class="fas fa-arrow-up"></span></button>
+								<span class="input-group-text flex-grow-1 text-truncate" id="plCwd">/</span>
+								<button class="btn btn-secondary" type="button" onclick="plAddCurrentFolder()" data-i18n="[title]playlist.addFolder"><span class="fas fa-folder-plus"></span></button>
+							</div>
+							<ul id="plBrowser" class="list-group cp-pl-list"></ul>
+						</div>
+						<div class="col-md-6">
+							<label class="form-label fw-bold"><span data-i18n="playlist.tracks"></span> (<span id="plCount">0</span>)</label>
+							<ul id="plTracks" class="list-group cp-pl-list"></ul>
+							<div class="input-group input-group-sm mt-2">
+								<input type="url" class="form-control" id="plUrl" data-i18n="[placeholder]playlist.urlPlaceholder">
+								<button class="btn btn-secondary" type="button" onclick="plAddUrl()" data-i18n="playlist.addUrl"></button>
+							</div>
+						</div>
+					</div>
+					<hr>
+					<label class="form-label" data-i18n="playlist.name"></label>
+					<div class="input-group">
+						<span class="input-group-text">/Playlists/</span>
+						<input type="text" class="form-control" id="plName" data-i18n="[placeholder]playlist.namePlaceholder">
+						<span class="input-group-text">.m3u</span>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel"></button>
+					<button type="button" class="btn btn-primary" id="plSaveBtn" onclick="savePlaylist()" data-i18n="playlist.save"></button>
+				</div>
+			</div>
+		</div>
+	</div>
 	<!-- Modal dialog for delete NVS RFID assignments -->
 	<div class="modal fade" data-bs-backdrop="static" id="deleteNVSRFIDModal" role="dialog">
 		<div class="modal-dialog" role="document">
@@ -1856,6 +1925,9 @@
 							<button id="rfidPlayBtn" class="btn btn-primary" onclick="playSelectedNode()"
 								disabled data-i18n="[title]files.context.play"><span id="rfidPlayIcon"
 									class="fas fa-play"></span></button>
+							<button id="createPlaylistBtn" class="btn btn-primary" data-bs-toggle="modal"
+								data-bs-target="#playlistModal" onclick="openPlaylistBuilder()"
+								data-i18n="[title]playlist.button"><span class="fas fa-list-ol"></span></button>
 							<button id="cleansd" class="btn btn-warning" data-bs-toggle="modal"
 								data-bs-target="#cleanSdModal" data-i18n="[title]files.clean.button"><span
 									class="fas fa-broom"></span></button>
@@ -5717,6 +5789,111 @@
 			} else {
 				toaster.error(response.statusText);
 			}
+		}
+
+		/* ---- .m3u playlist builder (modal) ---- */
+		let plCwd = "/";
+		function plJoin(dir, name) { return (dir === "/" ? "" : dir) + "/" + name; }
+		function plIsAudio(name) { return /\.(mp3|ogg|oga|wav|wma|acc|m4a|flac|opus)$/i.test(name); }
+		function plUpdateCount() { $("#plCount").text($("#plTracks > li").length); }
+
+		function openPlaylistBuilder() {
+			plCwd = "/";
+			$("#plTracks").empty();
+			plUpdateCount();
+			$("#plName").val("");
+			$("#plUrl").val("");
+			plRenderBrowser();
+			// ordered, drag-sortable track list (jQuery UI)
+			if (!$("#plTracks").data("ui-sortable")) {
+				$("#plTracks").sortable({ handle: ".pl-grip" });
+			}
+		}
+
+		function plRenderBrowser() {
+			$("#plCwd").text(plCwd);
+			$("#plUpBtn").prop("disabled", plCwd === "/");
+			const list = $("#plBrowser").empty();
+			list.append($('<li class="list-group-item text-muted">').text(i18next.t("files.loading")));
+			getData("http://" + host + "/explorer?path=" + encodeURIComponent(plCwd), function (data) {
+				list.empty();
+				(data || []).forEach(function (e) {
+					if (e.root) return; // skip SD volume-label entry at root
+					const item = $('<li class="list-group-item">');
+					if (e.dir) {
+						item.append('<span class="fas fa-folder"></span>');
+						item.append($('<span class="pl-label">').text(e.name));
+						item.on("click", function () { plCwd = plJoin(plCwd, e.name); plRenderBrowser(); });
+					} else if (plIsAudio(e.name)) {
+						const p = plJoin(plCwd, e.name);
+						item.append('<span class="fas fa-file-audio"></span>');
+						item.append($('<span class="pl-label">').text(e.name));
+						const add = $('<button class="btn btn-sm btn-primary"><span class="fas fa-plus"></span></button>');
+						add.on("click", function (ev) { ev.stopPropagation(); plAddTrack(p, e.name); });
+						item.append(add);
+						item.on("click", function () { plAddTrack(p, e.name); });
+					} else {
+						return; // hide non-audio files
+					}
+					list.append(item);
+				});
+				if (list.children().length === 0) {
+					list.append($('<li class="list-group-item text-muted">').text("—"));
+				}
+			});
+		}
+
+		function plNavigateUp() {
+			if (plCwd === "/") return;
+			plCwd = plCwd.substring(0, plCwd.lastIndexOf("/")) || "/";
+			plRenderBrowser();
+		}
+
+		function plAddCurrentFolder() {
+			getData("http://" + host + "/explorer?path=" + encodeURIComponent(plCwd), function (data) {
+				(data || []).filter(e => !e.root && !e.dir && plIsAudio(e.name))
+					.sort((a, b) => natcompare(a.name.toLowerCase(), b.name.toLowerCase()))
+					.forEach(e => plAddTrack(plJoin(plCwd, e.name), e.name));
+			});
+		}
+
+		function plAddUrl() {
+			const u = ($("#plUrl").val() || "").trim();
+			if (!u) return;
+			plAddTrack(u, u);
+			$("#plUrl").val("");
+		}
+
+		function plAddTrack(path, label) {
+			const item = $('<li class="list-group-item">').attr("data-path", path);
+			item.append('<span class="pl-grip fas fa-grip-vertical"></span>');
+			item.append($('<span class="pl-label">').text(label).attr("title", path));
+			const rm = $('<button class="btn btn-sm btn-danger"><span class="fas fa-times"></span></button>');
+			rm.on("click", function () { item.remove(); plUpdateCount(); });
+			item.append(rm);
+			$("#plTracks").append(item);
+			plUpdateCount();
+		}
+
+		function savePlaylist() {
+			let name = ($("#plName").val() || "").trim().replace(/[\/\\]/g, "").replace(/\.m3u$/i, "");
+			if (!name) { toaster.error(i18next.t("playlist.noName")); return; }
+			const tracks = $("#plTracks > li").map(function () { return $(this).attr("data-path"); }).get();
+			if (!tracks.length) { toaster.error(i18next.t("playlist.empty")); return; }
+			const path = "/Playlists/" + name + ".m3u";
+			fetch("http://" + host + "/playlist", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path: path, tracks: tracks })
+			}).then(r => {
+				if (!r.ok) throw new Error("HTTP " + r.status);
+				toaster.info(i18next.t("playlist.saved", { path: path }));
+				const m = bootstrap.Modal.getInstance(document.getElementById("playlistModal"));
+				if (m) m.hide();
+				// refresh the file tree so the new playlist shows up
+				const ref = $('#explorerTree').jstree(true);
+				if (ref) { const root = ref.get_node('#').children[0]; if (root) refreshNode(root); }
+			}).catch(e => toaster.error(i18next.t("toast.error") + ": " + e.message));
 		}
 
 		async function refreshSecurityStatus() {

@@ -432,6 +432,21 @@
 			"stopped": "Synchronisation gestoppt"
 		}
 	},
+	"playlist": {
+		"button": "Playlist erstellen (.m3u)",
+		"title": "Playlist erstellen",
+		"browse": "Dateien auswählen",
+		"tracks": "Playlist",
+		"addFolder": "Alle Titel dieses Ordners hinzufügen",
+		"urlPlaceholder": "Webradio-URL (http://…)",
+		"addUrl": "Hinzufügen",
+		"name": "Dateiname",
+		"namePlaceholder": "z.B. Lieblingslieder",
+		"save": "Speichern",
+		"saved": "Playlist gespeichert: {{path}}",
+		"noName": "Bitte einen Dateinamen eingeben",
+		"empty": "Die Playlist ist leer"
+	},
 	"bt": {
 		"sink": {
 			"title": "ESPuino als Bluetooth-Lautsprecher",
