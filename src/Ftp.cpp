@@ -51,6 +51,25 @@ void Ftp_Init(void) {
 	}
 }
 
+// Re-reads the FTP credentials from NVS into the in-memory globals the running
+// server uses. Called after the credentials are changed via the web UI so the
+// change takes effect without a reboot.
+void Ftp_ReloadCredentials(void) {
+	Ftp_User = gPrefsSettings.getString("ftpuser", Ftp_User);
+	Ftp_Password = gPrefsSettings.getString("ftppassword", Ftp_Password);
+#ifdef FTP_ENABLE
+	// FTPServer captures its user list at creation time, so an already-running
+	// server keeps the old credentials. Drop the instance and let ftpManager()
+	// re-create it (with the updated globals) on the next cyclic run.
+	if (ftpEnableCurrentStatus && (ftpSrv != NULL)) {
+		delete ftpSrv;
+		ftpSrv = NULL;
+		ftpEnableCurrentStatus = false;
+		Log_Println(ftpServerStopped, LOGLEVEL_NOTICE);
+	}
+#endif
+}
+
 void Ftp_Exit(void) {
 #ifdef FTP_ENABLE
 	if (ftpEnableCurrentStatus) {

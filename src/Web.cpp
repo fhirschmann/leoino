@@ -1280,6 +1280,8 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "ftp");
 			return WebsocketCodeType::Error;
 		}
+		// apply the new credentials to the running server without requiring a reboot
+		Ftp_ReloadCredentials();
 	} else if (doc["ftpStatus"].is<JsonObject>()) {
 		uint8_t _ftpStart = doc["ftpStatus"]["start"].as<uint8_t>();
 		if (_ftpStart == 1) { // ifdef FTP_ENABLE is checked in Ftp_EnableServer()
