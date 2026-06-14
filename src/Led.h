@@ -63,7 +63,8 @@ enum class LedControlFunction : uint8_t {
 	KeyLock, // lit (red) while physical controls are locked
 	Repeat, // reflects the repeat mode (track/playlist/both)
 	Bluetooth, // reflects the bluetooth mode and connection state
-	Off // always off
+	Off, // always off
+	Battery // battery state of charge as a green->yellow->red gradient (needs BATTERY_MEASURE_ENABLE)
 };
 
 struct LedSettings {

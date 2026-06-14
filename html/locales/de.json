@@ -54,6 +54,7 @@
 				"keylock": "Tastensperre",
 				"repeat": "Wiederholmodus",
 				"bluetooth": "Bluetooth",
+				"battery": "Akku-Füllstand",
 				"off": "Aus"
 			},
 			"numidledots": "Anzahl LEDs im Leerlauf",

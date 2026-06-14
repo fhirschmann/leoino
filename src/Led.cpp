@@ -406,6 +406,19 @@ CRGB Led_GetControlColor(LedControlFunction function, uint32_t staticColor) {
 			}
 			return CRGB(CRGB::Black);
 		}
+		case LedControlFunction::Battery: {
+	#ifdef BATTERY_MEASURE_ENABLE
+			const float level = Battery_EstimateLevel();
+			if (level < 0.0f) { // no battery connected / voltage too low
+				return CRGB(CRGB::Red);
+			}
+			// map 0..1 to a hue from red (0) over yellow to green (96 in FastLED's HSV space)
+			const uint8_t hue = static_cast<uint8_t>(constrain(level, 0.0f, 1.0f) * 96.0f);
+			return CRGB(CHSV(hue, 255, 255));
+	#else
+			return CRGB(CRGB::Black);
+	#endif
+		}
 		case LedControlFunction::Off:
 			return CRGB(CRGB::Black);
 		case LedControlFunction::Static:

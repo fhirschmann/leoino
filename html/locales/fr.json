@@ -54,6 +54,7 @@
 				"keylock": "Verrouillage des touches",
 				"repeat": "Mode répétition",
 				"bluetooth": "Bluetooth",
+				"battery": "Niveau de batterie",
 				"off": "Éteint"
 			},
 			"numidledots": "Nombre de LED en état de veille",

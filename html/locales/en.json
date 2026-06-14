@@ -54,6 +54,7 @@
 				"keylock": "Key lock",
 				"repeat": "Repeat mode",
 				"bluetooth": "Bluetooth",
+				"battery": "Battery level",
 				"off": "Off"
 			},
 			"numidledots": "Number of LEDs in idle state",
