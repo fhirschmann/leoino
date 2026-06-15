@@ -17,13 +17,19 @@
 > interface a complete cyberpunk overhaul and adds a number of features around RFID detection,
 > Bluetooth, backups and convenience. For the upstream hardware, wiring and general documentation
 > please refer to the [original documentation](https://forum.espuino.de/c/dokumentation/anleitungen/10).
+>
+> ⚡ **Full disclosure:** the firmware and web interface in this fork are largely *vibe-coded*
+> (AI-assisted). The hardware is not — the enclosure was designed by hand in CAD without any AI.
+> The printable STL files live in [`stl/`](stl/).
 
 ---
 
 # // HARDWARE
 
 The physical build — a 3D-printed enclosure housing an ESP32, a PN5180 RFID reader, speaker and
-battery.
+battery. The case was modelled by hand in CAD (no AI involved); all printable parts — case,
+panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are available as STL files in
+[`stl/`](stl/).
 
 > 🚧 _This section will be filled with photos of the 3D-printed unit and details of the installed
 > hardware (board, reader, wiring, battery, enclosure)._
