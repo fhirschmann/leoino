@@ -5656,6 +5656,12 @@
 				if (info.battery.chargeLevel) add('systeminfo.lblCharge', info.battery.chargeLevel.toFixed(1) + ' %');
 			}
 			if (info.hallsensor) add('systeminfo.lblHall', 'null ' + info.hallsensor.nullFieldValue + ', actual ' + info.hallsensor.actual + ', diff ' + info.hallsensor.diff);
+			if (info.rtc && info.rtc.available) {
+				let rtcText = info.rtc.time || '–';
+				if (info.rtc.temperature !== undefined) rtcText += ' (' + info.rtc.temperature.toFixed(1) + ' °C)';
+				if (info.rtc.lostPower) rtcText += ' ⚠';
+				add('systeminfo.lblRtc', rtcText);
+			}
 
 			const html = '<table class="table table-sm table-borderless cp-info-table mb-0"><tbody>' + rows.join('') + '</tbody></table>';
 			$('#modalInfoContent').html(html);

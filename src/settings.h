@@ -55,6 +55,7 @@
 	//#define PAUSE_WHEN_RFID_REMOVED       // Playback starts when card is applied and pauses automatically, when card is removed (https://forum.espuino.de/t/neues-feature-pausieren-wenn-rfid-karte-entfernt-wurde/541)
 	//#define DONT_ACCEPT_SAME_RFID_TWICE   // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
 	//#define HALLEFFECT_SENSOR_ENABLE      // Support for hallsensor. For fine-tuning please adjust HallEffectSensor.h Please note: only user-support provided (https://forum.espuino.de/t/magnetische-hockey-tags/1449/35)
+	//#define RTC_ENABLE                    // Battery-backed real-time-clock (DS3231) on i2cBusTwo. Keeps the time correct without WiFi/NTP. RTC stores UTC; timezone is applied on top.
 
 	//################## set PAUSE_WHEN_RFID_REMOVED behaviour #############################
 	#ifdef PAUSE_WHEN_RFID_REMOVED
@@ -256,8 +257,12 @@
 	#endif
 
 	// enable I2C if necessary
-	#if defined(RFID_READER_TYPE_RUNTIME) || defined(PORT_EXPANDER_ENABLE) || defined(MEASURE_BATTERY_MAX17055) || defined(OLED_ENABLE)
+	#if defined(RFID_READER_TYPE_RUNTIME) || defined(PORT_EXPANDER_ENABLE) || defined(MEASURE_BATTERY_MAX17055) || defined(OLED_ENABLE) || defined(RTC_ENABLE)
 		#define I2C_2_ENABLE
+	#endif
+
+	#ifdef RTC_ENABLE
+		constexpr uint8_t rtcI2cAddress = 0x68; // I2C-address of DS3231 (fixed)
 	#endif
 
 	#ifdef OLED_ENABLE
@@ -300,6 +305,9 @@
 		constexpr const char topicPlaymode[] = "playmode";  // State: numeric playmode
 		constexpr const char topicWiFiRssi[] = "wifi_rssi"; // State: WiFi signal strength (dBm)
 		constexpr const char topicSRevision[] = "software_revision"; // State: software revision string
+		#ifdef RTC_ENABLE
+		constexpr const char topicRtc[] = "rtc"; // State: current date/time from the system clock (kept by the DS3231 RTC), e.g. "2026-06-16 14:32:05"
+		#endif
 		#ifdef BATTERY_MEASURE_ENABLE
 		constexpr const char topicBatteryVoltage[] = "battery_voltage"; // State: battery voltage float (e.g. 3.81)
 		constexpr const char topicBatterySOC[]     = "battery_soc"; // State: battery charge percent (e.g. 83.0)

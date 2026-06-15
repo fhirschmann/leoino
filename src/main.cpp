@@ -24,6 +24,7 @@
 #include "Rfid.h"
 #include "RfidConfig.h"
 #include "RotaryEncoder.h"
+#include "Rtc.h"
 #include "SdCard.h"
 #include "System.h"
 #include "Web.h"
@@ -136,6 +137,9 @@ void setup() {
 	Log_Println(rfidScannerReady, LOGLEVEL_DEBUG);
 #endif
 
+	// Init RTC early (needs i2cBusTwo) so the system clock is correct before WiFi/NTP
+	Rtc_Init();
+
 #ifdef HALLEFFECT_SENSOR_ENABLE
 	gHallEffectSensor.init();
 #endif
@@ -242,6 +246,7 @@ void loop() {
 	AudioPlayer_Cyclic();
 	Battery_Cyclic();
 	Button_Cyclic();
+	Rtc_Cyclic();
 	System_Cyclic();
 #ifdef OLED_ENABLE
 	Display_Cyclic();

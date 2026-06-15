@@ -21,6 +21,7 @@
 #include "Mqtt.h"
 #include "Rfid.h"
 #include "RotaryEncoder.h"
+#include "Rtc.h"
 #include "SdCard.h"
 #include "System.h"
 #include "Wlan.h"
@@ -1826,6 +1827,24 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		hallObj["diff"] = diff;
 		hallObj["lastWaitState"] = gHallEffectSensor.LastWaitForState();
 		hallObj["lastWaitMS"] = gHallEffectSensor.LastWaitForStateMS();
+	}
+#endif
+#ifdef RTC_ENABLE
+	if ((section == "") || (section == "rtc")) {
+		// battery-backed RTC (DS3231)
+		JsonObject rtcObj = infoObj["rtc"].to<JsonObject>();
+		rtcObj["available"] = Rtc_IsAvailable();
+		rtcObj["lostPower"] = Rtc_LostPower();
+		struct tm timeinfo;
+		if (getLocalTime(&timeinfo, 5)) {
+			char timeStringBuff[32];
+			strftime(timeStringBuff, sizeof(timeStringBuff), "%Y-%m-%d %H:%M:%S", &timeinfo);
+			rtcObj["time"] = String(timeStringBuff);
+		}
+		const float temp = Rtc_GetTemperature();
+		if (!isnan(temp)) {
+			rtcObj["temperature"] = temp;
+		}
 	}
 #endif
 

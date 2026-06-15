@@ -611,6 +611,7 @@
 		"lblVoltage": "Tension batterie",
 		"lblCharge": "Niveau de charge",
 		"lblHall": "Capteur Hall",
+		"lblRtc": "RTC (horloge temps réel)",
 		"title": "Informations",
 		"softwareversion": "ESPuino {{softwareversion}}",
 		"gitversion": "ESPuino {{gitversion}}",

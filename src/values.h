@@ -61,6 +61,7 @@
 #define CMD_TELL_CURRENT_TIME			 152 // Command: ESPuino announces current time via speech
 #define CMD_TOGGLE_AMBIENT_LIGHT		 153 // Command: ESPuino announces current time via speech
 #define CMD_TOGGLE_EQUALIZER			 154 // Command: cycle through the predefined equalizer profiles (flat/music/speech/voiceBoost)
+#define CMD_RTC_RESYNC					 155 // Command: write the current (NTP-disciplined) system time into the battery-backed RTC (DS3231)
 
 #define CMD_PLAYPAUSE		170 // Command: play/pause
 #define CMD_PREVTRACK		171 // Command: previous track

@@ -622,6 +622,7 @@
 		"lblVoltage": "Akkuspannung",
 		"lblCharge": "Ladezustand",
 		"lblHall": "Hall-Sensor",
+		"lblRtc": "RTC (Echtzeituhr)",
 		"title": "Information",
 		"softwareversion": "ESPuino {{softwareversion}}",
 		"gitversion": "ESPuino {{gitversion}}",

@@ -624,6 +624,7 @@
 		"lblVoltage": "Battery voltage",
 		"lblCharge": "Charge level",
 		"lblHall": "Hall sensor",
+		"lblRtc": "RTC (real-time clock)",
 		"title": "Information",
 		"softwareversion": "ESPuino {{softwareversion}}",
 		"gitversion": "ESPuino {{gitversion}}",

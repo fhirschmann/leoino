@@ -372,6 +372,10 @@ static void Mqtt_PublishHassDiscovery(void) {
 	mqttHassPublish("sensor", "battery_voltage", "\"name\":\"Battery voltage\",\"device_class\":\"voltage\",\"unit_of_measurement\":\"V\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBatteryVoltage)) + "\"");
 	mqttHassPublish("sensor", "battery", "\"name\":\"Battery\",\"device_class\":\"battery\",\"unit_of_measurement\":\"%\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBatterySOC)) + "\"");
 	#endif
+
+	#ifdef RTC_ENABLE
+	mqttHassPublish("sensor", "rtc", "\"name\":\"RTC time\",\"icon\":\"mdi:clock-outline\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicRtc)) + "\"");
+	#endif
 }
 #endif
 

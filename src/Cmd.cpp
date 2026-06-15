@@ -12,6 +12,7 @@
 #include "Mqtt.h"
 #include "Queues.h"
 #include "Rfid.h"
+#include "Rtc.h"
 #include "System.h"
 #include "Web.h"
 #include "Wlan.h"
@@ -307,6 +308,16 @@ void Cmd_Action(const uint16_t mod) {
 				System_IndicateOk();
 			} else {
 				Log_Println(unableToTellTime, LOGLEVEL_ERROR);
+				System_IndicateError();
+			}
+			break;
+		}
+
+		case CMD_RTC_RESYNC: {
+			if (Rtc_IsAvailable()) {
+				Rtc_SetFromSystemTime();
+				System_IndicateOk();
+			} else {
 				System_IndicateError();
 			}
 			break;
