@@ -1204,11 +1204,19 @@
 		.slider-container {
 			width: 100%;
 			display: flex;
+			align-items: center;
+		}
+
+		/* compact settings sliders: smaller icons (override fa-2x) so each row is shorter.
+		   Scoped to the direct icon wrappers so the control-tab volume buttons are unaffected. */
+		.slider-container>div>i {
+			font-size: 1.25rem;
+			opacity: .7;
 		}
 
 		.slider-container-inner {
 			width: 100%;
-			padding-top: 10px;
+			padding-top: 4px;
 			padding-left: 20px;
 			padding-right: 20px;
 			float: left;
@@ -1694,111 +1702,15 @@
 			<a class="nav-item nav-link main-tab-item active" id="nav-rfid-tab" data-bs-toggle="tab" href="#nav-rfid"
 				data-bs-target="#nav-rfid" role="tab" aria-controls="nav-rfid" aria-selected="true"><i
 					class="fas fa-folder-tree"></i><span data-i18n="nav.rfid"></span></a>
-			<a class="nav-item nav-link main-tab-item" id="nav-wifi-tab" data-bs-toggle="tab" href="#nav-wifi"
-				data-bs-target="#nav-wifi" role="tab" aria-controls="nav-wifi" aria-selected="false"><i
-					class="fas fa-wifi"></i><span class=".d-sm-none .d-md-block"><span
-						data-i18n="nav.wifi"></span></span></a>
-			<a class="nav-item nav-link main-tab-item" id="nav-mqtt-tab" data-visible="false" data-bs-toggle="tab"
-				href="" data-bs-target="#nav-mqtt" role="tab" aria-controls="nav-mqtt" aria-selected="false"><i
-					class="fas fa-network-wired"></i><span data-i18n="nav.mqtt"></span></a>
-			<a class="nav-item nav-link main-tab-item" id="nav-ftp-tab" data-visible="false" data-bs-toggle="tab"
-				href="#nav-ftp" data-bs-target="#nav-ftp" role="tab" aria-controls="nav-ftp" aria-selected="false"><i
-					class="fas fa-folder"></i><span data-i18n="nav.ftp"></span></a>
-			<a class="nav-item nav-link main-tab-item" id="nav-bt-tab" data-visible="false" data-bs-toggle="tab"
-				href="#nav-bt" data-bs-target="#nav-bt" role="tab" aria-controls="nav-bt" aria-selected="false"><i
-					class="fab fa-bluetooth"></i>&nbsp;<span data-i18n="nav.bluetooth"></span></a>
 			<a class="nav-item nav-link main-tab-item" id="nav-general-tab" data-bs-toggle="tab" href="#nav-general"
 				data-bs-target="#nav-general" role="tab" aria-controls="nav-general" aria-selected="false"><i
-					class="fas fa-sliders-h"></i><span data-i18n="nav.general"></span></a>
+					class="fas fa-sliders-h"></i><span class="d-none d-md-inline" data-i18n="nav.settings"></span></a>
 			<a class="nav-item nav-link main-tab-item" id="nav-tools-tab" data-bs-toggle="tab" href="#nav-tools"
 				data-bs-target="#nav-tools" role="tab" aria-controls="nav-tools" aria-selected="false"><i
-					class="fas fa-wrench"></i><span data-i18n="nav.tools"></span></a>
-			<a class="nav-item nav-link main-tab-item" id="nav-help-tab" data-bs-toggle="tab" href="#nav-help"
-				data-bs-target="#nav-help" role="tab" aria-controls="nav-help" aria-selected="false"><i
-					class="fas fa-comment"></i><span class=".d-sm-none .d-md-block"><span
-						data-i18n="nav.help"></span></span></a>
+					class="fas fa-wrench"></i><span class="d-none d-md-inline" data-i18n="nav.tools"></span></a>
 		</div>
 	</nav>
 	<div class="tab-content" id="nav-tabContent">
-		<!-- ### Tab Wifi ### -->
-		<div class="tab-pane main-tab-pane fade mb-4" id="nav-wifi" role="tabpanel" aria-labelledby="nav-wifi-tab">
-			<div class="container" id="wifiConfig">
-				<div>
-					<legend data-i18n="wifi.title"></legend>
-					<form action="#globalWifiConfig" method="POST"
-						onsubmit="globalWifiConfig('globalWifiConfig'); return false">
-						<div class="mb-3 col-md-12">
-							<label for="hostname" data-i18n="[prepend]wifi.hostname.title">:</label>
-							<input type="text" class="form-control" id="hostname"
-								data-i18n="[placeholder]wifi.hostname.placeholder" name="hostname" value=""
-								pattern="^[0-9a-zA-Z][0-9a-zA-Z\-]{0,30}[0-9a-zA-Z]" required><br>
-							<input type="checkbox" id="scan_wifi_on_start" name="scan_wifi_on_start"
-								value="false">&nbsp; <label for="scan_wifi_on_start"
-								data-i18n="wifi.scan.enabled"></label>
-						</div>
-						<div class="text-center">
-							<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
-								type="submit" class="btn btn-primary" data-i18n="submit"></button>
-						</div>
-					</form>
-				</div>
-				<hr>
-				<div>
-					<legend data-i18n="wifi.networks"></legend>
-					<form action="#wifiConfig" method="POST" onsubmit="wifiConfig('wifiConfig'); return false">
-						<div class="mb-3 col-md-12">
-							<label for="ssid" data-i18n="[prepend]wifi.ssid.title">:</label>
-							<input type="text" class="form-control" id="ssid"
-								data-i18n="[placeholder]wifi.ssid.placeholder" name="ssid" required><br>
-							<div class="invalid-feedback" data-i18n="wifi.ssid.validation"></div>
-							<label for="pwd" data-i18n="[prepend]wifi.password.title">:</label>
-							<input type="password" class="form-control" id="pwd" name="pwd"
-								data-i18n="[placeholder]wifi.password.placeholder" required><br>
-							<input type="checkbox" id="static_enabled" name="static_enabled" value="false">&nbsp; <label
-								for="static_enabled" data-i18n="[prepend]wifi.static.enabled">:</label>
-							<div id="wifi_static_div" style="display:none">
-								<label for="static_addr" data-i18n="[prepend]wifi.static.addr">:</label>
-								<input type="text" class="form-control" id="static_addr" name="static_addr">
-								<label for="static_gateway" data-i18n="[prepend]wifi.static.gateway">:</label>
-								<input type="text" class="form-control" id="static_gateway" name="static_gateway">
-								<label for="static_subnet" data-i18n="[prepend]wifi.static.subnet">:</label>
-								<input type="text" class="form-control" id="static_subnet" name="static_subnet">
-								<label for="static_dns1" data-i18n="[prepend]wifi.static.dns1">:</label>
-								<input type="text" class="form-control" id="static_dns1" name="static_dns1">
-								<label for="static_dns2" data-i18n="[prepend]wifi.static.dns2">:</label>
-								<input type="text" class="form-control" id="static_dns2" name="static_dns2">
-							</div>
-						</div>
-						<div class="text-center">
-							<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
-						</div>
-					</form>
-				</div>
-				<hr>
-				<div class="col-md-12" style="margin-top: 20px;">
-					<legend data-i18n="wifi.savedNetworks"></legend>
-					<ul class="list-group" id="wifiListSavedSSIDs">
-					</ul>
-				</div>
-				<hr>
-				<div>
-					<legend data-i18n="security.title"></legend>
-					<form action="#securityConfig" method="POST" onsubmit="securityConfig(); return false">
-						<div class="mb-3 col-md-12">
-							<label for="wwwPassword" data-i18n="[prepend]security.password.title">:</label>
-							<input type="password" class="form-control" id="wwwPassword" name="wwwPassword"
-								maxlength="64" autocomplete="new-password"
-								data-i18n="[placeholder]security.password.placeholder">
-							<small class="form-text" data-i18n="security.password.desc"></small>
-						</div>
-						<div class="text-center">
-							<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
-						</div>
-					</form>
-				</div>
-			</div>
-			<br />
-		</div>
 		<!-- ### Tab Control ### -->
 		<div class="tab-pane main-tab-pane fade mb-4" id="nav-control" role="tabpanel"
 			aria-labelledby="nav-control-tab">
@@ -1833,6 +1745,11 @@
 							<button type="button" class="btn btn-sm cp-control-button" id="btn-night-mode" onclick="sendControl(120)">
 								<span id="ico-night-mode" class="fas fa-moon"></span>
 								<span id="lbl-night-mode" class="d-none d-sm-inline" data-i18n="control.nightOff">Night Off</span>
+							</button>
+							<!-- FTP Server Button -->
+							<button type="button" class="btn btn-sm cp-control-button" id="btn-ftp" onclick="toggleFtp()">
+								<span class="fas fa-server"></span>
+								<span id="lbl-ftp" class="d-none d-sm-inline" data-i18n="control.ftpOff">FTP Off</span>
 							</button>
 							<!-- Bluetooth Mode Dropdown -->
 							<div class="dropdown d-inline-flex align-items-center">
@@ -2074,151 +1991,21 @@
 				</fieldset>
 			</div>
 		</div>
-		<!-- ### Tab MQTT ### -->
-		<div class="tab-pane main-tab-pane fade mb-4" id="nav-mqtt" role="tabpanel" aria-labelledby="nav-mqtt-tab">
-			<div class="container" id="mqttConfig">
-				<form class="needs-validation" action="#mqttConfig" method="POST"
-					onsubmit="mqttSettings('mqttConfig'); return false">
-					<legend data-i18n="mqtt.title"></legend>
-					<div class="mb-2"><small class="text-muted" data-i18n="mqtt.restartNote"></small></div>
-					<div class="form-check col-md-12">
-						<input class="form-check-input" type="checkbox" value="1" id="mqttEnable"
-							name="mqttEnable">&nbsp; <label class="form-check-label" for="mqttEnable"
-							data-i18n="mqtt.enable"></label>
-					</div>
-					<div class="mb-3 my-2 col-md-12">
-						<label for="mqttClientId" data-i18n="[prepend]mqtt.clientId.title">:</label>
-						<input type="text" class="form-control" id="mqttClientId" minlength="7" maxlength="0"
-							data-i18n="[placeholder]mqtt.clientId.placeholder" name="mqttClientId" value="">
-						<label for="mqttBaseTopic" data-i18n="[prepend]mqtt.baseTopic.title">:</label>
-						<input type="text" class="form-control" id="mqttBaseTopic" maxlength="0"
-							data-i18n="[placeholder]mqtt.baseTopic.placeholder" name="mqttBaseTopic" value="">
-						<label for="mqttDeviceId" data-i18n="[prepend]mqtt.deviceId.title">:</label>
-						<input type="text" class="form-control" id="mqttDeviceId" maxlength="0"
-							data-i18n="[placeholder]mqtt.deviceId.placeholder" name="mqttDeviceId" value="">
-						<label for="mqttServer" data-i18n="[prepend]mqtt.server.title">:</label>
-						<input type="text" class="form-control" id="mqttServer" minlength="7" maxlength="0"
-							data-i18n="[placeholder]mqtt.server.placeholder" name="mqttServer" value="">
-						<label for="mqttUser" data-i18n="[prepend]mqtt.user.title">:</label>
-						<input type="text" class="form-control" id="mqttUser" maxlength=""
-							data-i18n="[placeholder]mqtt.user.placeholder" name="mqttUser" value="">
-						<label for="mqttPwd" data-i18n="[prepend]mqtt.pwd.title">:</label>
-						<input type="password" class="form-control" id="mqttPwd" maxlength=""
-							data-i18n="[placeholder]mqtt.pwd.placeholder" name="mqttPwd" value="">
-						<label for="mqttPort" data-i18n="[prepend]mqtt.port.title">:</label>
-						<input type="number" class="form-control" id="mqttPort" min="1" max="65535"
-							data-i18n="[placeholder]mqtt.port.placeholder" name="mqttPort" value="" required>
-					</div>
-					<div class="text-center">
-						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
-							type="submit" class="btn btn-primary" data-i18n="submit"></button>
-					</div>
-				</form>
-			</div>
-		</div>
-		<!-- ### Tab FTP ### -->
-		<div class="tab-pane main-tab-pane fade mb-4" id="nav-ftp" role="tabpanel" aria-labelledby="nav-ftp-tab">
-			<div class="container" id="ftpConfig">
-				<form action="#ftpConfig" method="POST" onsubmit="ftpSettings('ftpConfig'); return false">
-					<div class="mb-3 col-md-12">
-						<legend data-i18n="ftp.title"></legend>
-						<label for="ftpUser" data-i18n="[prepend]ftp.user.title">:</label>
-						<input type="text" class="form-control" id="ftpUser" maxlength="0"
-							data-i18n="[placeholder]ftp.user.placeholder" name="ftpUser" value="" required>
-						<label for="ftpPwd" data-i18n="[prepend]ftp.pwd.title">:</label>
-						<div class="input-group">
-							<input type="password" class="form-control" id="ftpPwd" maxlength="0"
-								data-i18n="[placeholder]ftp.pwd.placeholder" name="ftpPwd" value="" required>
-							<button class="btn cp-reveal-btn" type="button" id="ftpPwdToggle" tabindex="-1"
-								data-i18n="[title]ftp.pwd.show" onclick="togglePasswordField('ftpPwd', 'ftpPwdToggle')">
-								<i class="fas fa-eye"></i>
-							</button>
-						</div>
-					</div>
-					<div class="text-center">
-						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
-							type="submit" class="btn btn-primary" data-i18n="submit"></button>
-					</div>
-				</form>
-				<hr>
-			</div>
-			<div class="container" id="ftpStart">
-				<div class="col-md-12">
-					<legend data-i18n="ftp.start.title"></legend>
-					<div data-i18n="ftp.start.desc"></div>
-					<br>
-					<div class="text-center">
-						<button type="button" class="btn btn-primary" id="ftpModeBtn" onclick="ftpSetStatus(1)"
-							data-i18n="ftp.start.button"></button>
-					</div>
-				</div>
-			</div>
-		</div>
-		<!-- ### Tab Bluetooth ### -->
-		<div class="tab-pane main-tab-pane fade mb-4" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
-			<div class="container" id="btConfig">
-				<form action="#btConfig" method="POST" onsubmit="btSettings('btConfig'); return false">
-					<div class="mb-3 col-md-12">
-						<legend data-i18n="bt.source.configtitle"></legend>
-						<label for="btDeviceName" data-i18n="[prepend]bt.device.title">:</label>
-						<input type="text" class="form-control" id="btDeviceName"
-							data-i18n="[placeholder]bt.device.placeholder" name="btDeviceName" value=""><br>
-						<label for="btPinCode" data-i18n="[prepend]bt.pincode.title">:</label>
-						<input type="text" class="form-control" id="btPinCode"
-							data-i18n="[placeholder]bt.pincode.placeholder" name="btPinCode" value="">
-					</div>
-					<div class="mb-3 col-md-12">
-						<label class="form-label" data-i18n="bt.scan.title"></label>
-						<div class="d-grid gap-2 d-md-block">
-							<button type="button" class="btn btn-outline-primary" id="bt-scan-btn" onclick="startBtScan()"><i class="fas fa-search"></i> <span data-i18n="bt.scan.button"></span></button>
-						</div>
-					</div>
-					<div id="bt-scan-results" class="mt-3 d-none">
-						<table class="table table-sm table-striped table-hover">
-							<thead>
-								<tr>
-									<th>Name</th>
-									<th>Address</th>
-									<th>RSSI</th>
-									<th class="text-end">Action</th>
-								</tr>
-							</thead>
-							<tbody id="bt-scan-list"></tbody>
-						</table>
-					</div>
-					<div class="text-center">
-						<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
-					</div>
-				</form>
-				<hr>
-			</div>
-			<div class="container" id="btStartSource">
-				<div class="mb-3 col-md-12">
-					<legend data-i18n="bt.source.title"></legend>
-					<div data-i18n="bt.source.desc"></div>
-					<br>
-					<div class="text-center">
-						<button type="button" class="btn btn-primary" id="btSourceModeBtn" onclick="setOperationMode(2)"
-							data-i18n="bt.source.button"></button>
-					</div>
-				</div>
-				<hr>
-			</div>
-			<div class="container" id="btStartSink">
-				<div class="mb-3 col-md-12">
-					<legend data-i18n="bt.sink.title"></legend>
-					<div data-i18n="bt.sink.desc"></div>
-					<br>
-					<div class="text-center">
-						<button type="button" class="btn btn-primary" id="btSinkModeBtn" onclick="setOperationMode(1)"
-							data-i18n="bt.sink.button"></button>
-					</div>
-				</div>
-			</div>
-		</div>
 		<!-- ### Tab General ### -->
 		<div class="tab-pane main-tab-pane fade mb-4" id="nav-general" role="tabpanel"
 			aria-labelledby="nav-general-tab">
+			<nav class="mb-3" style="margin-top: -1.25rem;">
+				<div class="nav nav-tabs justify-content-center" id="settings-subnav" role="tablist">
+					<a class="nav-item nav-link active" id="settings-general-subtab" data-bs-toggle="tab" data-bs-target="#settings-general" href="#settings-general" role="tab" aria-controls="settings-general" aria-selected="true"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="nav.general"></span></a>
+					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
+					<a class="nav-item nav-link" id="nav-wifi-tab" data-bs-toggle="tab" data-bs-target="#nav-wifi" href="#nav-wifi" role="tab" aria-controls="nav-wifi"><i class="fas fa-wifi"></i> <span class="d-none d-md-inline" data-i18n="nav.wifi"></span></a>
+					<a class="nav-item nav-link" id="nav-mqtt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-mqtt" href="#nav-mqtt" role="tab" aria-controls="nav-mqtt"><i class="fas fa-network-wired"></i> <span class="d-none d-md-inline" data-i18n="nav.mqtt"></span></a>
+					<a class="nav-item nav-link" id="nav-ftp-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-ftp" href="#nav-ftp" role="tab" aria-controls="nav-ftp"><i class="fas fa-folder"></i> <span class="d-none d-md-inline" data-i18n="nav.ftp"></span></a>
+					<a class="nav-item nav-link" id="nav-bt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-bt" href="#nav-bt" role="tab" aria-controls="nav-bt"><i class="fab fa-bluetooth"></i> <span class="d-none d-md-inline" data-i18n="nav.bluetooth"></span></a>
+				</div>
+			</nav>
+			<div class="tab-content" id="settings-subcontent">
+			<div class="tab-pane fade show active" id="settings-general" role="tabpanel" aria-labelledby="settings-general-subtab">
 			<div class="container" id="generalConfig">
 				<form action="#generalConfig" method="POST" onsubmit="genSettings('generalConfig'); return false">
 					<div class="col-md-12 mb-4">
@@ -2279,7 +2066,7 @@
 									<option value="2" data-i18n="general.rfid.readerType.mfrc522_i2c">MFRC522 (I2C)</option>
 									<option value="3" data-i18n="general.rfid.readerType.pn5180">PN5180</option>
 								</select>
-								<small class="form-text text-muted" data-i18n="general.rfid.readerType.description"></small>
+								<small class="form-text text-muted" data-i18n="general.rfid.description"></small>
 							</div>
 							<div class="mb-3">
 								<label for="mfrc522Gain" data-i18n="general.rfid.mfrc522Gain"></label>
@@ -2315,8 +2102,9 @@
 					</div>
 					<div class="col-md-12 mb-4" id="optionsConfig">
 						<fieldset>
-							<legend class="w-auto" data-i18n="general.options.title"></legend><br>
-							<div class="d-flex gap-2">
+							<legend class="w-auto" data-i18n="general.options.title"></legend>
+							<div class="row gx-3">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="savePlayPosShutdown" name="savePlayPosShutdown"
 									value="false">
 								<label for="savePlayPosShutdown"
@@ -2325,7 +2113,7 @@
 									data-i18n="[data-bs-content]general.options.savePlayPosShutdownExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="savePlayPosRfidChange" name="savePlayPosRfidChange"
 									value="false">
 								<label for="savePlayPosRfidChange"
@@ -2334,7 +2122,7 @@
 									data-i18n="[data-bs-content]general.options.savePlayPosRfidChangeExp"
 									tabindex="0"><i class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="playLastRfidOnReboot" name="playLastRfidOnReboot"
 									value="false">
 								<label for="playLastRfidOnReboot"
@@ -2343,14 +2131,14 @@
 									data-i18n="[data-bs-content]general.options.playLastRfidOnRebootExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="pauseIfRfidRemoved" name="pauseIfRfidRemoved" value="false">
 								<label for="pauseIfRfidRemoved" data-i18n="general.options.pauseIfRfidRemoved"></label>
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.pauseIfRfidRemovedExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="dontAcceptRfidTwice" name="dontAcceptRfidTwice"
 									value="false">
 								<label for="dontAcceptRfidTwice"
@@ -2359,33 +2147,34 @@
 									data-i18n="[data-bs-content]general.options.dontAcceptRfidTwiceExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="pauseOnMinVolume" name="pauseOnMinVolume" value="false">
 								<label for="pauseOnMinVolume" data-i18n="general.options.pauseOnMinVolume"></label>
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.pauseOnMinVolumeExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="recoverVolBoot" name="recoverVolBoot" value="false">
 								<label for="recoverVolBoot" data-i18n="general.options.recoverVolBoot"></label>
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.recoverVolBootExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="playMono" name="playMono" value="false">
 								<label for="playMono" data-i18n="general.options.playMono"></label>
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.playMonoExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
-							<div class="d-flex gap-2">
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="volumeCurve" name="volumeCurve" value="false">
 								<label for="volumeCurve" data-i18n="general.options.volumeCurve"></label>
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.volumeCurveExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
+							</div>
 							</div>
 							<br>
 							<label for="readyPath" data-i18n="general.options.readypath"></label>
@@ -2626,117 +2415,6 @@
 								<label for="led_reverseRotation"
 									data-i18n="settingsex.led.reverserotation"></label><br><br>
 							</fieldset>
-							<fieldset>
-								<legend class="w-auto" data-i18n="settingsex.buttons.title"></legend><br>
-								<legend class="fs-5" data-i18n="settingsex.buttons.button0"></legend>
-								<label for="cmdselect_short_0"
-									data-i18n="settingsex.buttons.short"></label>:&nbsp;<select id="cmdselect_short_0"
-									class="form-control form-select"></select><br>
-								<label for="cmdselect_long_0" data-i18n="settingsex.buttons.long"></label>:&nbsp;<select
-									id="cmdselect_long_0" class="form-control form-select"></select><br><br>
-								<legend class="fs-5" data-i18n="settingsex.buttons.button1"></legend>
-								<label for="cmdselect_short_1"
-									data-i18n="settingsex.buttons.short"></label>:&nbsp;<select id="cmdselect_short_1"
-									class="form-control form-select"></select><br>
-								<label for="cmdselect_long_1" data-i18n="settingsex.buttons.long"></label>:&nbsp;<select
-									id="cmdselect_long_1" class="form-control form-select"></select><br><br>
-								<legend class="fs-5" data-i18n="settingsex.buttons.button2"></legend>
-								<label for="cmdselect_short_2"
-									data-i18n="settingsex.buttons.short"></label>:&nbsp;<select id="cmdselect_short_2"
-									class="form-control form-select"></select><br>
-								<label for="cmdselect_long_2" data-i18n="settingsex.buttons.long"></label>:&nbsp;<select
-									id="cmdselect_long_2" class="form-control form-select"></select><br><br>
-								<legend class="fs-5" data-i18n="settingsex.buttons.button3"></legend>
-								<label for="cmdselect_short_3"
-									data-i18n="settingsex.buttons.short"></label>:&nbsp;<select id="cmdselect_short_3"
-									class="form-control form-select"></select><br>
-								<label for="cmdselect_long_3" data-i18n="settingsex.buttons.long"></label>:&nbsp;<select
-									id="cmdselect_long_3" class="form-control form-select"></select><br><br>
-								<legend class="fs-5" data-i18n="settingsex.buttons.button4"></legend>
-								<label for="cmdselect_short_4"
-									data-i18n="settingsex.buttons.short"></label>:&nbsp;<select id="cmdselect_short_4"
-									class="form-control form-select"></select><br>
-								<label for="cmdselect_long_4" data-i18n="settingsex.buttons.long"></label>:&nbsp;<select
-									id="cmdselect_long_4" class="form-control form-select"></select><br><br>
-								<legend class="fs-5" data-i18n="settingsex.buttons.button5"></legend>
-								<label for="cmdselect_short_5"
-									data-i18n="settingsex.buttons.short"></label>:&nbsp;<select id="cmdselect_short_5"
-									class="form-control form-select"></select><br>
-								<label for="cmdselect_long_5" data-i18n="settingsex.buttons.long"></label>:&nbsp;<select
-									id="cmdselect_long_5" class="form-control form-select"></select><br><br>
-								<legend class="fs-5" data-i18n="settingsex.buttons.button6"></legend>
-								<label for="cmdselect_short_6"
-									data-i18n="settingsex.buttons.short"></label>:&nbsp;<select id="cmdselect_short_6"
-									class="form-control form-select"></select><br>
-								<label for="cmdselect_long_6" data-i18n="settingsex.buttons.long"></label>:&nbsp;<select
-									id="cmdselect_long_6" class="form-control form-select"></select><br><br>
-							</fieldset>
-							<fieldset>
-								<legend class="w-auto" data-i18n="settingsex.multibuttons.title"></legend><br>
-								<label for="cmdselect_multi_01"
-									data-i18n="settingsex.multibuttons.01"></label>:&nbsp;<select
-									id="cmdselect_multi_01" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_02"
-									data-i18n="settingsex.multibuttons.02"></label>:&nbsp;<select
-									id="cmdselect_multi_02" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_03"
-									data-i18n="settingsex.multibuttons.03"></label>:&nbsp;<select
-									id="cmdselect_multi_03" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_04"
-									data-i18n="settingsex.multibuttons.04"></label>:&nbsp;<select
-									id="cmdselect_multi_04" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_05"
-									data-i18n="settingsex.multibuttons.05"></label>:&nbsp;<select
-									id="cmdselect_multi_05" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_06"
-									data-i18n="settingsex.multibuttons.06"></label>:&nbsp;<select
-									id="cmdselect_multi_06" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_12"
-									data-i18n="settingsex.multibuttons.12"></label>:&nbsp;<select
-									id="cmdselect_multi_12" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_13"
-									data-i18n="settingsex.multibuttons.13"></label>:&nbsp;<select
-									id="cmdselect_multi_13" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_14"
-									data-i18n="settingsex.multibuttons.14"></label>:&nbsp;<select
-									id="cmdselect_multi_14" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_15"
-									data-i18n="settingsex.multibuttons.15"></label>:&nbsp;<select
-									id="cmdselect_multi_15" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_16"
-									data-i18n="settingsex.multibuttons.16"></label>:&nbsp;<select
-									id="cmdselect_multi_16" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_23"
-									data-i18n="settingsex.multibuttons.23"></label>:&nbsp;<select
-									id="cmdselect_multi_23" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_24"
-									data-i18n="settingsex.multibuttons.24"></label>:&nbsp;<select
-									id="cmdselect_multi_24" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_25"
-									data-i18n="settingsex.multibuttons.25"></label>:&nbsp;<select
-									id="cmdselect_multi_25" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_26"
-									data-i18n="settingsex.multibuttons.26"></label>:&nbsp;<select
-									id="cmdselect_multi_26" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_34"
-									data-i18n="settingsex.multibuttons.34"></label>:&nbsp;<select
-									id="cmdselect_multi_34" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_35"
-									data-i18n="settingsex.multibuttons.35"></label>:&nbsp;<select
-									id="cmdselect_multi_35" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_36"
-									data-i18n="settingsex.multibuttons.36"></label>:&nbsp;<select
-									id="cmdselect_multi_36" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_45"
-									data-i18n="settingsex.multibuttons.45"></label>:&nbsp;<select
-									id="cmdselect_multi_45" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_46"
-									data-i18n="settingsex.multibuttons.46"></label>:&nbsp;<select
-									id="cmdselect_multi_46" class="form-control form-select"></select><br>
-								<label for="cmdselect_multi_56"
-									data-i18n="settingsex.multibuttons.56"></label>:&nbsp;<select
-									id="cmdselect_multi_56" class="form-control form-select"></select><br>
-							</fieldset>
 						</div>
 					</span>
 					<div class="text-center">
@@ -2745,6 +2423,364 @@
 							data-i18n="submit"></button>
 					</div>
 				</form>
+			</div>
+					</div>
+			<div class="tab-pane fade" id="settings-buttons" role="tabpanel" aria-labelledby="settings-buttons-subtab">
+			<div class="container">
+							<fieldset>
+								<legend class="w-auto" data-i18n="settingsex.buttons.title"></legend>
+								<div class="row gx-2 mb-1 small text-secondary d-none d-sm-flex">
+									<div class="col-sm-3"></div>
+									<div class="col-sm" data-i18n="settingsex.buttons.short"></div>
+									<div class="col-sm" data-i18n="settingsex.buttons.long"></div>
+								</div>
+								<div class="row gx-2 align-items-center mb-2">
+									<label class="col-12 col-sm-3 col-form-label col-form-label-sm" data-i18n="settingsex.buttons.button0"></label>
+									<div class="col-6 col-sm"><select id="cmdselect_short_0" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.short"></select></div>
+									<div class="col-6 col-sm"><select id="cmdselect_long_0" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.long"></select></div>
+								</div>
+								<div class="row gx-2 align-items-center mb-2">
+									<label class="col-12 col-sm-3 col-form-label col-form-label-sm" data-i18n="settingsex.buttons.button1"></label>
+									<div class="col-6 col-sm"><select id="cmdselect_short_1" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.short"></select></div>
+									<div class="col-6 col-sm"><select id="cmdselect_long_1" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.long"></select></div>
+								</div>
+								<div class="row gx-2 align-items-center mb-2">
+									<label class="col-12 col-sm-3 col-form-label col-form-label-sm" data-i18n="settingsex.buttons.button2"></label>
+									<div class="col-6 col-sm"><select id="cmdselect_short_2" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.short"></select></div>
+									<div class="col-6 col-sm"><select id="cmdselect_long_2" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.long"></select></div>
+								</div>
+								<div class="row gx-2 align-items-center mb-2">
+									<label class="col-12 col-sm-3 col-form-label col-form-label-sm" data-i18n="settingsex.buttons.button3"></label>
+									<div class="col-6 col-sm"><select id="cmdselect_short_3" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.short"></select></div>
+									<div class="col-6 col-sm"><select id="cmdselect_long_3" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.long"></select></div>
+								</div>
+								<div class="row gx-2 align-items-center mb-2">
+									<label class="col-12 col-sm-3 col-form-label col-form-label-sm" data-i18n="settingsex.buttons.button4"></label>
+									<div class="col-6 col-sm"><select id="cmdselect_short_4" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.short"></select></div>
+									<div class="col-6 col-sm"><select id="cmdselect_long_4" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.long"></select></div>
+								</div>
+								<div class="row gx-2 align-items-center mb-2">
+									<label class="col-12 col-sm-3 col-form-label col-form-label-sm" data-i18n="settingsex.buttons.button5"></label>
+									<div class="col-6 col-sm"><select id="cmdselect_short_5" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.short"></select></div>
+									<div class="col-6 col-sm"><select id="cmdselect_long_5" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.long"></select></div>
+								</div>
+								<div class="row gx-2 align-items-center mb-2">
+									<label class="col-12 col-sm-3 col-form-label col-form-label-sm" data-i18n="settingsex.buttons.button6"></label>
+									<div class="col-6 col-sm"><select id="cmdselect_short_6" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.short"></select></div>
+									<div class="col-6 col-sm"><select id="cmdselect_long_6" class="form-select form-select-sm" data-i18n="[title]settingsex.buttons.long"></select></div>
+								</div>
+							</fieldset>
+							<fieldset>
+								<legend class="w-auto" data-i18n="settingsex.multibuttons.title"></legend>
+								<div class="row gx-2">
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.01"></label>
+										<select id="cmdselect_multi_01" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.02"></label>
+										<select id="cmdselect_multi_02" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.03"></label>
+										<select id="cmdselect_multi_03" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.04"></label>
+										<select id="cmdselect_multi_04" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.05"></label>
+										<select id="cmdselect_multi_05" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.06"></label>
+										<select id="cmdselect_multi_06" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.12"></label>
+										<select id="cmdselect_multi_12" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.13"></label>
+										<select id="cmdselect_multi_13" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.14"></label>
+										<select id="cmdselect_multi_14" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.15"></label>
+										<select id="cmdselect_multi_15" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.16"></label>
+										<select id="cmdselect_multi_16" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.23"></label>
+										<select id="cmdselect_multi_23" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.24"></label>
+										<select id="cmdselect_multi_24" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.25"></label>
+										<select id="cmdselect_multi_25" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.26"></label>
+										<select id="cmdselect_multi_26" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.34"></label>
+										<select id="cmdselect_multi_34" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.35"></label>
+										<select id="cmdselect_multi_35" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.36"></label>
+										<select id="cmdselect_multi_36" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.45"></label>
+										<select id="cmdselect_multi_45" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.46"></label>
+										<select id="cmdselect_multi_46" class="form-select form-select-sm"></select>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label class="form-label small mb-0" data-i18n="settingsex.multibuttons.56"></label>
+										<select id="cmdselect_multi_56" class="form-select form-select-sm"></select>
+									</div>
+								</div>
+							</fieldset>
+				<div class="text-center mt-3">
+					<button type="button" class="btn btn-primary" onclick="genSettings('generalConfig')" data-i18n="submit"></button>
+				</div>
+			</div>
+			</div>
+		<div class="tab-pane fade" id="nav-wifi" role="tabpanel" aria-labelledby="nav-wifi-tab">
+			<div class="container" id="wifiConfig">
+				<div>
+					<legend data-i18n="wifi.title"></legend>
+					<form action="#globalWifiConfig" method="POST"
+						onsubmit="globalWifiConfig('globalWifiConfig'); return false">
+						<div class="mb-3 col-md-12">
+							<label for="hostname" data-i18n="[prepend]wifi.hostname.title">:</label>
+							<input type="text" class="form-control" id="hostname"
+								data-i18n="[placeholder]wifi.hostname.placeholder" name="hostname" value=""
+								pattern="^[0-9a-zA-Z][0-9a-zA-Z\-]{0,30}[0-9a-zA-Z]" required><br>
+							<input type="checkbox" id="scan_wifi_on_start" name="scan_wifi_on_start"
+								value="false">&nbsp; <label for="scan_wifi_on_start"
+								data-i18n="wifi.scan.enabled"></label>
+						</div>
+						<div class="text-center">
+							<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
+								type="submit" class="btn btn-primary" data-i18n="submit"></button>
+						</div>
+					</form>
+				</div>
+				<hr>
+				<div>
+					<legend data-i18n="wifi.networks"></legend>
+					<form action="#wifiConfig" method="POST" onsubmit="wifiConfig('wifiConfig'); return false">
+						<div class="mb-3 col-md-12">
+							<label for="ssid" data-i18n="[prepend]wifi.ssid.title">:</label>
+							<input type="text" class="form-control" id="ssid"
+								data-i18n="[placeholder]wifi.ssid.placeholder" name="ssid" required><br>
+							<div class="invalid-feedback" data-i18n="wifi.ssid.validation"></div>
+							<label for="pwd" data-i18n="[prepend]wifi.password.title">:</label>
+							<input type="password" class="form-control" id="pwd" name="pwd"
+								data-i18n="[placeholder]wifi.password.placeholder" required><br>
+							<input type="checkbox" id="static_enabled" name="static_enabled" value="false">&nbsp; <label
+								for="static_enabled" data-i18n="[prepend]wifi.static.enabled">:</label>
+							<div id="wifi_static_div" style="display:none">
+								<label for="static_addr" data-i18n="[prepend]wifi.static.addr">:</label>
+								<input type="text" class="form-control" id="static_addr" name="static_addr">
+								<label for="static_gateway" data-i18n="[prepend]wifi.static.gateway">:</label>
+								<input type="text" class="form-control" id="static_gateway" name="static_gateway">
+								<label for="static_subnet" data-i18n="[prepend]wifi.static.subnet">:</label>
+								<input type="text" class="form-control" id="static_subnet" name="static_subnet">
+								<label for="static_dns1" data-i18n="[prepend]wifi.static.dns1">:</label>
+								<input type="text" class="form-control" id="static_dns1" name="static_dns1">
+								<label for="static_dns2" data-i18n="[prepend]wifi.static.dns2">:</label>
+								<input type="text" class="form-control" id="static_dns2" name="static_dns2">
+							</div>
+						</div>
+						<div class="text-center">
+							<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
+						</div>
+					</form>
+				</div>
+				<hr>
+				<div class="col-md-12" style="margin-top: 20px;">
+					<legend data-i18n="wifi.savedNetworks"></legend>
+					<ul class="list-group" id="wifiListSavedSSIDs">
+					</ul>
+				</div>
+				<hr>
+				<div>
+					<legend data-i18n="security.title"></legend>
+					<form action="#securityConfig" method="POST" onsubmit="securityConfig(); return false">
+						<div class="mb-3 col-md-12">
+							<label for="wwwPassword" data-i18n="[prepend]security.password.title">:</label>
+							<input type="password" class="form-control" id="wwwPassword" name="wwwPassword"
+								maxlength="64" autocomplete="new-password"
+								data-i18n="[placeholder]security.password.placeholder">
+							<small class="form-text" data-i18n="security.password.desc"></small>
+						</div>
+						<div class="text-center">
+							<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
+						</div>
+					</form>
+				</div>
+			</div>
+			<br />
+		</div>
+		<div class="tab-pane fade" id="nav-mqtt" role="tabpanel" aria-labelledby="nav-mqtt-tab">
+			<div class="container" id="mqttConfig">
+				<form class="needs-validation" action="#mqttConfig" method="POST"
+					onsubmit="mqttSettings('mqttConfig'); return false">
+					<legend data-i18n="mqtt.title"></legend>
+					<div class="mb-2"><small class="text-muted" data-i18n="mqtt.restartNote"></small></div>
+					<div class="form-check col-md-12">
+						<input class="form-check-input" type="checkbox" value="1" id="mqttEnable"
+							name="mqttEnable">&nbsp; <label class="form-check-label" for="mqttEnable"
+							data-i18n="mqtt.enable"></label>
+					</div>
+					<div class="mb-3 my-2 col-md-12">
+						<label for="mqttClientId" data-i18n="[prepend]mqtt.clientId.title">:</label>
+						<input type="text" class="form-control" id="mqttClientId" minlength="7" maxlength="0"
+							data-i18n="[placeholder]mqtt.clientId.placeholder" name="mqttClientId" value="">
+						<label for="mqttBaseTopic" data-i18n="[prepend]mqtt.baseTopic.title">:</label>
+						<input type="text" class="form-control" id="mqttBaseTopic" maxlength="0"
+							data-i18n="[placeholder]mqtt.baseTopic.placeholder" name="mqttBaseTopic" value="">
+						<label for="mqttDeviceId" data-i18n="[prepend]mqtt.deviceId.title">:</label>
+						<input type="text" class="form-control" id="mqttDeviceId" maxlength="0"
+							data-i18n="[placeholder]mqtt.deviceId.placeholder" name="mqttDeviceId" value="">
+						<label for="mqttServer" data-i18n="[prepend]mqtt.server.title">:</label>
+						<input type="text" class="form-control" id="mqttServer" minlength="7" maxlength="0"
+							data-i18n="[placeholder]mqtt.server.placeholder" name="mqttServer" value="">
+						<label for="mqttUser" data-i18n="[prepend]mqtt.user.title">:</label>
+						<input type="text" class="form-control" id="mqttUser" maxlength=""
+							data-i18n="[placeholder]mqtt.user.placeholder" name="mqttUser" value="">
+						<label for="mqttPwd" data-i18n="[prepend]mqtt.pwd.title">:</label>
+						<input type="password" class="form-control" id="mqttPwd" maxlength=""
+							data-i18n="[placeholder]mqtt.pwd.placeholder" name="mqttPwd" value="">
+						<label for="mqttPort" data-i18n="[prepend]mqtt.port.title">:</label>
+						<input type="number" class="form-control" id="mqttPort" min="1" max="65535"
+							data-i18n="[placeholder]mqtt.port.placeholder" name="mqttPort" value="" required>
+					</div>
+					<div class="text-center">
+						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
+							type="submit" class="btn btn-primary" data-i18n="submit"></button>
+					</div>
+				</form>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="nav-ftp" role="tabpanel" aria-labelledby="nav-ftp-tab">
+			<div class="container" id="ftpConfig">
+				<form action="#ftpConfig" method="POST" onsubmit="ftpSettings('ftpConfig'); return false">
+					<div class="mb-3 col-md-12">
+						<legend data-i18n="ftp.title"></legend>
+						<label for="ftpUser" data-i18n="[prepend]ftp.user.title">:</label>
+						<input type="text" class="form-control" id="ftpUser" maxlength="0"
+							data-i18n="[placeholder]ftp.user.placeholder" name="ftpUser" value="" required>
+						<label for="ftpPwd" data-i18n="[prepend]ftp.pwd.title">:</label>
+						<div class="input-group">
+							<input type="password" class="form-control" id="ftpPwd" maxlength="0"
+								data-i18n="[placeholder]ftp.pwd.placeholder" name="ftpPwd" value="" required>
+							<button class="btn cp-reveal-btn" type="button" id="ftpPwdToggle" tabindex="-1"
+								data-i18n="[title]ftp.pwd.show" onclick="togglePasswordField('ftpPwd', 'ftpPwdToggle')">
+								<i class="fas fa-eye"></i>
+							</button>
+						</div>
+					</div>
+					<div class="text-center">
+						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
+							type="submit" class="btn btn-primary" data-i18n="submit"></button>
+					</div>
+				</form>
+				<hr>
+			</div>
+			<div class="container" id="ftpStart">
+				<div class="col-md-12">
+					<legend data-i18n="ftp.start.title"></legend>
+					<div data-i18n="ftp.start.desc"></div>
+					<br>
+					<div class="text-center">
+						<button type="button" class="btn btn-primary" id="ftpModeBtn" onclick="ftpSetStatus(1)"
+							data-i18n="ftp.start.button"></button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
+			<div class="container" id="btConfig">
+				<form action="#btConfig" method="POST" onsubmit="btSettings('btConfig'); return false">
+					<div class="mb-3 col-md-12">
+						<legend data-i18n="bt.source.configtitle"></legend>
+						<label for="btDeviceName" data-i18n="[prepend]bt.device.title">:</label>
+						<input type="text" class="form-control" id="btDeviceName"
+							data-i18n="[placeholder]bt.device.placeholder" name="btDeviceName" value=""><br>
+						<label for="btPinCode" data-i18n="[prepend]bt.pincode.title">:</label>
+						<input type="text" class="form-control" id="btPinCode"
+							data-i18n="[placeholder]bt.pincode.placeholder" name="btPinCode" value="">
+					</div>
+					<div class="mb-3 col-md-12">
+						<label class="form-label" data-i18n="bt.scan.title"></label>
+						<div class="d-grid gap-2 d-md-block">
+							<button type="button" class="btn btn-outline-primary" id="bt-scan-btn" onclick="startBtScan()"><i class="fas fa-search"></i> <span data-i18n="bt.scan.button"></span></button>
+						</div>
+					</div>
+					<div id="bt-scan-results" class="mt-3 d-none">
+						<table class="table table-sm table-striped table-hover">
+							<thead>
+								<tr>
+									<th>Name</th>
+									<th>Address</th>
+									<th>RSSI</th>
+									<th class="text-end">Action</th>
+								</tr>
+							</thead>
+							<tbody id="bt-scan-list"></tbody>
+						</table>
+					</div>
+					<div class="text-center">
+						<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
+					</div>
+				</form>
+				<hr>
+			</div>
+			<div class="container" id="btStartSource">
+				<div class="mb-3 col-md-12">
+					<legend data-i18n="bt.source.title"></legend>
+					<div data-i18n="bt.source.desc"></div>
+					<br>
+					<div class="text-center">
+						<button type="button" class="btn btn-primary" id="btSourceModeBtn" onclick="setOperationMode(2)"
+							data-i18n="bt.source.button"></button>
+					</div>
+				</div>
+				<hr>
+			</div>
+			<div class="container" id="btStartSink">
+				<div class="mb-3 col-md-12">
+					<legend data-i18n="bt.sink.title"></legend>
+					<div data-i18n="bt.sink.desc"></div>
+					<br>
+					<div class="text-center">
+						<button type="button" class="btn btn-primary" id="btSinkModeBtn" onclick="setOperationMode(1)"
+							data-i18n="bt.sink.button"></button>
+					</div>
+				</div>
+			</div>
+		</div>
 			</div>
 		</div>
 		<!-- ### Tab Tools ### -->
@@ -2878,17 +2914,6 @@
 				</form>
 			</div>
 		</div>
-		<!-- ### Tab Help ### -->
-		<div class="tab-pane main-tab-pane fade mb-4" id="nav-help" role="tabpanel" aria-labelledby="nav-help-tab">
-			<div class="container" id="divForum">
-				<legend data-i18n="help.forum.title"></legend>
-				<p data-i18n="[html]help.forum.desc"></p>
-			</div>
-			<div class="container" id="divSwagger">
-				<legend data-i18n="help.swagger.title"></legend>
-				<p data-i18n="[html]help.swagger.desc"></p>
-			</div>
-		</div>
 	</div>
 	<footer id="cp-footer">
 		<div class="cp-footer-inner">
@@ -2921,6 +2946,12 @@
 			console.log("ActiveTab: " + ActiveTab);
 			if (ActiveTab == 'nav-control-tab') {
 				getTrackProgress();
+				// The volume slider is created while the control tab is still
+				// hidden, so it initializes with zero width. Relayout it once
+				// the tab becomes visible to restore the correct dimensions.
+				if (typeof volumeSlider !== 'undefined' && volumeSlider) {
+					volumeSlider.relayout();
+				}
 			}
 			localStorage.setItem("active-tab", ActiveTab);
 		});
@@ -4880,6 +4911,19 @@
 			if (ftpTab) {
 				ftpTab.classList.toggle('ftp-active', running);
 			}
+			// control-tab FTP button
+			const ftpBtn = document.getElementById('btn-ftp');
+			const ftpLbl = document.getElementById('lbl-ftp');
+			if (ftpBtn && ftpLbl) {
+				ftpBtn.className = running ? "btn btn-sm cp-control-button active-green" : "btn btn-sm cp-control-button";
+				ftpLbl.setAttribute('data-i18n', running ? 'control.ftpOn' : 'control.ftpOff');
+				ftpLbl.innerHTML = i18next.t(running ? 'control.ftpOn' : 'control.ftpOff', running ? 'FTP On' : 'FTP Off');
+			}
+		}
+
+		function toggleFtp() {
+			const b = document.getElementById('btn-ftp');
+			ftpSetStatus(b && b.classList.contains('active-green') ? 0 : 1);
 		}
 
 		function updateLockControlsState(locked) {
@@ -4945,14 +4989,14 @@
 			if (!btn || !lbl) return;
 
 			if (data.sleepAfterTrack) {
-				btn.className = "btn btn-sm cp-control-button active-magenta dropdown-toggle";
+				btn.classList.add('active-magenta');
 				lbl.setAttribute('data-i18n', 'control.sleepEOT');
 				lbl.innerHTML = i18next.t("control.sleepEOT", "After Track");
 				clearInterval(sleepTimerRemainingInterval);
 				return;
 			}
 			if (data.sleepAfterPlaylist) {
-				btn.className = "btn btn-sm cp-control-button active-magenta dropdown-toggle";
+				btn.classList.add('active-magenta');
 				lbl.setAttribute('data-i18n', 'control.sleepEOP');
 				lbl.innerHTML = i18next.t("control.sleepEOP", "After Playlist");
 				clearInterval(sleepTimerRemainingInterval);
@@ -4963,7 +5007,7 @@
 			const remaining = data.sleepTimerRemaining || 0;
 
 			if (duration > 0 && remaining > 0) {
-				btn.className = "btn btn-sm cp-control-button active-magenta dropdown-toggle";
+				btn.classList.add('active-magenta');
 				sleepTimerRemaining = remaining;
 				
 				clearInterval(sleepTimerRemainingInterval);
@@ -4977,7 +5021,7 @@
 					}
 				}, 1000);
 			} else {
-				btn.className = "btn btn-sm cp-control-button dropdown-toggle";
+				btn.classList.remove('active-magenta');
 				lbl.setAttribute('data-i18n', 'control.sleepOff');
 				lbl.innerHTML = i18next.t("control.sleepOff", "Sleep Off");
 				clearInterval(sleepTimerRemainingInterval);
@@ -5725,7 +5769,10 @@
 		function selectActiveTabFromLocalStorage() {
 			/* Load last selected tab from local storage and set it as active*/
 			ActiveTab = localStorage.getItem("active-tab");
-			if (ActiveTab == null) {
+			// fall back to default if nothing stored, or the stored tab no longer is a
+			// top-level tab (e.g. WiFi/MQTT/FTP/BT were moved into the Settings sub-tabs)
+			const storedEl = ActiveTab ? document.getElementById(ActiveTab) : null;
+			if (!storedEl || !storedEl.classList.contains('main-tab-item')) {
 				ActiveTab = "nav-rfid-tab";
 			}
 			console.log("ActiveTab: " + ActiveTab);

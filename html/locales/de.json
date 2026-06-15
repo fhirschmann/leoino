@@ -36,6 +36,8 @@
 		"ftp": "FTP",
 		"bluetooth": "Bluetooth",
 		"general": "Allgemein",
+		"settings": "Einstellungen",
+		"buttons": "Tasten",
 		"tools": "Tools",
 		"help": "Hilfe"
 	},
@@ -168,6 +170,8 @@
 		"btHeadphones": "Kopfhörer",
 		"nightOn": "Nacht An",
 		"nightOff": "Nacht Aus",
+		"ftpOn": "FTP An",
+		"ftpOff": "FTP Aus",
 		"repeatOff": "Aus",
 		"repeatPlaylist": "Playlist",
 		"repeatTrack": "Titel",
