@@ -28,6 +28,7 @@
 	},
 	"nav": {
 		"updateAvailable": "Mise à jour disponible",
+		"clickToUpdate": "cliquer pour installer",
 		"control": "Contrôle",
 		"rfid": "Fichiers",
 		"wifi": "WiFi",

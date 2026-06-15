@@ -3891,6 +3891,11 @@
 			if (!v || !v.build) return;
 			el.style.display = '';
 			el.classList.remove('up-to-date', 'update-available', 'unknown');
+			// default: link to the releases page in a new tab
+			el.onclick = null;
+			el.setAttribute('href', 'https://github.com/fhirschmann/leoino/releases');
+			el.setAttribute('target', '_blank');
+			el.setAttribute('rel', 'noopener');
 			if (v.upToDate === 1) {
 				el.classList.add('up-to-date');
 				el.textContent = v.build;
@@ -3898,7 +3903,16 @@
 			} else if (v.upToDate === 0) {
 				el.classList.add('update-available');
 				el.textContent = v.build + " ⬆";
-				el.title = i18next.t("nav.updateAvailable", "Update available") + (v.latest ? " (" + v.latest + ")" : "");
+				el.title = i18next.t("nav.updateAvailable", "Update available") + (v.latest ? " (" + v.latest + ")" : "") + " – " + i18next.t("nav.clickToUpdate", "click to install");
+				// clicking the amber badge starts the GitHub OTA (jump to the tools tab to show progress)
+				el.removeAttribute('target');
+				el.removeAttribute('rel');
+				el.setAttribute('href', '#');
+				el.onclick = function (e) {
+					e.preventDefault();
+					try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) {}
+					applyGithubUpdate();
+				};
 			} else {
 				el.classList.add('unknown');
 				el.textContent = v.build;

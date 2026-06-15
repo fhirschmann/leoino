@@ -95,7 +95,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | Bluetooth-mode dropdown in the control tab (Normal / Speaker / Headphones), mirroring the sleep-timer dropdown; selecting a mode restarts the device into it and the button highlights the active BT mode | [`d57f24a`](../../commit/d57f24a) |
 | Mobile-optimized control tab: the hard-to-drag volume slider is replaced by full-width louder/quieter (+ EQ) buttons on phones, and the control header stacks so the legend stays on one line with the action buttons below | [`aef1765`](../../commit/aef1765) |
 | System-information dialog rendered as a clean property/value table (instead of preformatted text) and extended with the PN5180 RFID-reader firmware version (read once from the reader's EEPROM at init and exposed via `/info`) | [`715d867`](../../commit/715d867) |
-| Rolling build version (`rN` from the commit count, embedded via `gitVersion.py` and published in the release `version.json`) shown as a navbar badge — green when the device runs the latest rolling release, amber when an update is available (passive `/version` check); also listed in the info dialog | [`b736abc`](../../commit/b736abc) |
+| Rolling build version (`rN` from the commit count, embedded via `gitVersion.py` and published in the release `version.json`) shown as a navbar badge — green when the device runs the latest rolling release, amber when an update is available (passive `/version` check); clicking the amber badge starts the GitHub OTA; also listed in the info dialog | [`b736abc`](../../commit/b736abc) |
 
 #### Feature highlights
 

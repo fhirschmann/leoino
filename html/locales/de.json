@@ -28,6 +28,7 @@
 	},
 	"nav": {
 		"updateAvailable": "Update verfügbar",
+		"clickToUpdate": "zum Installieren klicken",
 		"control": "Steuerung",
 		"rfid": "Dateien",
 		"wifi": "WLAN",
