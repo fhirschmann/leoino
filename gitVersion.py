@@ -37,9 +37,9 @@ def git_revision():
             stderr=subprocess.PIPE,
         ).strip()
     except (subprocess.CalledProcessError, OSError) as err:
-        print(
-            f"  Warning: Setting Git revision to 'unknown': {err.stderr.split(':', 1)[1].strip()}"
-        )
+        # OSError (e.g. git not installed) has no .stderr; fall back to str(err)
+        detail = getattr(err, "stderr", None) or str(err)
+        print(f"  Warning: Setting Git revision to 'unknown': {detail}")
         return "unknown"
 
 

@@ -45,7 +45,7 @@ extern TwoWire i2cBusTwo;
 #if defined(RFID_READER_TYPE_RUNTIME)
 static void RfidPn5180_Task(void *parameter);
 uint8_t stateMachine = RFID_PN5180_STATE_INIT;
-static bool rfidTaskResetRequested = false;
+static volatile bool rfidTaskResetRequested = false; // set from another task via RfidPn5180_TaskReset()
 static byte lastValidcardId[cardIdSize];
 static char Rfid_ReaderFwVersion[12] = ""; // cached PN5180 firmware version (e.g. "4.0"), read once at init
 

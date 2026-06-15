@@ -25,7 +25,7 @@
 extern unsigned long Rfid_LastRfidCheckTimestamp;
 extern TaskHandle_t rfidTaskHandle;
 static void RfidMfrc522_Task(void *parameter);
-static bool mfrcTaskResetRequested = false;
+static volatile bool mfrcTaskResetRequested = false; // set from another task via RfidMfrc522_TaskReset()
 
 	#if defined(RFID_READER_TYPE_RUNTIME)
 extern TwoWire i2cBusTwo;

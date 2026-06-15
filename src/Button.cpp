@@ -193,7 +193,8 @@ static const char *buttonNames[] = {
 	"ROTARYENCODER",
 	"BUTTON_4",
 	"BUTTON_5",
-	"BUTTON_6"};
+	"BUTTON_6",
+	"DUMMY"}; // index 7 matches the dummy slot in gButtons[8]
 
 // Update press/release state for a single button with debouncing
 static void Button_UpdateState(uint8_t i, t_button &btn, unsigned long currentTimestamp) {
