@@ -226,6 +226,37 @@
 			color: #ff2a6d;
 		}
 
+		/* navbar firmware-version badge (green = up to date, amber = update available) */
+		.cp-version-badge {
+			font-family: "Share Tech Mono", monospace;
+			font-size: .8rem;
+			letter-spacing: .05em;
+			padding: 1px 8px;
+			margin-left: 8px;
+			border-radius: 4px;
+			border: 1px solid transparent;
+			text-decoration: none;
+			white-space: nowrap;
+			align-self: center;
+		}
+
+		.cp-version-badge.up-to-date {
+			color: var(--cp-green);
+			border-color: rgba(10, 255, 157, .45);
+			text-shadow: 0 0 8px rgba(10, 255, 157, .5);
+		}
+
+		.cp-version-badge.update-available {
+			color: var(--cp-yellow);
+			border-color: rgba(252, 238, 10, .45);
+			text-shadow: 0 0 8px rgba(252, 238, 10, .5);
+		}
+
+		.cp-version-badge.unknown {
+			color: var(--cp-dim);
+			border-color: var(--cp-border);
+		}
+
 		#menuToggle {
 			color: var(--cp-cyan) !important;
 			text-shadow: 0 0 8px rgba(0, 240, 255, .6);
@@ -1401,6 +1432,7 @@
 				<span id="navbar-brand-co" class="d-none d-md-inline">Leo Industries AT-1</span>
 				<span id="navbar-heading" class="d-none d-md-inline" data-i18n="title"></span>
 			</a>
+			<a class="navbar-text cp-version-badge unknown" id="versionBadge" href="https://github.com/fhirschmann/leoino/releases" target="_blank" rel="noopener" style="display:none;"></a>
 			<div class="collapse navbar-collapse justify-content-end">
 				<span class="navbar-text" id="connLost" data-i18n="[title]toast.conlost"><i class="fas fa-link-slash"></i></span>
 				<span class="navbar-text" id="actionOk" aria-hidden="true"><i class="fas fa-check"></i> OK</span>
@@ -3846,6 +3878,37 @@
 			}
 		}
 
+		// Fetch the running build + rolling-release up-to-date state and reflect it in the navbar badge.
+		async function refreshVersionBadge(retries) {
+			const el = document.getElementById('versionBadge');
+			if (!el) return;
+			let v;
+			try {
+				v = await (await fetch("http://" + host + "/version", { cache: "no-store" })).json();
+			} catch (e) {
+				return;
+			}
+			if (!v || !v.build) return;
+			el.style.display = '';
+			el.classList.remove('up-to-date', 'update-available', 'unknown');
+			if (v.upToDate === 1) {
+				el.classList.add('up-to-date');
+				el.textContent = v.build;
+				el.title = i18next.t("tools.fwupdate.github.uptodate", "Up to date");
+			} else if (v.upToDate === 0) {
+				el.classList.add('update-available');
+				el.textContent = v.build + " ⬆";
+				el.title = i18next.t("nav.updateAvailable", "Update available") + (v.latest ? " (" + v.latest + ")" : "");
+			} else {
+				el.classList.add('unknown');
+				el.textContent = v.build;
+				el.title = v.build;
+				if ((retries || 0) < 5) {
+					setTimeout(function () { refreshVersionBadge((retries || 0) + 1); }, 4000);
+				}
+			}
+		}
+
 		function updateOperationModeIndicator(opmode) {
 			const btStartSource = document.getElementById('btStartSource');
 			const btStartSink = document.getElementById('btStartSink');
@@ -3912,6 +3975,7 @@
 				socket.send('{"ssids":{"ssids":"ssids"}}'); // get ssids
 				socket.send('{"trackinfo":{"trackinfo":"trackinfo"}}'); // get trackinfo
 				socket.send('{"coverimg":{"coverimg":"coverimg"}}'); // get cover image
+				refreshVersionBadge(0); // update the navbar firmware-version badge
 			};
 			socket.onclose = function (e) {
 				console.log('Socket is closed. Reconnect will be attempted in 5 seconds.', e.reason);
@@ -5474,6 +5538,7 @@
 			};
 
 			add('systeminfo.lblSoftware', info.software.version);
+			add('systeminfo.lblBuild', info.software.build);
 			add('systeminfo.lblGit', info.software.git);
 			add('systeminfo.lblEnv', info.software.arduino + ' / ' + info.software.idf);
 			add('systeminfo.lblChip', info.hardware.model + ' (rev ' + info.hardware.revision + ')');

@@ -636,6 +636,47 @@ void Web_TriggerGithubOta(void) {
 #endif
 }
 
+// Passive "is this build the latest release?" check, used only for the UI version badge
+// (independent of the OTA flasher). -1 = unknown/not yet checked, 0 = update available, 1 = up to date.
+static volatile int8_t gFirmwareUpToDate = -1;
+static char gLatestBuild[24] = "";
+
+// Fetches the rolling release's version.json and compares it to the running build (background task).
+static void versionCheckTask(void *parameter) {
+	WiFiClientSecure client;
+	client.setInsecure();
+	HTTPClient http;
+	http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+	http.setConnectTimeout(8000);
+	if (http.begin(client, githubVersionUrl)) {
+		if (http.GET() == 200) {
+			JsonDocument doc;
+			if (deserializeJson(doc, http.getString()) == DeserializationError::Ok) {
+				String latest = doc["describe"].as<String>();
+				String latestBuild = doc["build"].as<String>();
+				String current = String(gitRevShort);
+				current.replace("\"", "");
+				if (latest.length() > 0) {
+					gFirmwareUpToDate = (latest == current) ? 1 : 0;
+				}
+				if (latestBuild.length() > 0) {
+					strncpy(gLatestBuild, latestBuild.c_str(), sizeof(gLatestBuild) - 1);
+					gLatestBuild[sizeof(gLatestBuild) - 1] = '\0';
+				}
+			}
+		}
+		http.end();
+	}
+	vTaskDelete(NULL);
+}
+
+// Kick off a background version check (no-op on boards without OTA support).
+void Web_CheckForUpdate(void) {
+#ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
+	xTaskCreatePinnedToCore(versionCheckTask, "verCheck", 8192, NULL, 1, NULL, 1);
+#endif
+}
+
 void webserverStart(void) {
 	if (!webserverStarted && (Wlan_IsConnected() || (WiFi.getMode() == WIFI_AP))) {
 		// password protection (no-op when no password is set or in accesspoint-mode)
@@ -791,6 +832,15 @@ void webserverStart(void) {
 		wServer.on("/githubupdate", HTTP_GET, [](AsyncWebServerRequest *request) {
 			char buf[160];
 			snprintf(buf, sizeof(buf), "{\"status\":%u,\"progress\":%u,\"message\":\"%s\"}", gGithubOtaStatus, gGithubOtaProgress, gGithubOtaMsg);
+			request->send(200, "application/json", buf);
+		});
+		// running build + rolling-release up-to-date state, used for the navbar version badge
+		wServer.on("/version", HTTP_GET, [](AsyncWebServerRequest *request) {
+			if (gFirmwareUpToDate == -1) {
+				Web_CheckForUpdate(); // lazy first check
+			}
+			char buf[160];
+			snprintf(buf, sizeof(buf), "{\"build\":\"%s\",\"upToDate\":%d,\"latest\":\"%s\"}", buildRevision, (int) gFirmwareUpToDate, gLatestBuild);
 			request->send(200, "application/json", buf);
 		});
 
@@ -977,6 +1027,7 @@ void webserverStart(void) {
 		DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
 		wServer.begin();
 		webserverStarted = true;
+		Web_CheckForUpdate(); // populate the version badge in the background
 		Log_Println(httpReady, LOGLEVEL_NOTICE);
 		// start a first WiFi scan (to get a WiFi list more quickly in webview)
 		WiFi.scanNetworks(true, false, true, 120);
@@ -1703,6 +1754,7 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		JsonObject softwareObj = infoObj["software"].to<JsonObject>();
 		softwareObj["version"] = (String) softwareRevision;
 		softwareObj["git"] = (String) gitRevision;
+		softwareObj["build"] = (String) buildRevision;
 		softwareObj["arduino"] = String(ESP_ARDUINO_VERSION_MAJOR) + "." + String(ESP_ARDUINO_VERSION_MINOR) + "." + String(ESP_ARDUINO_VERSION_PATCH);
 		softwareObj["idf"] = String(ESP.getSdkVersion());
 	}

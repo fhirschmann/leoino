@@ -27,6 +27,7 @@
 		"saved": "Paramètres enregistrés."
 	},
 	"nav": {
+		"updateAvailable": "Mise à jour disponible",
 		"control": "Contrôle",
 		"rfid": "Fichiers",
 		"wifi": "WiFi",
@@ -585,6 +586,7 @@
 	},
 	"systeminfo": {
 		"lblSoftware": "Logiciel",
+		"lblBuild": "Build",
 		"lblGit": "Révision Git",
 		"lblEnv": "Arduino / ESP-IDF",
 		"lblChip": "Puce",

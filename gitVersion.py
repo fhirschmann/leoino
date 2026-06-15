@@ -23,6 +23,7 @@ TEMPLATE = """
     #define __GIT_REVISION_H__
     constexpr const char gitRevision[] = "Git-revision: {git_revision}";
     constexpr const char gitRevShort[] = "\\"{git_revision}\\"";
+    constexpr const char buildRevision[] = "{build_revision}";
 #endif
 """
 
@@ -42,14 +43,31 @@ def git_revision():
         return "unknown"
 
 
+def build_revision():
+    """Returns a rolling build revision like 'r249' (commit count), '-dirty' if applicable."""
+    try:
+        count = subprocess.check_output(
+            ["git", "rev-list", "--count", "HEAD"],
+            text=True,
+            stderr=subprocess.PIPE,
+        ).strip()
+        dirty = subprocess.run(["git", "diff", "--quiet"]).returncode != 0
+        return f"r{count}{'-dirty' if dirty else ''}"
+    except (subprocess.CalledProcessError, OSError):
+        return "r0"
+
+
 def generate():
     """Generates header file."""
     print("GENERATING GIT REVISION HEADER FILE")
     gitrev = git_revision()
-    print(f'  "{gitrev}" -> {OUTPUT_PATH}')
+    buildrev = build_revision()
+    print(f'  "{gitrev}" ({buildrev}) -> {OUTPUT_PATH}')
     OUTPUT_PATH.parent.mkdir(exist_ok=True, parents=True)
     with OUTPUT_PATH.open("w") as output_file:
-        output_file.write(TEMPLATE.format(git_revision=gitrev))
+        output_file.write(
+            TEMPLATE.format(git_revision=gitrev, build_revision=buildrev)
+        )
 
 
 generate()

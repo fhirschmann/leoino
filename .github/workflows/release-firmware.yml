@@ -60,8 +60,10 @@ jobs:
           # `describe` must match what the firmware embeds (gitVersion.py uses the same command),
           # so the device can tell whether it already runs this build.
           DESCRIBE="$(git describe --always --dirty)"
-          printf '{"version":"%s","short":"%s","describe":"%s","date":"%s","ref":"%s"}\n' \
-            "$GITHUB_SHA" "${GITHUB_SHA:0:7}" "$DESCRIBE" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_REF_NAME" \
+          # rolling build revision (commit count), same scheme as gitVersion.py -> "r249"
+          BUILD="r$(git rev-list --count HEAD)"
+          printf '{"version":"%s","short":"%s","describe":"%s","build":"%s","date":"%s","ref":"%s"}\n' \
+            "$GITHUB_SHA" "${GITHUB_SHA:0:7}" "$DESCRIBE" "$BUILD" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$GITHUB_REF_NAME" \
             > release/version.json
           cat release/version.json
 

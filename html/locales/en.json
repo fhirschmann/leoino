@@ -27,6 +27,7 @@
 		"saved": "Settings saved."
 	},
 	"nav": {
+		"updateAvailable": "Update available",
 		"control": "Control",
 		"rfid": "Files",
 		"wifi": "WiFi",
@@ -598,6 +599,7 @@
 	},
 	"systeminfo": {
 		"lblSoftware": "Software",
+		"lblBuild": "Build",
 		"lblGit": "Git revision",
 		"lblEnv": "Arduino / ESP-IDF",
 		"lblChip": "Chip",
