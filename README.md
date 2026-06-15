@@ -35,7 +35,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 | Part | Details | Source |
 | --- | --- | --- |
-| Mainboard | ESPuino **complete** board (rev 5.1) | [complete-board wiki](https://forum.espuino.de/t/hardware-wiki-fuer-complete-platine/219) |
+| Mainboard | ESPuino **complete** board (rev 5.1) | [forum.espuino.de](https://forum.espuino.de/t/espuino-complete/3817) |
 | Headphone amplifier board | biologist79 **MS6324 + TDA1308 / LM4808M** board | [forum.espuino.de](https://forum.espuino.de/t/kopfhoererplatine-basierend-auf-ms6324-und-tda1308-bzw-lm4808m/1099) |
 | Rotary-encoder board | **Drehencoder by ESPuino** | [forum.espuino.de](https://forum.espuino.de/t/drehencoder-by-espuino/2414) |
 | RFID reader | NXP **PN5180** (JST 2.5 mm socket soldered on) | [AliExpress](https://de.aliexpress.com/item/1005006781712003.html) |
