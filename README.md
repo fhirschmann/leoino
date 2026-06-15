@@ -66,7 +66,7 @@ palette, scanlines, `Orbitron`/`Rajdhani`/`Share Tech Mono` typography, a custom
 upstream Bluetooth scan UI restyled to match, the device branding in the navbar and an embedded
 neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 
-<div align="center"><img src="docs/img/feat-navbar.png" width="430" alt="Navbar branding"></div>
+<div align="center"><img src="docs/img/feat-navbar.png" width="760" alt="Navbar branding"></div>
 
 | Change | Commit |
 | --- | --- |
