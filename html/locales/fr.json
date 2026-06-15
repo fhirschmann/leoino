@@ -364,7 +364,8 @@
 		},
 		"pwd": {
 			"title": "Mot de passe FTP",
-			"placeholder": "mot de passe"
+			"placeholder": "mot de passe",
+			"show": "Afficher/masquer le mot de passe"
 		},
 		"start": {
 			"title": "Démarrer serveur FTP",

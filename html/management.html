@@ -845,6 +845,20 @@
 			width: 60px;
 		}
 
+		/* show/hide password reveal button (eye icon) inside an input-group */
+		.cp-reveal-btn {
+			border: 1px solid var(--cp-border);
+			border-left: none;
+			background: rgba(22, 33, 60, .2);
+			color: var(--cp-cyan);
+		}
+
+		.cp-reveal-btn:hover {
+			color: #021019;
+			background: var(--cp-cyan);
+			border-color: var(--cp-cyan);
+		}
+
 		#track {
 			font-family: "Share Tech Mono", monospace;
 			color: var(--cp-cyan);
@@ -2111,9 +2125,15 @@
 						<label for="ftpUser" data-i18n="[prepend]ftp.user.title">:</label>
 						<input type="text" class="form-control" id="ftpUser" maxlength="0"
 							data-i18n="[placeholder]ftp.user.placeholder" name="ftpUser" value="" required>
-						<label for="pwd" data-i18n="[prepend]ftp.pwd.title">:</label>
-						<input type="password" class="form-control" id="ftpPwd" maxlength="0"
-							data-i18n="[placeholder]ftp.pwd.placeholder" name="ftpPwd" value="" required>
+						<label for="ftpPwd" data-i18n="[prepend]ftp.pwd.title">:</label>
+						<div class="input-group">
+							<input type="password" class="form-control" id="ftpPwd" maxlength="0"
+								data-i18n="[placeholder]ftp.pwd.placeholder" name="ftpPwd" value="" required>
+							<button class="btn cp-reveal-btn" type="button" id="ftpPwdToggle" tabindex="-1"
+								data-i18n="[title]ftp.pwd.show" onclick="togglePasswordField('ftpPwd', 'ftpPwdToggle')">
+								<i class="fas fa-eye"></i>
+							</button>
+						</div>
 					</div>
 					<div class="text-center">
 						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
@@ -3934,6 +3954,17 @@
 			}
 		}
 
+		// Toggle a password input between hidden/visible and swap the eye icon.
+		function togglePasswordField(inputId, btnId) {
+			const input = document.getElementById(inputId);
+			if (!input) return;
+			const reveal = input.type === 'password';
+			input.type = reveal ? 'text' : 'password';
+			const btn = document.getElementById(btnId);
+			const ico = btn ? btn.querySelector('i') : null;
+			if (ico) ico.className = reveal ? 'fas fa-eye-slash' : 'fas fa-eye';
+		}
+
 		function updateOperationModeIndicator(opmode) {
 			const btStartSource = document.getElementById('btStartSource');
 			const btStartSink = document.getElementById('btStartSink');
@@ -4372,9 +4403,9 @@
 			let ftpSettings = settings.ftp;
 			if (ftpSettings) {
 				document.getElementById('nav-ftp-tab').setAttribute('data-visible', true);
-				document.getElementById("ftpUser").value = ftpSettings.username;
+				document.getElementById("ftpUser").value = (ftpSettings.username === "-1") ? "" : ftpSettings.username;
 				document.getElementById("ftpUser").setAttribute('maxlength', ftpSettings.maxUserLength);
-				document.getElementById("ftpPwd").value = ftpSettings.password;
+				document.getElementById("ftpPwd").value = (ftpSettings.password === "-1") ? "" : ftpSettings.password;
 				document.getElementById("ftpPwd").setAttribute('maxlength', ftpSettings.maxPwdLength);
 			}
 			// mqtt

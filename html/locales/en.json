@@ -372,7 +372,8 @@
 		},
 		"pwd": {
 			"title": "FTP-password",
-			"placeholder": "password"
+			"placeholder": "password",
+			"show": "Show/hide password"
 		},
 		"start": {
 			"title": "Start FTP-server",
