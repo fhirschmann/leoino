@@ -33,11 +33,11 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 <div align="center">
 
-<img src="docs/img/at1-front.jpg" width="720" alt="LEO INDUSTRIES AT-1 — front of the finished, 3D-printed unit: carry handle, kanji keycaps, play controls, speaker grille and the side LED strip">
+<img src="docs/img/at1-front.jpg" width="720" alt="LEO INDUSTRIES AT-1 — front of the finished, 3D-printed unit: carry handle, play controls, speaker grille and the side LED strip">
 
 <img src="docs/img/at1-cartridge.jpg" width="720" alt="LEO INDUSTRIES AT-1 — the RFID 'INSERT CARD' cartridge slot, headphone jack and serial number on the side panel">
 
-<sub>The finished, 3D-printed AT-1 — front panel with the kanji keycaps and speaker, and the RFID “INSERT CARD” cartridge slot.</sub>
+<sub>The finished, 3D-printed AT-1 — front panel with the play controls and speaker, and the RFID “INSERT CARD” cartridge slot.</sub>
 
 </div>
 
