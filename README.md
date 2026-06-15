@@ -31,6 +31,14 @@ battery. The case was modelled by hand in CAD (no AI involved); all printable pa
 panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are available as STL files in
 [`stl/`](stl/).
 
+<div align="center">
+
+<img src="docs/img/at1-unit.jpg" width="720" alt="LEO INDUSTRIES AT-1 — the finished, 3D-printed unit photographed from several angles: front with handle and buttons, both sides, the cartridge card slot and the RFID reader on the back">
+
+<sub>The finished unit — a real photo of the printed and assembled AT-1 (not a render), shown from several angles including the RFID cartridge slot.</sub>
+
+</div>
+
 ## Bill of materials
 
 | Part | Details | Source |
@@ -61,7 +69,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 Many of the JST/connector cables were hand-crimped with **ENGINEER PA-09** crimping pliers.
 
-> 🚧 _Still to add: photos of the printed unit (front / open / internals) and wiring/pinout notes._
+> 🚧 _Still to add: photos of the opened unit / internals and wiring/pinout notes._
 
 ---
 
@@ -130,8 +138,10 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | <img src="docs/img/feat-cleansd.png" width="90" alt="SD clean button"> | **SD cleanup** — one click removes macOS metadata junk ([`4e68541`](../../commit/4e68541)) |
 | <img src="docs/img/feat-slix2.png" width="320" alt="SLIX2 password field"> | **SLIX2 password** — read protected ICODE-SLIX2 tags ([`d3cc69c`](../../commit/d3cc69c)) |
 | <img src="docs/img/feat-equalizer.png" width="300" alt="Equalizer with presets"> | **Equalizer presets** — Flat / Music / Audiobook-Speech / Deep voices / Custom on top of a 3-band tone control ([`11ade33`](../../commit/11ade33)) |
-| <img src="docs/img/feat-controls.png" width="430" alt="Control-tab buttons"> | **Control buttons** — single-track Repeat, Sleep-Timer, Night Mode, Bluetooth and lock, directly in the control tab ([`88a742c`](../../commit/88a742c)) |
+| <img src="docs/img/feat-controls.png" width="430" alt="Control-tab buttons"> | **Control buttons** — single-track Repeat, Sleep-Timer, Night Mode, FTP, Bluetooth and lock, directly in the control tab ([`88a742c`](../../commit/88a742c)) |
 | <img src="docs/img/feat-control-bt.png" width="430" alt="Bluetooth-mode dropdown"> | **Bluetooth-mode dropdown** — switch Normal / Speaker / Headphones from the control tab (the active mode is hidden) ([`d57f24a`](../../commit/d57f24a)) |
+| <img src="docs/img/feat-settings.png" width="430" alt="Consolidated Settings tab with sub-tabs"> | **Settings tab** — WiFi / MQTT / FTP / Bluetooth merged with the general settings into one tab with horizontal sub-tabs ([`8b01876`](../../commit/8b01876)) |
+| <img src="docs/img/feat-buttons.png" width="430" alt="Button-assignment sub-tab"> | **Buttons sub-tab** — short/long press and multi-button command assignments in their own settings sub-tab ([`8b01876`](../../commit/8b01876)) |
 
 ### RFID & audio
 
