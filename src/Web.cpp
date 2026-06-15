@@ -452,8 +452,17 @@ static void Web_RefreshSessionToken(void) {
 	wwwSessionToken = Web_BuildSessionToken(password, salt);
 }
 
+// Fixed username for HTTP Basic Auth; only the password (the configured web password)
+// is checked. Lets API clients and the Swagger UI authenticate per-request via the
+// Authorization header (e.g. `curl -u espuino:<password>`) instead of the cookie flow.
+static constexpr const char *wwwBasicAuthUser = "espuino";
+
 static bool Web_IsAuthenticated(AsyncWebServerRequest *request) {
 	if (wwwSessionToken.length() == 0) {
+		return true;
+	}
+	// Accept the password sent directly via HTTP Basic Auth (username "espuino").
+	if (request->authenticate(wwwBasicAuthUser, gPrefsSettings.getString("wwwPassword", "").c_str())) {
 		return true;
 	}
 	if (!request->hasHeader("Cookie")) {

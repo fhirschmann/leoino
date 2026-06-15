@@ -12,6 +12,20 @@ servers:
     description: Local Device
   - url: "http://espuino.local/"
     description: Development ESPuino
+# When a web password is set, every endpoint (except /login and a few PWA assets)
+# requires authentication. Two equivalent ways to authenticate:
+#   * HTTP Basic Auth on each request — username "espuino", password = web password
+#     (e.g. `curl -u espuino:<password> ...`). Use the "Authorize" button in Swagger.
+#   * Cookie session — POST the password to /login, which sets the ESPUINO_SESSION cookie.
+# With no web password set, the API is open and authentication is ignored.
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: 'HTTP Basic Auth. Username is always "espuino"; password is the web-interface password.'
+security:
+  - basicAuth: []
 paths:
   /explorer:
     get:
@@ -581,3 +595,276 @@ paths:
       responses:
         "200":
           description: Successful response for initializing Hall Effect Sensor Value.
+  # ----------------------------------------------------------------------------
+  # Fork-specific endpoints (Leo Industries AT-1)
+  # ----------------------------------------------------------------------------
+  /sync:
+    get:
+      tags: [Fork]
+      summary: Get HTTP file-sync status.
+      description: Poll the progress/result of the HTTP(S) file sync.
+      responses:
+        "200":
+          description: Current sync state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    description: "0=idle, 1=syncing, 2=done, 3=failed, 4=stopped"
+                  progress:
+                    type: integer
+                    description: Percent of files processed.
+                  message:
+                    type: string
+                    description: Current file (while syncing) or the result/error message.
+    post:
+      tags: [Fork]
+      summary: Start an HTTP file sync.
+      description: >-
+        Starts a background sync that pulls the files listed in the configured
+        manifest URL onto the SD card. No-op if a sync is already running. If
+        audio is playing it is paused for the SD-writing phase.
+      responses:
+        "200":
+          description: Sync started (or already running).
+  /syncstop:
+    post:
+      tags: [Fork]
+      summary: Stop the running file sync.
+      description: Requests a cooperative cancel of the currently running sync.
+      responses:
+        "200":
+          description: Stop requested.
+  /playlist:
+    post:
+      tags: [Fork]
+      summary: Create an .m3u playlist.
+      description: >-
+        Writes an .m3u playlist to the SD card from the given ordered list of
+        SD-file paths and/or webradio URLs (played interchangeably by LOCAL_M3U).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, tracks]
+              properties:
+                path:
+                  type: string
+                  description: Target path; ".m3u" is appended if missing (e.g. /Playlists/mix).
+                tracks:
+                  type: array
+                  items:
+                    type: string
+                  description: Ordered track lines (SD paths or http(s) URLs).
+      responses:
+        "200":
+          description: Playlist created.
+        "400":
+          description: Missing path or tracks.
+        "500":
+          description: File could not be created.
+  /githubupdate:
+    get:
+      tags: [Fork]
+      summary: Get GitHub OTA status.
+      description: Poll the status of the GitHub firmware update.
+      responses:
+        "200":
+          description: Current update status.
+    post:
+      tags: [Fork]
+      summary: Start a GitHub OTA update.
+      description: Downloads the rolling "latest" firmware from GitHub over HTTPS and flashes it.
+      responses:
+        "200":
+          description: Update started.
+  /version:
+    get:
+      tags: [Fork]
+      summary: Get firmware version info.
+      description: Returns the running build/rolling version and whether an update is available.
+      responses:
+        "200":
+          description: Version info.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /security:
+    get:
+      tags: [Fork]
+      summary: Is web-interface password protection enabled?
+      responses:
+        "200":
+          description: Whether a web password is set.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+    post:
+      tags: [Fork]
+      summary: Set or clear the web-interface password.
+      description: Sets a new web password (enables protection) or clears it when empty.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Password updated.
+  /login:
+    post:
+      tags: [Fork]
+      summary: Log in to the web interface.
+      description: >-
+        Validates the password and sets the ESPUINO_SESSION cookie. Not needed
+        when authenticating per-request via HTTP Basic Auth (user "espuino").
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful; session cookie set.
+        "401":
+          description: Wrong password.
+        "429":
+          description: Temporarily locked after too many failed attempts.
+  /logout:
+    post:
+      tags: [Fork]
+      summary: Log out of the web interface.
+      description: Clears the ESPUINO_SESSION cookie.
+      responses:
+        "200":
+          description: Logged out.
+  /eqrules:
+    get:
+      tags: [Fork]
+      summary: List per-file/folder equalizer rules.
+      responses:
+        "200":
+          description: Equalizer rules.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+  /eqrule:
+    post:
+      tags: [Fork]
+      summary: Set a per-path equalizer rule.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema:
+            type: string
+          description: SD path (file or folder) the rule applies to.
+        - in: query
+          name: low
+          schema:
+            type: integer
+        - in: query
+          name: band
+          schema:
+            type: integer
+        - in: query
+          name: high
+          schema:
+            type: integer
+        - in: query
+          name: profile
+          schema:
+            type: string
+          description: "Profile name (flat/music/speech/voiceBoost) or empty for custom bands."
+      responses:
+        "200":
+          description: Rule stored.
+    delete:
+      tags: [Fork]
+      summary: Delete a per-path equalizer rule.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rule deleted.
+  /activeequalizer:
+    get:
+      tags: [Fork]
+      summary: Get the active equalizer profile.
+      responses:
+        "200":
+          description: Active equalizer settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /bluetoothscan:
+    get:
+      tags: [Fork]
+      summary: Start a Bluetooth device scan.
+      responses:
+        "200":
+          description: Scan started.
+  /bluetoothresults:
+    get:
+      tags: [Fork]
+      summary: Get Bluetooth scan results.
+      responses:
+        "200":
+          description: Discovered devices.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /bluetoothconnect:
+    post:
+      tags: [Fork]
+      summary: Connect to a Bluetooth device.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Connect requested.
+  /sdclean:
+    post:
+      tags: [Fork]
+      summary: Clean the SD card cache.
+      description: Removes ESPuino's cached playlist/index files from the SD card.
+      responses:
+        "200":
+          description: Cleaned.
