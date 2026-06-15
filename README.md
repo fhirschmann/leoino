@@ -159,6 +159,11 @@ The web interface (HTML, locales, manifest, icons) is embedded into the firmware
 during the build. Alternatively use OTA: Tools → firmware update with
 `.pio/build/complete/firmware.bin`.
 
+This fork is developed and shipped on the **complete** board, but the upstream ESPuino board
+environments are kept in `platformio.ini` for anyone running different hardware:
+`lolin_d32_pro`, `lolin_d32_pro_sdmmc_pe`, `ttgo_t8`, `esp32-wrover-devkitc-v4-8mb` and
+`esp32-s3-devkitc-1` (e.g. `pio run -e ttgo_t8 -t upload`). Only `complete` is built in CI.
+
 ## // Upstream sync
 
 The fork follows upstream/`dev`. The remote is already set up:
