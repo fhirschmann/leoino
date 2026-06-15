@@ -47,6 +47,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 | Internal USB tap | adapter to tap USB off the complete board | [AliExpress](https://de.aliexpress.com/item/1005009847773743.html) |
 | External USB port | panel-mount socket that exposes an external USB port and passes the 4 USB lines through to the internal connector | [AliExpress](https://de.aliexpress.com/item/1005009015653966.html) |
 | Power switch | latching switch | [AliExpress](https://de.aliexpress.com/item/4001099324784.html) |
+| Key switches | **Kailh BOX Navy** (clicky) for the panel buttons | [whackydesks](https://whackydesks.com/produkt/kailh-box-navy/) |
 | Screws | 50× button-head **ISO 7380 A2 M3×8**<br>25× thermoplastic self-tapping **2.5×10 TORX, black A2** | [screwsandmore](https://www.screwsandmore.de) |
 | Sealing | Kafuter **K-704B** + **K-705**, transparent | — |
 
