@@ -107,6 +107,8 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | <img src="docs/img/feat-cleansd.png" width="90" alt="SD clean button"> | **SD cleanup** — one click removes macOS metadata junk ([`4e68541`](../../commit/4e68541)) |
 | <img src="docs/img/feat-slix2.png" width="320" alt="SLIX2 password field"> | **SLIX2 password** — read protected ICODE-SLIX2 tags ([`d3cc69c`](../../commit/d3cc69c)) |
 | <img src="docs/img/feat-equalizer.png" width="300" alt="Equalizer with presets"> | **Equalizer presets** — Flat / Music / Audiobook-Speech / Deep voices / Custom on top of a 3-band tone control ([`11ade33`](../../commit/11ade33)) |
+| <img src="docs/img/feat-controls.png" width="430" alt="Control-tab buttons"> | **Control buttons** — single-track Repeat, Sleep-Timer, Night Mode, Bluetooth and lock, directly in the control tab ([`88a742c`](../../commit/88a742c)) |
+| <img src="docs/img/feat-control-bt.png" width="430" alt="Bluetooth-mode dropdown"> | **Bluetooth-mode dropdown** — switch Normal / Speaker / Headphones from the control tab (the active mode is hidden) ([`d57f24a`](../../commit/d57f24a)) |
 
 ### RFID & audio
 
