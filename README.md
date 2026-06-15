@@ -35,18 +35,18 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 | Part | Details | Source |
 | --- | --- | --- |
-| Mainboard | ESPuino **complete** board | [biologist79 / ESPuino](https://github.com/biologist79/ESPuino) |
-| Headphone amplifier board | biologist79 design — _latest revision (rev TBD)_ | ESPuino |
-| Rotary-encoder board | biologist79 design — _latest revision (rev TBD)_ | ESPuino |
-| RFID reader | NXP **PN5180** (JST 2.5 mm socket soldered on) | — |
+| Mainboard | ESPuino **complete** board (rev 5.1) | [complete-board wiki](https://forum.espuino.de/t/hardware-wiki-fuer-complete-platine/219) |
+| Headphone amplifier board | biologist79 **MS6324 + TDA1308 / LM4808M** board | [forum.espuino.de](https://forum.espuino.de/t/kopfhoererplatine-basierend-auf-ms6324-und-tda1308-bzw-lm4808m/1099) |
+| Rotary-encoder board | **Drehencoder by ESPuino** | [forum.espuino.de](https://forum.espuino.de/t/drehencoder-by-espuino/2414) |
+| RFID reader | NXP **PN5180** (JST 2.5 mm socket soldered on) | [AliExpress](https://de.aliexpress.com/item/1005006781712003.html) |
 | Speaker | **Peerless by Tymphany TC7FD00-04** | SoundImports |
 | Battery | **LiFePO₄ 3.2 V 6000 mAh** pack with protection, JST-PH 2.0 | [eremit.de](https://www.eremit.de/p/3-2v-6000mah-pack-mit-schutz-arduino-aio-jst-ph-2-0-stecker) |
 | Status LEDs | 2× **8-LED WS2812B** (NeoPixel) | [Amazon](https://www.amazon.de/dp/B09YTLY6CK) |
-| Pulsing standby LED | breathing LED | [AliExpress](https://de.aliexpress.com/item/1005005336879647.html) |
-| USB pass-through | adapter to tap USB off the complete board | [AliExpress](https://de.aliexpress.com/item/1005009847773743.html) |
+| Standby LED | **white breathing LED** | [AliExpress](https://de.aliexpress.com/item/1005005336879647.html) |
+| Internal USB tap | adapter to tap USB off the complete board | [AliExpress](https://de.aliexpress.com/item/1005009847773743.html) |
+| External USB port | panel-mount socket that exposes an external USB port and passes the 4 USB lines through to the internal connector | [AliExpress](https://de.aliexpress.com/item/1005009015653966.html) |
 | Power switch | latching switch | [AliExpress](https://de.aliexpress.com/item/4001099324784.html) |
-| Enclosure insert (blue) | _fitted into the case — part TBD_ | [AliExpress](https://de.aliexpress.com/item/1005009015653966.html) |
-| Screws | 50× button-head **ISO 7380 A2 M3×8** (Art. 7380238_305); 25× thermoplastic self-tapping **2.5×10 TORX, black A2** | [screwsandmore](https://www.screwsandmore.de) |
+| Screws | 50× button-head **ISO 7380 A2 M3×8**<br>25× thermoplastic self-tapping **2.5×10 TORX, black A2** | [screwsandmore](https://www.screwsandmore.de) |
 | Sealing | Kafuter **K-704B** + **K-705**, transparent | — |
 
 ### Filament & finishing
@@ -54,8 +54,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 - **Extrudr XPETG Matte** — Metallic and Black
 - **Extrudr PETG** — Turquoise and Copper
 
-> 🚧 _Still to add: photos of the printed unit (front / open / internals) and wiring/pinout notes.
-> The two biologist79 board revisions and the blue enclosure insert are marked TBD until confirmed._
+> 🚧 _Still to add: photos of the printed unit (front / open / internals) and wiring/pinout notes._
 
 ---
 
