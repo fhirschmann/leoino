@@ -17,6 +17,7 @@
 #include "Rfid.h"
 #include "RotaryEncoder.h"
 #include "SdCard.h"
+#include "Sync.h"
 #include "System.h"
 #include "VolumeCurveLut.h"
 #include "Web.h"
@@ -1628,6 +1629,18 @@ std::optional<Playlist *> AudioPlayer_ReturnPlaylistFromWebstream(const char *_w
 
 // Adds new control-command to control-queue
 void AudioPlayer_SetTrackControl(const uint8_t new_trackCommand) {
+	// A running HTTP sync pauses playback for the duration of the SD-writing phase.
+	// As soon as the user asks for playback again (press play / skip), cancel the
+	// sync so the SD card is freed and playback can resume.
+	if (Sync_GetStatus() == 1) {
+		const bool wantsPlayback = (new_trackCommand == PLAY)
+			|| (new_trackCommand == NEXTTRACK)
+			|| (new_trackCommand == PREVIOUSTRACK)
+			|| ((new_trackCommand == PAUSEPLAY) && gPlayProperties.pausePlay); // PAUSEPLAY while paused == resume
+		if (wantsPlayback) {
+			Sync_Cancel();
+		}
+	}
 	trackCommand = new_trackCommand;
 }
 

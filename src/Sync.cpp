@@ -177,12 +177,6 @@ static void syncTask(void *parameter) {
 		vTaskDelete(NULL);
 		return;
 	}
-	// don't touch the SD card while it is being read for playback
-	if (gPlayProperties.playMode != NO_PLAYLIST) {
-		syncFail("busy: playback active");
-		vTaskDelete(NULL);
-		return;
-	}
 
 	const String manifestUrl = gPrefsSettings.getString("syncUrl", "");
 	if (manifestUrl.length() == 0) {
@@ -243,6 +237,19 @@ static void syncTask(void *parameter) {
 	size_t failed = 0;
 
 	Log_Printf(LOGLEVEL_NOTICE, "Sync: %u files in manifest", (unsigned) total);
+
+	// If playback is running, pause it for the SD-writing phase so the card isn't
+	// read and written at the same time. Pressing play again cancels the sync (see
+	// AudioPlayer_SetTrackControl), and we resume here only if it finished on its own.
+	bool resumePlaybackAfter = false;
+	if (gPlayProperties.playMode != NO_PLAYLIST && !gPlayProperties.pausePlay) {
+		AudioPlayer_SetTrackControl(PAUSEPLAY);
+		for (uint8_t i = 0; i < 50 && !gPlayProperties.pausePlay; i++) {
+			vTaskDelay(pdMS_TO_TICKS(20)); // wait until the audio task has actually paused
+		}
+		resumePlaybackAfter = true;
+	}
+
 	System_PauseTasksDuringUpload(true); // free SD/CPU and stop RFID from starting playback mid-sync
 
 	bool cancelled = false;
@@ -293,6 +300,12 @@ static void syncTask(void *parameter) {
 	}
 
 	System_PauseTasksDuringUpload(false);
+
+	// Resume playback only if we paused it and the user didn't already take over by
+	// pressing play (which cancels the sync and resumes playback itself).
+	if (resumePlaybackAfter && !cancelled && gPlayProperties.pausePlay) {
+		AudioPlayer_SetTrackControl(PAUSEPLAY);
+	}
 
 	snprintf(gSyncMsg, sizeof(gSyncMsg), "%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) total);
 	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", gSyncMsg);
