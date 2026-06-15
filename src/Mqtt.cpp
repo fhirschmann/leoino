@@ -314,6 +314,67 @@ static NumberType toNumber(const std::string str) {
 	return 0;
 }
 
+#ifdef MQTT_ENABLE
+// --- Home Assistant MQTT discovery -------------------------------------------------------
+// Publishes retained discovery configs so every entity shows up automatically under one HA
+// device. Reuses the existing state/command topics; called once on each MQTT connect.
+static String gHassDeviceBlock; // shared "device" + availability JSON (rebuilt per connect)
+
+static void mqttHassPublish(const char *component, const char *objectId, const String &fields) {
+	if (mqtt_client == NULL) {
+		return;
+	}
+	String topic = "homeassistant/" + String(component) + "/" + gDeviceId + "/" + String(objectId) + "/config";
+	String payload = "{\"unique_id\":\"" + gDeviceId + "_" + String(objectId) + "\"," + fields + gHassDeviceBlock + "}";
+	esp_mqtt_client_publish(mqtt_client, topic.c_str(), payload.c_str(), 0, 0, true);
+}
+
+static void Mqtt_PublishHassDiscovery(void) {
+	if (mqtt_client == NULL) {
+		return;
+	}
+	const String tState = Mqtt_GetStateTopic(topicState);
+	gHassDeviceBlock = ",\"device\":{\"identifiers\":[\"" + gDeviceId + "\"],\"name\":\"" + gDeviceId
+		+ "\",\"manufacturer\":\"Leo Industries\",\"model\":\"ESPuino AT-1\",\"sw_version\":\"" + String(buildRevision)
+		+ "\"},\"availability_topic\":\"" + tState + "\",\"payload_available\":\"Online\",\"payload_not_available\":\"Offline\"";
+
+	// sensors
+	mqttHassPublish("sensor", "track", "\"name\":\"Track\",\"icon\":\"mdi:music-note\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicTrack)) + "\"");
+	mqttHassPublish("sensor", "status", "\"name\":\"Status\",\"icon\":\"mdi:play-pause\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicPausePlay)) + "\"");
+	mqttHassPublish("sensor", "wifi", "\"name\":\"WiFi signal\",\"device_class\":\"signal_strength\",\"unit_of_measurement\":\"dBm\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicWiFiRssi)) + "\"");
+	mqttHassPublish("sensor", "firmware", "\"name\":\"Firmware update\",\"icon\":\"mdi:package-up\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicFirmwareUpdate)) + "\"");
+	mqttHassPublish("sensor", "swrev", "\"name\":\"Software revision\",\"icon\":\"mdi:tag\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicSRevision)) + "\"");
+
+	// numbers
+	const String loudCmd = Mqtt_GetCommandTopic(topicLoudness);
+	mqttHassPublish("number", "volume", "\"name\":\"Volume\",\"icon\":\"mdi:volume-high\",\"min\":" + String(AudioPlayer_GetMinVolume()) + ",\"max\":" + String(AudioPlayer_GetMaxVolume()) + ",\"command_topic\":\"" + loudCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicLoudness)) + "\"");
+	const String ledCmd = Mqtt_GetCommandTopic(topicLedBrightness);
+	mqttHassPublish("number", "ledbrightness", "\"name\":\"LED brightness\",\"icon\":\"mdi:brightness-6\",\"entity_category\":\"config\",\"min\":0,\"max\":255,\"command_topic\":\"" + ledCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicLedBrightness)) + "\"");
+
+	// switches
+	const String lockCmd = Mqtt_GetCommandTopic(topicLockControls);
+	mqttHassPublish("switch", "lock", "\"name\":\"Lock controls\",\"icon\":\"mdi:lock\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + lockCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicLockControls)) + "\"");
+	mqttHassPublish("switch", "ambient", "\"name\":\"Ambient light\",\"icon\":\"mdi:lightbulb\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"optimistic\":true,\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicAmbientLight)) + "\"");
+
+	// select
+	const String eqCmd = Mqtt_GetCommandTopic(topicEqualizer);
+	mqttHassPublish("select", "equalizer", "\"name\":\"Equalizer\",\"icon\":\"mdi:equalizer\",\"options\":[\"flat\",\"music\",\"speech\",\"voiceBoost\"],\"command_topic\":\"" + eqCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicEqualizer)) + "\"");
+
+	// buttons
+	const String trackCmd = Mqtt_GetCommandTopic(topicTrackControl);
+	mqttHassPublish("button", "playpause", "\"name\":\"Play/Pause\",\"icon\":\"mdi:play-pause\",\"payload_press\":\"3\",\"command_topic\":\"" + trackCmd + "\"");
+	mqttHassPublish("button", "next", "\"name\":\"Next track\",\"icon\":\"mdi:skip-next\",\"payload_press\":\"4\",\"command_topic\":\"" + trackCmd + "\"");
+	mqttHassPublish("button", "prev", "\"name\":\"Previous track\",\"icon\":\"mdi:skip-previous\",\"payload_press\":\"5\",\"command_topic\":\"" + trackCmd + "\"");
+	mqttHassPublish("button", "update", "\"name\":\"Update firmware\",\"icon\":\"mdi:package-up\",\"entity_category\":\"config\",\"payload_press\":\"update\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicFirmwareUpdate)) + "\"");
+	mqttHassPublish("button", "shutdown", "\"name\":\"Shutdown\",\"icon\":\"mdi:power\",\"payload_press\":\"OFF\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicSleep)) + "\"");
+
+	#ifdef BATTERY_MEASURE_ENABLE
+	mqttHassPublish("sensor", "battery_voltage", "\"name\":\"Battery voltage\",\"device_class\":\"voltage\",\"unit_of_measurement\":\"V\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBatteryVoltage)) + "\"");
+	mqttHassPublish("sensor", "battery", "\"name\":\"Battery\",\"device_class\":\"battery\",\"unit_of_measurement\":\"%\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBatterySOC)) + "\"");
+	#endif
+}
+#endif
+
 // Is called if there's a new MQTT-message for us
 #ifdef MQTT_ENABLE
 void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
@@ -358,13 +419,16 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			// Firmware-update (GitHub OTA)
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicFirmwareUpdate), qos);
 
+			// Home Assistant MQTT discovery (entities auto-register under one device)
+			Mqtt_PublishHassDiscovery();
+
 			// Publish current state
 			publishMqtt(topicState, "Online", false);
 			publishMqtt(topicTrack, gPlayProperties.title, false);
 			publishMqtt(topicCoverChanged, "", false);
 			publishMqtt(topicLoudness, static_cast<uint32_t>(AudioPlayer_GetCurrentVolume()), false);
 			publishMqtt(topicSleepTimer, System_GetSleepTimerTimeStamp(), false);
-			publishMqtt(topicLockControls, static_cast<uint32_t>(System_AreControlsLocked()), false);
+			publishMqtt(topicLockControls, System_AreControlsLocked() ? "ON" : "OFF", false);
 			publishMqtt(topicPlaymode, static_cast<uint32_t>(gPlayProperties.playMode), false);
 			if (gPlayProperties.playMode == NO_PLAYLIST) { // idle
 				publishMqtt(topicPausePlay, "idle", false);
