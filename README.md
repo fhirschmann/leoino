@@ -31,16 +31,30 @@ battery. The case was modelled by hand in CAD (no AI involved); all printable pa
 panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are available as STL files in
 [`stl/`](stl/).
 
-> 🚧 _This section will be filled with photos of the 3D-printed unit and details of the installed
-> hardware (board, reader, wiring, battery, enclosure)._
+## Bill of materials
 
-<!--
-Planned content:
-- Photos of the printed enclosure (front / open / internals)
-- Bill of materials: ESP32 board, PN5180 reader, amp/speaker, battery, LEDs, buttons
-- Wiring / pinout notes specific to this build
-- STL / print settings reference
--->
+| Part | Details | Source |
+| --- | --- | --- |
+| Mainboard | ESPuino **complete** board | [biologist79 / ESPuino](https://github.com/biologist79/ESPuino) |
+| Headphone amplifier board | biologist79 design — _latest revision (rev TBD)_ | ESPuino |
+| Rotary-encoder board | biologist79 design — _latest revision (rev TBD)_ | ESPuino |
+| RFID reader | NXP **PN5180** (JST 2.5 mm socket soldered on) | — |
+| Speaker | **Peerless by Tymphany TC7FD00-04** | SoundImports |
+| Battery | **LiFePO₄ 3.2 V 6000 mAh** pack with protection, JST-PH 2.0 | [eremit.de](https://www.eremit.de/p/3-2v-6000mah-pack-mit-schutz-arduino-aio-jst-ph-2-0-stecker) |
+| Status LEDs | 2× **8-LED WS2812B** (NeoPixel) | [Amazon](https://www.amazon.de/dp/B09YTLY6CK) |
+| Pulsing standby LED | breathing LED | [AliExpress](https://de.aliexpress.com/item/1005005336879647.html) |
+| USB pass-through | adapter to tap USB off the complete board | [AliExpress](https://de.aliexpress.com/item/1005009847773743.html) |
+| Power switch | latching switch | [AliExpress](https://de.aliexpress.com/item/4001099324784.html) |
+| Enclosure insert (blue) | _fitted into the case — part TBD_ | [AliExpress](https://de.aliexpress.com/item/1005009015653966.html) |
+| Sealing | Kafuter **K-704B** + **K-705**, transparent | — |
+
+### Filament & finishing
+
+- **Extrudr XPETG Matte** — Metallic and Black
+- **Extrudr PETG** — Turquoise and Copper
+
+> 🚧 _Still to add: photos of the printed unit (front / open / internals) and wiring/pinout notes.
+> The two biologist79 board revisions and the blue enclosure insert are marked TBD until confirmed._
 
 ---
 
