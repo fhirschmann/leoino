@@ -57,6 +57,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 - **Extrudr XPETG Matte** — Metallic and Black
 - **Extrudr PETG** — Turquoise and Copper
+- **Bambu Lab TPU** — for the gaskets
 
 Many of the JST/connector cables were hand-crimped with **ENGINEER PA-09** crimping pliers.
 
