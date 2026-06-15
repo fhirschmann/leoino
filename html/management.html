@@ -3285,12 +3285,21 @@
 			const poll = async function () {
 				let st;
 				try {
-					st = await (await fetch("http://" + host + "/githubupdate", { cache: "no-store" })).json();
+					// time-box the poll: while the device flashes/reboots it stops responding,
+					// and a plain fetch would hang (leaving the bar stuck at ~99%).
+					const ctrl = new AbortController();
+					const to = setTimeout(function () { ctrl.abort(); }, 4000);
+					try {
+						st = await (await fetch("http://" + host + "/githubupdate", { cache: "no-store", signal: ctrl.signal })).json();
+					} finally {
+						clearTimeout(to);
+					}
 				} catch (e) {
-					// connection lost while downloading -> device is rebooting after a successful flash
+					// no response -> device is flashing/rebooting after a successful download
 					if (sawProgress) {
+						prog.hide();
 						status.textContent = i18next.t("tools.fwupdate.github.started");
-						setTimeout(function () { location.reload(); }, 30000);
+						tryRedirect(); // polls the device and reloads as soon as it is back up
 						return;
 					}
 					setTimeout(poll, 2000);
