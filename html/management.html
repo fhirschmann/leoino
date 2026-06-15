@@ -3903,9 +3903,11 @@
 				el.classList.add('unknown');
 				el.textContent = v.build;
 				el.title = v.build;
-				if ((retries || 0) < 5) {
-					setTimeout(function () { refreshVersionBadge((retries || 0) + 1); }, 4000);
-				}
+			}
+			// Hitting /version triggers a background re-check on the device; poll a few more
+			// times so a refreshed result (e.g. a new release appeared) is reflected promptly.
+			if ((retries || 0) < 4) {
+				setTimeout(function () { refreshVersionBadge((retries || 0) + 1); }, 4000);
 			}
 		}
 

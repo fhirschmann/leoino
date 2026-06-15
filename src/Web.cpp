@@ -640,6 +640,7 @@ void Web_TriggerGithubOta(void) {
 // (independent of the OTA flasher). -1 = unknown/not yet checked, 0 = update available, 1 = up to date.
 static volatile int8_t gFirmwareUpToDate = -1;
 static char gLatestBuild[24] = "";
+static volatile uint32_t gLastVersionCheckMs = 0; // 0 = never; used to rate-limit re-checks
 
 // Fetches the rolling release's version.json and compares it to the running build (background task).
 static void versionCheckTask(void *parameter) {
@@ -671,8 +672,15 @@ static void versionCheckTask(void *parameter) {
 }
 
 // Kick off a background version check (no-op on boards without OTA support).
+// Rate-limited to once per minute so it can be called on every /version poll
+// without re-checking the stored result going stale after new releases.
 void Web_CheckForUpdate(void) {
 #ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
+	uint32_t now = millis();
+	if (gLastVersionCheckMs != 0 && (now - gLastVersionCheckMs) < 60000u) {
+		return;
+	}
+	gLastVersionCheckMs = now;
 	xTaskCreatePinnedToCore(versionCheckTask, "verCheck", 8192, NULL, 1, NULL, 1);
 #endif
 }
@@ -836,9 +844,7 @@ void webserverStart(void) {
 		});
 		// running build + rolling-release up-to-date state, used for the navbar version badge
 		wServer.on("/version", HTTP_GET, [](AsyncWebServerRequest *request) {
-			if (gFirmwareUpToDate == -1) {
-				Web_CheckForUpdate(); // lazy first check
-			}
+			Web_CheckForUpdate(); // refresh in the background (rate-limited) so the badge can't go stale
 			char buf[160];
 			snprintf(buf, sizeof(buf), "{\"build\":\"%s\",\"upToDate\":%d,\"latest\":\"%s\"}", buildRevision, (int) gFirmwareUpToDate, gLatestBuild);
 			request->send(200, "application/json", buf);
