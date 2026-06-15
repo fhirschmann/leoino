@@ -310,36 +310,25 @@ void RfidPn5180_Task(void *parameter) {
 
 			// New ID detected - verify it by requiring two consecutive identical reads to filter out ghost reads
 			// Exception: If lastCardId is all zeros (just after a reset), we accept the card immediately if it's not all zeros itself.
-			bool isResetState = true;
-			for (uint8_t i = 0; i < cardIdSize; i++) {
-				if (lastCardId[i] != 0) {
-					isResetState = false;
-					break;
-				}
-			}
-
-			if (isResetState) {
-				// Accept immediately after reset
-			} else if (memcmp((const void *) cardId, (const void *) pendingCardId, sizeof(cardId)) != 0) {
+			// New ID detected - require two consecutive identical reads to filter out ghost reads
+			// (applies to the first card after a reset as well).
+			if (memcmp((const void *) cardId, (const void *) pendingCardId, sizeof(cardId)) != 0) {
 				memcpy(pendingCardId, cardId, cardIdSize);
 				pendingCardCount = 1;
-				// Reset state machine to check again in next cycle
 				if (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) {
 					stateMachine = RFID_PN5180_NFC14443_STATE_RESET;
 				} else if (RFID_PN5180_NFC15693_STATE_ACTIVE == stateMachine) {
 					stateMachine = RFID_PN5180_NFC15693_STATE_RESET;
 				}
 				continue;
-			} else {
-				if (pendingCardCount < 1) { // Require at least 2 identical reads (first read + 1 verification)
-					pendingCardCount++;
-					if (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) {
-						stateMachine = RFID_PN5180_NFC14443_STATE_RESET;
-					} else if (RFID_PN5180_NFC15693_STATE_ACTIVE == stateMachine) {
-						stateMachine = RFID_PN5180_NFC15693_STATE_RESET;
-					}
-					continue;
+			} else if (pendingCardCount < 1) { // require a first read + 1 verification
+				pendingCardCount++;
+				if (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) {
+					stateMachine = RFID_PN5180_NFC14443_STATE_RESET;
+				} else if (RFID_PN5180_NFC15693_STATE_ACTIVE == stateMachine) {
+					stateMachine = RFID_PN5180_NFC15693_STATE_RESET;
 				}
+				continue;
 			}
 			// If we reach here, the card ID is stable
 			pendingCardCount = 0;
