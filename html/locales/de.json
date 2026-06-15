@@ -417,7 +417,8 @@
 			"title": "Jetzt synchronisieren",
 			"desc": "Holt das Manifest und lädt fehlende/geänderte Dateien herunter. Je nach Datenmenge kann das dauern.",
 			"button": "Jetzt synchronisieren",
-			"stop": "Stopp"
+			"stop": "Stopp",
+			"gotools": "Zum Sync in den Tools-Tab"
 		},
 		"manifest": {
 			"title": "Aufbau des Manifests",

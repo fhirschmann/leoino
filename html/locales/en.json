@@ -418,7 +418,8 @@
 			"title": "Sync now",
 			"desc": "Fetches the manifest and downloads missing/changed files. May take a while depending on the amount of data.",
 			"button": "Sync now",
-			"stop": "Stop"
+			"stop": "Stop",
+			"gotools": "Open sync in the Tools tab"
 		},
 		"manifest": {
 			"title": "Manifest format",

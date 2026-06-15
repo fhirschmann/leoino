@@ -2833,19 +2833,9 @@
 					<legend data-i18n="sync.run.title"></legend>
 					<div data-i18n="sync.run.desc"></div>
 					<br>
-					<div id="syncProgress" class="progress upload-progress-bar position-relative">
-						<div class="progress-bar" role="progressbar"></div>
-						<div
-							class="label d-flex position-absolute flex-column align-self-center text-center w-100 text-nowrap text-light">
-						</div>
-					</div>
-					<div id="syncCurrent" class="small text-muted text-truncate mt-1">&nbsp;</div>
-					<br>
 					<div class="text-center">
-						<button type="button" class="btn btn-primary" id="syncRunBtn" onclick="startSync()"
-							data-i18n="sync.run.button"></button>
-						<button type="button" class="btn btn-danger d-none" id="syncStopBtn" onclick="stopSync()"
-							data-i18n="sync.run.stop"></button>
+						<button type="button" class="btn btn-primary" onclick="jumpToSyncRun()"
+							data-i18n="sync.run.gotools"></button>
 					</div>
 				</div>
 				<hr>
@@ -2941,6 +2931,26 @@
 					<button type="button" class="btn btn-primary" onclick="executeCommand()"
 						data-i18n="execute"></button>
 				</div>
+			</div>
+			<div class="container" id="syncRunSection">
+				<legend data-i18n="sync.run.title"></legend>
+				<div data-i18n="sync.run.desc"></div>
+				<br>
+				<div id="syncProgress" class="progress upload-progress-bar position-relative">
+					<div class="progress-bar" role="progressbar"></div>
+					<div
+						class="label d-flex position-absolute flex-column align-self-center text-center w-100 text-nowrap text-light">
+					</div>
+				</div>
+				<div id="syncCurrent" class="small text-muted text-truncate mt-1">&nbsp;</div>
+				<br>
+				<div class="text-center">
+					<button type="button" class="btn btn-primary" id="syncRunBtn" onclick="startSync()"
+						data-i18n="sync.run.button"></button>
+					<button type="button" class="btn btn-danger d-none" id="syncStopBtn" onclick="stopSync()"
+						data-i18n="sync.run.stop"></button>
+				</div>
+				<hr>
 			</div>
 			<div class="container" id="savedAssignments">
 				<legend data-i18n="tools.nvs.title"></legend>
@@ -5122,6 +5132,13 @@
 			} catch (e) {
 				console.warn('sync poll failed', e);
 			}
+		}
+
+		/* Jump from the Sync settings sub-tab to the sync runner that now lives in the Tools tab. */
+		function jumpToSyncRun() {
+			try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) { }
+			const sec = document.getElementById('syncRunSection');
+			if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
 
 		/* kick off a sync and poll the device for progress */

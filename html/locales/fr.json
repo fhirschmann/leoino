@@ -410,7 +410,8 @@
 			"title": "Synchroniser maintenant",
 			"desc": "Récupère le manifeste et télécharge les fichiers manquants/modifiés. Peut prendre du temps selon le volume de données.",
 			"button": "Synchroniser maintenant",
-			"stop": "Arrêter"
+			"stop": "Arrêter",
+			"gotools": "Ouvrir la synchro dans l'onglet Outils"
 		},
 		"manifest": {
 			"title": "Format du manifeste",
