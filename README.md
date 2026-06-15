@@ -89,6 +89,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | Battery indicator in the navbar with a low-battery warning toast | [`4566ae0`](../../commit/4566ae0) |
 | SD card capacity gauge in the files tab and the info dialog | [`45b340a`](../../commit/45b340a) |
 | FTP server can be stopped from the web interface (start button turns into a stop button) | [`6ea4020`](../../commit/6ea4020) |
+| FTP password shown in settings with a show/hide (eye) reveal toggle (already persisted in NVS) | [`df0a583`](../../commit/df0a583) |
 | Bluetooth modes can be stopped from the web interface; commands 143/144 switch modes directly via buttons | [`f16030f`](../../commit/f16030f) |
 | Button lock (Kindersicherung) toggle directly in the control tab of the web interface with visual lock status indicator | [`520815a`](../../commit/520815a) |
 | Control buttons (single-track Repeat toggle, Sleep-Timer with dropdown and live remaining countdown, Night Mode/Dimming) directly in the control tab of the web interface | [`88a742c`](../../commit/88a742c) |
