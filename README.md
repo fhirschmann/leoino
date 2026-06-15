@@ -106,6 +106,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | <img src="docs/img/feat-battery.png" width="90" alt="Battery indicator"> | **Battery indicator** — live charge level in the navbar ([`4566ae0`](../../commit/4566ae0)) |
 | <img src="docs/img/feat-cleansd.png" width="90" alt="SD clean button"> | **SD cleanup** — one click removes macOS metadata junk ([`4e68541`](../../commit/4e68541)) |
 | <img src="docs/img/feat-slix2.png" width="320" alt="SLIX2 password field"> | **SLIX2 password** — read protected ICODE-SLIX2 tags ([`d3cc69c`](../../commit/d3cc69c)) |
+| <img src="docs/img/feat-equalizer.png" width="300" alt="Equalizer with presets"> | **Equalizer presets** — Flat / Music / Audiobook-Speech / Deep voices / Custom on top of a 3-band tone control ([`11ade33`](../../commit/11ade33)) |
 
 ### RFID & audio
 
