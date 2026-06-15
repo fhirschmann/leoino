@@ -45,7 +45,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 | Battery | **LiFePO₄ 3.2 V 6000 mAh** pack with protection, JST-PH 2.0 | [eremit.de](https://www.eremit.de/p/3-2v-6000mah-pack-mit-schutz-arduino-aio-jst-ph-2-0-stecker) |
 | Status LEDs | 2× **8-LED WS2812B** (NeoPixel) | [Amazon](https://www.amazon.de/dp/B09YTLY6CK) |
 | Standby LED | **white breathing LED** | [AliExpress](https://de.aliexpress.com/item/1005005336879647.html) |
-| Internal USB tap | adapter to tap USB off the complete board | [AliExpress](https://de.aliexpress.com/item/1005009847773743.html) |
+| Internal USB tap | adapter to tap USB off the complete board (**4-pin version**) | [AliExpress](https://de.aliexpress.com/item/1005009847773743.html) |
 | External USB port | panel-mount socket that exposes an external USB port and passes the 4 USB lines through to the internal connector | [AliExpress](https://de.aliexpress.com/item/1005009015653966.html) |
 | Power switch | latching switch | [AliExpress](https://de.aliexpress.com/item/4001099324784.html) |
 | Key switches | **Kailh BOX Navy** (clicky) for the panel buttons | [whackydesks](https://whackydesks.com/produkt/kailh-box-navy/) |
@@ -55,9 +55,9 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 ### Filament & finishing
 
-- **Extrudr XPETG Matte** — Metallic and Black
-- **Extrudr PETG** — Turquoise and Copper
-- **Bambu Lab TPU** — for the gaskets
+- **[Extrudr XPETG Matt](https://www.extrudr.com/shop-eu/products/xpetg-matt/)** — Metallic and Black
+- **[Extrudr PETG](https://www.extrudr.com/shop-eu/products/petg/)** — Turquoise and Copper
+- **[Bambu Lab TPU](https://us.store.bambulab.com/collections/tpu)** — for the gaskets
 
 Many of the JST/connector cables were hand-crimped with **ENGINEER PA-09** crimping pliers.
 
