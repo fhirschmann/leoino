@@ -118,6 +118,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | Mobile-optimized control tab: the hard-to-drag volume slider is replaced by full-width louder/quieter (+ EQ) buttons on phones, and the control header stacks so the legend stays on one line with the action buttons below | [`aef1765`](../../commit/aef1765) |
 | System-information dialog rendered as a clean property/value table (instead of preformatted text) and extended with the PN5180 RFID-reader firmware version (read once from the reader's EEPROM at init and exposed via `/info`) | [`715d867`](../../commit/715d867) |
 | Rolling build version (`rN` from the commit count, embedded via `gitVersion.py` and published in the release `version.json`) shown as a navbar badge — green when the device runs the latest rolling release, amber when an update is available (passive `/version` check); clicking the amber badge starts the GitHub OTA; also listed in the info dialog | [`b736abc`](../../commit/b736abc) |
+| Home Assistant **MQTT discovery**: on connect the device auto-registers all entities under one HA device — track/status/firmware/software/WiFi (+ battery) sensors, volume & LED-brightness numbers, lock & ambient-light switches, equalizer select, and transport/update/shutdown buttons | [`db73db1`](../../commit/db73db1) |
 
 #### Feature highlights
 
