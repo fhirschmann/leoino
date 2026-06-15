@@ -46,6 +46,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 | USB pass-through | adapter to tap USB off the complete board | [AliExpress](https://de.aliexpress.com/item/1005009847773743.html) |
 | Power switch | latching switch | [AliExpress](https://de.aliexpress.com/item/4001099324784.html) |
 | Enclosure insert (blue) | _fitted into the case — part TBD_ | [AliExpress](https://de.aliexpress.com/item/1005009015653966.html) |
+| Screws | 50× button-head **ISO 7380 A2 M3×8** (Art. 7380238_305); 25× thermoplastic self-tapping **2.5×10 TORX, black A2** | [screwsandmore](https://www.screwsandmore.de) |
 | Sealing | Kafuter **K-704B** + **K-705**, transparent | — |
 
 ### Filament & finishing
