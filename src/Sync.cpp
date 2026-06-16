@@ -15,6 +15,10 @@
 #include <WiFiClientSecure.h>
 #include <memory>
 
+// Abort a single file download if no data arrives for this long (connection still
+// "open" but stalled), so one bad/slow file can't hang the whole sync forever.
+static constexpr uint32_t SYNC_STALL_TIMEOUT_MS = 20000;
+
 // State of the HTTP sync, polled by the web interface via GET /sync.
 // 0 = idle, 1 = running, 2 = done, 3 = failed, 4 = stopped (cancelled by user)
 static volatile uint8_t gSyncStatus = 0;
@@ -138,6 +142,7 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 	uint8_t buf[1024];
 	WiFiClient *stream = http.getStreamPtr();
 	bool ok = true;
+	uint32_t lastDataMs = millis(); // for the stall watchdog below
 	while (http.connected() && (remaining > 0 || remaining == -1)) {
 		if (gSyncCancel) { // user pressed stop
 			ok = false;
@@ -153,7 +158,16 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 			if (remaining > 0) {
 				remaining -= read;
 			}
+			lastDataMs = millis();
 		} else {
+			// abort a stalled download (connection still "open" but no data) so one
+			// bad/slow file can't hang the whole sync forever; it is marked failed and
+			// the sync moves on. A slow-but-flowing download keeps resetting the timer.
+			if (millis() - lastDataMs > SYNC_STALL_TIMEOUT_MS) {
+				Log_Println("Sync: download stalled, aborting file", LOGLEVEL_ERROR);
+				ok = false;
+				break;
+			}
 			vTaskDelay(pdMS_TO_TICKS(1)); // yield while waiting for more data
 		}
 	}

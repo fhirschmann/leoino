@@ -394,6 +394,10 @@ void Web_Exit(void) {
 // password + a stored salt, so all devices stay logged in for the cookie's lifetime (90
 // days). Changing or clearing the password rotates the salt and invalidates all sessions.
 static String wwwSessionToken = "";
+// RAM-cached copy of the web password so the per-request auth check never reads NVS
+// (concurrent NVS access from the async webserver under load intermittently failed,
+// causing spurious 401s during a sync). Kept in sync by Web_RefreshSessionToken().
+static String wwwPassword = "";
 static uint8_t wwwFailedLogins = 0;
 static uint32_t wwwLoginLockedUntil = 0;
 
@@ -438,6 +442,7 @@ static String Web_BuildSessionToken(const String &password, const String &salt) 
 
 static void Web_RefreshSessionToken(void) {
 	String password = gPrefsSettings.getString("wwwPassword", "");
+	wwwPassword = password; // refresh the RAM cache used by the per-request auth check
 	if (password.length() == 0) {
 		wwwSessionToken = "";
 		return;
@@ -462,7 +467,7 @@ static bool Web_IsAuthenticated(AsyncWebServerRequest *request) {
 		return true;
 	}
 	// Accept the password sent directly via HTTP Basic Auth (username "espuino").
-	if (request->authenticate(wwwBasicAuthUser, gPrefsSettings.getString("wwwPassword", "").c_str())) {
+	if (request->authenticate(wwwBasicAuthUser, wwwPassword.c_str())) {
 		return true;
 	}
 	if (!request->hasHeader("Cookie")) {
