@@ -1438,3 +1438,12 @@ void Led_TaskResume(void) {
 	}
 #endif
 }
+
+void Led_ShowSyncColor(void) {
+#ifdef NEOPIXEL_ENABLE
+	if (Led_TaskHandle != NULL) {
+		vTaskSuspend(Led_TaskHandle); // make sure nothing else drives FastLED concurrently
+		FastLED.showColor(CRGB::Blue); // one-shot; the LEDs latch and hold this until resume
+	}
+#endif
+}

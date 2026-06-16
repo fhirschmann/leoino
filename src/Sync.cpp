@@ -4,6 +4,7 @@
 #include "Sync.h"
 
 #include "AudioPlayer.h"
+#include "Led.h"
 #include "Log.h"
 #include "SdCard.h"
 #include "System.h"
@@ -265,6 +266,7 @@ static void syncTask(void *parameter) {
 	}
 
 	System_PauseTasksDuringUpload(true); // free SD/CPU and stop RFID from starting playback mid-sync
+	Led_ShowSyncColor(); // indicate the running sync with a solid blue (single transmission, no repeated show())
 
 	bool cancelled = false;
 	for (JsonObject entry : files) {

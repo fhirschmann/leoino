@@ -108,6 +108,11 @@ uint8_t Led_GetBrightness(void);
 void Led_SetBrightness(uint8_t value);
 void Led_TaskPause(void);
 void Led_TaskResume(void);
+// Pauses the LED task and lights all LEDs solid blue with a single transmission
+// (they latch and hold it), used to indicate a running file sync without the
+// repeated FastLED.show() that would starve WiFi/TLS interrupts. Cleared by the
+// normal Led_TaskResume() when the sync finishes.
+void Led_ShowSyncColor(void);
 
 void Led_SetNightmode(bool enabled);
 void Led_ToggleNightmode();
