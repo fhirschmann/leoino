@@ -11,6 +11,7 @@
 #include "Mqtt.h"
 #include "Port.h"
 #include "Queues.h"
+#include "Sync.h"
 #include "System.h"
 #include "Web.h"
 #include "Wlan.h"
@@ -46,6 +47,7 @@ AnimationReturnType Animation_PlaylistProgress(const bool startNewAnimation, CRG
 AnimationReturnType Animation_BatteryMeasurement(const bool startNewAnimation, CRGBSet &leds);
 AnimationReturnType Animation_Volume(const bool startNewAnimation, CRGBSet &leds);
 AnimationReturnType Animation_Progress(const bool startNewAnimation, CRGBSet &leds);
+AnimationReturnType Animation_SyncProgress(const bool startNewAnimation, CRGBSet &leds);
 AnimationReturnType Animation_Boot(const bool startNewAnimation, CRGBSet &leds);
 AnimationReturnType Animation_Shutdown(const bool startNewAnimation, CRGBSet &leds);
 AnimationReturnType Animation_Error(const bool startNewAnimation, CRGBSet &leds);
@@ -571,6 +573,8 @@ static void Led_Task(void *parameter) {
 			nextAnimation = LedAnimationType::Rewind;
 		} else if (LED_INDICATOR_IS_SET(LedIndicatorType::PlaylistProgress)) {
 			nextAnimation = LedAnimationType::Playlist;
+		} else if (Sync_GetStatus() == 1) { // HTTP file sync running -> show its progress
+			nextAnimation = LedAnimationType::SyncProgress;
 		} else if (gPlayProperties.currentSpeechActive) {
 			nextAnimation = LedAnimationType::Speech;
 		} else if (gPlayProperties.playlistFinished) {
@@ -667,6 +671,10 @@ static void Led_Task(void *parameter) {
 
 					case LedAnimationType::Progress:
 						ret = Animation_Progress(startNewAnimation, *indicator);
+						break;
+
+					case LedAnimationType::SyncProgress:
+						ret = Animation_SyncProgress(startNewAnimation, *indicator);
 						break;
 
 					case LedAnimationType::Webstream:
@@ -1176,6 +1184,40 @@ AnimationReturnType Animation_Progress(const bool startNewAnimation, CRGBSet &le
 					leds[Led_Address(fullLeds)] = blend((CRGB) gLedSettings.progressColorStart, (CRGB) gLedSettings.progressColorEnd, (fullLeds * 255) / (leds.size() - 1));
 				}
 				leds[Led_Address(fullLeds)] = Led_DimColor(leds[Led_Address(fullLeds)], lastLed);
+			}
+		}
+		animationDelay = 10;
+	}
+	return AnimationReturnType(false, animationDelay, true);
+}
+
+// --------------------------------
+// HTTP file-sync Progress Animation
+// --------------------------------
+// Shows the running file sync as a progress bar so the device gives feedback
+// while the LED task would otherwise be dark. Uses a distinct blue->cyan
+// gradient to set it apart from the playback-progress animation.
+AnimationReturnType Animation_SyncProgress(const bool startNewAnimation, CRGBSet &leds) {
+	int32_t animationDelay = 0;
+	static uint8_t lastProgress = 255;
+	const uint8_t progress = Sync_GetProgress(); // 0..100
+
+	if (progress != lastProgress || startNewAnimation) {
+		lastProgress = progress;
+		const CRGB startCol = CRGB::Blue;
+		const CRGB endCol = CRGB::Aqua;
+		leds = CRGB::Black;
+		if (gLedSettings.numIndicatorLeds == 1) {
+			leds[0] = blend(startCol, endCol, (uint8_t) (progress * 255 / 100));
+		} else {
+			const uint32_t ledValue = std::clamp<uint32_t>(map(progress, 0, 100, 0, leds.size() * gLedSettings.dimmableStates), 0, leds.size() * gLedSettings.dimmableStates);
+			const uint8_t fullLeds = ledValue / gLedSettings.dimmableStates;
+			const uint8_t lastLed = ledValue % gLedSettings.dimmableStates;
+			for (uint8_t led = 0; led < fullLeds; led++) {
+				leds[Led_Address(led)] = blend(startCol, endCol, (led * 255) / (leds.size() - 1));
+			}
+			if (lastLed > 0) {
+				leds[Led_Address(fullLeds)] = Led_DimColor(blend(startCol, endCol, (fullLeds * 255) / (leds.size() - 1)), lastLed);
 			}
 		}
 		animationDelay = 10;

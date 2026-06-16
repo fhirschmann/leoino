@@ -1779,7 +1779,7 @@
 			aria-labelledby="nav-control-tab">
 			<div class="container" id="navControl">
 				<div class="col-md-12">
-					<div class="d-flex flex-column flex-md-row justify-content-md-between align-items-start align-items-md-center mb-1 pb-1" style="border-bottom: 1px solid var(--cp-border);">
+					<div class="d-flex flex-column flex-md-row justify-content-md-between align-items-start align-items-md-center mb-3 pb-1" style="border-bottom: 1px solid var(--cp-border);">
 						<legend data-i18n="control.title" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0; white-space: nowrap;"></legend>
 						<div class="d-flex align-items-center flex-wrap flex-md-nowrap gap-2 mt-2 mt-md-0" style="margin-bottom: 4px;">
 							<!-- Repeat Button -->
@@ -1833,7 +1833,7 @@
 							</button>
 						</div>
 					</div>
-					<div class="mb-3 col-md-12">
+					<div class="mt-3 mb-3 col-md-12">
 						<img src="/cover" class="coverimage-container" id="coverimg" alt="">
 					</div>
 					<div class="buttons ctrl-button-grp">
@@ -5134,6 +5134,23 @@
 			}
 		}
 
+		/* On page load, reconnect to a sync that is already running in the background on
+		   the device so a reload doesn't lose the progress display. */
+		async function restoreSyncIfRunning() {
+			try {
+				const r = await fetch("http://" + host + "/sync");
+				const d = await r.json();
+				if (d.status === 1) {
+					setSyncRunning(true);
+					renderSyncProgress(d.status, d.progress, d.message);
+					if (syncPollTimer) clearInterval(syncPollTimer);
+					syncPollTimer = setInterval(pollSync, 1500);
+				}
+			} catch (e) {
+				console.warn('sync status check failed', e);
+			}
+		}
+
 		/* Jump from the Sync settings sub-tab to the sync runner that now lives in the Tools tab. */
 		function jumpToSyncRun() {
 			try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) { }
@@ -6386,7 +6403,8 @@
 
 			darkmodeSwitchSetup();
 			selectActiveTabFromLocalStorage();
-			
+			restoreSyncIfRunning();
+
 			setTimeout(function() {
 				if (!initialSettingsLoaded) {
 					fetch("http://" + host + "/settings")

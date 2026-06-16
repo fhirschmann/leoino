@@ -295,13 +295,17 @@ void System_DeepSleepManager(void) {
 	}
 }
 
-void System_PauseTasksDuringUpload(bool pause) {
+void System_PauseTasksDuringUpload(bool pause, bool pauseLeds) {
 	if (pause) {
 		AudioPlayer_NotifyUploadStart();
 		Rfid_TaskPause();
-		Led_TaskPause();
+		if (pauseLeds) {
+			Led_TaskPause();
+		}
 	} else {
-		Led_TaskResume();
+		if (pauseLeds) {
+			Led_TaskResume();
+		}
 		Rfid_TaskResume();
 		AudioPlayer_NotifyUploadEnd();
 	}

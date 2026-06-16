@@ -250,7 +250,9 @@ static void syncTask(void *parameter) {
 		resumePlaybackAfter = true;
 	}
 
-	System_PauseTasksDuringUpload(true); // free SD/CPU and stop RFID from starting playback mid-sync
+	// free SD/CPU and stop RFID from starting playback mid-sync, but keep the LED
+	// task running so it can show the sync progress (see Animation_SyncProgress)
+	System_PauseTasksDuringUpload(true, false);
 
 	bool cancelled = false;
 	for (JsonObject entry : files) {
@@ -299,7 +301,7 @@ static void syncTask(void *parameter) {
 		vTaskDelay(pdMS_TO_TICKS(1));
 	}
 
-	System_PauseTasksDuringUpload(false);
+	System_PauseTasksDuringUpload(false, false);
 
 	// Resume playback only if we paused it and the user didn't already take over by
 	// pressing play (which cancels the sync and resumes playback itself).
