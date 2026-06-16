@@ -2537,6 +2537,25 @@ static void explorerHandleFileStorageTask(void *parameter) {
 
 // Sends a list of the content of a directory as JSON file
 // requires a GET parameter path for the directory
+// Recursively sum the size (in bytes) of every file below a directory so the web file
+// browser can display a folder size. Additive scan; resets the task WDT while walking
+// potentially large trees. Note: on big directories this opens many files and can take
+// a moment, which is why it only runs when a directory level is actually listed.
+static uint64_t explorerDirSize(File dir) {
+	uint64_t total = 0;
+	File file = dir.openNextFile();
+	while (file) {
+		if (file.isDirectory()) {
+			total += explorerDirSize(file);
+		} else {
+			total += (uint64_t) file.size();
+		}
+		file = dir.openNextFile();
+		esp_task_wdt_reset();
+	}
+	return total;
+}
+
 void explorerHandleListRequest(AsyncWebServerRequest *request) {
 #ifdef NO_SDCARD
 	request->send(200, "application/json; charset=utf-8", "[]"); // maybe better to send 404 here?
@@ -2590,6 +2609,12 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 			entry["name"] = MyfileName.substring(MyfileName.lastIndexOf('/') + 1);
 			if (isDir) {
 				entry["dir"].set(true);
+			}
+			// File/folder size in bytes (folders summed recursively) for the web file browser.
+			File entryFile = gFSystem.open(MyfileName);
+			if (entryFile) {
+				entry["size"].set(isDir ? explorerDirSize(entryFile) : (uint64_t) entryFile.size());
+				entryFile.close();
 			}
 		}
 		MyfileName = gFSystem.nextFileName(root, &isDir);

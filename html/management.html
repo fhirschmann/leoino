@@ -1331,6 +1331,40 @@
 			position: relative;
 		}
 
+		/* File/folder size, shown right-aligned and dimmed in the explorer tree */
+		.jstree-anchor[data-size]::after {
+			content: attr(data-size);
+			float: right;
+			margin-left: 1.5em;
+			font-size: .8em;
+			opacity: .55;
+		}
+
+		/* Badges in front of the name: RFID assignment (tag) and/or per-path EQ rule (sliders) */
+		.jstree-anchor[data-rfid]::before,
+		.jstree-anchor[data-eq]::before {
+			font-family: "Font Awesome 6 Free";
+			font-weight: 900;
+			font-size: .8em;
+			margin-right: .45em;
+			vertical-align: 1px;
+		}
+
+		.jstree-anchor[data-rfid]:not([data-eq])::before {
+			content: "\f02b";
+			color: var(--cp-cyan);
+		}
+
+		.jstree-anchor[data-eq]:not([data-rfid])::before {
+			content: "\f1de";
+			color: #f0a020;
+		}
+
+		.jstree-anchor[data-rfid][data-eq]::before {
+			content: "\f02b\00a0\f1de";
+			color: var(--cp-cyan);
+		}
+
 		.jstree-default,
 		.jstree-default-dark {
 			font-family: "Share Tech Mono", monospace;
@@ -3815,11 +3849,13 @@
 			if (parentNodePath == "/") {
 				parentNodePath = "";
 			}
+			var fullPath = parentNodePath + "/" + data.name;
 			var child = {
 				text: data.name,
 				type: getType(data),
+				a_attr: explorerNodeAttr(fullPath, data.size),
 				data: {
-					path: parentNodePath + "/" + data.name,
+					path: fullPath,
 					directory: data.dir
 				}
 			};
@@ -3837,17 +3873,20 @@
 		function refreshNode(nodeId) {
 			var ref = $('#explorerTree').jstree(true);
 			var node = ref.get_node(nodeId);
-			getData("http://" + host + "/explorer?path=" + encodeURIComponent(node.data.path), function (data) {
-				/* We now have data! */
-				// If root node and first element has root flag, skip it (volume label)
-				var startIndex = 0;
-				if (node.data.path === "/" && data.length > 0 && data[0].root === "sd") {
-					startIndex = 1;
-				}
-				deleteChildrenNodes(nodeId);
-				// Pass only actual children (skip volume label if present)
-				addFileDirectory(nodeId, data.slice(startIndex));
-				ref.open_node(nodeId);
+			// Refresh the RFID/EQ assignment caches first so the per-node badges are current.
+			loadAssignmentCaches(function () {
+				getData("http://" + host + "/explorer?path=" + encodeURIComponent(node.data.path), function (data) {
+					/* We now have data! */
+					// If root node and first element has root flag, skip it (volume label)
+					var startIndex = 0;
+					if (node.data.path === "/" && data.length > 0 && data[0].root === "sd") {
+						startIndex = 1;
+					}
+					deleteChildrenNodes(nodeId);
+					// Pass only actual children (skip volume label if present)
+					addFileDirectory(nodeId, data.slice(startIndex));
+					ref.open_node(nodeId);
+				});
 			});
 		}
 
@@ -4046,37 +4085,41 @@
 			if (path.length == 0) {
 				return;
 			}
-			getData("http://" + host + "/explorer?path=/", function (data) {
-				/* We now have data! */
-				$('#explorerTree').jstree(true).settings.core.data.children = [];
+			// Refresh the RFID/EQ assignment caches first so the top-level badges are current.
+			loadAssignmentCaches(function () {
+				getData("http://" + host + "/explorer?path=/", function (data) {
+					/* We now have data! */
+					$('#explorerTree').jstree(true).settings.core.data.children = [];
 
-				// If first element has root flag, use it to rename root node and remove it from data
-				if (data.length > 0 && data[0].root === "sd") {
-					// Rename root node with volume label from backend
-					var tree = $('#explorerTree').jstree(true);
-					tree.settings.core.data.text = data[0].name;
-					var rootNode = tree.get_node(tree.get_container().children('ul').children('li')[0]);
-					if (rootNode) {
-						tree.rename_node(rootNode, data[0].name);
+					// If first element has root flag, use it to rename root node and remove it from data
+					if (data.length > 0 && data[0].root === "sd") {
+						// Rename root node with volume label from backend
+						var tree = $('#explorerTree').jstree(true);
+						tree.settings.core.data.text = data[0].name;
+						var rootNode = tree.get_node(tree.get_container().children('ul').children('li')[0]);
+						if (rootNode) {
+							tree.rename_node(rootNode, data[0].name);
+						}
+						// Remove volume label from data array before sorting
+						data = data.slice(1);
 					}
-					// Remove volume label from data array before sorting
-					data = data.slice(1);
-				}
 
-				sortData(data);
-				for (var i = 0; i < data.length; i++) {
-					var newChild = {
-						text: data[i].name,
-						type: getType(data[i]),
-						data: {
-							path: "/" + data[i].name,
-							directory: data[i].dir
-						},
-						children: []
-					};
-					$('#explorerTree').jstree(true).settings.core.data.children.push(newChild);
-				}
-				$("#explorerTree").jstree(true).refresh();
+					sortData(data);
+					for (var i = 0; i < data.length; i++) {
+						var newChild = {
+							text: data[i].name,
+							type: getType(data[i]),
+							a_attr: explorerNodeAttr("/" + data[i].name, data[i].size),
+							data: {
+								path: "/" + data[i].name,
+								directory: data[i].dir
+							},
+							children: []
+						};
+						$('#explorerTree').jstree(true).settings.core.data.children.push(newChild);
+					}
+					$("#explorerTree").jstree(true).refresh();
+				});
 			});
 		} /* buildFileSystemTree */
 		/* File Explorer functions end */
@@ -5527,6 +5570,8 @@
 				body: myJSON
 			});
 			toaster.info(i18next.t("toast.saved"));
+			// Refresh the RFID-assignment cache and re-badge the selected explorer node.
+			loadRfidPaths(updateSelectedNodeBadges);
 		}
 		async function globalWifiConfig(clickedId) {
 			lastIdclicked = clickedId;
@@ -6110,6 +6155,80 @@
 		};
 		// Cache of per-path EQ rules (loaded from the device).
 		window.eqRules = window.eqRules || [];
+		window.rfidPaths = window.rfidPaths || new Set();
+		// Human-readable byte size (e.g. "3.2 MB") for the explorer tree.
+		function formatBytes(n) {
+			n = Number(n);
+			if (!isFinite(n) || n < 0) return "";
+			if (n < 1024) return n + " B";
+			var units = ["KB", "MB", "GB", "TB"], i = -1, v = n;
+			do { v /= 1024; i++; } while (v >= 1024 && i < units.length - 1);
+			return (v < 10 ? v.toFixed(1) : Math.round(v)) + " " + units[i];
+		}
+		// Cache the set of file/URL paths that have an RFID tag assigned (for the explorer badge).
+		function loadRfidPaths(cb) {
+			getData("http://" + host + "/rfid", function (data) {
+				var set = new Set();
+				if (Array.isArray(data)) {
+					data.forEach(function (t) {
+						if (t && typeof t.fileOrUrl === "string" && t.fileOrUrl.charAt(0) === "/") {
+							set.add(t.fileOrUrl);
+						}
+					});
+				}
+				window.rfidPaths = set;
+				if (cb) cb();
+			});
+		}
+		function hasRfidAssignment(path) {
+			return !!(window.rfidPaths && window.rfidPaths.has(path));
+		}
+		// True when a per-path EQ rule is defined for exactly this path (not just inherited).
+		function hasEqRuleExact(path) {
+			return (window.eqRules || []).some(function (r) { return r && r.p === path; });
+		}
+		// Live-refresh the RFID/EQ badge of the currently selected explorer node (after an
+		// assignment changed) without having to collapse/re-expand the folder.
+		function updateSelectedNodeBadges() {
+			var inst = $('#explorerTree').jstree(true);
+			if (!inst) return;
+			var sel = inst.get_selected(true);
+			if (!sel || !sel.length) return;
+			var node = sel[0];
+			var path = node.data && node.data.path;
+			if (!path) return;
+			var rfid = hasRfidAssignment(path), eq = hasEqRuleExact(path);
+			if (!node.a_attr) node.a_attr = {};
+			if (rfid) { node.a_attr["data-rfid"] = "1"; } else { delete node.a_attr["data-rfid"]; }
+			if (eq) { node.a_attr["data-eq"] = "1"; } else { delete node.a_attr["data-eq"]; }
+			var dom = inst.get_node(node.id, true);
+			if (dom && dom.length) {
+				var anchor = dom.children(".jstree-anchor");
+				if (rfid) { anchor.attr("data-rfid", "1"); } else { anchor.removeAttr("data-rfid"); }
+				if (eq) { anchor.attr("data-eq", "1"); } else { anchor.removeAttr("data-eq"); }
+			}
+		}
+		// Build the jstree anchor attributes (size text + RFID/EQ badge markers) for a node.
+		function explorerNodeAttr(fullPath, size) {
+			var a = {};
+			if (size !== undefined && size !== null) {
+				a["data-size"] = formatBytes(size);
+			}
+			if (hasRfidAssignment(fullPath)) {
+				a["data-rfid"] = "1";
+			}
+			if (hasEqRuleExact(fullPath)) {
+				a["data-eq"] = "1";
+			}
+			return a;
+		}
+		// Refresh both assignment caches (RFID + EQ) used to badge explorer nodes, then run cb.
+		function loadAssignmentCaches(cb) {
+			var pending = 2;
+			function done() { if (--pending === 0 && cb) cb(); }
+			loadRfidPaths(done);
+			loadEqRules(done);
+		}
 		// Load the per-path EQ rules from the device into the cache.
 		function loadEqRules(cb) {
 			getData("http://" + host + "/eqrules", function (data) {
@@ -6153,11 +6272,11 @@
 			if (!g) return;
 			postData("http://" + host + "/eqrule?path=" + encodeURIComponent(path)
 				+ "&low=" + g.gainLowPass + "&band=" + g.gainBandPass + "&high=" + g.gainHighPass
-				+ "&profile=" + encodeURIComponent(profileKey), function () { loadEqRules(updateEqIndicator); });
+				+ "&profile=" + encodeURIComponent(profileKey), function () { loadEqRules(function () { updateEqIndicator(); updateSelectedNodeBadges(); }); });
 		}
 		// Remove the per-path EQ rule for a file/folder path.
 		function deleteEqRule(path) {
-			deleteData("http://" + host + "/eqrule?path=" + encodeURIComponent(path), function () { loadEqRules(updateEqIndicator); });
+			deleteData("http://" + host + "/eqrule?path=" + encodeURIComponent(path), function () { loadEqRules(function () { updateEqIndicator(); updateSelectedNodeBadges(); }); });
 		}
 		// Apply gain values to the three sliders and refresh their tooltips.
 		function setEqSliders(gains) {
