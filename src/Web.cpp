@@ -39,6 +39,7 @@
 #include <atomic>
 #include <esp_random.h>
 #include <esp_task_wdt.h>
+#include <mbedtls/base64.h>
 #include <mbedtls/sha256.h>
 #include <nvs.h>
 
@@ -394,10 +395,16 @@ void Web_Exit(void) {
 // password + a stored salt, so all devices stay logged in for the cookie's lifetime (90
 // days). Changing or clearing the password rotates the salt and invalidates all sessions.
 static String wwwSessionToken = "";
-// RAM-cached copy of the web password so the per-request auth check never reads NVS
-// (concurrent NVS access from the async webserver under load intermittently failed,
-// causing spurious 401s during a sync). Kept in sync by Web_RefreshSessionToken().
-static String wwwPassword = "";
+// Pre-computed HTTP Basic credential = base64("espuino:<password>"), cached in RAM.
+// The per-request check then just string-compares the Authorization header against
+// this (exactly like the cookie path), instead of calling request->authenticate()
+// which re-hashes + allocates per request and returned spurious 401s under sync load.
+// Kept current by Web_RefreshSessionToken().
+static String wwwBasicAuthB64 = "";
+// Fixed username for HTTP Basic Auth; only the password (the configured web password)
+// is checked, so API clients / the Swagger UI can authenticate per-request via the
+// Authorization header (e.g. `curl -u espuino:<password>`) instead of the cookie flow.
+static constexpr const char *wwwBasicAuthUser = "espuino";
 static uint8_t wwwFailedLogins = 0;
 static uint32_t wwwLoginLockedUntil = 0;
 
@@ -442,7 +449,20 @@ static String Web_BuildSessionToken(const String &password, const String &salt) 
 
 static void Web_RefreshSessionToken(void) {
 	String password = gPrefsSettings.getString("wwwPassword", "");
-	wwwPassword = password; // refresh the RAM cache used by the per-request auth check
+	// refresh the cached Basic-Auth credential (base64("espuino:<password>"))
+	if (password.length() == 0) {
+		wwwBasicAuthB64 = "";
+	} else {
+		const String creds = String(wwwBasicAuthUser) + ":" + password;
+		unsigned char out[160];
+		size_t outLen = 0;
+		if (mbedtls_base64_encode(out, sizeof(out) - 1, &outLen, (const unsigned char *) creds.c_str(), creds.length()) == 0) {
+			out[outLen] = '\0';
+			wwwBasicAuthB64 = String((const char *) out);
+		} else {
+			wwwBasicAuthB64 = "";
+		}
+	}
 	if (password.length() == 0) {
 		wwwSessionToken = "";
 		return;
@@ -457,18 +477,21 @@ static void Web_RefreshSessionToken(void) {
 	wwwSessionToken = Web_BuildSessionToken(password, salt);
 }
 
-// Fixed username for HTTP Basic Auth; only the password (the configured web password)
-// is checked. Lets API clients and the Swagger UI authenticate per-request via the
-// Authorization header (e.g. `curl -u espuino:<password>`) instead of the cookie flow.
-static constexpr const char *wwwBasicAuthUser = "espuino";
-
 static bool Web_IsAuthenticated(AsyncWebServerRequest *request) {
 	if (wwwSessionToken.length() == 0) {
 		return true;
 	}
-	// Accept the password sent directly via HTTP Basic Auth (username "espuino").
-	if (request->authenticate(wwwBasicAuthUser, wwwPassword.c_str())) {
-		return true;
+	// Accept the password sent directly via HTTP Basic Auth (username "espuino") by
+	// comparing the Authorization header against the pre-computed credential in RAM.
+	if ((wwwBasicAuthB64.length() > 0) && request->hasHeader("Authorization")) {
+		String authHeader = request->header("Authorization");
+		if (authHeader.startsWith("Basic ")) {
+			String provided = authHeader.substring(6);
+			provided.trim();
+			if (provided.equals(wwwBasicAuthB64)) {
+				return true;
+			}
+		}
 	}
 	if (!request->hasHeader("Cookie")) {
 		return false;
