@@ -139,17 +139,41 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 
 #### Feature highlights
 
-| | |
-| --- | --- |
-| <img src="docs/img/feat-sdcapacity.png" width="320" alt="SD capacity gauge"> | **SD capacity gauge** — free / total space below the file browser ([`45b340a`](../../commit/45b340a)) |
-| <img src="docs/img/feat-battery.png" width="90" alt="Battery indicator"> | **Battery indicator** — live charge level in the navbar ([`4566ae0`](../../commit/4566ae0)) |
-| <img src="docs/img/feat-cleansd.png" width="90" alt="SD clean button"> | **SD cleanup** — one click removes macOS metadata junk ([`4e68541`](../../commit/4e68541)) |
-| <img src="docs/img/feat-slix2.png" width="320" alt="SLIX2 password field"> | **SLIX2 password** — read protected ICODE-SLIX2 tags ([`d3cc69c`](../../commit/d3cc69c)) |
-| <img src="docs/img/feat-equalizer.png" width="300" alt="Equalizer with presets"> | **Equalizer presets** — Flat / Music / Audiobook-Speech / Deep voices / Custom on top of a 3-band tone control ([`11ade33`](../../commit/11ade33)) |
-| <img src="docs/img/feat-controls.png" width="430" alt="Control-tab buttons"> | **Control buttons** — single-track Repeat, Sleep-Timer, Night Mode, FTP, Bluetooth and lock, directly in the control tab ([`88a742c`](../../commit/88a742c)) |
-| <img src="docs/img/feat-control-bt.png" width="430" alt="Bluetooth-mode dropdown"> | **Bluetooth-mode dropdown** — switch Normal / Speaker / Headphones from the control tab (the active mode is hidden) ([`d57f24a`](../../commit/d57f24a)) |
-| <img src="docs/img/feat-settings.png" width="430" alt="Consolidated Settings tab with sub-tabs"> | **Settings tab** — WiFi / MQTT / FTP / Bluetooth merged with the general settings into one tab with horizontal sub-tabs ([`8b01876`](../../commit/8b01876)) |
-| <img src="docs/img/feat-buttons.png" width="430" alt="Button-assignment sub-tab"> | **Buttons sub-tab** — short/long press and multi-button command assignments in their own settings sub-tab ([`8b01876`](../../commit/8b01876)) |
+**SD capacity gauge** — free / total space below the file browser ([`45b340a`](../../commit/45b340a)):
+
+<div align="center"><img src="docs/img/feat-sdcapacity.png" width="480" alt="SD capacity gauge"></div>
+
+**Battery indicator** — live charge level in the navbar ([`4566ae0`](../../commit/4566ae0)):
+
+<div align="center"><img src="docs/img/feat-battery.png" width="90" alt="Battery indicator"></div>
+
+**SD cleanup** — one click removes macOS metadata junk ([`4e68541`](../../commit/4e68541)):
+
+<div align="center"><img src="docs/img/feat-cleansd.png" width="100" alt="SD clean button"></div>
+
+**SLIX2 password** — read protected ICODE-SLIX2 tags ([`d3cc69c`](../../commit/d3cc69c)):
+
+<div align="center"><img src="docs/img/feat-slix2.png" width="480" alt="SLIX2 password field"></div>
+
+**Equalizer presets** — Flat / Music / Audiobook-Speech / Deep voices / Custom on top of a 3-band tone control ([`11ade33`](../../commit/11ade33)):
+
+<div align="center"><img src="docs/img/feat-equalizer.png" width="480" alt="Equalizer with presets"></div>
+
+**Control buttons** — single-track Repeat, Sleep-Timer, Night Mode, FTP, Bluetooth and lock, directly in the control tab ([`88a742c`](../../commit/88a742c)):
+
+<div align="center"><img src="docs/img/feat-controls.png" width="490" alt="Control-tab buttons"></div>
+
+**Bluetooth-mode dropdown** — switch Normal / Speaker / Headphones from the control tab (the active mode is hidden) ([`d57f24a`](../../commit/d57f24a)):
+
+<div align="center"><img src="docs/img/feat-control-bt.png" width="640" alt="Bluetooth-mode dropdown"></div>
+
+**Settings tab** — WiFi / MQTT / FTP / Bluetooth merged with the general settings into one tab with horizontal sub-tabs ([`8b01876`](../../commit/8b01876)):
+
+<div align="center"><img src="docs/img/feat-settings.png" width="860" alt="Consolidated Settings tab with sub-tabs"></div>
+
+**Buttons sub-tab** — short/long press and multi-button command assignments in their own settings sub-tab ([`8b01876`](../../commit/8b01876)):
+
+<div align="center"><img src="docs/img/feat-buttons.png" width="860" alt="Button-assignment sub-tab"></div>
 
 **Playlist builder** — assemble an `.m3u` from SD files, whole folders and webradio URLs in a drag-to-reorder two-pane dialog ([`af041fc`](../../commit/af041fc)):
 
