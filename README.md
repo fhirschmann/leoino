@@ -150,6 +150,8 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | <img src="docs/img/feat-control-bt.png" width="430" alt="Bluetooth-mode dropdown"> | **Bluetooth-mode dropdown** — switch Normal / Speaker / Headphones from the control tab (the active mode is hidden) ([`d57f24a`](../../commit/d57f24a)) |
 | <img src="docs/img/feat-settings.png" width="430" alt="Consolidated Settings tab with sub-tabs"> | **Settings tab** — WiFi / MQTT / FTP / Bluetooth merged with the general settings into one tab with horizontal sub-tabs ([`8b01876`](../../commit/8b01876)) |
 | <img src="docs/img/feat-buttons.png" width="430" alt="Button-assignment sub-tab"> | **Buttons sub-tab** — short/long press and multi-button command assignments in their own settings sub-tab ([`8b01876`](../../commit/8b01876)) |
+| <img src="docs/img/feat-playlist.png" width="430" alt="M3U playlist builder modal"> | **Playlist builder** — assemble an `.m3u` from SD files, whole folders and webradio URLs in a drag-to-reorder two-pane dialog ([`af041fc`](../../commit/af041fc)) |
+| <img src="docs/img/feat-sync.png" width="430" alt="HTTP file-sync settings"> | **HTTP file sync** — pull files from a web server (manifest URL + optional Basic Auth); runner & progress live in the Tools tab ([`ac24bbc`](../../commit/ac24bbc)) |
 
 ### RFID & audio
 
