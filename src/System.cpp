@@ -16,6 +16,7 @@
 #include "Power.h"
 #include "Rfid.h"
 #include "SdCard.h"
+#include "Sync.h"
 #include "Web.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
@@ -206,6 +207,15 @@ void System_SleepHandler(void) {
 	uint32_t m = millis();
 	uint32_t lastActive = System_LastTimeActiveTimestamp.load();
 	uint32_t sleepStart = System_SleepTimerStartTimestamp.load();
+
+	// A running HTTP file sync runs in a background task and (while it pauses playback)
+	// does not refresh the activity timer. Without this guard a sync that outlasts the
+	// inactivity timeout / sleep timer would trigger deep-sleep mid-transfer, abruptly
+	// tearing down the SD card and aborting the sync. Keep the device awake until it finishes.
+	if (Sync_GetStatus() == 1) {
+		System_UpdateActivityTimer();
+		return;
+	}
 
 	// Only check inactivity if the limit is greater than 0
 	if (System_MaxInactivityTime > 0 && m >= lastActive) {
