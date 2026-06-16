@@ -13,19 +13,27 @@ servers:
   - url: "http://espuino.local/"
     description: Development ESPuino
 # When a web password is set, every endpoint (except /login and a few PWA assets)
-# requires authentication. Two equivalent ways to authenticate:
-#   * HTTP Basic Auth on each request — username "espuino", password = web password
-#     (e.g. `curl -u espuino:<password> ...`). Use the "Authorize" button in Swagger.
-#   * Cookie session — POST the password to /login, which sets the ESPUINO_SESSION cookie.
+# requires authentication. Two options:
+#   * API key (easiest for scripts/curl): send the web password via the "X-API-Key"
+#     header or an "apikey" query parameter, e.g. `curl -H "X-API-Key: <pw>" ...`.
+#   * Session cookie: POST the password to /login (body {"password":"..."}) to get the
+#     ESPUINO_SESSION cookie (used automatically by the browser/Swagger UI).
 # With no web password set, the API is open and authentication is ignored.
 components:
   securitySchemes:
-    basicAuth:
-      type: http
-      scheme: basic
-      description: 'HTTP Basic Auth. Username is always "espuino"; password is the web-interface password.'
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: 'Web password sent as an API key (X-API-Key header or "apikey" query parameter).'
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: ESPUINO_SESSION
+      description: 'Session cookie obtained from POST /login.'
 security:
-  - basicAuth: []
+  - apiKey: []
+  - cookieAuth: []
 paths:
   /explorer:
     get:
@@ -731,8 +739,8 @@ paths:
       tags: [Fork]
       summary: Log in to the web interface.
       description: >-
-        Validates the password and sets the ESPUINO_SESSION cookie. Not needed
-        when authenticating per-request via HTTP Basic Auth (user "espuino").
+        Validates the password and sets the ESPUINO_SESSION cookie used to
+        authenticate all subsequent requests.
       requestBody:
         required: true
         content:
