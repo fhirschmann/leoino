@@ -26,7 +26,6 @@ enum class LedAnimationType : uint8_t {
 	Rewind,
 	Playlist,
 	Progress,
-	SyncProgress,
 	Idle,
 	Busy,
 	Speech,

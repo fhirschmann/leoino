@@ -28,8 +28,5 @@ uint8_t System_GetOperationMode(void);
 uint8_t System_GetOperationModeFromNvs(void);
 void System_esp_print_tasks(void);
 void System_ShowWakeUpReason();
-// Pauses RFID + audio (and, unless pauseLeds is false, the LED task) to free
-// SD/CPU during a flash/upload. The HTTP file sync passes pauseLeds=false so the
-// LEDs can keep showing sync progress.
-void System_PauseTasksDuringUpload(bool pause, bool pauseLeds = true);
+void System_PauseTasksDuringUpload(bool pause);
 bool System_IsColdStart();
