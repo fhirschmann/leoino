@@ -1326,6 +1326,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		gPrefsSettings.putString("syncUrl", syncObj["url"] | "");
 		gPrefsSettings.putString("syncUser", syncObj["username"] | "");
 		gPrefsSettings.putString("syncPwd", syncObj["password"] | "");
+		gPrefsSettings.putBool("syncAbortBtn", syncObj["abortOnButton"] | true);
 	} else if (doc["ftpStatus"].is<JsonObject>()) {
 		uint8_t _ftpStart = doc["ftpStatus"]["start"].as<uint8_t>();
 		if (_ftpStart == 1) { // ifdef FTP_ENABLE is checked in Ftp_EnableServer()
@@ -1797,6 +1798,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		syncObj["url"] = gPrefsSettings.getString("syncUrl", "");
 		syncObj["username"] = gPrefsSettings.getString("syncUser", "");
 		syncObj["password"] = gPrefsSettings.getString("syncPwd", "");
+		syncObj["abortOnButton"] = gPrefsSettings.getBool("syncAbortBtn", true);
 	}
 // MQTT
 #ifdef MQTT_ENABLE

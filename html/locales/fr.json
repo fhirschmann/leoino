@@ -406,6 +406,8 @@
 			"show": "Afficher/masquer le mot de passe"
 		},
 		"pwd.hint": "Le nom d'utilisateur et le mot de passe sont envoyés au serveur via HTTP Basic Auth (p.ex. nginx auth_basic).",
+		"abortBtn": "Annuler la synchro sur appui d'un bouton",
+		"abortBtn.hint": "Une synchro en cours est annulée dès qu'un bouton est pressé (ou qu'une commande est déclenchée).",
 		"run": {
 			"title": "Synchroniser maintenant",
 			"desc": "Récupère le manifeste et télécharge les fichiers manquants/modifiés. Peut prendre du temps selon le volume de données.",

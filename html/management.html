@@ -2823,6 +2823,13 @@
 						</div>
 						<small class="text-muted" data-i18n="sync.pwd.hint"></small>
 					</div>
+					<div class="mb-3 col-md-12">
+						<div class="d-flex gap-2">
+							<input type="checkbox" id="syncAbortBtn" name="syncAbortBtn" value="false">
+							<label for="syncAbortBtn" data-i18n="sync.abortBtn"></label>
+						</div>
+						<small class="text-muted" data-i18n="sync.abortBtn.hint"></small>
+					</div>
 					<div class="text-center">
 						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
 							type="submit" class="btn btn-primary" data-i18n="submit"></button>
@@ -4615,6 +4622,9 @@
 				document.getElementById("syncUrl").value = syncSettingsData.url || "";
 				document.getElementById("syncUser").value = syncSettingsData.username || "";
 				document.getElementById("syncPwd").value = syncSettingsData.password || "";
+				if (syncSettingsData.abortOnButton !== undefined) {
+					document.getElementById("syncAbortBtn").checked = syncSettingsData.abortOnButton;
+				}
 			}
 			// mqtt
 			let mqttSettings = settings.mqtt;
@@ -5085,7 +5095,8 @@
 				"sync": {
 					url: document.getElementById('syncUrl').value,
 					username: document.getElementById('syncUser').value,
-					password: document.getElementById('syncPwd').value
+					password: document.getElementById('syncPwd').value,
+					abortOnButton: document.getElementById('syncAbortBtn').checked
 				}
 			};
 			await fetch("http://" + host + "/settings", {

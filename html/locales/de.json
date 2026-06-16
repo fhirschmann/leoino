@@ -413,6 +413,8 @@
 			"show": "Passwort anzeigen/verbergen"
 		},
 		"pwd.hint": "Benutzername und Passwort werden per HTTP Basic Auth an den Server gesendet (z.B. nginx auth_basic).",
+		"abortBtn": "Synchronisation bei Tastendruck abbrechen",
+		"abortBtn.hint": "Ein laufender Sync wird abgebrochen, sobald eine Taste gedrückt wird (oder ein Kommando ausgelöst wird).",
 		"run": {
 			"title": "Jetzt synchronisieren",
 			"desc": "Holt das Manifest und lädt fehlende/geänderte Dateien herunter. Je nach Datenmenge kann das dauern.",

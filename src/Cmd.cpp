@@ -13,6 +13,7 @@
 #include "Queues.h"
 #include "Rfid.h"
 #include "Rtc.h"
+#include "Sync.h"
 #include "System.h"
 #include "Web.h"
 #include "Wlan.h"
@@ -36,6 +37,10 @@ static void Cmd_HandleSleepAction(bool enable, const char *enLogMsg, const char 
 void Cmd_Action(const uint16_t mod) {
 	if (System_AreControlsLocked() && (mod != CMD_LOCK_BUTTONS_MOD)) {
 		return;
+	}
+	// Abort a running HTTP file sync on any button/command press (configurable, default on).
+	if ((Sync_GetStatus() == 1) && gPrefsSettings.getBool("syncAbortBtn", true)) {
+		Sync_Cancel();
 	}
 	switch (mod) {
 		case CMD_LOCK_BUTTONS_MOD: { // Locks/unlocks all buttons
