@@ -725,6 +725,10 @@
 		"audiotimesincestart": "Spielzeit seit letztem Start: {{audiotimesincestart}}",
 		"currvoltage": "Aktuelle Batteriespannung: {{currvoltage}} V",
 		"chargelevel": "Aktuelle Batterieladung: {{chargelevel}} %",
-		"hallsensor": "Hall-Sensor Nullfeldwert: {{hsnullfieldvalue}}, aktueller Wert: {{hsactual}}, Differenz:{{hsdiff}}, letzter WaitFor-Zustand:{{hslastwaitforstate}} (Wartezeit:{{hswaited}} ms)"
+		"hallsensor": "Hall-Sensor Nullfeldwert: {{hsnullfieldvalue}}, aktueller Wert: {{hsactual}}, Differenz:{{hsdiff}}, letzter WaitFor-Zustand:{{hslastwaitforstate}} (Wartezeit:{{hswaited}} ms)",
+		"lblPlayToday": "Heute gehört",
+		"lblPlayYesterday": "Gestern gehört",
+		"lblPlay7d": "Letzte 7 Tage",
+		"lblPlay30d": "Letzte 30 Tage"
 	}
 }

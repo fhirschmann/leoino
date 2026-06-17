@@ -714,6 +714,10 @@
 		"audiotimesincestart": "Temps de lecture depuis le dernier démarrage : {{audiotimesincestart}}",
 		"currvoltage": "Tension de la batterie actuelle : {{currvoltage}} V",
 		"chargelevel": "Niveau de charge actuel : {{chargelevel}} %",
-		"hallsensor": "Valeur nulle du capteur d'effet Hall : {{hsnullfieldvalue}}, actuel : {{hsactual}}, diff : {{hsdiff}}, Dernier état (LastWaitFor) : {{hslastwaitforstate}} (attendu : {{hswaited}} ms)"
+		"hallsensor": "Valeur nulle du capteur d'effet Hall : {{hsnullfieldvalue}}, actuel : {{hsactual}}, diff : {{hsdiff}}, Dernier état (LastWaitFor) : {{hslastwaitforstate}} (attendu : {{hswaited}} ms)",
+		"lblPlayToday": "Écouté aujourd'hui",
+		"lblPlayYesterday": "Écouté hier",
+		"lblPlay7d": "7 derniers jours",
+		"lblPlay30d": "30 derniers jours"
 	}
 }

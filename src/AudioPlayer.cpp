@@ -12,6 +12,7 @@
 #include "Log.h"
 #include "MemX.h"
 #include "Mqtt.h"
+#include "Playstats.h"
 #include "Port.h"
 #include "Queues.h"
 #include "Rfid.h"
@@ -280,6 +281,7 @@ void AudioPlayer_Init(void) {
 
 	// load playtime total from NVS
 	playTimeSecTotal = gPrefsSettings.getULong("playTimeTotal", 0);
+	Playstats_Init(); // daily listening-time statistics (today / yesterday / 7d / 30d)
 
 	uint8_t playListSortModeValue = gPrefsSettings.getUChar("PLSortMode", EnumUtils::underlying_value(AudioPlayer_PlaylistSortMode));
 	AudioPlayer_PlaylistSortMode = EnumUtils::to_enum<playlistSortMode>(playListSortModeValue);
@@ -402,6 +404,7 @@ void AudioPlayer_Exit(void) {
 	// save playtime total to NVS
 	playTimeSecTotal += playTimeSecSinceStart;
 	gPrefsSettings.putULong("playTimeTotal", playTimeSecTotal);
+	Playstats_Save(); // flush daily listening-time statistics on shutdown
 	// Make sure last playposition for audiobook is saved when playback is active while shutdown was initiated
 	if (gPrefsSettings.getBool("savePosShutdown", false) && !gPlayProperties.pausePlay && (gPlayProperties.playMode == AUDIOBOOK || gPlayProperties.playMode == AUDIOBOOK_LOOP || gPlayProperties.playMode == AUDIOBOOK_RECURSIVE)) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
@@ -424,6 +427,7 @@ void AudioPlayer_Cyclic(void) {
 		// audio is playing, update the playtime since start
 		lastPlayingTimestamp = millis();
 		playTimeSecSinceStart += 1;
+		Playstats_AddSecond(); // accumulate per-day listening-time statistics
 	}
 
 	// Actual loop stuff

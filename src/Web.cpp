@@ -19,6 +19,7 @@
 #include "Log.h"
 #include "MemX.h"
 #include "Mqtt.h"
+#include "Playstats.h"
 #include "Rfid.h"
 #include "RotaryEncoder.h"
 #include "Rtc.h"
@@ -1905,6 +1906,11 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		audioObj["playtimeTotal"] = AudioPlayer_GetPlayTimeAllTime();
 		audioObj["playtimeSinceStart"] = AudioPlayer_GetPlayTimeSinceStart();
 		audioObj["firstStart"] = gPrefsSettings.getULong("firstStart", 0);
+		// daily listening-time statistics (seconds)
+		audioObj["playToday"] = Playstats_GetToday();
+		audioObj["playYesterday"] = Playstats_GetYesterday();
+		audioObj["play7d"] = Playstats_GetLastDays(7);
+		audioObj["play30d"] = Playstats_GetLastDays(30);
 	}
 	// sd card
 	if ((section == "") || (section == "sdcard")) {

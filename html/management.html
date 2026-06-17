@@ -6227,6 +6227,11 @@
 			add('systeminfo.lblSince', secondsToDate(info.audio.firstStart));
 			add('systeminfo.lblPlayTotal', timestampToDuration(info.audio.playtimeTotal, false));
 			if (info.audio.playtimeSinceStart > 0) add('systeminfo.lblPlaySince', timestampToDuration(info.audio.playtimeSinceStart, true));
+			// daily listening-time statistics (values are in seconds -> ms for the formatter)
+			if (info.audio.playToday !== undefined) add('systeminfo.lblPlayToday', timestampToDuration(info.audio.playToday * 1000, false));
+			if (info.audio.playYesterday !== undefined) add('systeminfo.lblPlayYesterday', timestampToDuration(info.audio.playYesterday * 1000, false));
+			if (info.audio.play7d !== undefined) add('systeminfo.lblPlay7d', timestampToDuration(info.audio.play7d * 1000, false));
+			if (info.audio.play30d !== undefined) add('systeminfo.lblPlay30d', timestampToDuration(info.audio.play30d * 1000, false));
 			if (info.sdcard && info.sdcard.size) add('systeminfo.lblSd', (info.sdcard.free / 1024).toFixed(1) + ' / ' + (info.sdcard.size / 1024).toFixed(1) + ' GB');
 			if (info.battery) {
 				add('systeminfo.lblVoltage', info.battery.currVoltage.toFixed(2) + ' V');
