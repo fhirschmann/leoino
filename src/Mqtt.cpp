@@ -341,6 +341,8 @@ static void Mqtt_PublishHassDiscovery(void) {
 
 	// sensors
 	mqttHassPublish("sensor", "track", "\"name\":\"Track\",\"icon\":\"mdi:music-note\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicTrack)) + "\"");
+	mqttHassPublish("sensor", "track_artist", "\"name\":\"Artist\",\"icon\":\"mdi:account-music\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicTrackArtist)) + "\"");
+	mqttHassPublish("sensor", "track_album", "\"name\":\"Album\",\"icon\":\"mdi:album\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicTrackAlbum)) + "\"");
 	mqttHassPublish("sensor", "status", "\"name\":\"Status\",\"icon\":\"mdi:play-pause\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicPausePlay)) + "\"");
 	mqttHassPublish("sensor", "wifi", "\"name\":\"WiFi signal\",\"device_class\":\"signal_strength\",\"unit_of_measurement\":\"dBm\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicWiFiRssi)) + "\"");
 	mqttHassPublish("sensor", "firmware", "\"name\":\"Firmware update\",\"icon\":\"mdi:package-up\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicFirmwareUpdate)) + "\"");
@@ -439,6 +441,8 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			// Publish current state
 			publishMqtt(topicState, "Online", false);
 			publishMqtt(topicTrack, gPlayProperties.title, false);
+			publishMqtt(topicTrackArtist, gPlayProperties.artist, false);
+			publishMqtt(topicTrackAlbum, gPlayProperties.album, false);
 			publishMqtt(topicCoverChanged, "", false);
 			publishMqtt(topicLoudness, static_cast<uint32_t>(AudioPlayer_GetCurrentVolume()), false);
 			publishMqtt(topicSleepTimer, System_GetSleepTimerTimeStamp(), false);

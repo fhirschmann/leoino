@@ -301,6 +301,8 @@
 
 		// Topics (state only)
 		constexpr const char topicTrack[] = "track";          // State: current track info (e.g. "(2/10) /mp3/.../file.mp3")
+		constexpr const char topicTrackArtist[] = "track_artist"; // State: current ID3 artist (empty if none)
+		constexpr const char topicTrackAlbum[] = "track_album";   // State: current ID3 album (empty if none)
 		constexpr const char topicCoverChanged[] = "cover_changed"; // State: indicates cover image may have changed
 		constexpr const char topicState[] = "state";         // State: 'Online' when powering on, 'Offline' when powering off
 		constexpr const char topicCurrentIPv4IP[] = "ipv4";  // State: sends current IPv4 address

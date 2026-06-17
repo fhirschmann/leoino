@@ -194,8 +194,14 @@ void Audio_InfoCallback(Audio::msg_t m) {
 			// get artist / album (ID3 "Artist:"/"Album:" + VORBISCOMMENT "ARTIST="/"ALBUM=")
 			else if (startsWith((char *) m.msg, "Artist") || startsWith((char *) m.msg, "ARTIST=") || startsWith((char *) m.msg, "artist=")) {
 				Audio_SetMeta(gPlayProperties.artist, sizeof(gPlayProperties.artist), (const char *) m.msg);
+#ifdef MQTT_ENABLE
+				publishMqtt(topicTrackArtist, gPlayProperties.artist, false);
+#endif
 			} else if (startsWith((char *) m.msg, "Album") || startsWith((char *) m.msg, "ALBUM=") || startsWith((char *) m.msg, "album=")) {
 				Audio_SetMeta(gPlayProperties.album, sizeof(gPlayProperties.album), (const char *) m.msg);
+#ifdef MQTT_ENABLE
+				publishMqtt(topicTrackAlbum, gPlayProperties.album, false);
+#endif
 			}
 			break;
 		}
@@ -1773,6 +1779,8 @@ void AudioPlayer_ClearCover(void) {
 	Web_SendWebsocketData(0, WebsocketCodeType::CoverImg);
 #ifdef MQTT_ENABLE
 	publishMqtt(topicCoverChanged, "", false);
+	publishMqtt(topicTrackArtist, "", false); // reset now-playing metadata for the next track
+	publishMqtt(topicTrackAlbum, "", false);
 #endif
 }
 
