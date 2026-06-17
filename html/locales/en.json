@@ -459,7 +459,7 @@
 			"urlPlaceholder": "http://server/espuino/manifest.php",
 			"peers": "Other ESPuinos (peers)",
 			"peersPlaceholder": "192.168.1.34, 192.168.1.50",
-			"peersHint": "Comma-separated IPs/hostnames. On learn the card is pushed to each peer.",
+			"peersHint": "On learn the card is pushed to each peer. Each peer has an IP/hostname + web password.",
 			"onLearn": "Sync automatically on learn",
 			"runTitle": "Full RFID sync",
 			"runDesc": "Pulls all cards from the server, merges them with the local ones (newest wins) and pushes them to the server and peers.",
@@ -469,7 +469,11 @@
 			"phpLink": "manifest.php on GitHub",
 			"peerKey": "Peer password (API key)",
 			"peerKeyPlaceholder": "web password of the other ESPuinos",
-			"peerKeyHint": "Used to push to peers. Override per peer with \"host|password\". Empty = this device's web password."
+			"peerKeyHint": "Used to push to peers. Override per peer with \"host|password\". Empty = this device's web password.",
+			"addPeer": "Add",
+			"peerHostPlaceholder": "IP or hostname",
+			"peerHostRequired": "Please enter an IP/hostname",
+			"noPeers": "No peers yet."
 		}
 	},
 	"playlist": {

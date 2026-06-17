@@ -459,7 +459,7 @@
 			"urlPlaceholder": "http://server/espuino/manifest.php",
 			"peers": "Andere ESPuinos (Peers)",
 			"peersPlaceholder": "192.168.1.34, 192.168.1.50",
-			"peersHint": "Kommagetrennte IPs/Hostnamen. Beim Anlernen wird die Karte an jeden Peer geschickt.",
+			"peersHint": "Beim Anlernen wird die Karte an jeden Peer geschickt. Jeder Peer hat IP/Hostname + Web-Passwort.",
 			"onLearn": "Beim Anlernen automatisch synchronisieren",
 			"runTitle": "Voller RFID-Sync",
 			"runDesc": "Holt alle Karten vom Server, führt sie mit den lokalen zusammen (neuestes gewinnt) und überträgt sie an Server und Peers.",
@@ -469,7 +469,11 @@
 			"phpLink": "manifest.php auf GitHub",
 			"peerKey": "Peer-Passwort (API-Key)",
 			"peerKeyPlaceholder": "Web-Passwort der anderen ESPuinos",
-			"peerKeyHint": "Wird zum Pushen an Peers genutzt. Pro Peer überschreibbar mit „host|passwort“. Leer = eigenes Web-Passwort."
+			"peerKeyHint": "Wird zum Pushen an Peers genutzt. Pro Peer überschreibbar mit „host|passwort“. Leer = eigenes Web-Passwort.",
+			"addPeer": "Hinzufügen",
+			"peerHostPlaceholder": "IP oder Hostname",
+			"peerHostRequired": "Bitte IP/Hostname angeben",
+			"noPeers": "Noch keine Peers."
 		}
 	},
 	"playlist": {

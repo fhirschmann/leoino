@@ -181,13 +181,45 @@ struct RfidPeer {
 	String key;
 };
 
-// Parse the rfidPeers setting into peers. Entries are comma/space/semicolon separated; each may
-// carry its own key as "host|key". The key falls back to the shared "rfidPeerKey" setting and,
-// if that is empty too, to this device's own web password (the common "same password" fleet case).
+// Normalize a peer host into a base URL and append it with its key (key falls back when empty).
+static void rfidAddPeer(std::vector<RfidPeer> &out, String host, String key, const String &fallbackKey) {
+	host.trim();
+	key.trim();
+	if (host.length() == 0) {
+		return;
+	}
+	if (key.length() == 0) {
+		key = fallbackKey;
+	}
+	if (!host.startsWith("http://") && !host.startsWith("https://")) {
+		host = "http://" + host;
+	}
+	out.push_back({host, key});
+}
+
+// Parse the rfidPeers setting into peers. Preferred format is a JSON array of {host,key} (managed
+// by the web UI's peer editor, robust against special characters in passwords). For backward
+// compatibility a legacy comma/semicolon/whitespace-separated list of "host|key" tokens is also
+// accepted. A missing per-peer key falls back to the shared "rfidPeerKey" setting and, if empty
+// too, to this device's own web password (the common "same password" fleet case).
 static void rfidGetPeers(std::vector<RfidPeer> &out) {
 	const String peers = gPrefsSettings.getString("rfidPeers", "");
 	const String sharedKey = gPrefsSettings.getString("rfidPeerKey", "");
 	const String fallbackKey = sharedKey.length() > 0 ? sharedKey : gPrefsSettings.getString("wwwPassword", "");
+
+	String trimmed = peers;
+	trimmed.trim();
+	if (trimmed.startsWith("[")) {
+		JsonDocument doc;
+		if (deserializeJson(doc, trimmed) == DeserializationError::Ok && doc.is<JsonArray>()) {
+			for (JsonObject o : doc.as<JsonArray>()) {
+				rfidAddPeer(out, o["host"].as<String>(), o["key"].is<const char *>() ? o["key"].as<String>() : "", fallbackKey);
+			}
+			return;
+		}
+	}
+
+	// legacy "host|key, host2|key2" format
 	int start = 0;
 	for (int i = 0; i <= (int) peers.length(); i++) {
 		char c = (i < (int) peers.length()) ? peers[i] : ',';
@@ -196,19 +228,11 @@ static void rfidGetPeers(std::vector<RfidPeer> &out) {
 				String token = peers.substring(start, i);
 				token.trim();
 				if (token.length() > 0) {
-					String host = token, key = fallbackKey;
 					int bar = token.indexOf('|');
 					if (bar >= 0) {
-						host = token.substring(0, bar);
-						key = token.substring(bar + 1);
-						host.trim();
-						key.trim();
-					}
-					if (host.length() > 0) {
-						if (!host.startsWith("http://") && !host.startsWith("https://")) {
-							host = "http://" + host;
-						}
-						out.push_back({host, key});
+						rfidAddPeer(out, token.substring(0, bar), token.substring(bar + 1), fallbackKey);
+					} else {
+						rfidAddPeer(out, token, "", fallbackKey);
 					}
 				}
 			}

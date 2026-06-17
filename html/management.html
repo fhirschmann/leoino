@@ -1331,10 +1331,10 @@
 			position: relative;
 		}
 
-		/* Badges right-aligned after the name: RFID assignment (tag) and/or per-path EQ rule (sliders) */
+		/* Badges shown after the name: RFID assignment (tag) and/or per-path EQ rule (sliders) */
 		.jstree-anchor[data-rfid]::after,
 		.jstree-anchor[data-eq]::after {
-			float: right;
+			display: inline-block;
 			font-family: "Font Awesome 6 Free";
 			font-weight: 900;
 			font-size: .8em;
@@ -1964,9 +1964,6 @@
 									style="height:38px; width: 200px; border-bottom-left-radius: 0; border-top-left-radius: 0;"
 									id="filetreesearch" data-i18n="[placeholder]files.search.placeholder"
 									onsearch="searchFiles($(this).val())" onkeyup="searchFiles($(this).val())">
-							</div>
-							<div id="eqProfileIndicator" class="eq-profile-indicator">
-								<i class="fas fa-sliders-h"></i> <span data-i18n="[prepend]general.equalizer.title">: </span><span id="eqProfileValue">—</span>
 							</div>
 							<button id="rfidPlayBtn" class="btn btn-primary" onclick="playSelectedNode()"
 								disabled data-i18n="[title]files.context.play"><span id="rfidPlayIcon"
@@ -2738,10 +2735,6 @@
 						</div>
 					</div>
 				</fieldset>
-				<fieldset>
-					<legend class="w-auto" data-i18n="settingsex.rfid.learnedTitle"></legend>
-					<ul class="list-group" id="rfidLearnedList"></ul>
-				</fieldset>
 			</div>
 		</div>
 		<div class="tab-pane fade" id="nav-wifi" role="tabpanel" aria-labelledby="nav-wifi-tab">
@@ -2964,20 +2957,23 @@
 						<a href="https://github.com/fhirschmann/leoino/blob/master/server/rfid.php"
 							target="_blank" rel="noopener">rfid.php</a>
 					</small>
-					<label for="rfidPeers" data-i18n="[prepend]sync.rfid.peers">:</label>
-					<input type="text" class="form-control" id="rfidPeers" name="rfidPeers"
-						data-i18n="[placeholder]sync.rfid.peersPlaceholder" value="" autocomplete="off">
-					<small class="text-muted" data-i18n="sync.rfid.peersHint"></small>
-					<label for="rfidPeerKey" class="mt-2" data-i18n="[prepend]sync.rfid.peerKey">:</label>
+					<label data-i18n="[prepend]sync.rfid.peers">:</label>
+					<ul class="list-group mb-2" id="rfidPeerList"></ul>
 					<div class="input-group">
-						<input type="password" class="form-control" id="rfidPeerKey" name="rfidPeerKey"
-							data-i18n="[placeholder]sync.rfid.peerKeyPlaceholder" value="" autocomplete="off">
-						<button class="btn cp-reveal-btn" type="button" id="rfidPeerKeyToggle" tabindex="-1"
-							data-i18n="[title]sync.pwd.show" onclick="togglePasswordField('rfidPeerKey', 'rfidPeerKeyToggle')">
+						<input type="text" class="form-control" id="newPeerHost"
+							data-i18n="[placeholder]sync.rfid.peerHostPlaceholder" autocomplete="off"
+							onkeydown="if(event.key==='Enter'){event.preventDefault();addPeer();}">
+						<input type="password" class="form-control" id="newPeerKey"
+							data-i18n="[placeholder]sync.rfid.peerKeyPlaceholder" autocomplete="off"
+							onkeydown="if(event.key==='Enter'){event.preventDefault();addPeer();}">
+						<button class="btn cp-reveal-btn" type="button" id="newPeerKeyToggle" tabindex="-1"
+							data-i18n="[title]sync.pwd.show" onclick="togglePasswordField('newPeerKey', 'newPeerKeyToggle')">
 							<i class="fas fa-eye"></i>
 						</button>
+						<button type="button" class="btn btn-primary" onclick="addPeer()">
+							<i class="fas fa-plus"></i> <span data-i18n="sync.rfid.addPeer"></span></button>
 					</div>
-					<small class="text-muted" data-i18n="sync.rfid.peerKeyHint"></small>
+					<small class="text-muted" data-i18n="sync.rfid.peersHint"></small>
 					<div class="d-flex gap-2 mt-2">
 						<input type="checkbox" id="rfidSyncLearn" name="rfidSyncLearn" value="false">
 						<label for="rfidSyncLearn" data-i18n="sync.rfid.onLearn"></label>
@@ -4088,6 +4084,9 @@
 						var ref = $('#explorerTree').jstree(true);
 						var node = ref.get_node(nodeId);
 						var items = {};
+						if (!node || !node.data) {
+							return items;
+						}
 						if (node.data.directory) {
 							items.createDir = {
 								label: () => i18next.t("files.context.newFolder"),
@@ -4130,12 +4129,14 @@
 								action: function () { setEqRule(node.data.path, key); }
 							};
 						});
-						eqSubmenu.remove = {
-							label: () => i18next.t("files.context.eqRemove"),
-							icon: "fas fa-times",
-							separator_before: true,
-							action: function () { deleteEqRule(node.data.path); }
-						};
+						if (hasEqRuleExact(node.data.path)) {
+							eqSubmenu.remove = {
+								label: () => i18next.t("files.context.eqRemove"),
+								icon: "fas fa-times",
+								separator_before: true,
+								action: function () { deleteEqRule(node.data.path); }
+							};
+						}
 						items.eq = {
 							label: () => i18next.t("files.context.eq"),
 							icon: "fas fa-sliders-h",
@@ -4843,8 +4844,7 @@
 					document.getElementById("syncAbortBtn").checked = syncSettingsData.abortOnButton;
 				}
 				document.getElementById("rfidSyncUrl").value = syncSettingsData.rfidUrl || "";
-				document.getElementById("rfidPeers").value = syncSettingsData.rfidPeers || "";
-				document.getElementById("rfidPeerKey").value = syncSettingsData.rfidPeerKey || "";
+				setPeersFromStored(syncSettingsData.rfidPeers || "");
 				if (syncSettingsData.rfidLearn !== undefined) {
 					document.getElementById("rfidSyncLearn").checked = syncSettingsData.rfidLearn;
 				}
@@ -4998,9 +4998,6 @@
 			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
 			// populated button dropdowns are covered too). No submit button on these tabs.
 			$('#settings-general, #settings-buttons, #settings-rfid').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
-			// Refresh the learned-cards list whenever the RFID settings sub-tab is shown.
-			var rfidSubtab = document.getElementById('settings-rfid-subtab');
-			if (rfidSubtab) { rfidSubtab.addEventListener('shown.bs.tab', rebuildLearnedList); }
 		});
 		const rfidListSavedAssignments = document.getElementById("rfidListSavedAssignments");
 		async function rebuildRFIDList() {
@@ -5372,8 +5369,7 @@
 					password: document.getElementById('syncPwd').value,
 					abortOnButton: document.getElementById('syncAbortBtn').checked,
 					rfidUrl: document.getElementById('rfidSyncUrl').value,
-					rfidPeers: document.getElementById('rfidPeers').value,
-					rfidPeerKey: document.getElementById('rfidPeerKey').value,
+					rfidPeers: JSON.stringify(window.rfidPeers || []),
 					rfidLearn: document.getElementById('rfidSyncLearn').checked
 				}
 			};
@@ -5471,6 +5467,68 @@
 			try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) { }
 			const sec = document.getElementById('rfidSyncRunSection');
 			if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+
+		// --- P2P peer editor (list of { host, key }, stored as JSON in the rfidPeers setting) ---
+		window.rfidPeers = window.rfidPeers || [];
+		// Load peers from the stored setting (JSON array preferred; legacy "host|key,..." accepted).
+		function setPeersFromStored(stored) {
+			var arr = [];
+			stored = (stored || "").trim();
+			if (stored.startsWith("[")) {
+				try { arr = JSON.parse(stored) || []; } catch (e) { arr = []; }
+			} else if (stored.length > 0) {
+				stored.split(/[,;\n\t\r]+/).forEach(function (tok) {
+					tok = tok.trim();
+					if (!tok) return;
+					var bar = tok.indexOf('|');
+					arr.push(bar >= 0 ? { host: tok.slice(0, bar).trim(), key: tok.slice(bar + 1).trim() } : { host: tok, key: "" });
+				});
+			}
+			window.rfidPeers = arr.filter(function (p) { return p && p.host; });
+			renderPeerList();
+		}
+		function renderPeerList() {
+			var list = document.getElementById('rfidPeerList');
+			if (!list) return;
+			list.innerHTML = "";
+			if (!window.rfidPeers.length) {
+				var empty = document.createElement('li');
+				empty.className = "list-group-item text-secondary small";
+				empty.setAttribute('data-i18n', "sync.rfid.noPeers");
+				empty.textContent = i18next.t("sync.rfid.noPeers");
+				list.appendChild(empty);
+				return;
+			}
+			window.rfidPeers.forEach(function (peer, i) {
+				var li = document.createElement('li');
+				li.className = "list-group-item d-flex justify-content-between align-items-center";
+				var span = document.createElement('span');
+				var lock = peer.key ? ' \u{1F512}' : '';
+				span.innerHTML = '<i class="fas fa-server me-2"></i>' + escapeHtml(peer.host) + '<span class="text-secondary small">' + lock + '</span>';
+				li.appendChild(span);
+				var del = document.createElement('button');
+				del.type = "button";
+				del.className = "btn btn-sm btn-danger fa fa-trash";
+				del.setAttribute('title', i18next.t("delete"));
+				del.addEventListener('click', function () { removePeer(i); });
+				li.appendChild(del);
+				list.appendChild(li);
+			});
+		}
+		function addPeer() {
+			var hostEl = document.getElementById('newPeerHost'), keyEl = document.getElementById('newPeerKey');
+			var host = (hostEl.value || "").trim(), key = (keyEl.value || "").trim();
+			if (!host) { toaster.warning(i18next.t("sync.rfid.peerHostRequired")); return; }
+			window.rfidPeers.push({ host: host, key: key });
+			hostEl.value = ""; keyEl.value = "";
+			renderPeerList();
+			syncSettings(); // persist immediately
+		}
+		function removePeer(i) {
+			window.rfidPeers.splice(i, 1);
+			renderPeerList();
+			syncSettings();
 		}
 		// Disable each section's Save button while its URL field is empty (nothing to save yet).
 		function updateSyncSaveButtons() {
@@ -6507,56 +6565,9 @@
 				body: JSON.stringify({ rfidMod: { rfidIdMod: scannedId, modId: modId } })
 			});
 			toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
-			rebuildLearnedList();
-		}
-		// Render the full list of learned cards (music + modification) in the RFID settings tab.
-		async function rebuildLearnedList() {
-			var list = document.getElementById('rfidLearnedList');
-			if (!list) return;
-			var cards;
-			try { cards = await (await fetch("http://" + host + "/rfid")).json(); } catch (e) { cards = []; }
-			list.innerHTML = "";
-			if (!Array.isArray(cards) || cards.length === 0) {
-				var empty = document.createElement('li');
-				empty.className = "list-group-item text-secondary";
-				empty.setAttribute('data-i18n', "settingsex.rfid.empty");
-				empty.textContent = i18next.t("settingsex.rfid.empty");
-				list.appendChild(empty);
-				return;
-			}
-			cards.sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
-			cards.forEach(function (c) {
-				if (!c || !c.id) return;
-				var li = document.createElement('li');
-				li.className = "list-group-item d-flex justify-content-between align-items-start gap-2";
-				var info = document.createElement('div');
-				var idLine = document.createElement('div');
-				idLine.className = "fw-bold";
-				idLine.textContent = c.id;
-				info.appendChild(idLine);
-				var desc = document.createElement('div');
-				desc.className = "small text-secondary text-break";
-				if (c.modId) {
-					desc.textContent = i18next.t("files.rfid.modification") + ": " + i18next.t("files.rfid.mod.cmd." + c.modId);
-				} else {
-					var mode = c.playMode ? i18next.t("files.rfid.playmode.mode." + c.playMode) : "";
-					desc.textContent = (c.fileOrUrl || "") + (mode ? " — " + mode : "");
-				}
-				info.appendChild(desc);
-				li.appendChild(info);
-				var del = document.createElement('button');
-				del.className = "btn btn-sm btn-danger fa fa-trash flex-shrink-0";
-				del.setAttribute('title', i18next.t("delete"));
-				del.addEventListener('click', function () { deleteLearnedCard(c.id); });
-				li.appendChild(del);
-				list.appendChild(li);
-			});
-		}
-		async function deleteLearnedCard(id) {
-			var resp = await fetch("http://" + host + "/rfid?id=" + encodeURIComponent(id), { method: "DELETE" });
-			if (resp.ok) { flashActionOk(); } else { toaster.error(resp.statusText); }
-			rebuildLearnedList();
-			loadRfidPaths(updateSelectedNodeBadges); // keep explorer badges in sync
+			// The full learned-cards list lives in the Tools tab; refresh it and the explorer badges.
+			rebuildRFIDList();
+			loadRfidPaths(updateSelectedNodeBadges);
 		}
 		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.
 		async function removeRfidForPath(path, nodeId) {
