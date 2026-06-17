@@ -70,14 +70,9 @@ static bool rfidSyncConfigured(void) {
 	return gPrefsSettings.getString("rfidSyncUrl", "").length() > 0 || gPrefsSettings.getString("rfidPeers", "").length() > 0;
 }
 
-// Server endpoint for the RFID list (adds ?type=rfid for the lightweight list-only response).
+// Server endpoint for the RFID list/store (a dedicated rfid.php: GET returns the list, POST merges).
 static String rfidServerUrl(void) {
-	String url = gPrefsSettings.getString("rfidSyncUrl", "");
-	if (url.length() == 0) {
-		return "";
-	}
-	url += (url.indexOf('?') >= 0) ? "&type=rfid" : "?type=rfid";
-	return url;
+	return gPrefsSettings.getString("rfidSyncUrl", "");
 }
 
 // --- HTTP helpers (mirrors Sync.cpp) ---
@@ -180,21 +175,41 @@ static int rfidHttpPostJson(const String &url, const String &user, const String 
 	return code;
 }
 
-// Split the rfidPeers setting (comma/space/semicolon separated host[:port]) into base URLs.
-static void rfidGetPeers(std::vector<String> &out) {
-	String peers = gPrefsSettings.getString("rfidPeers", "");
+// A peer ESPuino: base URL + the X-API-Key (its web password) used to authenticate to it.
+struct RfidPeer {
+	String url;
+	String key;
+};
+
+// Parse the rfidPeers setting into peers. Entries are comma/space/semicolon separated; each may
+// carry its own key as "host|key". The key falls back to the shared "rfidPeerKey" setting and,
+// if that is empty too, to this device's own web password (the common "same password" fleet case).
+static void rfidGetPeers(std::vector<RfidPeer> &out) {
+	const String peers = gPrefsSettings.getString("rfidPeers", "");
+	const String sharedKey = gPrefsSettings.getString("rfidPeerKey", "");
+	const String fallbackKey = sharedKey.length() > 0 ? sharedKey : gPrefsSettings.getString("wwwPassword", "");
 	int start = 0;
 	for (int i = 0; i <= (int) peers.length(); i++) {
 		char c = (i < (int) peers.length()) ? peers[i] : ',';
-		if (c == ',' || c == ' ' || c == ';' || c == '\n' || c == '\t' || c == '\r') {
+		if (c == ',' || c == ';' || c == '\n' || c == '\t' || c == '\r') {
 			if (i > start) {
-				String host = peers.substring(start, i);
-				host.trim();
-				if (host.length() > 0) {
-					if (!host.startsWith("http://") && !host.startsWith("https://")) {
-						host = "http://" + host;
+				String token = peers.substring(start, i);
+				token.trim();
+				if (token.length() > 0) {
+					String host = token, key = fallbackKey;
+					int bar = token.indexOf('|');
+					if (bar >= 0) {
+						host = token.substring(0, bar);
+						key = token.substring(bar + 1);
+						host.trim();
+						key.trim();
 					}
-					out.push_back(host);
+					if (host.length() > 0) {
+						if (!host.startsWith("http://") && !host.startsWith("https://")) {
+							host = "http://" + host;
+						}
+						out.push_back({host, key});
+					}
 				}
 			}
 			start = i + 1;
@@ -202,21 +217,20 @@ static void rfidGetPeers(std::vector<String> &out) {
 	}
 }
 
-// Push a single tag to every configured peer's /rfid endpoint (authenticated with the web password).
+// Push a single tag to every configured peer's /rfid endpoint (authenticated with the peer's key).
 static void rfidPushTagToPeers(const String &id, const String &fileOrUrl, uint32_t mode, uint32_t ts) {
-	std::vector<String> peers;
+	std::vector<RfidPeer> peers;
 	rfidGetPeers(peers);
 	if (peers.empty()) {
 		return;
 	}
-	const String apiKey = gPrefsSettings.getString("wwwPassword", "");
 	JsonDocument doc;
 	rfidTagToJson(doc.to<JsonObject>(), id, fileOrUrl, mode, ts);
 	String body;
 	serializeJson(doc, body);
-	for (const String &peer : peers) {
-		int code = rfidHttpPostJson(peer + "/rfid", "", "", apiKey, body);
-		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: pushed %s to peer %s (HTTP %d)", id.c_str(), peer.c_str(), code);
+	for (const RfidPeer &peer : peers) {
+		int code = rfidHttpPostJson(peer.url + "/rfid", "", "", peer.key, body);
+		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: pushed %s to peer %s (HTTP %d)", id.c_str(), peer.url.c_str(), code);
 	}
 }
 
@@ -322,7 +336,7 @@ static void rfidFullSyncTask(void *param) {
 
 	// 3) Push all local tags to peers (P2P).
 	{
-		std::vector<String> peers;
+		std::vector<RfidPeer> peers;
 		rfidGetPeers(peers);
 		if (!peers.empty()) {
 			std::vector<String> keys;

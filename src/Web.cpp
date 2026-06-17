@@ -1360,6 +1360,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (syncObj["rfidPeers"].is<const char *>()) {
 			gPrefsSettings.putString("rfidPeers", syncObj["rfidPeers"] | "");
 		}
+		if (syncObj["rfidPeerKey"].is<const char *>()) {
+			gPrefsSettings.putString("rfidPeerKey", syncObj["rfidPeerKey"] | "");
+		}
 		if (syncObj["rfidLearn"].is<bool>()) {
 			gPrefsSettings.putBool("rfidSyncLearn", syncObj["rfidLearn"].as<bool>());
 		}
@@ -1845,6 +1848,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		syncObj["abortOnButton"] = gPrefsSettings.getBool("syncAbortBtn", true);
 		syncObj["rfidUrl"] = gPrefsSettings.getString("rfidSyncUrl", "");
 		syncObj["rfidPeers"] = gPrefsSettings.getString("rfidPeers", "");
+		syncObj["rfidPeerKey"] = gPrefsSettings.getString("rfidPeerKey", "");
 		syncObj["rfidLearn"] = gPrefsSettings.getBool("rfidSyncLearn", true);
 	}
 // MQTT

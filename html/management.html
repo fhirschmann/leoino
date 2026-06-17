@@ -2922,14 +2922,19 @@
 						</button>
 					</div>
 					<small class="text-muted" data-i18n="sync.pwd.hint"></small>
+					<small class="text-muted d-block mt-2">
+						<span data-i18n="sync.rfid.phpHint"></span>
+						<a href="https://github.com/fhirschmann/leoino/blob/master/server/manifest.php"
+							target="_blank" rel="noopener">manifest.php</a>
+					</small>
 					<div class="d-flex gap-2 mt-3">
 						<input type="checkbox" id="syncAbortBtn" name="syncAbortBtn" value="false">
 						<label for="syncAbortBtn" data-i18n="sync.abortBtn"></label>
 					</div>
 					<small class="text-muted" data-i18n="sync.abortBtn.hint"></small>
 					<div class="text-center mt-3">
-						<button type="button" class="btn btn-primary" onclick="syncSettings()" data-i18n="submit"></button>
-						<button type="button" class="btn btn-outline-secondary ms-2" onclick="jumpToSyncRun()"
+						<button type="button" class="btn btn-primary" id="syncSaveBtn" onclick="syncSettings()" data-i18n="submit"></button>
+						<button type="button" class="btn btn-primary ms-2" onclick="jumpToSyncRun()"
 							data-i18n="sync.run.gotools"></button>
 					</div>
 					<details class="mt-3">
@@ -2956,23 +2961,31 @@
 						data-i18n="[placeholder]sync.rfid.urlPlaceholder" value="">
 					<small class="text-muted d-block mb-2">
 						<span data-i18n="sync.rfid.phpHint"></span>
-						<a href="https://github.com/fhirschmann/leoino/blob/master/server/manifest.php"
-							target="_blank" rel="noopener" data-i18n="sync.rfid.phpLink"></a>
+						<a href="https://github.com/fhirschmann/leoino/blob/master/server/rfid.php"
+							target="_blank" rel="noopener">rfid.php</a>
 					</small>
 					<label for="rfidPeers" data-i18n="[prepend]sync.rfid.peers">:</label>
 					<input type="text" class="form-control" id="rfidPeers" name="rfidPeers"
 						data-i18n="[placeholder]sync.rfid.peersPlaceholder" value="" autocomplete="off">
 					<small class="text-muted" data-i18n="sync.rfid.peersHint"></small>
+					<label for="rfidPeerKey" class="mt-2" data-i18n="[prepend]sync.rfid.peerKey">:</label>
+					<div class="input-group">
+						<input type="password" class="form-control" id="rfidPeerKey" name="rfidPeerKey"
+							data-i18n="[placeholder]sync.rfid.peerKeyPlaceholder" value="" autocomplete="off">
+						<button class="btn cp-reveal-btn" type="button" id="rfidPeerKeyToggle" tabindex="-1"
+							data-i18n="[title]sync.pwd.show" onclick="togglePasswordField('rfidPeerKey', 'rfidPeerKeyToggle')">
+							<i class="fas fa-eye"></i>
+						</button>
+					</div>
+					<small class="text-muted" data-i18n="sync.rfid.peerKeyHint"></small>
 					<div class="d-flex gap-2 mt-2">
 						<input type="checkbox" id="rfidSyncLearn" name="rfidSyncLearn" value="false">
 						<label for="rfidSyncLearn" data-i18n="sync.rfid.onLearn"></label>
 					</div>
-					<small class="text-muted d-block" data-i18n="sync.rfid.runDesc"></small>
 					<div class="text-center mt-3">
-						<button type="button" class="btn btn-primary" onclick="syncSettings()" data-i18n="submit"></button>
-						<button type="button" class="btn btn-outline-secondary ms-2" onclick="startRfidSync()"
-							data-i18n="sync.rfid.runBtn"></button>
-						<span id="rfidSyncStatus" class="ms-2 small text-secondary"></span>
+						<button type="button" class="btn btn-primary" id="rfidSyncSaveBtn" onclick="syncSettings()" data-i18n="submit"></button>
+						<button type="button" class="btn btn-primary ms-2" onclick="jumpToRfidSyncRun()"
+							data-i18n="sync.run.gotools"></button>
 					</div>
 				</fieldset>
 			</div>
@@ -3072,6 +3085,17 @@
 						data-i18n="sync.run.button"></button>
 					<button type="button" class="btn btn-danger d-none" id="syncStopBtn" onclick="stopSync()"
 						data-i18n="sync.run.stop"></button>
+				</div>
+				<hr>
+			</div>
+			<div class="container" id="rfidSyncRunSection">
+				<legend data-i18n="sync.rfid.runTitle"></legend>
+				<div data-i18n="sync.rfid.runDesc"></div>
+				<br>
+				<div class="text-center">
+					<button type="button" class="btn btn-primary" onclick="startRfidSync()"
+						data-i18n="sync.rfid.runBtn"></button>
+					<span id="rfidSyncStatus" class="ms-2 small text-secondary"></span>
 				</div>
 				<hr>
 			</div>
@@ -4820,9 +4844,11 @@
 				}
 				document.getElementById("rfidSyncUrl").value = syncSettingsData.rfidUrl || "";
 				document.getElementById("rfidPeers").value = syncSettingsData.rfidPeers || "";
+				document.getElementById("rfidPeerKey").value = syncSettingsData.rfidPeerKey || "";
 				if (syncSettingsData.rfidLearn !== undefined) {
 					document.getElementById("rfidSyncLearn").checked = syncSettingsData.rfidLearn;
 				}
+				updateSyncSaveButtons();
 			}
 			// mqtt
 			let mqttSettings = settings.mqtt;
@@ -5347,6 +5373,7 @@
 					abortOnButton: document.getElementById('syncAbortBtn').checked,
 					rfidUrl: document.getElementById('rfidSyncUrl').value,
 					rfidPeers: document.getElementById('rfidPeers').value,
+					rfidPeerKey: document.getElementById('rfidPeerKey').value,
 					rfidLearn: document.getElementById('rfidSyncLearn').checked
 				}
 			};
@@ -5440,6 +5467,24 @@
 			const sec = document.getElementById('syncRunSection');
 			if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
+		function jumpToRfidSyncRun() {
+			try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) { }
+			const sec = document.getElementById('rfidSyncRunSection');
+			if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+		// Disable each section's Save button while its URL field is empty (nothing to save yet).
+		function updateSyncSaveButtons() {
+			var s = document.getElementById('syncSaveBtn'), su = document.getElementById('syncUrl');
+			if (s && su) s.disabled = (su.value.trim() === "");
+			var r = document.getElementById('rfidSyncSaveBtn'), ru = document.getElementById('rfidSyncUrl');
+			if (r && ru) r.disabled = (ru.value.trim() === "");
+		}
+		document.addEventListener("DOMContentLoaded", function () {
+			['syncUrl', 'rfidSyncUrl'].forEach(function (id) {
+				var el = document.getElementById(id);
+				if (el) el.addEventListener('input', updateSyncSaveButtons);
+			});
+		});
 
 		/* kick off a sync and poll the device for progress */
 		async function startSync() {

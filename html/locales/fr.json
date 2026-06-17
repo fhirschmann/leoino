@@ -459,7 +459,10 @@
 			"runBtn": "Synchroniser maintenant",
 			"started": "Sync RFID démarrée…",
 			"phpHint": "Script serveur (dynamique, génère le manifeste + sync RFID) :",
-			"phpLink": "manifest.php sur GitHub"
+			"phpLink": "manifest.php sur GitHub",
+			"peerKey": "Mot de passe pair (clé API)",
+			"peerKeyPlaceholder": "mot de passe web des autres ESPuinos",
+			"peerKeyHint": "Utilisé pour pousser vers les pairs. Surchargeable par pair avec « host|motdepasse ». Vide = mot de passe web de cet appareil."
 		}
 	},
 	"playlist": {

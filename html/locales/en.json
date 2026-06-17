@@ -466,7 +466,10 @@
 			"runBtn": "Sync now",
 			"started": "RFID sync started…",
 			"phpHint": "Server script (dynamic, generates the manifest + RFID sync):",
-			"phpLink": "manifest.php on GitHub"
+			"phpLink": "manifest.php on GitHub",
+			"peerKey": "Peer password (API key)",
+			"peerKeyPlaceholder": "web password of the other ESPuinos",
+			"peerKeyHint": "Used to push to peers. Override per peer with \"host|password\". Empty = this device's web password."
 		}
 	},
 	"playlist": {
