@@ -333,6 +333,12 @@
 					"249": "Play virtual RFID-card 09",
 					"250": "Play virtual RFID-card 10"
 				}
+			},
+			"virtual": {
+				"generate": "Virtual card",
+				"tooltip": "Generate a random virtual card id (no physical tag needed)",
+				"created": "Virtual card generated: {{rfidId}}",
+				"trigger": "Lay virtually (play)"
 			}
 		}
 	},

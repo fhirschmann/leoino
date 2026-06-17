@@ -2012,8 +2012,13 @@
 					<form action="#rfidMusicTags" method="POST" onsubmit="rfidAssign('rfidMusicTags'); return false">
 						<div class="mb-3 col-md-12">
 							<label for="rfidIdMusic" data-i18n="[html]files.rfid.idNumber"></label>
-							<input type="text" class="form-control" id="rfidIdMusic" maxlength="12" pattern="[0-9]{12}"
-								placeholder="" name="rfidIdMusic" required>
+							<div class="input-group">
+								<input type="text" class="form-control" id="rfidIdMusic" maxlength="12" pattern="[0-9]{12}"
+									placeholder="" name="rfidIdMusic" required>
+								<button type="button" class="btn btn-outline-secondary" id="genVirtualCard"
+									onclick="generateVirtualCard()" data-i18n="[title]files.rfid.virtual.tooltip"><i
+										class="fas fa-clone"></i> <span data-i18n="files.rfid.virtual.generate"></span></button>
+							</div>
 							<br>
 							<div class="nav nav-tabs" id="SubTab" role="tablist"
 								aria-labelledby="rfidMusicTagsAssignment">
@@ -4163,6 +4168,9 @@
 		var tm;
 		var pingInterval;
 		var getTrackProgressInterval;
+		// True while a generated "virtual card" id sits in the rfid id field, so periodic
+		// settings pushes don't overwrite it with the (empty) currently-scanned tag id.
+		var virtualCardActive = false;
 		var volumeSlider = new Slider("#setVolume");
 		document.getElementById('setVolume').remove();
 
@@ -4318,6 +4326,7 @@
 				var socketMsg = JSON.parse(event.data);
 				console.log(socketMsg);
 				if (socketMsg.rfidId != null) {
+					virtualCardActive = false; // a real card was scanned -> it takes over the field
 					document.getElementById('rfidIdMusic').value = socketMsg.rfidId;
 					toaster.info(i18next.t("toast.rfidDetect", {
 						rfidId: socketMsg.rfidId
@@ -4575,7 +4584,9 @@
 			// current values
 			let currSettings = settings.current;
 			if (currSettings) {
-				document.getElementById("rfidIdMusic").value = currSettings.rfidTagId;
+				if (!virtualCardActive) { // keep a pending virtual-card id in the field
+					document.getElementById("rfidIdMusic").value = currSettings.rfidTagId;
+				}
 				volumeSlider.setValue(currSettings.volume);
 			}
 			let eqSettings = settings.equalizer;
@@ -4884,6 +4895,14 @@
 				let deleteSpan = document.createElement("span");
 				deleteSpan.classList.add("float-end");
 				deleteSpan.classList.add("button-group");
+				// Trigger button: lay this card virtually (play its content) without a physical tag.
+				if (rfid.fileOrUrl) {
+					let playButton = document.createElement("button");
+					playButton.classList.add("btn", "btn-success", "fa", "fa-play", "me-1");
+					playButton.setAttribute("title", i18next.t("files.rfid.virtual.trigger"));
+					playButton.addEventListener("click", function () { triggerRfid(rfid.id); });
+					deleteSpan.appendChild(playButton);
+				}
 				let deleteButton = document.createElement("button");
 				deleteButton.classList.add("btn");
 				deleteButton.classList.add("btn-danger");
@@ -5606,8 +5625,27 @@
 				body: myJSON
 			});
 			toaster.info(i18next.t("toast.saved"));
+			virtualCardActive = false; // assignment done; allow the field to track scans again
 			// Refresh the RFID-assignment cache and re-badge the selected explorer node.
 			loadRfidPaths(updateSelectedNodeBadges);
+		}
+		// Generate a random 12-digit "virtual" RFID id (4 groups of a 0-255 byte as %03d, like a
+		// real 4-byte UID) into the id field, so a card can be assigned without physical hardware.
+		function generateVirtualCard() {
+			var id = "";
+			for (var i = 0; i < 4; i++) {
+				id += ("00" + Math.floor(Math.random() * 256)).slice(-3);
+			}
+			var f = document.getElementById('rfidIdMusic');
+			f.value = id;
+			virtualCardActive = true; // protect the id from being overwritten by settings pushes
+			$(f).effect("highlight", { color: "#abf5af" }, 1500);
+			toaster.info(i18next.t("files.rfid.virtual.created", { rfidId: id }));
+		}
+		// Lay a virtual card: play the content assigned to this id without a physical tag.
+		async function triggerRfid(tagId) {
+			var response = await fetch("http://" + host + "/rfidtrigger?id=" + encodeURIComponent(tagId), { method: "POST" });
+			if (response.ok) { flashActionOk(); } else { toaster.error(response.statusText); }
 		}
 		async function globalWifiConfig(clickedId) {
 			lastIdclicked = clickedId;
@@ -6229,6 +6267,7 @@
 				body: JSON.stringify({ rfidAssign: { rfidIdMusic: id, fileOrUrl: removeTrSlash(path), playMode: String(playMode) } })
 			});
 			toaster.info(i18next.t("toast.saved"));
+			virtualCardActive = false; // assignment done; allow the field to track scans again
 			refreshRfidBadgesAround(nodeId);
 		}
 		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.

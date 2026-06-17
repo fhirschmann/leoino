@@ -105,6 +105,15 @@ void Rfid_ResetOldRfid() {
 	Rfid_TaskReset();
 }
 
+// Lay a "virtual" RFID card: same path a physical scan takes (reset old-card state, then
+// enqueue the id) so the assigned playlist/folder is applied. Shared by web + MQTT.
+void Rfid_QueueCardString(const char *cardIdStr) {
+	char buf[cardIdStringSize] = {0};
+	strncpy(buf, cardIdStr, cardIdStringSize - 1);
+	Rfid_ResetOldRfid();
+	xQueueSend(gRfidCardQueue, buf, 0);
+}
+
 #if defined(RFID_READER_TYPE_RUNTIME)
 extern TaskHandle_t rfidTaskHandle;
 #endif

@@ -975,6 +975,28 @@ void webserverStart(void) {
 		wServer.addRewrite(new OneParamRewrite("/rfid/{id}", "/rfid?id={id}"));
 		wServer.on("/rfid", HTTP_DELETE, handleDeleteRFIDRequest);
 
+		// Lay a "virtual" RFID card by its 12-digit id (no physical tag needed): plays the
+		// content assigned to that id, exactly like scanning the card would.
+		wServer.on("/rfidtrigger", HTTP_POST, [](AsyncWebServerRequest *request) {
+			if (!request->hasParam("id")) {
+				request->send(400, "text/plain; charset=utf-8", "missing id");
+				return;
+			}
+			const String id = request->getParam("id")->value();
+			bool valid = (id.length() == (size_t) (cardIdStringSize - 1));
+			for (size_t i = 0; valid && i < id.length(); i++) {
+				if (id[i] < '0' || id[i] > '9') {
+					valid = false;
+				}
+			}
+			if (!valid) {
+				request->send(400, "text/plain; charset=utf-8", "invalid id (expected 12 digits)");
+				return;
+			}
+			Rfid_QueueCardString(id.c_str());
+			request->send(200, "text/plain; charset=utf-8", "ok");
+		});
+
 		// WiFi scan
 		wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
 
