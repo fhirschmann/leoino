@@ -607,6 +607,14 @@
 			"strnatcmp": "Naturel: sensible à la casse",
 			"strnatcasecmp": "Naturel: insensible à la casse",
 			"recDepth": "Profondeur de récursion maximale lors de la génération de playlists récursives"
+		},
+		"branding": {
+			"title": "Branding",
+			"header": "Titre d'en-tête",
+			"headerPlaceholder": "p.ex. Mon lecteur",
+			"footer": "Marque du pied de page",
+			"footerPlaceholder": "p.ex. Mon lecteur",
+			"hint": "Laisser vide pour la valeur par défaut. Remplace « Leo Industries » dans l'en-tête et le pied de page."
 		}
 	},
 	"tools": {

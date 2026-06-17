@@ -618,6 +618,14 @@
 			"strnatcmp": "Natural: case-sensitive",
 			"strnatcasecmp": "Natural: case-insensitive",
 			"recDepth": "Maximum recursion depth at generation of recursive playlists"
+		},
+		"branding": {
+			"title": "Branding",
+			"header": "Header title",
+			"headerPlaceholder": "e.g. My Player",
+			"footer": "Footer brand",
+			"footerPlaceholder": "e.g. My Player",
+			"hint": "Leave empty for the default. Replaces \"Leo Industries\" in the header and footer."
 		}
 	},
 	"tools": {

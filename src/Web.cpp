@@ -1139,6 +1139,12 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			gPrefsSettings.putFloat("pwrSleepVolt", generalObj["poweredVoltage"].as<float>());
 		}
 		System_ReloadSleepSettings(); // apply the "no sleep while powered" change without a reboot
+		if (generalObj["headerText"].is<const char *>()) {
+			gPrefsSettings.putString("uiHeader", generalObj["headerText"].as<const char *>());
+		}
+		if (generalObj["footerText"].is<const char *>()) {
+			gPrefsSettings.putString("uiFooter", generalObj["footerText"].as<const char *>());
+		}
 		if (generalObj["readyPath"].is<const char *>()) {
 			const char *path = generalObj["readyPath"].as<const char *>();
 			size_t written = gPrefsSettings.putString("readyPath", path);
@@ -1560,6 +1566,8 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["readyPath"].set(gPrefsSettings.getString("readyPath", "/ready.mp3")); // READY_PATH
 		generalObj["noSleepWhenPowered"].set(gPrefsSettings.getBool("noSleepPwr", false)); // stay awake on external power
 		generalObj["poweredVoltage"].set(gPrefsSettings.getFloat("pwrSleepVolt", 3.5f)); // voltage threshold for "powered"
+		generalObj["headerText"].set(gPrefsSettings.getString("uiHeader", "")); // custom navbar brand (empty = default)
+		generalObj["footerText"].set(gPrefsSettings.getString("uiFooter", "")); // custom footer brand (empty = default)
 	}
 	if ((section == "") || (section == "equalizer")) {
 		// equalizer settings

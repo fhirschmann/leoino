@@ -2172,48 +2172,19 @@
 							</div>
 						</fieldset>
 					</div>
-					<div class="col-md-12 mb-4" id="rfidConfig">
+					<div class="col-md-12 mb-4" id="brandingConfig">
 						<fieldset>
-							<legend class="w-auto" data-i18n="general.rfid.title"></legend><br>
+							<legend class="w-auto" data-i18n="general.branding.title"></legend>
 							<div class="mb-3">
-								<label for="rfidReaderType" data-i18n="general.rfid.readerType.title"></label>
-								<select class="form-control form-select" id="rfidReaderType" name="rfidReaderType">
-									<option value="0" data-i18n="general.rfid.readerType.auto">Auto-detect</option>
-									<option value="1" data-i18n="general.rfid.readerType.mfrc522_spi">MFRC522 (SPI)</option>
-									<option value="2" data-i18n="general.rfid.readerType.mfrc522_i2c">MFRC522 (I2C)</option>
-									<option value="3" data-i18n="general.rfid.readerType.pn5180">PN5180</option>
-								</select>
-								<small class="form-text text-muted" data-i18n="general.rfid.description"></small>
+								<label for="headerText" data-i18n="general.branding.header"></label>
+								<input type="text" class="form-control" id="headerText" name="headerText" maxlength="40"
+									data-i18n="[placeholder]general.branding.headerPlaceholder">
 							</div>
 							<div class="mb-3">
-								<label for="mfrc522Gain" data-i18n="general.rfid.mfrc522Gain"></label>
-								<div class="input-group">
-									<input type="number" class="form-control" id="mfrc522Gain" name="mfrc522Gain" min="0" max="7">
-									<span class="input-group-text bg-transparent border-0">
-										<a href="#" class="link-secondary" data-bs-toggle="popover"
-											data-i18n="[data-bs-content]general.rfid.mfrc522GainExp" tabindex="0">
-											<i class="fas fa-circle-question"></i></a>
-									</span>
-								</div>
-							</div>
-							<div class="d-flex gap-2">
-								<input type="checkbox" id="pn5180Lpcd" name="pn5180Lpcd" value="false">
-								<label for="pn5180Lpcd" data-i18n="general.rfid.pn5180Lpcd"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
-									data-i18n="[data-bs-content]general.rfid.pn5180LpcdExp" tabindex="0"><i
-										class="fas fa-circle-question"></i></a>
-							</div><br>
-							<div class="mb-3">
-								<label for="slix2Password" data-i18n="general.rfid.slix2Password.title"></label>
-								<div class="input-group">
-									<input type="text" class="form-control" id="slix2Password" name="slix2Password"
-										maxlength="8" placeholder="e.g. 01020304">
-									<span class="input-group-text bg-transparent border-0">
-										<a href="#" class="link-secondary" data-bs-toggle="popover"
-											data-i18n="[data-bs-content]general.rfid.slix2Password.description" tabindex="0">
-											<i class="fas fa-circle-question"></i></a>
-									</span>
-								</div>
+								<label for="footerText" data-i18n="general.branding.footer"></label>
+								<input type="text" class="form-control" id="footerText" name="footerText" maxlength="40"
+									data-i18n="[placeholder]general.branding.footerPlaceholder">
+								<small class="form-text text-muted" data-i18n="general.branding.hint"></small>
 							</div>
 						</fieldset>
 					</div>
@@ -2711,13 +2682,56 @@
 			</div>
 		<div class="tab-pane fade" id="settings-rfid" role="tabpanel" aria-labelledby="settings-rfid-subtab">
 			<div class="container">
+				<fieldset id="rfidConfig">
+					<legend class="w-auto" data-i18n="general.rfid.title"></legend>
+					<div class="mb-3">
+						<label for="rfidReaderType" data-i18n="general.rfid.readerType.title"></label>
+						<select class="form-control form-select" id="rfidReaderType" name="rfidReaderType">
+							<option value="0" data-i18n="general.rfid.readerType.auto">Auto-detect</option>
+							<option value="1" data-i18n="general.rfid.readerType.mfrc522_spi">MFRC522 (SPI)</option>
+							<option value="2" data-i18n="general.rfid.readerType.mfrc522_i2c">MFRC522 (I2C)</option>
+							<option value="3" data-i18n="general.rfid.readerType.pn5180">PN5180</option>
+						</select>
+						<small class="form-text text-muted" data-i18n="general.rfid.description"></small>
+					</div>
+					<div class="mb-3">
+						<label for="mfrc522Gain" data-i18n="general.rfid.mfrc522Gain"></label>
+						<div class="input-group">
+							<input type="number" class="form-control" id="mfrc522Gain" name="mfrc522Gain" min="0" max="7">
+							<span class="input-group-text bg-transparent border-0">
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.rfid.mfrc522GainExp" tabindex="0">
+									<i class="fas fa-circle-question"></i></a>
+							</span>
+						</div>
+					</div>
+					<div class="d-flex gap-2">
+						<input type="checkbox" id="pn5180Lpcd" name="pn5180Lpcd" value="false">
+						<label for="pn5180Lpcd" data-i18n="general.rfid.pn5180Lpcd"></label>
+						<a href="#" class="link-secondary" data-bs-toggle="popover"
+							data-i18n="[data-bs-content]general.rfid.pn5180LpcdExp" tabindex="0"><i
+								class="fas fa-circle-question"></i></a>
+					</div><br>
+					<div class="mb-3">
+						<label for="slix2Password" data-i18n="general.rfid.slix2Password.title"></label>
+						<div class="input-group">
+							<input type="text" class="form-control" id="slix2Password" name="slix2Password"
+								maxlength="8" placeholder="e.g. 01020304">
+							<span class="input-group-text bg-transparent border-0">
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.rfid.slix2Password.description" tabindex="0">
+									<i class="fas fa-circle-question"></i></a>
+							</span>
+						</div>
+					</div>
+				</fieldset>
 				<fieldset>
 					<legend class="w-auto" data-i18n="settingsex.rfid.modTitle"></legend>
 					<p class="small text-secondary" data-i18n="settingsex.rfid.modDesc"></p>
 					<div class="row gx-2 align-items-end mb-2">
 						<div class="col-12 col-md-8 mb-2">
 							<label class="form-label small mb-0" for="modIdLearn" data-i18n="files.rfid.mod.title"></label>
-							<select id="modIdLearn" class="form-select form-select-sm"></select>
+							<select id="modIdLearn" class="form-select form-select-sm" data-no-autosave></select>
 						</div>
 						<div class="col-12 col-md-4 mb-2">
 							<button type="button" class="btn btn-primary w-100" onclick="learnModCard()"><i class="fas fa-id-card"></i> <span data-i18n="settingsex.rfid.learnBtn"></span></button>
@@ -3195,7 +3209,7 @@
 	</div>
 	<footer id="cp-footer">
 		<div class="cp-footer-inner">
-			<span class="cp-footer-brand">LEO&nbsp;INDUSTRIES</span>
+			<span class="cp-footer-brand" id="cp-footer-brand">LEO&nbsp;INDUSTRIES</span>
 			<span class="cp-footer-sep">//</span>
 			<span class="cp-footer-div">DIVISION&nbsp;:&nbsp;AUDIO</span>
 			<span class="cp-footer-sep">//</span>
@@ -3207,7 +3221,7 @@
 			<a class="cp-footer-link" href="/swagger.html" target="_blank"
 				rel="noopener"><i class="fas fa-code"></i>&nbsp;API</a>
 		</div>
-		<div class="cp-footer-copy">&copy; 2026 LEO INDUSTRIES &middot; ALL SIGNALS RESERVED &middot; NEON DREAMS RUN ON ESP32</div>
+		<div class="cp-footer-copy" id="cp-footer-copy">&copy; 2026 LEO INDUSTRIES &middot; ALL SIGNALS RESERVED &middot; NEON DREAMS RUN ON ESP32</div>
 	</footer>
 	<script type="text/javascript">
 		var lastIdclicked = '';
@@ -4663,6 +4677,13 @@
 				if (genSettings.poweredVoltage !== undefined) {
 					$('#poweredVoltage').val(genSettings.poweredVoltage);
 				}
+				if (genSettings.headerText !== undefined) {
+					document.getElementById('headerText').value = genSettings.headerText;
+				}
+				if (genSettings.footerText !== undefined) {
+					document.getElementById('footerText').value = genSettings.footerText;
+				}
+				applyBranding(genSettings.headerText, genSettings.footerText);
 				$('#volumeCurve').prop('checked', genSettings.volumeCurve > 0);
 				if (genSettings.rfidReaderType !== undefined) {
 					$('#rfidReaderType').val(genSettings.rfidReaderType);
@@ -4965,7 +4986,7 @@
 			if (c) c.addEventListener("shown.bs.collapse", rebuildEqRulesList);
 			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
 			// populated button dropdowns are covered too). No submit button on these tabs.
-			$('#settings-general, #settings-buttons').on('change slideStop', 'input, select, textarea', autoSaveGeneralSettings);
+			$('#settings-general, #settings-buttons, #settings-rfid').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
 			// Refresh the learned-cards list whenever the RFID settings sub-tab is shown.
 			var rfidSubtab = document.getElementById('settings-rfid-subtab');
 			if (rfidSubtab) { rfidSubtab.addEventListener('shown.bs.tab', rebuildLearnedList); }
@@ -5140,6 +5161,19 @@
 			return parseInt(input.replace(/^#([\da-f])([\da-f])([\da-f])$/i, '#$1$1$2$2$3$3').substring(1), 16);
 		};
 
+		// Apply a custom header (navbar brand) and footer brand. Empty values keep the defaults.
+		function applyBranding(header, footer) {
+			if (header !== undefined && header !== null && header.trim() !== "") {
+				document.getElementById('navbar-brand-co').textContent = header;
+			}
+			if (footer !== undefined && footer !== null && footer.trim() !== "") {
+				var brand = document.getElementById('cp-footer-brand');
+				if (brand) { brand.textContent = footer; }
+				var copy = document.getElementById('cp-footer-copy');
+				if (copy) { copy.innerHTML = '© ' + new Date().getFullYear() + ' ' + escapeHtml(footer); }
+			}
+		}
+
 		async function genSettings(clickedId) {
 			lastIdclicked = clickedId;
 			var myObj = {
@@ -5158,6 +5192,8 @@
 					recoverVolBoot: $('#recoverVolBoot').prop('checked'),
 					noSleepWhenPowered: $('#noSleepWhenPowered').prop('checked'),
 					poweredVoltage: Number($('#poweredVoltage').val()),
+					headerText: document.getElementById('headerText').value,
+					footerText: document.getElementById('footerText').value,
 					volumeCurve: $("#volumeCurve").prop('checked') ? 1 : 0,
 					rfidReaderType: Number($('#rfidReaderType').val()),
 					pn5180Lpcd: $('#pn5180Lpcd').prop('checked'),
