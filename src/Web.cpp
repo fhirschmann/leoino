@@ -38,6 +38,7 @@
 #include <Update.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <algorithm>
 #include <atomic>
 #include <esp_random.h>
 #include <esp_task_wdt.h>
@@ -95,6 +96,7 @@ static void handleBluetoothResultsRequest(AsyncWebServerRequest *request);
 static void handleBluetoothConnectRequest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleWiFiScanRequest(AsyncWebServerRequest *request);
 static void handleGetRFIDRequest(AsyncWebServerRequest *request);
+bool DumpNvsToArrayCallback(const char *key, void *data); // defined later; used by the /topcards handler
 static void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleDeleteRFIDRequest(AsyncWebServerRequest *request);
@@ -1045,7 +1047,8 @@ void webserverStart(void) {
 			static uint32_t buf[365];
 			uint16_t c = 0;
 			if (o["days"].is<JsonArray>()) {
-				for (JsonVariant v : o["days"].as<JsonArray>()) {
+				JsonArray daysArr = o["days"].as<JsonArray>();
+				for (JsonVariant v : daysArr) {
 					if (c < 365) {
 						buf[c++] = v.as<uint32_t>();
 					}
@@ -1054,6 +1057,44 @@ void webserverStart(void) {
 			Playstats_RestoreRing(o["lastDay"].as<uint32_t>(), buf, c);
 			request->send(200, "text/plain; charset=utf-8", "ok");
 		}));
+
+		// Most-played RFID cards (top 10 by play count), with their assigned file/URL + play mode.
+		wServer.on("/topcards", HTTP_GET, [](AsyncWebServerRequest *request) {
+			std::vector<String> ids;
+			listNVSKeys("rfidPlayCnt", &ids, DumpNvsToArrayCallback);
+			std::vector<std::pair<uint32_t, String>> ranked;
+			for (const String &id : ids) {
+				ranked.push_back({Playstats_GetCardPlays(id.c_str()), id});
+			}
+			std::sort(ranked.begin(), ranked.end(), [](const std::pair<uint32_t, String> &a, const std::pair<uint32_t, String> &b) { return a.first > b.first; });
+			AsyncJsonResponse *response = new AsyncJsonResponse(true);
+			JsonArray arr = response->getRoot();
+			for (size_t i = 0; i < ranked.size() && i < 10; i++) {
+				JsonObject o = arr.add<JsonObject>();
+				o["id"] = ranked[i].second;
+				o["count"] = ranked[i].first;
+				// extract fileOrUrl + mode from the stored tag string "#fileOrUrl#pos#mode#track"
+				String s = gPrefsRfid.getString(ranked[i].second.c_str(), "");
+				if (s.length() > 0 && s != "-1") {
+					char buf[300];
+					strncpy(buf, s.c_str(), sizeof(buf) - 1);
+					buf[sizeof(buf) - 1] = '\0';
+					char *tok = strtok(buf, stringDelimiter);
+					uint8_t fi = 1;
+					while (tok != NULL) {
+						if (fi == 1) {
+							o["fileOrUrl"] = String(tok);
+						} else if (fi == 3) {
+							o["mode"] = (uint32_t) strtoul(tok, NULL, 10);
+						}
+						fi++;
+						tok = strtok(NULL, stringDelimiter);
+					}
+				}
+			}
+			response->setLength();
+			request->send(response);
+		});
 
 		// WiFi scan
 		wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
@@ -3346,6 +3387,7 @@ static void handleDeleteRFIDRequest(AsyncWebServerRequest *request) {
 		}
 		if (gPrefsRfid.remove(tagId.c_str())) {
 			RfidSync_OnDelete(tagId.c_str()); // record tombstone + propagate the deletion to server/peers
+			Playstats_ClearCardPlays(tagId.c_str()); // drop the card's play counter too
 			Log_Printf(LOGLEVEL_INFO, "/rfid (DELETE): tag %s removed successfuly", tagId);
 			request->send(200, "text/plain; charset=utf-8", tagId + " removed successfuly");
 		} else {

@@ -777,6 +777,7 @@
 		"lblPlayToday": "Écouté aujourd'hui",
 		"lblPlayYesterday": "Écouté hier",
 		"lblPlay7d": "7 derniers jours",
-		"lblPlay30d": "30 derniers jours"
+		"lblPlay30d": "30 derniers jours",
+		"lblTopCard": "Plus joué"
 	}
 }

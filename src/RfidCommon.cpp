@@ -7,6 +7,7 @@
 #include "Log.h"
 #include "MemX.h"
 #include "Mqtt.h"
+#include "Playstats.h"
 #include "Queues.h"
 #include "Rfid.h"
 #include "RfidConfig.h"
@@ -91,6 +92,7 @@ void Rfid_PreferenceLookupHandler(void) {
 				}
 	#endif
 
+				Playstats_NoteCardPlay(gCurrentRfidTagId); // count plays per music card (most-played stats)
 				AudioPlayer_SetPlaylist(_file, _lastPlayPos, _playMode, _trackLastPlayed);
 			}
 		}

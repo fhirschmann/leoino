@@ -21,6 +21,31 @@ static uint32_t gLastDay = 0; // local day number of the most recent tracked day
 static bool gDirty = false;
 static uint32_t gLastSaveMs = 0;
 
+// Per-card play counters live in their own NVS namespace, keyed by the 12-digit tag id.
+static Preferences gPrefsCardCnt;
+static bool gCardCntReady = false;
+static void Playstats_CardCntInit(void) {
+	if (!gCardCntReady) {
+		gPrefsCardCnt.begin("rfidPlayCnt");
+		gCardCntReady = true;
+	}
+}
+void Playstats_NoteCardPlay(const char *tagId) {
+	if (!tagId || !tagId[0]) {
+		return;
+	}
+	Playstats_CardCntInit();
+	gPrefsCardCnt.putULong(tagId, gPrefsCardCnt.getULong(tagId, 0) + 1);
+}
+uint32_t Playstats_GetCardPlays(const char *tagId) {
+	Playstats_CardCntInit();
+	return gPrefsCardCnt.getULong(tagId, 0);
+}
+void Playstats_ClearCardPlays(const char *tagId) {
+	Playstats_CardCntInit();
+	gPrefsCardCnt.remove(tagId);
+}
+
 // Days since 1970-01-01 for a (proleptic Gregorian) calendar date (Howard Hinnant's algorithm).
 // Avoids needing tm_gmtoff (not available in this newlib build): we feed it the local Y/M/D.
 static long Playstats_DaysFromCivil(int y, unsigned m, unsigned d) {

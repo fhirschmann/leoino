@@ -15,6 +15,11 @@ uint32_t Playstats_GetToday(void); // seconds listened today (local calendar day
 uint32_t Playstats_GetYesterday(void); // seconds listened yesterday
 uint32_t Playstats_GetLastDays(uint16_t days); // sum over the last <days> calendar days (incl. today)
 
+// Per-card play counter (most-played statistics). Incremented when a music card starts a playlist.
+void Playstats_NoteCardPlay(const char *tagId);
+uint32_t Playstats_GetCardPlays(const char *tagId);
+void Playstats_ClearCardPlays(const char *tagId); // drop a card's play counter (e.g. when deleted)
+
 // Raw ring-buffer access for backup/restore (JSON is built/parsed by the caller).
 uint16_t Playstats_GetRingSize(void); // number of day-slots (365)
 uint32_t Playstats_GetRingLastDay(void); // local day number of the most recent tracked day
