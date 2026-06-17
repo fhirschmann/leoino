@@ -81,6 +81,7 @@
 #define CMD_NEXTFOLDER		184 // Command: jump forwards to next folder (only applicable for recursive playmodes)
 #define CMD_PREVFOLDER		185 // Command: jump forwards to previous folder (only applicable for recursive playmodes)
 #define CMD_FIRMWARE_UPDATE 186 // Command: pull the latest firmware from GitHub and OTA-flash it
+#define CMD_RFID_SYNC		187 // Command: full bidirectional RFID-tag sync (server + peers)
 
 #define CMD_VIRTUAL_RFID_CARD_01 241 // Command: Virtual RFID-Card 900000000001
 #define CMD_VIRTUAL_RFID_CARD_02 242 // Command: Virtual RFID-Card 900000000002

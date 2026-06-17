@@ -15,6 +15,7 @@
 #include "revision.h"
 
 #include <Rfid.h>
+#include <RfidSync.h>
 #include <WiFi.h>
 #include <charconv>
 #include <limits>
@@ -429,6 +430,9 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			// Firmware-update (GitHub OTA)
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicFirmwareUpdate), qos);
 
+			// RFID-tag sync (full bidirectional sync trigger)
+			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicRfidSync), qos);
+
 			// Home Assistant MQTT discovery (entities auto-register under one device)
 			Mqtt_PublishHassDiscovery();
 
@@ -737,6 +741,14 @@ void Mqtt_ClientCallback(const char *topic_buf, uint32_t topic_length, const cha
 			if (payload_str == "ON" || payload_str == "1" || payload_str == "update" || payload_str == "check") {
 				Web_TriggerGithubOta();
 				publishMqtt(topicFirmwareUpdate, Web_GetGithubOtaStatusText(), false);
+				System_IndicateOk();
+			}
+		}
+
+		// Trigger a full RFID-tag sync (server + peers)?
+		else if (reduced_topic_str == topicRfidSync) {
+			if (payload_str == "ON" || payload_str == "1" || payload_str == "sync") {
+				RfidSync_TriggerFull();
 				System_IndicateOk();
 			}
 		}

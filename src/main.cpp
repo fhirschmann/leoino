@@ -23,6 +23,7 @@
 #include "Queues.h"
 #include "Rfid.h"
 #include "RfidConfig.h"
+#include "RfidSync.h"
 #include "RotaryEncoder.h"
 #include "Rtc.h"
 #include "SdCard.h"
@@ -247,6 +248,7 @@ void loop() {
 	Battery_Cyclic();
 	Button_Cyclic();
 	Rtc_Cyclic();
+	RfidSync_Cyclic();
 	System_Cyclic();
 #ifdef OLED_ENABLE
 	Display_Cyclic();

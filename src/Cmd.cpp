@@ -12,6 +12,7 @@
 #include "Mqtt.h"
 #include "Queues.h"
 #include "Rfid.h"
+#include "RfidSync.h"
 #include "Rtc.h"
 #include "Sync.h"
 #include "System.h"
@@ -428,6 +429,12 @@ void Cmd_Action(const uint16_t mod) {
 
 		case CMD_FIRMWARE_UPDATE: {
 			Web_TriggerGithubOta();
+			System_IndicateOk();
+			break;
+		}
+
+		case CMD_RFID_SYNC: {
+			RfidSync_TriggerFull();
 			System_IndicateOk();
 			break;
 		}

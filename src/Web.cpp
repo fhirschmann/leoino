@@ -21,6 +21,7 @@
 #include "Mqtt.h"
 #include "Playstats.h"
 #include "Rfid.h"
+#include "RfidSync.h"
 #include "RotaryEncoder.h"
 #include "Rtc.h"
 #include "SdCard.h"
@@ -976,6 +977,17 @@ void webserverStart(void) {
 		wServer.addRewrite(new OneParamRewrite("/rfid/{id}", "/rfid?id={id}"));
 		wServer.on("/rfid", HTTP_DELETE, handleDeleteRFIDRequest);
 
+		// RFID-tag sync: trigger a full bidirectional sync (server + peers) / poll its status.
+		wServer.on("/rfidsync", HTTP_POST, [](AsyncWebServerRequest *request) {
+			RfidSync_TriggerFull();
+			request->send(200, "text/plain; charset=utf-8", "ok");
+		});
+		wServer.on("/rfidsync", HTTP_GET, [](AsyncWebServerRequest *request) {
+			char buf[160];
+			snprintf(buf, sizeof(buf), "{\"status\":%u,\"message\":\"%s\"}", RfidSync_GetStatus(), RfidSync_GetMessage());
+			request->send(200, "application/json", buf);
+		});
+
 		// WiFi scan
 		wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
 
@@ -1335,6 +1347,16 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		gPrefsSettings.putString("syncUser", syncObj["username"] | "");
 		gPrefsSettings.putString("syncPwd", syncObj["password"] | "");
 		gPrefsSettings.putBool("syncAbortBtn", syncObj["abortOnButton"] | true);
+		// RFID-tag sync (server endpoint + peer list + push-on-learn)
+		if (syncObj["rfidUrl"].is<const char *>()) {
+			gPrefsSettings.putString("rfidSyncUrl", syncObj["rfidUrl"] | "");
+		}
+		if (syncObj["rfidPeers"].is<const char *>()) {
+			gPrefsSettings.putString("rfidPeers", syncObj["rfidPeers"] | "");
+		}
+		if (syncObj["rfidLearn"].is<bool>()) {
+			gPrefsSettings.putBool("rfidSyncLearn", syncObj["rfidLearn"].as<bool>());
+		}
 	} else if (doc["ftpStatus"].is<JsonObject>()) {
 		uint8_t _ftpStart = doc["ftpStatus"]["start"].as<uint8_t>();
 		if (_ftpStart == 1) { // ifdef FTP_ENABLE is checked in Ftp_EnableServer()
@@ -1428,6 +1450,8 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			if (s.compareTo(rfidString)) {
 				return WebsocketCodeType::Error;
 			}
+			RfidSync_NoteLocalChange(_rfidIdModId); // stamp + sync the freshly learned modification card
+			RfidSync_OnLearn(_rfidIdModId);
 		}
 		Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 	} else if (doc["rfidAssign"].is<JsonObject>()) {
@@ -1447,6 +1471,8 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (s.compareTo(rfidString)) {
 			return WebsocketCodeType::Error;
 		}
+		RfidSync_NoteLocalChange(_rfidIdAssinId); // stamp + sync the freshly learned music card
+		RfidSync_OnLearn(_rfidIdAssinId);
 		Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 		Web_SendWebsocketData(0, WebsocketCodeType::Ok);
 	} else if (doc["ping"].is<JsonObject>()) {
@@ -1809,6 +1835,9 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		syncObj["username"] = gPrefsSettings.getString("syncUser", "");
 		syncObj["password"] = gPrefsSettings.getString("syncPwd", "");
 		syncObj["abortOnButton"] = gPrefsSettings.getBool("syncAbortBtn", true);
+		syncObj["rfidUrl"] = gPrefsSettings.getString("rfidSyncUrl", "");
+		syncObj["rfidPeers"] = gPrefsSettings.getString("rfidPeers", "");
+		syncObj["rfidLearn"] = gPrefsSettings.getBool("rfidSyncLearn", true);
 	}
 // MQTT
 #ifdef MQTT_ENABLE
@@ -3183,6 +3212,14 @@ static void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &j
 	if (s.compareTo(rfidString)) {
 		request->send(500, "text/plain; charset=utf-8", "/rfid (POST): cannot save assignment to NVS");
 		return;
+	}
+	// Record the sync timestamp: use an incoming "timestamp" if provided (a peer push preserves the
+	// origin timestamp), else stamp now. This endpoint is the peer-push target, so it must NOT
+	// re-push (no RfidSync_OnLearn here) to avoid sync loops between devices.
+	if (jsonObj["timestamp"].is<uint32_t>() && jsonObj["timestamp"].as<uint32_t>() > 0) {
+		RfidSync_SetTagTimestamp(tagId.c_str(), jsonObj["timestamp"].as<uint32_t>());
+	} else {
+		RfidSync_NoteLocalChange(tagId.c_str());
 	}
 	Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 	// return the new/modified RFID assignment

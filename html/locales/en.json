@@ -30,7 +30,7 @@
 		"updateAvailable": "Update available",
 		"clickToUpdate": "click to install",
 		"control": "Control",
-		"rfid": "RFID",
+		"rfid": "Files",
 		"wifi": "WiFi",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
@@ -40,7 +40,8 @@
 		"settings": "Settings",
 		"buttons": "Buttons",
 		"tools": "Tools",
-		"help": "Help"
+		"help": "Help",
+		"rfidcards": "RFID"
 	},
 	"settingsex": {
 		"title": "Advanced settings",
@@ -450,6 +451,22 @@
 			"done": "Synchronization complete",
 			"failed": "Synchronization failed",
 			"stopped": "Synchronization stopped"
+		},
+		"rfid": {
+			"title": "RFID card sync",
+			"desc": "Syncs RFID card assignments with a central server (manifest.php) and/or other ESPuinos (P2P). On conflict the most recently changed assignment wins.",
+			"url": "Server URL (manifest.php)",
+			"urlPlaceholder": "http://server/espuino/manifest.php",
+			"peers": "Other ESPuinos (peers)",
+			"peersPlaceholder": "192.168.1.34, 192.168.1.50",
+			"peersHint": "Comma-separated IPs/hostnames. On learn the card is pushed to each peer.",
+			"onLearn": "Sync automatically on learn",
+			"runTitle": "Full RFID sync",
+			"runDesc": "Pulls all cards from the server, merges them with the local ones (newest wins) and pushes them to the server and peers.",
+			"runBtn": "Sync now",
+			"started": "RFID sync started…",
+			"phpHint": "Server script (dynamic, generates the manifest + RFID sync):",
+			"phpLink": "manifest.php on GitHub"
 		}
 	},
 	"playlist": {
