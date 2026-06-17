@@ -41,7 +41,9 @@
 		"buttons": "Tasten",
 		"tools": "Tools",
 		"help": "Hilfe",
-		"rfidcards": "RFID"
+		"rfidcards": "RFID",
+		"leds": "LEDs",
+		"power": "Power"
 	},
 	"settingsex": {
 		"title": "Erweiterte Einstellungen",

@@ -41,7 +41,9 @@
 		"buttons": "Buttons",
 		"tools": "Tools",
 		"help": "Help",
-		"rfidcards": "RFID"
+		"rfidcards": "RFID",
+		"leds": "LEDs",
+		"power": "Power"
 	},
 	"settingsex": {
 		"title": "Advanced settings",

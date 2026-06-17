@@ -41,7 +41,9 @@
 		"buttons": "Boutons",
 		"tools": "Outils",
 		"help": "Aide",
-		"rfidcards": "RFID"
+		"rfidcards": "RFID",
+		"leds": "LEDs",
+		"power": "Alim."
 	},
 	"settingsex": {
 		"title": "Paramètres avancés",

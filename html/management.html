@@ -2147,6 +2147,8 @@
 					<a class="nav-item nav-link active" id="settings-general-subtab" data-bs-toggle="tab" data-bs-target="#settings-general" href="#settings-general" role="tab" aria-controls="settings-general" aria-selected="true"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="nav.general"></span></a>
 					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
 					<a class="nav-item nav-link" id="settings-rfid-subtab" data-bs-toggle="tab" data-bs-target="#settings-rfid" href="#settings-rfid" role="tab" aria-controls="settings-rfid"><i class="fas fa-id-card"></i> <span class="d-none d-md-inline" data-i18n="nav.rfidcards"></span></a>
+					<a class="nav-item nav-link" id="settings-leds-subtab" data-bs-toggle="tab" data-bs-target="#settings-leds" href="#settings-leds" role="tab" aria-controls="settings-leds"><i class="fas fa-lightbulb"></i> <span class="d-none d-md-inline" data-i18n="nav.leds"></span></a>
+					<a class="nav-item nav-link" id="settings-power-subtab" data-bs-toggle="tab" data-bs-target="#settings-power" href="#settings-power" role="tab" aria-controls="settings-power"><i class="fas fa-bolt"></i> <span class="d-none d-md-inline" data-i18n="nav.power"></span></a>
 					<a class="nav-item nav-link" id="nav-wifi-tab" data-bs-toggle="tab" data-bs-target="#nav-wifi" href="#nav-wifi" role="tab" aria-controls="nav-wifi"><i class="fas fa-wifi"></i> <span class="d-none d-md-inline" data-i18n="nav.wifi"></span></a>
 					<a class="nav-item nav-link" id="nav-mqtt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-mqtt" href="#nav-mqtt" role="tab" aria-controls="nav-mqtt"><i class="fas fa-network-wired"></i> <span class="d-none d-md-inline" data-i18n="nav.mqtt"></span></a>
 					<a class="nav-item nav-link" id="nav-ftp-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-ftp" href="#nav-ftp" role="tab" aria-controls="nav-ftp"><i class="fas fa-folder"></i> <span class="d-none d-md-inline" data-i18n="nav.ftp"></span></a>
@@ -2317,159 +2319,6 @@
 							<input type="text" class="form-control" id="readyPath" name="readyPath">
 						</fieldset>
 					</div>
-					<div class="col-md-12 mb-4" id="neopixelConfig" data-visible="false">
-						<fieldset>
-							<legend class="w-auto" data-i18n="general.neopixel.title"></legend><br>
-							<label for="initBrightness" data-i18n="[prepend]general.neopixel.restart">:</label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="far fa-sun fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="254"
-										min="0" max="254" class="form-control" id="initBrightness" name="initBrightness"
-										data-slider-value="" value="" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fa-sun fa-2x .icon-pos"></i>
-								</div>
-							</div>
-							<br>
-							<label for="nightBrightness" data-i18n="[prepend]general.neopixel.nightmode">:</label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="far fa-sun fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="255"
-										min="0" max="255" class="form-control" id="nightBrightness"
-										name="nightBrightness" data-slider-value="" value="" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fa-sun fa-2x .icon-pos"></i>
-								</div>
-							</div>
-							<br>
-							<label for="atmoBrightness" data-i18n="[prepend]general.neopixel.atmomode">:</label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="far fa-sun fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="255"
-										min="0" max="255" class="form-control" id="atmoBrightness" name="atmoBrightness"
-										data-slider-value="" value="" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fa-sun fa-2x .icon-pos"></i>
-								</div>
-							</div>
-						</fieldset>
-					</div>
-					<div class="col-md-12 mb-4">
-						<fieldset>
-							<legend data-i18n="general.sleep.title"></legend>
-							<label for="inactivityTime" data-i18n="general.sleep.inactivity"></label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="fas fa-hourglass-start fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input type="number" data-provide="slider" data-slider-min="0" data-slider-max="30"
-										min="1" max="120" class="form-control" id="inactivityTime" name="inactivityTime"
-										data-slider-value="" value="" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fa-hourglass-end fa-2x .icon-pos"></i>
-								</div>
-							</div>
-						</fieldset>
-					</div>
-					<div class="col-md-12 mb-4" id="batteryConfig" data-visible="false">
-						<fieldset>
-							<legend data-i18n="general.battery.title">Batterie</legend>
-							<div data-i18n="general.battery.desc"></div>
-							<br>
-							<label for="warningLowVoltage" data-i18n="[prepend]general.battery.lowWarning">:</label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input data-provide="slider" data-slider-step="0.05" data-slider-min="2.5"
-										data-slider-max="5.0" min="2.5" max="5.0" type="text" class="form-control"
-										id="warningLowVoltage" name="warningLowVoltage" data-slider-value="" value=""
-										pattern="^\d{1,2}(\.\d{1,3})?" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
-								</div>
-							</div>
-							<label for="voltageIndicatorLow" data-i18n="[prepend]general.battery.lowCritical">:</label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input data-provide="slider" min="2.5" data-slider-step="0.05" data-slider-min="2.5"
-										data-slider-max="5.0" max="5.0" type="text" class="form-control"
-										id="voltageIndicatorLow" name="voltageIndicatorLow" data-slider-value=""
-										value="" pattern="^\d{1,2}(\.\d{1,3})?" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
-								</div>
-							</div>
-							<label for="voltageIndicatorHigh" data-i18n="[prepend]general.battery.high">:</label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input data-provide="slider" data-slider-step="0.05" data-slider-min="2.0"
-										data-slider-max="5.0" min="2.0" max="5.0" type="text" class="form-control"
-										id="voltageIndicatorHigh" name="voltageIndicatorHigh" data-slider-value=""
-										value="" pattern="^\d{1,2}(\.\d{1,3})?" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
-								</div>
-							</div>
-							<div id="criticalVoltageSection" data-visible="false">
-								<label for="criticalVoltage"
-									data-i18n="[prepend]general.battery.criticalShutoff">:</label>
-								<div class="slider-container">
-									<div class="float-end" style="padding-left: 30px">
-										<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
-									</div>
-									<div class="slider-container-inner">
-										<input data-provide="slider" data-slider-step="0.05" data-slider-min="2.0"
-											data-slider-max="5.0" min="2.0" max="5.0" type="text" class="form-control"
-											id="criticalVoltage" name="criticalVoltage" data-slider-value="" value=""
-											pattern="^\d{1,2}(\.\d{1,3})?" required>
-									</div>
-									<div class="float-end" style="padding-left: 10px">
-										<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
-									</div>
-								</div>
-							</div>
-							<label for="voltageCheckInterval"
-								data-i18n="[prepend]general.battery.measureInterval">:</label>
-							<div class="slider-container">
-								<div class="float-end" style="padding-left: 30px">
-									<i class="fas fas fa-hourglass-start fa-2x .icon-pos"></i>
-								</div>
-								<div class="slider-container-inner">
-									<input data-provide="slider" data-slider-min="1" data-slider-max="60" type="number"
-										min="1" max="60" class="form-control" id="voltageCheckInterval"
-										data-slider-value="" name="voltageCheckInterval" value="" required>
-								</div>
-								<div class="float-end" style="padding-left: 10px">
-									<i class="fas fas fa-hourglass-end fa-2x .icon-pos" fa-2x .icon-pos></i>
-								</div>
-							</div>
-						</fieldset>
-					</div>
 					<div class="col-md-12 mb-4" id="playlistConfig">
 						<fieldset>
 							<legend class="w-auto" data-i18n="general.playlist.title"></legend><br>
@@ -2497,72 +2346,6 @@
 								<legend class="w-auto" data-i18n="settingsex.rotary.title"></legend><br>
 								<input type="checkbox" id="rotaryReverse" name="rotaryReverse" value="false">&nbsp;
 								<label for="rotaryReverse" data-i18n="settingsex.rotary.reverse"></label>
-							</fieldset>
-						</div>
-						<div class="col-md-12 mb-4" id="settingsExConfig">
-							<fieldset>
-								<legend class="w-auto" data-i18n="settingsex.led.title"></legend><br>
-								<label for="led_numIndicator" data-i18n="settingsex.led.numindicator"></label>: <br>
-								<input type="number" class="form-control" id="led_numIndicator" name="led_numIndicator"
-									min="0" max="128"><br>
-								<label for="led_numControl" data-i18n="settingsex.led.numcontrol"></label>: <br>
-								<input type="number" class="form-control" id="led_numControl" name="led_numcontrol"
-									min="0" max="128" onChange="listControlColors(Number(this.value), null, null)"><br>
-								<div id="controlColorList" class="mb-2 d-none"></div>
-								<div id="controlColorTemp" class="pb-2 d-none">
-									<span data-i18n="settingsex.led.controlled"></span>&nbsp;<span
-										class="ledNumber"></span>:&nbsp;<select class="form-control form-select controlFunc d-inline-block w-auto">
-										<option value="0" data-i18n="settingsex.led.controlfunc.static"></option>
-										<option value="1" data-i18n="settingsex.led.controlfunc.keylock"></option>
-										<option value="2" data-i18n="settingsex.led.controlfunc.repeat"></option>
-										<option value="3" data-i18n="settingsex.led.controlfunc.bluetooth"></option>
-										<option value="5" data-i18n="settingsex.led.controlfunc.battery"></option>
-										<option value="4" data-i18n="settingsex.led.controlfunc.off"></option>
-									</select>&nbsp;<input type="color" class="controlColorInput" value="#ffffff">
-								</div>
-								<div id="controlLedsEnabledWrap" class="pb-2 d-none">
-									<input type="checkbox" id="led_controlLedsEnabled"
-										name="led_controlLedsEnabled" value="true">&nbsp;
-									<label for="led_controlLedsEnabled"
-										data-i18n="settingsex.led.controlledsenabled"></label><br>
-								</div>
-								<label for="led_idleDots" data-i18n="settingsex.led.numidledots"></label>: <br>
-								<input type="number" class="form-control" id="led_idleDots" name="led_idleDots" min="0"
-									max="128"><br>
-								<label for="led_idleColor" data-i18n="settingsex.led.idlecolor"></label>: <br>
-								<input type="color" class="form-control" id="led_idleColor" name="led_idleColor"><br>
-								<label for="led_idleAnimation" data-i18n="settingsex.led.idleanimation"></label>: <br>
-								<select class="form-control form-select" id="led_idleAnimation" name="led_idleAnimation">
-									<option value="0" data-i18n="settingsex.led.idleanim.standard"></option>
-									<option value="1" data-i18n="settingsex.led.idleanim.cyberpunk"></option>
-								</select><br>
-								<label for="led_progColorStart" data-i18n="settingsex.led.progcolorstart"></label>: <br>
-								<input type="color" class="form-control" id="led_progColorStart" name="led_progColorStart"><br>
-								<label for="led_progColorEnd" data-i18n="settingsex.led.progcolorend"></label>: <br>
-								<input type="color" class="form-control" id="led_progColorEnd" name="led_progColorEnd"><br>
-								<label for="led_hueAtmo" data-i18n="settingsex.led.hueatmo"></label>: <br>
-								<div class="hue-slider">
-									<input id="led_hueAtmo" type="number" data-provide="slider" data-slider-min="-1"
-										data-slider-max="255" min="-1" max="255" class="form-control" name="led_hueAtmo"
-										data-slider-value="-1" value="-1">
-								</div>
-								<label for="led_satAtmo" data-i18n="settingsex.led.satatmo"></label>: <br>
-								<div class="sat-slider">
-									<input id="led_satAtmo" type="number" data-provide="slider" data-slider-min="-1"
-										data-slider-max="255" min="-1" max="255" class="form-control" name="led_satAtmo"
-										data-slider-value="-1" value="-1">
-								</div>
-								<label for="led_dimStates" data-i18n="settingsex.led.dimmablestates"></label>: <br>
-								<input type="number" class="form-control" id="led_dimStates" name="led_dimStates"><br>
-								<label for="led_offsetStart" data-i18n="settingsex.led.offset"></label>: <br>
-								<input type="number" class="form-control" id="led_offsetStart"
-									name="led_offsetStart"><br>
-								<input type="checkbox" id="led_offsetPause" name="led_offsetPause" value="false">&nbsp;
-								<label for="led_offsetPause" data-i18n="settingsex.led.offsetpause"></label><br>
-								<input type="checkbox" id="led_reverseRotation" name="led_reverseRotation"
-									value="false">&nbsp;
-								<label for="led_reverseRotation"
-									data-i18n="settingsex.led.reverserotation"></label><br><br>
 							</fieldset>
 						</div>
 					</span>
@@ -2771,6 +2554,233 @@
 						</div>
 					</div>
 				</fieldset>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="settings-leds" role="tabpanel" aria-labelledby="settings-leds-subtab">
+			<div class="container">
+					<div class="col-md-12 mb-4" id="neopixelConfig" data-visible="false">
+						<fieldset>
+							<legend class="w-auto" data-i18n="general.neopixel.title"></legend><br>
+							<label for="initBrightness" data-i18n="[prepend]general.neopixel.restart">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="far fa-sun fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="254"
+										min="0" max="254" class="form-control" id="initBrightness" name="initBrightness"
+										data-slider-value="" value="" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fa-sun fa-2x .icon-pos"></i>
+								</div>
+							</div>
+							<br>
+							<label for="nightBrightness" data-i18n="[prepend]general.neopixel.nightmode">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="far fa-sun fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="255"
+										min="0" max="255" class="form-control" id="nightBrightness"
+										name="nightBrightness" data-slider-value="" value="" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fa-sun fa-2x .icon-pos"></i>
+								</div>
+							</div>
+							<br>
+							<label for="atmoBrightness" data-i18n="[prepend]general.neopixel.atmomode">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="far fa-sun fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="255"
+										min="0" max="255" class="form-control" id="atmoBrightness" name="atmoBrightness"
+										data-slider-value="" value="" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fa-sun fa-2x .icon-pos"></i>
+								</div>
+							</div>
+						</fieldset>
+					</div>
+						<div class="col-md-12 mb-4" id="settingsExConfig">
+							<fieldset>
+								<legend class="w-auto" data-i18n="settingsex.led.title"></legend><br>
+								<label for="led_numIndicator" data-i18n="settingsex.led.numindicator"></label>: <br>
+								<input type="number" class="form-control" id="led_numIndicator" name="led_numIndicator"
+									min="0" max="128"><br>
+								<label for="led_numControl" data-i18n="settingsex.led.numcontrol"></label>: <br>
+								<input type="number" class="form-control" id="led_numControl" name="led_numcontrol"
+									min="0" max="128" onChange="listControlColors(Number(this.value), null, null)"><br>
+								<div id="controlColorList" class="mb-2 d-none"></div>
+								<div id="controlColorTemp" class="pb-2 d-none">
+									<span data-i18n="settingsex.led.controlled"></span>&nbsp;<span
+										class="ledNumber"></span>:&nbsp;<select class="form-control form-select controlFunc d-inline-block w-auto">
+										<option value="0" data-i18n="settingsex.led.controlfunc.static"></option>
+										<option value="1" data-i18n="settingsex.led.controlfunc.keylock"></option>
+										<option value="2" data-i18n="settingsex.led.controlfunc.repeat"></option>
+										<option value="3" data-i18n="settingsex.led.controlfunc.bluetooth"></option>
+										<option value="5" data-i18n="settingsex.led.controlfunc.battery"></option>
+										<option value="4" data-i18n="settingsex.led.controlfunc.off"></option>
+									</select>&nbsp;<input type="color" class="controlColorInput" value="#ffffff">
+								</div>
+								<div id="controlLedsEnabledWrap" class="pb-2 d-none">
+									<input type="checkbox" id="led_controlLedsEnabled"
+										name="led_controlLedsEnabled" value="true">&nbsp;
+									<label for="led_controlLedsEnabled"
+										data-i18n="settingsex.led.controlledsenabled"></label><br>
+								</div>
+								<label for="led_idleDots" data-i18n="settingsex.led.numidledots"></label>: <br>
+								<input type="number" class="form-control" id="led_idleDots" name="led_idleDots" min="0"
+									max="128"><br>
+								<label for="led_idleColor" data-i18n="settingsex.led.idlecolor"></label>: <br>
+								<input type="color" class="form-control" id="led_idleColor" name="led_idleColor"><br>
+								<label for="led_idleAnimation" data-i18n="settingsex.led.idleanimation"></label>: <br>
+								<select class="form-control form-select" id="led_idleAnimation" name="led_idleAnimation">
+									<option value="0" data-i18n="settingsex.led.idleanim.standard"></option>
+									<option value="1" data-i18n="settingsex.led.idleanim.cyberpunk"></option>
+								</select><br>
+								<label for="led_progColorStart" data-i18n="settingsex.led.progcolorstart"></label>: <br>
+								<input type="color" class="form-control" id="led_progColorStart" name="led_progColorStart"><br>
+								<label for="led_progColorEnd" data-i18n="settingsex.led.progcolorend"></label>: <br>
+								<input type="color" class="form-control" id="led_progColorEnd" name="led_progColorEnd"><br>
+								<label for="led_hueAtmo" data-i18n="settingsex.led.hueatmo"></label>: <br>
+								<div class="hue-slider">
+									<input id="led_hueAtmo" type="number" data-provide="slider" data-slider-min="-1"
+										data-slider-max="255" min="-1" max="255" class="form-control" name="led_hueAtmo"
+										data-slider-value="-1" value="-1">
+								</div>
+								<label for="led_satAtmo" data-i18n="settingsex.led.satatmo"></label>: <br>
+								<div class="sat-slider">
+									<input id="led_satAtmo" type="number" data-provide="slider" data-slider-min="-1"
+										data-slider-max="255" min="-1" max="255" class="form-control" name="led_satAtmo"
+										data-slider-value="-1" value="-1">
+								</div>
+								<label for="led_dimStates" data-i18n="settingsex.led.dimmablestates"></label>: <br>
+								<input type="number" class="form-control" id="led_dimStates" name="led_dimStates"><br>
+								<label for="led_offsetStart" data-i18n="settingsex.led.offset"></label>: <br>
+								<input type="number" class="form-control" id="led_offsetStart"
+									name="led_offsetStart"><br>
+								<input type="checkbox" id="led_offsetPause" name="led_offsetPause" value="false">&nbsp;
+								<label for="led_offsetPause" data-i18n="settingsex.led.offsetpause"></label><br>
+								<input type="checkbox" id="led_reverseRotation" name="led_reverseRotation"
+									value="false">&nbsp;
+								<label for="led_reverseRotation"
+									data-i18n="settingsex.led.reverserotation"></label><br><br>
+							</fieldset>
+						</div>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="settings-power" role="tabpanel" aria-labelledby="settings-power-subtab">
+			<div class="container">
+					<div class="col-md-12 mb-4">
+						<fieldset>
+							<legend data-i18n="general.sleep.title"></legend>
+							<label for="inactivityTime" data-i18n="general.sleep.inactivity"></label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="fas fa-hourglass-start fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input type="number" data-provide="slider" data-slider-min="0" data-slider-max="30"
+										min="1" max="120" class="form-control" id="inactivityTime" name="inactivityTime"
+										data-slider-value="" value="" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fa-hourglass-end fa-2x .icon-pos"></i>
+								</div>
+							</div>
+						</fieldset>
+					</div>
+					<div class="col-md-12 mb-4" id="batteryConfig" data-visible="false">
+						<fieldset>
+							<legend data-i18n="general.battery.title">Batterie</legend>
+							<div data-i18n="general.battery.desc"></div>
+							<br>
+							<label for="warningLowVoltage" data-i18n="[prepend]general.battery.lowWarning">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" data-slider-step="0.05" data-slider-min="2.5"
+										data-slider-max="5.0" min="2.5" max="5.0" type="text" class="form-control"
+										id="warningLowVoltage" name="warningLowVoltage" data-slider-value="" value=""
+										pattern="^\d{1,2}(\.\d{1,3})?" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
+								</div>
+							</div>
+							<label for="voltageIndicatorLow" data-i18n="[prepend]general.battery.lowCritical">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" min="2.5" data-slider-step="0.05" data-slider-min="2.5"
+										data-slider-max="5.0" max="5.0" type="text" class="form-control"
+										id="voltageIndicatorLow" name="voltageIndicatorLow" data-slider-value=""
+										value="" pattern="^\d{1,2}(\.\d{1,3})?" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
+								</div>
+							</div>
+							<label for="voltageIndicatorHigh" data-i18n="[prepend]general.battery.high">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" data-slider-step="0.05" data-slider-min="2.0"
+										data-slider-max="5.0" min="2.0" max="5.0" type="text" class="form-control"
+										id="voltageIndicatorHigh" name="voltageIndicatorHigh" data-slider-value=""
+										value="" pattern="^\d{1,2}(\.\d{1,3})?" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
+								</div>
+							</div>
+							<div id="criticalVoltageSection" data-visible="false">
+								<label for="criticalVoltage"
+									data-i18n="[prepend]general.battery.criticalShutoff">:</label>
+								<div class="slider-container">
+									<div class="float-end" style="padding-left: 30px">
+										<i class="fas fa-battery-quarter fa-2x .icon-pos"></i>
+									</div>
+									<div class="slider-container-inner">
+										<input data-provide="slider" data-slider-step="0.05" data-slider-min="2.0"
+											data-slider-max="5.0" min="2.0" max="5.0" type="text" class="form-control"
+											id="criticalVoltage" name="criticalVoltage" data-slider-value="" value=""
+											pattern="^\d{1,2}(\.\d{1,3})?" required>
+									</div>
+									<div class="float-end" style="padding-left: 10px">
+										<i class="fas fa-battery-three-quarters fa-2x .icon-pos" fa-2x .icon-pos></i>
+									</div>
+								</div>
+							</div>
+							<label for="voltageCheckInterval"
+								data-i18n="[prepend]general.battery.measureInterval">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="fas fas fa-hourglass-start fa-2x .icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" data-slider-min="1" data-slider-max="60" type="number"
+										min="1" max="60" class="form-control" id="voltageCheckInterval"
+										data-slider-value="" name="voltageCheckInterval" value="" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="fas fas fa-hourglass-end fa-2x .icon-pos" fa-2x .icon-pos></i>
+								</div>
+							</div>
+						</fieldset>
+					</div>
 			</div>
 		</div>
 		<div class="tab-pane fade" id="nav-wifi" role="tabpanel" aria-labelledby="nav-wifi-tab">
@@ -5067,7 +5077,7 @@
 			if (c) c.addEventListener("shown.bs.collapse", rebuildEqRulesList);
 			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
 			// populated button dropdowns are covered too). No submit button on these tabs.
-			$('#settings-general, #settings-buttons, #settings-rfid').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
+			$('#settings-general, #settings-buttons, #settings-rfid, #settings-leds, #settings-power').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
 		});
 		const rfidListSavedAssignments = document.getElementById("rfidListSavedAssignments");
 		async function rebuildRFIDList() {
