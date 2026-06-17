@@ -326,6 +326,11 @@
 					"249": "Lire la carte RFID virtuelle 09",
 					"250": "Lire la carte RFID virtuelle 10"
 				}
+			},
+			"learn": {
+				"waiting": "Posez maintenant la carte RFID sur le lecteur…",
+				"done": "Carte {{rfidId}} associée",
+				"timeout": "Apprentissage annulé (aucune carte posée)"
 			}
 		}
 	},

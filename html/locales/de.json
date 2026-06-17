@@ -333,6 +333,11 @@
 					"249": "Spiele virtuelle RFID-Karte 09",
 					"250": "Spiele virtuelle RFID-Karte 10"
 				}
+			},
+			"learn": {
+				"waiting": "Bitte jetzt die RFID-Karte auflegen…",
+				"done": "Karte {{rfidId}} zugewiesen",
+				"timeout": "Anlernen abgebrochen (keine Karte aufgelegt)"
 			}
 		}
 	},

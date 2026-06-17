@@ -333,6 +333,11 @@
 					"249": "Play virtual RFID-card 09",
 					"250": "Play virtual RFID-card 10"
 				}
+			},
+			"learn": {
+				"waiting": "Now place the RFID card on the reader…",
+				"done": "Card {{rfidId}} assigned",
+				"timeout": "Learning cancelled (no card was placed)"
 			}
 		}
 	},

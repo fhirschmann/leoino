@@ -4027,33 +4027,23 @@
 							icon: "fas fa-sliders-h",
 							submenu: eqSubmenu
 						};
-						/* RFID: learn the currently scanned card onto this file/folder (pick a play
-						   mode = assign directly, no tab switch / submit) or remove its assignment. */
+						/* RFID: learn a card onto this file/folder. Pick a play mode -> the next card
+						   laid on the reader gets assigned to this path (scan-after-select flow). */
 						var rfidSubmenu = {};
-						var scannedId = document.getElementById('rfidIdMusic').value;
-						var hasCard = /^[0-9]{12}$/.test(scannedId || "");
-						if (hasCard) {
-							$('#playMode option').each(function () {
-								var cls = this.className || "";
-								var ok = node.data.directory
-									? /option-folder|option-file-and-folder/.test(cls)
-									: (node.type === "playlist"
-										? /option-file\b|option-file-and-folder|option-stream/.test(cls)
-										: /option-file\b|option-file-and-folder/.test(cls));
-								if (!ok) return;
-								var val = this.value, label = (this.textContent || "").trim() || ("Mode " + val);
-								rfidSubmenu["m" + val] = {
-									label: label,
-									action: (function (v) { return function () { assignRfidToPath(node.data.path, v, nodeId); }; })(val)
-								};
-							});
-						} else {
-							rfidSubmenu.nocard = {
-								label: () => i18next.t("files.context.rfidNoCard"),
-								_disabled: true,
-								action: function () { }
+						$('#playMode option').each(function () {
+							var cls = this.className || "";
+							var ok = node.data.directory
+								? /option-folder|option-file-and-folder/.test(cls)
+								: (node.type === "playlist"
+									? /option-file\b|option-file-and-folder|option-stream/.test(cls)
+									: /option-file\b|option-file-and-folder/.test(cls));
+							if (!ok) return;
+							var val = this.value, label = (this.textContent || "").trim() || ("Mode " + val);
+							rfidSubmenu["m" + val] = {
+								label: label,
+								action: (function (v) { return function () { armRfidLearn(node.data.path, v, nodeId); }; })(val)
 							};
-						}
+						});
 						if (hasRfidAssignment(node.data.path)) {
 							rfidSubmenu.remove = {
 								label: () => i18next.t("files.context.rfidRemove"),
@@ -4319,9 +4309,14 @@
 				console.log(socketMsg);
 				if (socketMsg.rfidId != null) {
 					document.getElementById('rfidIdMusic').value = socketMsg.rfidId;
-					toaster.info(i18next.t("toast.rfidDetect", {
-						rfidId: socketMsg.rfidId
-					}));
+					// If a "learn" was armed from the explorer context menu, complete it with this card.
+					if (pendingRfidLearn) {
+						completeRfidLearn(socketMsg.rfidId);
+					} else {
+						toaster.info(i18next.t("toast.rfidDetect", {
+							rfidId: socketMsg.rfidId
+						}));
+					}
 					$("#rfidIdMusic").effect("highlight", {
 						color: "#abf5af"
 					}, 3000);
@@ -6217,19 +6212,36 @@
 		}
 		// Assign the currently scanned RFID card to a file/folder path with the given play mode
 		// (the elegant path: triggered from the explorer context menu, no tab switch / submit).
-		async function assignRfidToPath(path, playMode, nodeId) {
-			var id = document.getElementById('rfidIdMusic').value;
-			if (!/^[0-9]{12}$/.test(id || "")) {
-				toaster.warning(i18next.t("files.context.rfidNoCard"));
-				return;
-			}
+		// Pending "learn" request: armed from the explorer context menu, completed by the next
+		// physically laid card. { path, playMode, nodeId, timer } or null.
+		var pendingRfidLearn = null;
+		// Arm learning: remember the target path + play mode, then wait for the next card scan.
+		function armRfidLearn(path, playMode, nodeId) {
+			if (pendingRfidLearn && pendingRfidLearn.timer) { clearTimeout(pendingRfidLearn.timer); }
+			pendingRfidLearn = {
+				path: path, playMode: String(playMode), nodeId: nodeId,
+				timer: setTimeout(function () {
+					pendingRfidLearn = null;
+					toaster.warning(i18next.t("files.rfid.learn.timeout"));
+				}, 60000)
+			};
+			toaster.info(i18next.t("files.rfid.learn.waiting"));
+		}
+		function cancelRfidLearn() {
+			if (pendingRfidLearn && pendingRfidLearn.timer) { clearTimeout(pendingRfidLearn.timer); }
+			pendingRfidLearn = null;
+		}
+		// Complete a pending learn with a just-scanned card id (called from the websocket handler).
+		async function completeRfidLearn(scannedId) {
+			var p = pendingRfidLearn;
+			cancelRfidLearn();
 			await fetch("http://" + host + "/settings", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ rfidAssign: { rfidIdMusic: id, fileOrUrl: removeTrSlash(path), playMode: String(playMode) } })
+				body: JSON.stringify({ rfidAssign: { rfidIdMusic: scannedId, fileOrUrl: removeTrSlash(p.path), playMode: p.playMode } })
 			});
-			toaster.info(i18next.t("toast.saved"));
-			refreshRfidBadgesAround(nodeId);
+			toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
+			refreshRfidBadgesAround(p.nodeId);
 		}
 		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.
 		async function removeRfidForPath(path, nodeId) {
