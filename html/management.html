@@ -1705,6 +1705,26 @@
 			</div>
 		</div>
 	</div>
+	<!-- Modal dialog: wait for an RFID card to be laid on the reader (learn flow). No 'fade' so
+	     show/hide are synchronous — cancelling right after opening can't get stuck mid-animation. -->
+	<div class="modal" data-bs-backdrop="static" id="rfidScanModal" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" data-i18n="files.rfid.learn.modalTitle"></h5>
+				</div>
+				<div class="modal-body text-center">
+					<i class="fas fa-id-card fa-3x mb-3" style="opacity:.75"></i>
+					<p class="mb-1" data-i18n="files.rfid.learn.waiting"></p>
+					<div id="rfidScanTarget" class="small text-secondary text-break"></div>
+					<div class="spinner-border spinner-border-sm mt-3" role="status" aria-hidden="true"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" onclick="stopRfidScan()" data-i18n="cancel"></button>
+				</div>
+			</div>
+		</div>
+	</div>
 	<!-- Modal dialog for SD card cleanup -->
 	<div class="modal fade" data-bs-backdrop="static" id="cleanSdModal" role="dialog">
 		<div class="modal-dialog" role="document">
@@ -4323,18 +4343,22 @@
 				var socketMsg = JSON.parse(event.data);
 				console.log(socketMsg);
 				if (socketMsg.rfidId != null) {
-					document.getElementById('rfidIdMusic').value = socketMsg.rfidId;
-					// If a "learn" was armed from the explorer context menu, complete it with this card.
-					if (pendingRfidLearn) {
-						completeRfidLearn(socketMsg.rfidId);
+					// If a scan session is active (explorer learn / mod-card learn), hand the card
+					// to it; otherwise just notify that a tag was detected.
+					if (rfidScanCallback) {
+						var cb = rfidScanCallback;
+						stopRfidScan();
+						cb(socketMsg.rfidId);
 					} else {
+						var idField = document.getElementById('rfidIdMusic');
+						if (idField) {
+							idField.value = socketMsg.rfidId;
+							$("#rfidIdMusic").effect("highlight", { color: "#abf5af" }, 3000);
+						}
 						toaster.info(i18next.t("toast.rfidDetect", {
 							rfidId: socketMsg.rfidId
 						}));
 					}
-					$("#rfidIdMusic").effect("highlight", {
-						color: "#abf5af"
-					}, 3000);
 					if (toolsTabActive) {
 						rebuildRFIDList();
 					}
@@ -6249,38 +6273,42 @@
 		function hasRfidAssignment(path) {
 			return !!(window.rfidPaths && window.rfidPaths.has(path));
 		}
-		// Assign the currently scanned RFID card to a file/folder path with the given play mode
-		// (the elegant path: triggered from the explorer context menu, no tab switch / submit).
-		// Pending "learn" request: armed from the explorer context menu, completed by the next
-		// physically laid card. { path, playMode, nodeId, timer } or null.
-		var pendingRfidLearn = null;
-		// Arm learning: remember the target path + play mode, then wait for the next card scan.
+		// Generic "scan a card" modal session: shows a popup asking to lay a card, with a Cancel
+		// button (the only ways to close it are scanning a card or cancelling). onScanned(id) is
+		// called from the websocket handler when a card is laid. Reused by the explorer "learn"
+		// flow and the modification-card learn button.
+		var rfidScanCallback = null;
+		var rfidScanTimer = null;
+		function startRfidScan(label, onScanned) {
+			rfidScanCallback = onScanned;
+			var t = document.getElementById('rfidScanTarget');
+			if (t) { t.textContent = label || ""; }
+			$('#rfidScanModal').modal('show');
+			clearTimeout(rfidScanTimer);
+			rfidScanTimer = setTimeout(function () {
+				stopRfidScan();
+				toaster.warning(i18next.t("files.rfid.learn.timeout"));
+			}, 60000);
+		}
+		function stopRfidScan() {
+			clearTimeout(rfidScanTimer);
+			rfidScanCallback = null;
+			$('#rfidScanModal').modal('hide');
+		}
+		// Arm learning from the explorer: pick a play mode, then the next laid card is assigned.
 		function armRfidLearn(path, playMode, nodeId) {
-			if (pendingRfidLearn && pendingRfidLearn.timer) { clearTimeout(pendingRfidLearn.timer); }
-			pendingRfidLearn = {
-				path: path, playMode: String(playMode), nodeId: nodeId,
-				timer: setTimeout(function () {
-					pendingRfidLearn = null;
-					toaster.warning(i18next.t("files.rfid.learn.timeout"));
-				}, 60000)
-			};
-			toaster.info(i18next.t("files.rfid.learn.waiting"));
+			startRfidScan(path, function (scannedId) {
+				completeRfidLearn(scannedId, path, String(playMode), nodeId);
+			});
 		}
-		function cancelRfidLearn() {
-			if (pendingRfidLearn && pendingRfidLearn.timer) { clearTimeout(pendingRfidLearn.timer); }
-			pendingRfidLearn = null;
-		}
-		// Complete a pending learn with a just-scanned card id (called from the websocket handler).
-		async function completeRfidLearn(scannedId) {
-			var p = pendingRfidLearn;
-			cancelRfidLearn();
+		async function completeRfidLearn(scannedId, path, playMode, nodeId) {
 			await fetch("http://" + host + "/settings", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ rfidAssign: { rfidIdMusic: scannedId, fileOrUrl: removeTrSlash(p.path), playMode: p.playMode } })
+				body: JSON.stringify({ rfidAssign: { rfidIdMusic: scannedId, fileOrUrl: removeTrSlash(path), playMode: playMode } })
 			});
 			toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
-			refreshRfidBadgesAround(p.nodeId);
+			refreshRfidBadgesAround(nodeId);
 		}
 		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.
 		async function removeRfidForPath(path, nodeId) {

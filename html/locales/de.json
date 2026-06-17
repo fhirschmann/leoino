@@ -338,7 +338,8 @@
 			"learn": {
 				"waiting": "Bitte jetzt die RFID-Karte auflegen…",
 				"done": "Karte {{rfidId}} zugewiesen",
-				"timeout": "Anlernen abgebrochen (keine Karte aufgelegt)"
+				"timeout": "Anlernen abgebrochen (keine Karte aufgelegt)",
+				"modalTitle": "RFID-Karte anlernen"
 			}
 		}
 	},

@@ -338,7 +338,8 @@
 			"learn": {
 				"waiting": "Now place the RFID card on the reader…",
 				"done": "Card {{rfidId}} assigned",
-				"timeout": "Learning cancelled (no card was placed)"
+				"timeout": "Learning cancelled (no card was placed)",
+				"modalTitle": "Learn RFID card"
 			}
 		}
 	},

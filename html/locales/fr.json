@@ -331,7 +331,8 @@
 			"learn": {
 				"waiting": "Posez maintenant la carte RFID sur le lecteur…",
 				"done": "Carte {{rfidId}} associée",
-				"timeout": "Apprentissage annulé (aucune carte posée)"
+				"timeout": "Apprentissage annulé (aucune carte posée)",
+				"modalTitle": "Apprendre la carte RFID"
 			}
 		}
 	},
