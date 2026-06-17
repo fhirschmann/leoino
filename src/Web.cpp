@@ -1119,6 +1119,13 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("pauseOnMinVol", generalObj["pauseOnMinVol"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("recoverVolBoot", generalObj["recoverVolBoot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUChar("volumeCurve", generalObj["volumeCurve"].as<uint8_t>()) != 0);
+		if (generalObj["noSleepWhenPowered"].is<bool>()) {
+			gPrefsSettings.putBool("noSleepPwr", generalObj["noSleepWhenPowered"].as<bool>());
+		}
+		if (generalObj["poweredVoltage"].is<float>()) {
+			gPrefsSettings.putFloat("pwrSleepVolt", generalObj["poweredVoltage"].as<float>());
+		}
+		System_ReloadSleepSettings(); // apply the "no sleep while powered" change without a reboot
 		if (generalObj["readyPath"].is<const char *>()) {
 			const char *path = generalObj["readyPath"].as<const char *>();
 			size_t written = gPrefsSettings.putString("readyPath", path);
@@ -1524,6 +1531,8 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["recoverVolBoot"].set(gPrefsSettings.getBool("recoverVolBoot", false)); // USE_LAST_VOLUME_AFTER_REBOOT
 		generalObj["volumeCurve"].set(gPrefsSettings.getUChar("volumeCurve", 0)); // VOLUMECURVE
 		generalObj["readyPath"].set(gPrefsSettings.getString("readyPath", "/ready.mp3")); // READY_PATH
+		generalObj["noSleepWhenPowered"].set(gPrefsSettings.getBool("noSleepPwr", false)); // stay awake on external power
+		generalObj["poweredVoltage"].set(gPrefsSettings.getFloat("pwrSleepVolt", 3.5f)); // voltage threshold for "powered"
 	}
 	if ((section == "") || (section == "equalizer")) {
 		// equalizer settings

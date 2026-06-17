@@ -5,6 +5,7 @@
 
 #include "Audio.h"
 #include "AudioPlayer.h"
+#include "Battery.h"
 #include "Bluetooth.h"
 #include "Display.h"
 #include "Ftp.h"
@@ -40,6 +41,12 @@ std::atomic<bool> System_LockControls = false; // Flag if buttons and rotary enc
 uint8_t System_MaxInactivityTime = 10u; // Time in minutes, after uC is put to deep sleep because of inactivity (and modified later via GUI)
 uint8_t System_SleepTimer = 30u; // Sleep timer in minutes that can be optionally used (and modified later via MQTT or RFID)
 
+// "Don't fall asleep due to inactivity while on external power". This hardware has no charge/VBUS
+// sense, so being powered is inferred heuristically from the battery voltage (charge voltage sits
+// above the resting voltage). Both values come from NVS and are configurable in the web settings.
+static bool System_NoSleepWhenPowered = false;
+static float System_PoweredVoltageThreshold = 3.5f;
+
 // Operation Mode
 std::atomic<uint8_t> System_OperationMode;
 
@@ -68,6 +75,25 @@ void System_Init(void) {
 	}
 
 	System_OperationMode = gPrefsSettings.getUChar("operationMode", OPMODE_NORMAL);
+
+	System_ReloadSleepSettings();
+}
+
+// (Re)load the "no sleep while powered" config from NVS into RAM (called at boot and after the
+// web settings are saved, so the change takes effect without a reboot).
+void System_ReloadSleepSettings(void) {
+	System_NoSleepWhenPowered = gPrefsSettings.getBool("noSleepPwr", false);
+	System_PoweredVoltageThreshold = gPrefsSettings.getFloat("pwrSleepVolt", 3.5f);
+}
+
+// Heuristic "external power is connected": the battery voltage is at/above the (charge) threshold.
+// Always false on builds without battery measurement (no voltage to look at).
+bool System_IsExternallyPowered(void) {
+#ifdef BATTERY_MEASURE_ENABLE
+	return Battery_GetVoltage() >= System_PoweredVoltageThreshold;
+#else
+	return false;
+#endif
 }
 
 void System_Cyclic(void) {
@@ -220,8 +246,14 @@ void System_SleepHandler(void) {
 	// Only check inactivity if the limit is greater than 0
 	if (System_MaxInactivityTime > 0 && m >= lastActive) {
 		if (m - lastActive >= (System_MaxInactivityTime * 60000u)) {
-			Log_Println(goToSleepDueToIdle, LOGLEVEL_INFO);
-			System_RequestSleep();
+			if (System_NoSleepWhenPowered && System_IsExternallyPowered()) {
+				// On external power and configured to stay awake: keep refreshing the timer
+				// instead of sleeping due to idle (the explicit sleep timer still applies).
+				System_UpdateActivityTimer();
+			} else {
+				Log_Println(goToSleepDueToIdle, LOGLEVEL_INFO);
+				System_RequestSleep();
+			}
 		}
 	}
 

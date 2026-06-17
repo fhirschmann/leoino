@@ -9,6 +9,8 @@ void System_Init(void);
 void System_Cyclic(void);
 void System_UpdateActivityTimer(void);
 void System_RequestSleep(void);
+void System_ReloadSleepSettings(void); // re-read "no sleep while powered" config from NVS
+bool System_IsExternallyPowered(void); // heuristic: battery voltage at/above the powered threshold
 void System_Restart(void);
 bool System_SetSleepTimer(uint8_t minutes);
 void System_DisableSleepTimer();

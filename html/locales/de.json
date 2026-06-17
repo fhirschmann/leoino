@@ -560,7 +560,11 @@
 			"recoverVolBootExp": "Die Box erinnert sich über einen Neustart hinweg, welche Lautstärke zuletzt verwendet wurde und stellt diese automatisch wieder ein.",
 			"volumeCurve": "Feinere Abstufungen bei niedriger Lautstärke",
 			"volumeCurveExp": "Verwendung von logarithmischer Lautstärkeberechnung. Kann helfen, wenn im unteren Lautstärkebereich die Abstufungen zu grob sind.",
-			"readypath": "Pfad zur Begrüßungs-MP3 (Kaltstart)"
+			"readypath": "Pfad zur Begrüßungs-MP3 (Kaltstart)",
+			"noSleepWhenPowered": "Kein Standby wenn am Strom",
+			"noSleepWhenPoweredExp": "Wenn aktiv, geht das Gerät nicht wegen Inaktivität in den Standby, solange es am Strom hängt. Mangels Lade-/USB-Erkennung wird „am Strom“ über die Akkuspannung geschätzt (Ladespannung liegt über der Ruhespannung) — siehe Schwelle. Der manuelle Sleep-Timer bleibt davon unberührt.",
+			"poweredVoltage": "Schwelle „am Strom“ (V)",
+			"poweredVoltageExp": "Ab dieser Akkuspannung gilt das Gerät als „am Strom“. Für LiFePO4 ist ~3,5 V ein guter Startwert (Ladespannung ~3,6 V, Ruhespannung voll ~3,3–3,4 V)."
 		},
 		"neopixel": {
 			"title": "Neopixel (Helligkeit)",
