@@ -3269,6 +3269,24 @@ static void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &j
 		request->send(500, "text/plain; charset=utf-8", "/rfid (POST): Missing tag id");
 		return;
 	}
+	// Incoming deletion tombstone from a peer/server: drop the tag locally if the deletion is newer
+	// than what we have, record the tombstone, and do NOT re-push (avoids sync loops).
+	if (jsonObj["deleted"].is<bool>() && jsonObj["deleted"].as<bool>()) {
+		uint32_t inTs = jsonObj["timestamp"].is<uint32_t>() ? jsonObj["timestamp"].as<uint32_t>() : 0;
+		uint32_t localAssign = RfidSync_GetTagTimestamp(tagId.c_str());
+		uint32_t localDel = RfidSync_GetDeleteTimestamp(tagId.c_str());
+		uint32_t localNewest = (localAssign > localDel) ? localAssign : localDel;
+		if (inTs == 0 || inTs > localNewest) {
+			if (gPrefsRfid.isKey(tagId.c_str())) {
+				gPrefsRfid.remove(tagId.c_str());
+			}
+			RfidSync_SetTagTimestamp(tagId.c_str(), 0);
+			RfidSync_SetDeleteTimestamp(tagId.c_str(), inTs);
+			Web_DumpNvsToSd("rfidTags", backupFile);
+		}
+		request->send(200, "text/plain; charset=utf-8", "ok");
+		return;
+	}
 	String fileOrUrl = jsonObj["fileOrUrl"];
 	if (fileOrUrl.isEmpty()) {
 		fileOrUrl = "0";
@@ -3327,6 +3345,7 @@ static void handleDeleteRFIDRequest(AsyncWebServerRequest *request) {
 			Cmd_Action(CMD_STOP);
 		}
 		if (gPrefsRfid.remove(tagId.c_str())) {
+			RfidSync_OnDelete(tagId.c_str()); // record tombstone + propagate the deletion to server/peers
 			Log_Printf(LOGLEVEL_INFO, "/rfid (DELETE): tag %s removed successfuly", tagId);
 			request->send(200, "text/plain; charset=utf-8", tagId + " removed successfuly");
 		} else {

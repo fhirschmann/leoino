@@ -19,8 +19,11 @@
 extern bool listNVSKeys(const char *_namespace, void *data, bool (*callback)(const char *key, void *data));
 
 // Timestamps live in their own NVS namespace (the tag string itself must stay exactly 4 tokens,
-// so we can't append a timestamp there). Keyed by the 12-digit tag id.
+// so we can't append a timestamp there). Keyed by the 12-digit tag id. A second namespace holds
+// "tombstones": the epoch at which a tag was deleted, so deletions can win the newest-wins merge
+// and propagate to the server + peers (additive-only sync would otherwise resurrect deleted cards).
 static Preferences gPrefsRfidTs;
+static Preferences gPrefsRfidDel;
 static bool gTsReady = false;
 
 static volatile uint8_t gRfidSyncStatus = 0; // 0 idle, 1 running, 2 done, 3 failed
@@ -40,6 +43,7 @@ static void rfidSyncSetMsg(const char *msg) {
 void RfidSync_Init(void) {
 	if (!gTsReady) {
 		gPrefsRfidTs.begin("rfidTagsTs");
+		gPrefsRfidDel.begin("rfidTagsDel");
 		gTsReady = true;
 	}
 }
@@ -63,6 +67,23 @@ void RfidSync_NoteLocalChange(const char *tagId) {
 	if (ts > 0) {
 		RfidSync_SetTagTimestamp(tagId, ts);
 	}
+	// (re)learning a card revives it: clear any older delete tombstone
+	RfidSync_Init();
+	gPrefsRfidDel.remove(tagId);
+}
+uint32_t RfidSync_GetDeleteTimestamp(const char *tagId) {
+	RfidSync_Init();
+	return gPrefsRfidDel.getULong(tagId, 0);
+}
+void RfidSync_SetDeleteTimestamp(const char *tagId, uint32_t ts) {
+	RfidSync_Init();
+	gPrefsRfidDel.putULong(tagId, ts);
+}
+// Most recent local "touch" of a tag (assignment or deletion), used for newest-wins comparisons.
+static uint32_t rfidLocalNewest(const char *tagId) {
+	uint32_t a = RfidSync_GetTagTimestamp(tagId);
+	uint32_t d = RfidSync_GetDeleteTimestamp(tagId);
+	return (a > d) ? a : d;
 }
 
 // --- config helpers ---
@@ -155,6 +176,21 @@ static void rfidCollectLocal(JsonArray arr) {
 			continue;
 		}
 		rfidTagToJson(arr.add<JsonObject>(), id, fileOrUrl, mode, RfidSync_GetTagTimestamp(id.c_str()));
+	}
+	// also send tombstones whose deletion is the latest known state for that id
+	std::vector<String> dels;
+	listNVSKeys("rfidTagsDel", &dels, rfidCollectCallback);
+	for (const String &id : dels) {
+		uint32_t delTs = RfidSync_GetDeleteTimestamp(id.c_str());
+		if (delTs == 0) {
+			continue;
+		}
+		if (delTs >= RfidSync_GetTagTimestamp(id.c_str())) { // deletion is newer than any local (re)assignment
+			JsonObject o = arr.add<JsonObject>();
+			o["id"] = id;
+			o["timestamp"] = delTs;
+			o["deleted"] = true;
+		}
 	}
 }
 
@@ -285,6 +321,38 @@ void RfidSync_OnLearn(const char *tagId) {
 	rfidPushTagToPeers(id, fileOrUrl, mode, ts);
 }
 
+// Record a local deletion (tombstone) and push it to the server + every peer.
+void RfidSync_OnDelete(const char *tagId) {
+	// always record the tombstone so it survives + propagates (ts 0 is healed on the next sync)
+	uint32_t ts = rfidNowEpoch();
+	RfidSync_SetDeleteTimestamp(tagId, ts);
+	RfidSync_Init();
+	gPrefsRfidTs.remove(tagId); // the assignment is gone
+	if (!gPrefsSettings.getBool("rfidSyncLearn", true) || ts == 0) {
+		return; // not now: pushed on the next full sync (also heals ts==0)
+	}
+	String id(tagId);
+	JsonDocument doc;
+	JsonObject o = doc.to<JsonObject>();
+	o["id"] = id;
+	o["timestamp"] = ts;
+	o["deleted"] = true;
+	String body;
+	serializeJson(doc, body);
+
+	const String serverUrl = rfidServerUrl();
+	if (serverUrl.length() > 0) {
+		int code = rfidHttpPostJson(serverUrl, gPrefsSettings.getString("syncUser", ""), gPrefsSettings.getString("syncPwd", ""), "", body);
+		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: pushed delete %s to server (HTTP %d)", id.c_str(), code);
+	}
+	std::vector<RfidPeer> peers;
+	rfidGetPeers(peers);
+	for (const RfidPeer &peer : peers) {
+		int code = rfidHttpPostJson(peer.url + "/rfid", "", "", peer.key, body);
+		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: pushed delete %s to peer %s (HTTP %d)", id.c_str(), peer.url.c_str(), code);
+	}
+}
+
 // Read an entry's mode from the server wire format (modId takes precedence over playMode).
 static uint32_t rfidModeFromJson(JsonObject t) {
 	if (t["modId"].is<uint32_t>()) {
@@ -313,6 +381,14 @@ static void rfidFullSyncTask(void *param) {
 				RfidSync_SetTagTimestamp(id.c_str(), nowTs);
 			}
 		}
+		// likewise heal tombstones created while the clock was invalid
+		std::vector<String> healDel;
+		listNVSKeys("rfidTagsDel", &healDel, rfidCollectCallback);
+		for (const String &id : healDel) {
+			if (RfidSync_GetDeleteTimestamp(id.c_str()) == 0) {
+				RfidSync_SetDeleteTimestamp(id.c_str(), nowTs);
+			}
+		}
 	}
 
 	// 1) Pull server tags and merge (newest-wins by timestamp).
@@ -336,10 +412,22 @@ static void rfidFullSyncTask(void *param) {
 						continue;
 					}
 					uint32_t inTs = t["timestamp"].as<uint32_t>();
-					uint32_t localTs = RfidSync_GetTagTimestamp(id.c_str());
-					bool localExists = gPrefsRfid.isKey(id.c_str());
-					if (!localExists || inTs > localTs) {
+					uint32_t localNewest = rfidLocalNewest(id.c_str());
+					const bool localExists = gPrefsRfid.isKey(id.c_str());
+					if (t["deleted"].as<bool>()) {
+						// incoming tombstone: drop the local tag if the deletion is newer
+						if (inTs > localNewest) {
+							if (localExists) {
+								gPrefsRfid.remove(id.c_str());
+							}
+							gPrefsRfidTs.remove(id.c_str());
+							RfidSync_SetDeleteTimestamp(id.c_str(), inTs);
+							merged++;
+						}
+					} else if (!localExists || inTs > localNewest) {
+						// incoming assignment wins (also overrides an older local deletion)
 						rfidWriteTag(id, t["fileOrUrl"].as<String>(), rfidModeFromJson(t), inTs);
+						gPrefsRfidDel.remove(id.c_str());
 						merged++;
 					}
 				}

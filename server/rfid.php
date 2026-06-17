@@ -68,18 +68,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (string)$e['id'];
         $ts = isset($e['timestamp']) ? (int)$e['timestamp'] : time();
         if (!isset($master[$id]) || $ts > (int)($master[$id]['timestamp'] ?? 0)) {
-            $clean = ['id' => $id, 'timestamp' => $ts];
-            if (isset($e['modId'])) {
-                $clean['modId'] = (int)$e['modId'];
+            if (!empty($e['deleted'])) {
+                // tombstone: a deletion wins newest-wins like any other change
+                $master[$id] = ['id' => $id, 'timestamp' => $ts, 'deleted' => true];
             } else {
-                if (isset($e['fileOrUrl'])) {
-                    $clean['fileOrUrl'] = $e['fileOrUrl'];
+                $clean = ['id' => $id, 'timestamp' => $ts];
+                if (isset($e['modId'])) {
+                    $clean['modId'] = (int)$e['modId'];
+                } else {
+                    if (isset($e['fileOrUrl'])) {
+                        $clean['fileOrUrl'] = $e['fileOrUrl'];
+                    }
+                    if (isset($e['playMode'])) {
+                        $clean['playMode'] = (int)$e['playMode'];
+                    }
                 }
-                if (isset($e['playMode'])) {
-                    $clean['playMode'] = (int)$e['playMode'];
-                }
+                $master[$id] = $clean;
             }
-            $master[$id] = $clean;
+        }
+    }
+
+    // prune tombstones older than 120 days so the store doesn't grow forever
+    $cutoff = time() - 120 * 86400;
+    foreach ($master as $id => $e) {
+        if (!empty($e['deleted']) && (int)($e['timestamp'] ?? 0) < $cutoff) {
+            unset($master[$id]);
         }
     }
 
