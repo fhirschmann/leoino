@@ -4123,8 +4123,13 @@
 						};
 						/* EQ profile for this file/folder (per-path equalizer) */
 						var eqSubmenu = {};
+						// Currently assigned EQ profile for this exact path (if any).
+						var curEqRule = (window.eqRules || []).find(function (r) { return r && r.p === node.data.path; });
+						var curEqProfile = curEqRule ? (curEqRule.pr || "custom") : null;
 						Object.keys(eqProfiles).forEach(function (key) {
 							eqSubmenu[key] = {
+								// tick the currently-assigned profile
+								icon: (key === curEqProfile) ? "fas fa-check" : undefined,
 								label: () => i18next.t("general.equalizer.profile." + key),
 								action: function () { setEqRule(node.data.path, key); }
 							};
@@ -4138,13 +4143,26 @@
 							};
 						}
 						items.eq = {
-							label: () => i18next.t("files.context.eq"),
+							// append the current profile to the label, e.g. "EQ profile: Speech"
+							label: () => i18next.t("files.context.eq") + (curEqProfile ? ": " + i18next.t("general.equalizer.profile." + curEqProfile) : ""),
 							icon: "fas fa-sliders-h",
 							submenu: eqSubmenu
 						};
 						/* RFID: learn a card onto this file/folder. Pick a play mode -> the next card
 						   laid on the reader gets assigned to this path (scan-after-select flow). */
 						var rfidSubmenu = {};
+						// Show the currently-assigned card(s) for this path as a disabled info entry.
+						var curRfid = (window.rfidPathInfo && window.rfidPathInfo[node.data.path]) || [];
+						if (curRfid.length) {
+							rfidSubmenu.current = {
+								_disabled: true,
+								separator_after: true,
+								label: () => curRfid.map(function (e) {
+									var m = e.playMode ? i18next.t("files.rfid.playmode.mode." + e.playMode) : "";
+									return e.id + (m ? " (" + m + ")" : "");
+								}).join(", ")
+							};
+						}
 						$('#playMode option').each(function () {
 							var cls = this.className || "";
 							var ok = node.data.directory
@@ -4168,7 +4186,8 @@
 							};
 						}
 						items.rfid = {
-							label: () => i18next.t("files.context.rfid"),
+							// append the assigned card id(s) to the label, e.g. "Assign RFID: 9000..."
+							label: () => i18next.t("files.context.rfid") + (curRfid.length ? ": " + curRfid.map(function (e) { return e.id; }).join(", ") : ""),
 							icon: "fas fa-tag",
 							submenu: rfidSubmenu
 						};
@@ -6492,22 +6511,27 @@
 		window.eqRules = window.eqRules || [];
 		window.rfidPaths = window.rfidPaths || new Set();
 		window.rfidPathIds = window.rfidPathIds || {};
-		// Cache the file/URL paths that have an RFID tag assigned (Set for the badge) plus a
-		// path -> [tagId, ...] map so an assignment can be removed straight from the explorer.
+		window.rfidPathInfo = window.rfidPathInfo || {};
+		// Cache the file/URL paths that have an RFID tag assigned (Set for the badge), a
+		// path -> [tagId, ...] map (for removal) and a path -> [{id, playMode}, ...] info map
+		// (so the context menu can show which card + play mode is currently assigned).
 		function loadRfidPaths(cb) {
 			getData("http://" + host + "/rfid", function (data) {
 				var set = new Set();
 				var byPath = {};
+				var info = {};
 				if (Array.isArray(data)) {
 					data.forEach(function (t) {
 						if (t && t.id && typeof t.fileOrUrl === "string" && t.fileOrUrl.charAt(0) === "/") {
 							set.add(t.fileOrUrl);
 							(byPath[t.fileOrUrl] = byPath[t.fileOrUrl] || []).push(t.id);
+							(info[t.fileOrUrl] = info[t.fileOrUrl] || []).push({ id: t.id, playMode: t.playMode });
 						}
 					});
 				}
 				window.rfidPaths = set;
 				window.rfidPathIds = byPath;
+				window.rfidPathInfo = info;
 				if (cb) cb();
 			});
 		}
