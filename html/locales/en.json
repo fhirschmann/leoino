@@ -30,7 +30,7 @@
 		"updateAvailable": "Update available",
 		"clickToUpdate": "click to install",
 		"control": "Control",
-		"rfid": "Files",
+		"rfid": "RFID",
 		"wifi": "WiFi",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
@@ -115,7 +115,14 @@
 			"title": "Rotary encoder",
 			"reverse": "Reverse direction of rotation"
 		},
-		"autosaveHint": "Changes are saved automatically"
+		"autosaveHint": "Changes are saved automatically",
+		"rfid": {
+			"modTitle": "Learn modification card",
+			"modDesc": "Pick a modification action, then lay the card. Music cards are learned directly in the file browser (right-click → Learn RFID).",
+			"learnBtn": "Learn card",
+			"learnedTitle": "Learned cards",
+			"empty": "No cards learned yet."
+		}
 	},
 	"security": {
 		"title": "Web interface password",

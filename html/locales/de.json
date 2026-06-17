@@ -30,7 +30,7 @@
 		"updateAvailable": "Update verfügbar",
 		"clickToUpdate": "zum Installieren klicken",
 		"control": "Steuerung",
-		"rfid": "Dateien",
+		"rfid": "RFID",
 		"wifi": "WLAN",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
@@ -115,7 +115,14 @@
 			"title": "Drehimpulsgeber",
 			"reverse": "Drehrichtung umkehren"
 		},
-		"autosaveHint": "Änderungen werden automatisch gespeichert"
+		"autosaveHint": "Änderungen werden automatisch gespeichert",
+		"rfid": {
+			"modTitle": "Modifikationskarte anlernen",
+			"modDesc": "Wähle eine Modifikations-Aktion und lege dann die Karte auf. Musik-Karten lernst du direkt im Datei-Browser (Rechtsklick → RFID anlernen).",
+			"learnBtn": "Karte anlernen",
+			"learnedTitle": "Gelernte Karten",
+			"empty": "Noch keine Karten gelernt."
+		}
 	},
 	"security": {
 		"title": "Webinterface-Passwort",

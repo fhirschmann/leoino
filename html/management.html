@@ -2026,7 +2026,10 @@
 				</fieldset>
 				<hr>
 			</div>
-			<div class="container" id="rfidMusicTags">
+			<!-- Old inline RFID-assignment form: hidden. Music cards are learned via the file-browser
+			     context menu now; modification cards via the RFID settings sub-tab. Kept in the DOM
+			     (hidden) so the context menu can still read the #playMode option list. -->
+			<div class="container" id="rfidMusicTags" hidden>
 				<fieldset>
 					<legend id="rfidMusicTagsAssignment" data-i18n="files.rfid.title"></legend>
 					<form action="#rfidMusicTags" method="POST" onsubmit="rfidAssign('rfidMusicTags'); return false">
@@ -2110,6 +2113,7 @@
 				<div class="nav nav-tabs justify-content-center" id="settings-subnav" role="tablist">
 					<a class="nav-item nav-link active" id="settings-general-subtab" data-bs-toggle="tab" data-bs-target="#settings-general" href="#settings-general" role="tab" aria-controls="settings-general" aria-selected="true"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="nav.general"></span></a>
 					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
+					<a class="nav-item nav-link" id="settings-rfid-subtab" data-bs-toggle="tab" data-bs-target="#settings-rfid" href="#settings-rfid" role="tab" aria-controls="settings-rfid"><i class="fas fa-id-card"></i> <span class="d-none d-md-inline" data-i18n="nav.rfid"></span></a>
 					<a class="nav-item nav-link" id="nav-wifi-tab" data-bs-toggle="tab" data-bs-target="#nav-wifi" href="#nav-wifi" role="tab" aria-controls="nav-wifi"><i class="fas fa-wifi"></i> <span class="d-none d-md-inline" data-i18n="nav.wifi"></span></a>
 					<a class="nav-item nav-link" id="nav-mqtt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-mqtt" href="#nav-mqtt" role="tab" aria-controls="nav-mqtt"><i class="fas fa-network-wired"></i> <span class="d-none d-md-inline" data-i18n="nav.mqtt"></span></a>
 					<a class="nav-item nav-link" id="nav-ftp-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-ftp" href="#nav-ftp" role="tab" aria-controls="nav-ftp"><i class="fas fa-folder"></i> <span class="d-none d-md-inline" data-i18n="nav.ftp"></span></a>
@@ -2705,6 +2709,27 @@
 				</div>
 			</div>
 			</div>
+		<div class="tab-pane fade" id="settings-rfid" role="tabpanel" aria-labelledby="settings-rfid-subtab">
+			<div class="container">
+				<fieldset>
+					<legend class="w-auto" data-i18n="settingsex.rfid.modTitle"></legend>
+					<p class="small text-secondary" data-i18n="settingsex.rfid.modDesc"></p>
+					<div class="row gx-2 align-items-end mb-2">
+						<div class="col-12 col-md-8 mb-2">
+							<label class="form-label small mb-0" for="modIdLearn" data-i18n="files.rfid.mod.title"></label>
+							<select id="modIdLearn" class="form-select form-select-sm"></select>
+						</div>
+						<div class="col-12 col-md-4 mb-2">
+							<button type="button" class="btn btn-primary w-100" onclick="learnModCard()"><i class="fas fa-id-card"></i> <span data-i18n="settingsex.rfid.learnBtn"></span></button>
+						</div>
+					</div>
+				</fieldset>
+				<fieldset>
+					<legend class="w-auto" data-i18n="settingsex.rfid.learnedTitle"></legend>
+					<ul class="list-group" id="rfidLearnedList"></ul>
+				</fieldset>
+			</div>
+		</div>
 		<div class="tab-pane fade" id="nav-wifi" role="tabpanel" aria-labelledby="nav-wifi-tab">
 			<div class="container" id="wifiConfig">
 				<div>
@@ -4905,6 +4930,9 @@
 			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
 			// populated button dropdowns are covered too). No submit button on these tabs.
 			$('#settings-general, #settings-buttons').on('change slideStop', 'input, select, textarea', autoSaveGeneralSettings);
+			// Refresh the learned-cards list whenever the RFID settings sub-tab is shown.
+			var rfidSubtab = document.getElementById('settings-rfid-subtab');
+			if (rfidSubtab) { rfidSubtab.addEventListener('shown.bs.tab', rebuildLearnedList); }
 		});
 		const rfidListSavedAssignments = document.getElementById("rfidListSavedAssignments");
 		async function rebuildRFIDList() {
@@ -6310,6 +6338,71 @@
 			toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
 			refreshRfidBadgesAround(nodeId);
 		}
+		// Learn a modification card (RFID settings tab): pick a modification action, then lay a card.
+		function learnModCard() {
+			var modId = Number(document.getElementById('modIdLearn').value);
+			startRfidScan(i18next.t("files.rfid.mod.cmd." + modId), function (scannedId) {
+				completeModLearn(scannedId, modId);
+			});
+		}
+		async function completeModLearn(scannedId, modId) {
+			await fetch("http://" + host + "/settings", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ rfidMod: { rfidIdMod: scannedId, modId: modId } })
+			});
+			toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
+			rebuildLearnedList();
+		}
+		// Render the full list of learned cards (music + modification) in the RFID settings tab.
+		async function rebuildLearnedList() {
+			var list = document.getElementById('rfidLearnedList');
+			if (!list) return;
+			var cards;
+			try { cards = await (await fetch("http://" + host + "/rfid")).json(); } catch (e) { cards = []; }
+			list.innerHTML = "";
+			if (!Array.isArray(cards) || cards.length === 0) {
+				var empty = document.createElement('li');
+				empty.className = "list-group-item text-secondary";
+				empty.setAttribute('data-i18n', "settingsex.rfid.empty");
+				empty.textContent = i18next.t("settingsex.rfid.empty");
+				list.appendChild(empty);
+				return;
+			}
+			cards.sort(function (a, b) { return String(a.id).localeCompare(String(b.id)); });
+			cards.forEach(function (c) {
+				if (!c || !c.id) return;
+				var li = document.createElement('li');
+				li.className = "list-group-item d-flex justify-content-between align-items-start gap-2";
+				var info = document.createElement('div');
+				var idLine = document.createElement('div');
+				idLine.className = "fw-bold";
+				idLine.textContent = c.id;
+				info.appendChild(idLine);
+				var desc = document.createElement('div');
+				desc.className = "small text-secondary text-break";
+				if (c.modId) {
+					desc.textContent = i18next.t("files.rfid.modification") + ": " + i18next.t("files.rfid.mod.cmd." + c.modId);
+				} else {
+					var mode = c.playMode ? i18next.t("files.rfid.playmode.mode." + c.playMode) : "";
+					desc.textContent = (c.fileOrUrl || "") + (mode ? " — " + mode : "");
+				}
+				info.appendChild(desc);
+				li.appendChild(info);
+				var del = document.createElement('button');
+				del.className = "btn btn-sm btn-danger fa fa-trash flex-shrink-0";
+				del.setAttribute('title', i18next.t("delete"));
+				del.addEventListener('click', function () { deleteLearnedCard(c.id); });
+				li.appendChild(del);
+				list.appendChild(li);
+			});
+		}
+		async function deleteLearnedCard(id) {
+			var resp = await fetch("http://" + host + "/rfid?id=" + encodeURIComponent(id), { method: "DELETE" });
+			if (resp.ok) { flashActionOk(); } else { toaster.error(resp.statusText); }
+			rebuildLearnedList();
+			loadRfidPaths(updateSelectedNodeBadges); // keep explorer badges in sync
+		}
 		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.
 		async function removeRfidForPath(path, nodeId) {
 			var ids = (window.rfidPathIds && window.rfidPathIds[path]) || [];
@@ -6673,8 +6766,8 @@
 				}
 			}
 
-			/* fill command selectors at the control page and the rfid assignment */
-			document.querySelectorAll("#modId, #commandId").forEach(e => replaceCommandSelect(e, modElem));
+			/* fill command selectors at the control page, the rfid assignment and the RFID settings tab */
+			document.querySelectorAll("#modId, #commandId, #modIdLearn").forEach(e => replaceCommandSelect(e, modElem));
 
 			darkmodeSwitchSetup();
 			selectActiveTabFromLocalStorage();

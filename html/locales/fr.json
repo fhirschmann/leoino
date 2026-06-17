@@ -30,7 +30,7 @@
 		"updateAvailable": "Mise à jour disponible",
 		"clickToUpdate": "cliquer pour installer",
 		"control": "Contrôle",
-		"rfid": "Fichiers",
+		"rfid": "RFID",
 		"wifi": "WiFi",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
@@ -108,7 +108,14 @@
 			"title": "Codeur rotatif",
 			"reverse": "Inversion du sens de rotation"
 		},
-		"autosaveHint": "Les modifications sont enregistrées automatiquement"
+		"autosaveHint": "Les modifications sont enregistrées automatiquement",
+		"rfid": {
+			"modTitle": "Apprendre une carte de modification",
+			"modDesc": "Choisissez une action de modification, puis posez la carte. Les cartes musicales s'apprennent dans l'explorateur de fichiers (clic droit → Associer RFID).",
+			"learnBtn": "Apprendre la carte",
+			"learnedTitle": "Cartes apprises",
+			"empty": "Aucune carte apprise pour le moment."
+		}
 	},
 	"security": {
 		"title": "Mot de passe de l'interface web",
