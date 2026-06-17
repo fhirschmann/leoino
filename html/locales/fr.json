@@ -326,12 +326,6 @@
 					"249": "Lire la carte RFID virtuelle 09",
 					"250": "Lire la carte RFID virtuelle 10"
 				}
-			},
-			"virtual": {
-				"generate": "Carte virtuelle",
-				"tooltip": "Générer un identifiant de carte virtuelle aléatoire (sans tag physique)",
-				"created": "Carte virtuelle générée : {{rfidId}}",
-				"trigger": "Poser virtuellement (lire)"
 			}
 		}
 	},
