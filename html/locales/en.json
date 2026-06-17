@@ -114,7 +114,8 @@
 		"rotary": {
 			"title": "Rotary encoder",
 			"reverse": "Reverse direction of rotation"
-		}
+		},
+		"autosaveHint": "Changes are saved automatically"
 	},
 	"security": {
 		"title": "Web interface password",

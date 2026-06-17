@@ -2540,8 +2540,8 @@
 					</span>
 					<div class="text-center">
 						<button type="button" class="btn btn-warning" data-i18n="reset"
-							onclick="resetSettings()"></button>&nbsp;<button type="submit" class="btn btn-primary"
-							data-i18n="submit"></button>
+							onclick="resetSettings()"></button>
+						<span class="ms-2 small text-secondary" data-i18n="settingsex.autosaveHint"></span>
 					</div>
 				</form>
 			</div>
@@ -2681,7 +2681,7 @@
 								</div>
 							</fieldset>
 				<div class="text-center mt-3">
-					<button type="button" class="btn btn-primary" onclick="genSettings('generalConfig')" data-i18n="submit"></button>
+					<span class="small text-secondary" data-i18n="settingsex.autosaveHint"></span>
 				</div>
 			</div>
 			</div>
@@ -4539,10 +4539,24 @@
 			toaster.info("Connecting to " + address + "...");
 		}
 
+		// Auto-save for the General + Buttons settings tabs (no submit button needed). Debounced,
+		// and suppressed for a short window while fillSettings() programmatically populates the form
+		// (the window auto-expires, so it is immune to early returns inside fillSettings).
+		var settingsAutoSaveTimer = null;
+		var settingsAutoSaveSuppressedUntil = 0;
+		function autoSaveGeneralSettings() {
+			if (Date.now() < settingsAutoSaveSuppressedUntil) {
+				return;
+			}
+			clearTimeout(settingsAutoSaveTimer);
+			settingsAutoSaveTimer = setTimeout(function () { genSettings('generalConfig'); }, 600);
+		}
+
 		async function fillSettings(settings) {
 			if (!settings) {
 				return false;
 			}
+			settingsAutoSaveSuppressedUntil = Date.now() + 1500; // don't auto-save while populating
 			// update global settings
 			window.settings = {
 				...window.settings,
@@ -4776,6 +4790,7 @@
 				const obj = await response.json();
 				const data = obj.defaults ? obj.defaults : obj;
 				await fillSettings(data);
+				await genSettings('generalConfig'); // persist the defaults (no submit button anymore)
 			} catch (err) {
 				toaster.error(i18next.t("toast.error") + ": " + err.message);
 			}
@@ -4863,6 +4878,9 @@
 		document.addEventListener("DOMContentLoaded", function () {
 			const c = document.getElementById("eqRulesListContainer");
 			if (c) c.addEventListener("shown.bs.collapse", rebuildEqRulesList);
+			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
+			// populated button dropdowns are covered too). No submit button on these tabs.
+			$('#settings-general, #settings-buttons').on('change slideStop', 'input, select, textarea', autoSaveGeneralSettings);
 		});
 		const rfidListSavedAssignments = document.getElementById("rfidListSavedAssignments");
 		async function rebuildRFIDList() {

@@ -114,7 +114,8 @@
 		"rotary": {
 			"title": "Drehimpulsgeber",
 			"reverse": "Drehrichtung umkehren"
-		}
+		},
+		"autosaveHint": "Änderungen werden automatisch gespeichert"
 	},
 	"security": {
 		"title": "Webinterface-Passwort",

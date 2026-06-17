@@ -107,7 +107,8 @@
 		"rotary": {
 			"title": "Codeur rotatif",
 			"reverse": "Inversion du sens de rotation"
-		}
+		},
+		"autosaveHint": "Les modifications sont enregistrées automatiquement"
 	},
 	"security": {
 		"title": "Mot de passe de l'interface web",
