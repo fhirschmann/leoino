@@ -6127,16 +6127,29 @@
 			return dDisplay + hDisplay + mDisplay;
 		}
 		async function exportBackup() {
+			const includeCreds = document.getElementById('backupIncludeWifi').checked;
 			const backup = {
 				espuinoBackup: 1,
 				created: new Date().toISOString(),
 				settings: await (await fetch("http://" + host + "/settings")).json(),
-				rfid: await (await fetch("http://" + host + "/rfid")).json()
+				rfid: await (await fetch("http://" + host + "/rfid")).json(),
+				eqRules: await (await fetch("http://" + host + "/eqrules")).json(),
+				playStats: await (await fetch("http://" + host + "/playstats")).json()
 			};
 			delete backup.settings.ssids; // names only - not usable for a restore
-			if (document.getElementById('backupIncludeWifi').checked) {
+			if (includeCreds) {
 				backup.wifiConfig = await (await fetch("http://" + host + "/wificonfig")).json();
 				backup.wifiNetworks = await (await fetch("http://" + host + "/savedSSIDs?credentials=1")).json();
+			} else {
+				// strip secrets so a shared backup doesn't leak passwords in cleartext
+				const s = backup.settings || {};
+				if (s.sync) {
+					s.sync.password = "";
+					s.sync.rfidPeerKey = "";
+					try { const peers = JSON.parse(s.sync.rfidPeers || "[]"); peers.forEach(p => { p.key = ""; }); s.sync.rfidPeers = JSON.stringify(peers); } catch (e) { }
+				}
+				if (s.mqtt && 'password' in s.mqtt) s.mqtt.password = "";
+				if (s.ftp && 'password' in s.ftp) s.ftp.password = "";
 			}
 			const blob = new Blob([JSON.stringify(backup, null, "\t")], {
 				type: "application/json"
@@ -6167,7 +6180,7 @@
 			}
 			let errors = 0;
 			// the firmware applies one settings section per request
-			const sections = ['general', 'equalizer', 'led', 'battery', 'playlist', 'buttons', 'rotary', 'ftp', 'mqtt', 'bluetooth'];
+			const sections = ['general', 'equalizer', 'led', 'battery', 'playlist', 'buttons', 'rotary', 'ftp', 'mqtt', 'bluetooth', 'sync'];
 			for (const section of sections) {
 				if (backup.settings && backup.settings[section]) {
 					const response = await fetch("http://" + host + "/settings", {
@@ -6199,6 +6212,30 @@
 					if (!response.ok) {
 						errors++;
 					}
+				}
+			}
+			// restore per-path EQ rules
+			if (Array.isArray(backup.eqRules)) {
+				for (const r of backup.eqRules) {
+					if (!r || !r.p) {
+						continue;
+					}
+					const qs = "path=" + encodeURIComponent(r.p) + "&low=" + (r.l | 0) + "&band=" + (r.b | 0) + "&high=" + (r.h | 0) + "&profile=" + encodeURIComponent(r.pr || "");
+					const response = await fetch("http://" + host + "/eqrule?" + qs, { method: "POST" });
+					if (!response.ok) {
+						errors++;
+					}
+				}
+			}
+			// restore listening statistics (ring buffer)
+			if (backup.playStats && Array.isArray(backup.playStats.days)) {
+				const response = await fetch("http://" + host + "/playstats", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(backup.playStats)
+				});
+				if (!response.ok) {
+					errors++;
 				}
 			}
 			if (Array.isArray(backup.wifiNetworks)) {

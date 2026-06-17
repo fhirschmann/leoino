@@ -666,7 +666,7 @@
 			"desc": "Exports or imports all settings and RFID assignments as a JSON file.",
 			"export": {
 				"title": "Export",
-				"includeWifi": "Include WiFi credentials",
+				"includeWifi": "Include passwords (WiFi, sync, peers)",
 				"button": "Download backup"
 			},
 			"import": {

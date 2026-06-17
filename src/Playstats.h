@@ -14,3 +14,9 @@ void Playstats_Save(void); // flush the RAM buffer to NVS if dirty (periodic + o
 uint32_t Playstats_GetToday(void); // seconds listened today (local calendar day)
 uint32_t Playstats_GetYesterday(void); // seconds listened yesterday
 uint32_t Playstats_GetLastDays(uint16_t days); // sum over the last <days> calendar days (incl. today)
+
+// Raw ring-buffer access for backup/restore (JSON is built/parsed by the caller).
+uint16_t Playstats_GetRingSize(void); // number of day-slots (365)
+uint32_t Playstats_GetRingLastDay(void); // local day number of the most recent tracked day
+uint32_t Playstats_GetRingSlot(uint16_t i); // seconds in raw slot i (0..size-1)
+void Playstats_RestoreRing(uint32_t lastDay, const uint32_t *slots, uint16_t count); // restore from backup

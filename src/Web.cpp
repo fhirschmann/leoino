@@ -1027,6 +1027,34 @@ void webserverStart(void) {
 			request->send(response);
 		});
 
+		// Listening-stats ring buffer (for backup/restore). GET returns it, POST restores it.
+		wServer.on("/playstats", HTTP_GET, [](AsyncWebServerRequest *request) {
+			AsyncJsonResponse *response = new AsyncJsonResponse(false);
+			JsonObject o = response->getRoot();
+			o["lastDay"] = Playstats_GetRingLastDay();
+			JsonArray a = o["days"].to<JsonArray>();
+			const uint16_t n = Playstats_GetRingSize();
+			for (uint16_t i = 0; i < n; i++) {
+				a.add(Playstats_GetRingSlot(i));
+			}
+			response->setLength();
+			request->send(response);
+		});
+		wServer.addHandler(new AsyncCallbackJsonWebHandler("/playstats", [](AsyncWebServerRequest *request, JsonVariant &json) {
+			JsonObject o = json.as<JsonObject>();
+			static uint32_t buf[365];
+			uint16_t c = 0;
+			if (o["days"].is<JsonArray>()) {
+				for (JsonVariant v : o["days"].as<JsonArray>()) {
+					if (c < 365) {
+						buf[c++] = v.as<uint32_t>();
+					}
+				}
+			}
+			Playstats_RestoreRing(o["lastDay"].as<uint32_t>(), buf, c);
+			request->send(200, "text/plain; charset=utf-8", "ok");
+		}));
+
 		// WiFi scan
 		wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
 

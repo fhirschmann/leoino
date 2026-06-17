@@ -142,3 +142,24 @@ uint32_t Playstats_GetLastDays(uint16_t days) {
 	}
 	return sum;
 }
+
+uint16_t Playstats_GetRingSize(void) {
+	return PLAYSTATS_DAYS;
+}
+uint32_t Playstats_GetRingLastDay(void) {
+	return gLastDay;
+}
+uint32_t Playstats_GetRingSlot(uint16_t i) {
+	return (i < PLAYSTATS_DAYS) ? gDays[i] : 0;
+}
+void Playstats_RestoreRing(uint32_t lastDay, const uint32_t *slots, uint16_t count) {
+	if (count > PLAYSTATS_DAYS) {
+		count = PLAYSTATS_DAYS;
+	}
+	for (uint16_t i = 0; i < PLAYSTATS_DAYS; i++) {
+		gDays[i] = (i < count && slots) ? slots[i] : 0;
+	}
+	gLastDay = lastDay;
+	gDirty = true;
+	Playstats_Save();
+}

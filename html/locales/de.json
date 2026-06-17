@@ -666,7 +666,7 @@
 			"desc": "Exportiert bzw. importiert alle Einstellungen und RFID-Zuweisungen als JSON-Datei.",
 			"export": {
 				"title": "Export",
-				"includeWifi": "WLAN-Zugangsdaten einschließen",
+				"includeWifi": "Passwörter einschließen (WLAN, Sync, Peers)",
 				"button": "Backup herunterladen"
 			},
 			"import": {

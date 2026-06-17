@@ -655,7 +655,7 @@
 			"desc": "Exporte ou importe tous les réglages et attributions RFID dans un fichier JSON.",
 			"export": {
 				"title": "Export",
-				"includeWifi": "Inclure les identifiants WiFi",
+				"includeWifi": "Inclure les mots de passe (WiFi, sync, pairs)",
 				"button": "Télécharger la sauvegarde"
 			},
 			"import": {
