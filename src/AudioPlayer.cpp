@@ -181,10 +181,14 @@ void Audio_InfoCallback(Audio::msg_t m) {
 				if (m.msg[5] == '/') { // ID3v2.2 "Title/Songname/Content description:"
 					titleStart = 36;
 				}
+				const char *titleVal = (const char *) m.msg + titleStart;
+				while (*titleVal == ' ') { // trim the leading space after "Title:"
+					titleVal++;
+				}
 				if (gPlayProperties.playlist->size() > 1) {
-					Audio_setTitle("(%u/%u): %s", gPlayProperties.currentTrackNumber + 1, gPlayProperties.playlist->size(), m.msg + titleStart);
+					Audio_setTitle("(%u/%u): %s", gPlayProperties.currentTrackNumber + 1, gPlayProperties.playlist->size(), titleVal);
 				} else {
-					Audio_setTitle("%s", m.msg + titleStart);
+					Audio_setTitle("%s", titleVal);
 				}
 			}
 			// get artist / album (ID3 "Artist:"/"Album:" + VORBISCOMMENT "ARTIST="/"ALBUM=")

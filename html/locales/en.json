@@ -218,6 +218,14 @@
 			"bitrate": "Bitrate",
 			"mono": "Mono",
 			"stereo": "Stereo"
+		},
+		"a11y": {
+			"repeat": "Repeat mode",
+			"sleep": "Sleep timer",
+			"night": "Night mode",
+			"ftp": "FTP server",
+			"bluetooth": "Bluetooth mode",
+			"lock": "Lock controls"
 		}
 	},
 	"files": {
@@ -486,10 +494,7 @@
 			"runBtn": "Sync now",
 			"started": "RFID sync started…",
 			"phpHint": "Server script (dynamic, generates the manifest + RFID sync):",
-			"phpLink": "manifest.php on GitHub",
-			"peerKey": "Peer password (API key)",
 			"peerKeyPlaceholder": "web password of the other ESPuinos",
-			"peerKeyHint": "Used to push to peers. Override per peer with \"host|password\". Empty = this device's web password.",
 			"addPeer": "Add",
 			"peerHostPlaceholder": "IP or hostname",
 			"peerHostRequired": "Please enter an IP/hostname",

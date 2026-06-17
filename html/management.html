@@ -787,6 +787,20 @@
 			box-shadow: 0 0 12px rgba(0, 240, 255, .6);
 		}
 
+		/* Visible keyboard-focus indicator for all interactive controls (accessibility) */
+		.btn:focus-visible,
+		.cp-control-button:focus-visible,
+		.cp-lock-button:focus-visible,
+		.ctrl-button:focus-visible,
+		.nav-link:focus-visible,
+		.form-control:focus-visible,
+		.form-select:focus-visible,
+		a:focus-visible {
+			outline: 2px solid var(--cp-cyan);
+			outline-offset: 2px;
+			box-shadow: 0 0 8px rgba(0, 240, 255, .5);
+		}
+
 		.cp-control-button.active-magenta {
 			color: var(--cp-magenta);
 			border: 1px solid rgba(255, 42, 109, .4);
@@ -1845,13 +1859,13 @@
 						<legend data-i18n="control.title" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0; white-space: nowrap;"></legend>
 						<div class="d-flex align-items-center flex-wrap flex-md-nowrap gap-2 mt-2 mt-md-0" style="margin-bottom: 4px;">
 							<!-- Repeat Button -->
-							<button type="button" class="btn btn-sm cp-control-button" id="btn-repeat-mode" onclick="toggleRepeatMode()">
+							<button type="button" class="btn btn-sm cp-control-button" id="btn-repeat-mode" onclick="toggleRepeatMode()" data-i18n="[aria-label]control.a11y.repeat">
 								<span id="ico-repeat-mode" class="fas fa-redo"></span>
 								<span id="lbl-repeat-mode" class="d-none d-sm-inline" data-i18n="control.repeatOff">Off</span>
 							</button>
 							<!-- Sleep Timer Dropdown -->
 							<div class="dropdown d-inline-flex align-items-center">
-								<button type="button" class="btn btn-sm cp-control-button dropdown-toggle" id="btn-sleep-timer" data-bs-toggle="dropdown" aria-expanded="false">
+								<button type="button" class="btn btn-sm cp-control-button dropdown-toggle" id="btn-sleep-timer" data-bs-toggle="dropdown" aria-expanded="false" data-i18n="[aria-label]control.a11y.sleep">
 									<span class="fas fa-clock"></span>
 									<span id="lbl-sleep-timer" class="d-none d-sm-inline" data-i18n="control.sleepOff">Sleep Off</span>
 								</button>
@@ -1867,18 +1881,18 @@
 								</ul>
 							</div>
 							<!-- Night Mode Button -->
-							<button type="button" class="btn btn-sm cp-control-button" id="btn-night-mode" onclick="sendControl(120)">
+							<button type="button" class="btn btn-sm cp-control-button" id="btn-night-mode" onclick="sendControl(120)" data-i18n="[aria-label]control.a11y.night">
 								<span id="ico-night-mode" class="fas fa-moon"></span>
 								<span id="lbl-night-mode" class="d-none d-sm-inline" data-i18n="control.nightOff">Night Off</span>
 							</button>
 							<!-- FTP Server Button -->
-							<button type="button" class="btn btn-sm cp-control-button" id="btn-ftp" onclick="toggleFtp()">
+							<button type="button" class="btn btn-sm cp-control-button" id="btn-ftp" onclick="toggleFtp()" data-i18n="[aria-label]control.a11y.ftp">
 								<span class="fas fa-server"></span>
 								<span id="lbl-ftp" class="d-none d-sm-inline" data-i18n="control.ftpOff">FTP Off</span>
 							</button>
 							<!-- Bluetooth Mode Dropdown -->
 							<div class="dropdown d-inline-flex align-items-center">
-								<button type="button" class="btn btn-sm cp-control-button dropdown-toggle" id="btn-bt-mode" data-bs-toggle="dropdown" aria-expanded="false">
+								<button type="button" class="btn btn-sm cp-control-button dropdown-toggle" id="btn-bt-mode" data-bs-toggle="dropdown" aria-expanded="false" data-i18n="[aria-label]control.a11y.bluetooth">
 									<span class="fab fa-bluetooth-b"></span>
 									<span id="lbl-bt-mode" class="d-none d-sm-inline" data-i18n="control.btMode">Bluetooth</span>
 								</button>
@@ -1889,7 +1903,7 @@
 								</ul>
 							</div>
 							<!-- Key Lock Button -->
-							<button type="button" class="btn btn-sm cp-lock-button unlocked" id="btn-lock-controls" onclick="sendControl(100)">
+							<button type="button" class="btn btn-sm cp-lock-button unlocked" id="btn-lock-controls" onclick="sendControl(100)" data-i18n="[aria-label]control.a11y.lock">
 								<span id="ico-lock-controls" class="fas fa-lock-open"></span>
 								<span id="lbl-lock-controls" class="d-none d-sm-inline" data-i18n="control.unlocked">Unlocked</span>
 							</button>
@@ -1922,7 +1936,7 @@
 					</div>
 				</div>
 				<br>
-				<legend data-i18n="control.volume" class="col-auto"></legend>
+				<legend class="col-auto"><span data-i18n="control.volume"></span> <span id="volumeValue" class="text-secondary"></span></legend>
 				<div class="slider-container control-volume">
 					<div class="float-end">
 						<button type="button" class="btn btn-primary btn-lg volume-button" onclick="sendControl(177)"
@@ -4311,6 +4325,13 @@
 		var getTrackProgressInterval;
 		var volumeSlider = new Slider("#setVolume");
 		document.getElementById('setVolume').remove();
+		// live numeric readout next to the volume legend
+		function updateVolumeValue(v) {
+			var el = document.getElementById('volumeValue');
+			if (el) { el.textContent = (v | 0) + " / 21"; }
+		}
+		volumeSlider.on('change', function (e) { updateVolumeValue(e && e.newValue !== undefined ? e.newValue : volumeSlider.getValue()); });
+		volumeSlider.on('slide', updateVolumeValue);
 
 		/* Turns a "start mode X" button into a "stop mode X" button while its mode is active */
 		function updateModeButton(id, active, startKey, stopKey, startMode) {
@@ -4527,6 +4548,7 @@
 				}
 				if ("volume" in socketMsg) {
 					volumeSlider.setValue(parseInt(socketMsg.volume));
+					updateVolumeValue(parseInt(socketMsg.volume));
 				}
 				if ("trackinfo" in socketMsg) {
 					document.getElementById('track').innerHTML = socketMsg.trackinfo.name;
