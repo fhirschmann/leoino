@@ -190,6 +190,22 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 
 <div align="center"><img src="docs/img/feat-sync.png" width="860" alt="HTTP file-sync settings"></div>
 
+**RFID-tag syncing** — keep tag assignments in sync across a central PHP server and other ESPuinos (P2P), newest-wins by timestamp, with offline catch-up ([`rfid-sync`](../../releases/tag/rfid-sync)):
+
+<div align="center"><img src="docs/img/feat-rfid-sync.png" width="420" alt="RFID-tag sync settings (server + peers)"></div>
+
+**Learn RFID cards from the file browser** — right-click a file/folder → pick a play mode → a popup asks you to lay the card ([`7b8e303`](../../commit/7b8e303)):
+
+<div align="center"><img src="docs/img/feat-rfid-learn.png" width="520" alt="RFID learn scan popup"></div>
+
+**Listening-time statistics** — today / yesterday / last 7 / last 30 days in the info dialog ([`listening-stats`](../../releases/tag/listening-stats)):
+
+<div align="center"><img src="docs/img/feat-stats.png" width="320" alt="Listening-time statistics in the info dialog"></div>
+
+**Configurable branding** — re-brand the header and footer; empty keeps the default ([`ui-branding`](../../releases/tag/ui-branding)):
+
+<div align="center"><img src="docs/img/feat-branding.png" width="760" alt="Configurable header/footer branding"></div>
+
 ### RFID & audio
 
 | Change | Commit |
