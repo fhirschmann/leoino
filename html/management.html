@@ -2902,94 +2902,79 @@
 		</div>
 		<div class="tab-pane fade" id="nav-sync" role="tabpanel" aria-labelledby="nav-sync-tab">
 			<div class="container" id="syncConfig">
-				<form action="#syncConfig" method="POST" onsubmit="syncSettings(); return false">
-					<div class="mb-3 col-md-12">
-						<legend data-i18n="sync.title"></legend>
-						<p data-i18n="[html]sync.intro"></p>
-						<label for="syncUrl" data-i18n="[prepend]sync.url.title">:</label>
-						<input type="url" class="form-control" id="syncUrl" data-i18n="[placeholder]sync.url.placeholder"
-							name="syncUrl" value="">
-						<label for="syncUser" data-i18n="[prepend]sync.user.title">:</label>
-						<input type="text" class="form-control" id="syncUser"
-							data-i18n="[placeholder]sync.user.placeholder" name="syncUser" value="" autocomplete="off">
-						<label for="syncPwd" data-i18n="[prepend]sync.pwd.title">:</label>
-						<div class="input-group">
-							<input type="password" class="form-control" id="syncPwd"
-								data-i18n="[placeholder]sync.pwd.placeholder" name="syncPwd" value="" autocomplete="off">
-							<button class="btn cp-reveal-btn" type="button" id="syncPwdToggle" tabindex="-1"
-								data-i18n="[title]sync.pwd.show" onclick="togglePasswordField('syncPwd', 'syncPwdToggle')">
-								<i class="fas fa-eye"></i>
-							</button>
-						</div>
-						<small class="text-muted" data-i18n="sync.pwd.hint"></small>
+				<!-- ===== Section 1: file synchronization ===== -->
+				<fieldset class="col-md-12 mb-4">
+					<legend class="w-auto" data-i18n="sync.title"></legend>
+					<p data-i18n="[html]sync.intro"></p>
+					<label for="syncUrl" data-i18n="[prepend]sync.url.title">:</label>
+					<input type="url" class="form-control" id="syncUrl" data-i18n="[placeholder]sync.url.placeholder"
+						name="syncUrl" value="">
+					<label for="syncUser" data-i18n="[prepend]sync.user.title">:</label>
+					<input type="text" class="form-control" id="syncUser"
+						data-i18n="[placeholder]sync.user.placeholder" name="syncUser" value="" autocomplete="off">
+					<label for="syncPwd" data-i18n="[prepend]sync.pwd.title">:</label>
+					<div class="input-group">
+						<input type="password" class="form-control" id="syncPwd"
+							data-i18n="[placeholder]sync.pwd.placeholder" name="syncPwd" value="" autocomplete="off">
+						<button class="btn cp-reveal-btn" type="button" id="syncPwdToggle" tabindex="-1"
+							data-i18n="[title]sync.pwd.show" onclick="togglePasswordField('syncPwd', 'syncPwdToggle')">
+							<i class="fas fa-eye"></i>
+						</button>
 					</div>
-					<div class="mb-3 col-md-12">
-						<div class="d-flex gap-2">
-							<input type="checkbox" id="syncAbortBtn" name="syncAbortBtn" value="false">
-							<label for="syncAbortBtn" data-i18n="sync.abortBtn"></label>
-						</div>
-						<small class="text-muted" data-i18n="sync.abortBtn.hint"></small>
+					<small class="text-muted" data-i18n="sync.pwd.hint"></small>
+					<div class="d-flex gap-2 mt-3">
+						<input type="checkbox" id="syncAbortBtn" name="syncAbortBtn" value="false">
+						<label for="syncAbortBtn" data-i18n="sync.abortBtn"></label>
 					</div>
-					<hr>
-					<div class="mb-3 col-md-12">
-						<legend data-i18n="sync.rfid.title"></legend>
-						<p class="small text-muted" data-i18n="[html]sync.rfid.desc"></p>
-						<label for="rfidSyncUrl" data-i18n="[prepend]sync.rfid.url">:</label>
-						<input type="url" class="form-control" id="rfidSyncUrl" name="rfidSyncUrl"
-							data-i18n="[placeholder]sync.rfid.urlPlaceholder" value="">
-						<small class="text-muted d-block mb-2">
-							<span data-i18n="sync.rfid.phpHint"></span>
-							<a href="https://github.com/fhirschmann/leoino/blob/master/server/manifest.php"
-								target="_blank" rel="noopener" data-i18n="sync.rfid.phpLink"></a>
-						</small>
-						<label for="rfidPeers" data-i18n="[prepend]sync.rfid.peers">:</label>
-						<input type="text" class="form-control" id="rfidPeers" name="rfidPeers"
-							data-i18n="[placeholder]sync.rfid.peersPlaceholder" value="" autocomplete="off">
-						<small class="text-muted" data-i18n="sync.rfid.peersHint"></small>
-						<div class="d-flex gap-2 mt-2">
-							<input type="checkbox" id="rfidSyncLearn" name="rfidSyncLearn" value="false">
-							<label for="rfidSyncLearn" data-i18n="sync.rfid.onLearn"></label>
-						</div>
-					</div>
-					<div class="text-center">
-						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
-							type="submit" class="btn btn-primary" data-i18n="submit"></button>
-					</div>
-				</form>
-				<hr>
-				<div class="col-md-12">
-					<legend data-i18n="sync.rfid.runTitle"></legend>
-					<p class="small text-muted" data-i18n="sync.rfid.runDesc"></p>
-					<div class="text-center">
-						<button type="button" class="btn btn-primary" onclick="startRfidSync()"
-							data-i18n="sync.rfid.runBtn"></button>
-						<span id="rfidSyncStatus" class="ms-2 small text-secondary"></span>
-					</div>
-				</div>
-				<hr>
-				<div class="col-md-12">
-					<legend data-i18n="sync.run.title"></legend>
-					<div data-i18n="sync.run.desc"></div>
-					<br>
-					<div class="text-center">
-						<button type="button" class="btn btn-primary" onclick="jumpToSyncRun()"
+					<small class="text-muted" data-i18n="sync.abortBtn.hint"></small>
+					<div class="text-center mt-3">
+						<button type="button" class="btn btn-primary" onclick="syncSettings()" data-i18n="submit"></button>
+						<button type="button" class="btn btn-outline-secondary ms-2" onclick="jumpToSyncRun()"
 							data-i18n="sync.run.gotools"></button>
 					</div>
-				</div>
-				<hr>
-				<div class="col-md-12">
-					<legend data-i18n="sync.manifest.title"></legend>
-					<p data-i18n="[html]sync.manifest.desc"></p>
-					<pre class="cp-code-block"><code>{
+					<details class="mt-3">
+						<summary class="text-muted" data-i18n="sync.manifest.title"></summary>
+						<p class="mt-2" data-i18n="[html]sync.manifest.desc"></p>
+						<pre class="cp-code-block"><code>{
   "version": 1,
   "files": [
     { "path": "Pumuckl/01.mp3", "size": 4823104 },
     { "path": "Pumuckl/02.mp3", "size": 5012992 }
   ]
 }</code></pre>
-					<p data-i18n="[html]sync.manifest.fields"></p>
-					<p data-i18n="[html]sync.manifest.nginx"></p>
-				</div>
+						<p data-i18n="[html]sync.manifest.fields"></p>
+						<p data-i18n="[html]sync.manifest.nginx"></p>
+					</details>
+				</fieldset>
+
+				<!-- ===== Section 2: RFID-tag sync ===== -->
+				<fieldset class="col-md-12 mb-4">
+					<legend class="w-auto" data-i18n="sync.rfid.title"></legend>
+					<p class="small text-muted" data-i18n="[html]sync.rfid.desc"></p>
+					<label for="rfidSyncUrl" data-i18n="[prepend]sync.rfid.url">:</label>
+					<input type="url" class="form-control" id="rfidSyncUrl" name="rfidSyncUrl"
+						data-i18n="[placeholder]sync.rfid.urlPlaceholder" value="">
+					<small class="text-muted d-block mb-2">
+						<span data-i18n="sync.rfid.phpHint"></span>
+						<a href="https://github.com/fhirschmann/leoino/blob/master/server/manifest.php"
+							target="_blank" rel="noopener" data-i18n="sync.rfid.phpLink"></a>
+					</small>
+					<label for="rfidPeers" data-i18n="[prepend]sync.rfid.peers">:</label>
+					<input type="text" class="form-control" id="rfidPeers" name="rfidPeers"
+						data-i18n="[placeholder]sync.rfid.peersPlaceholder" value="" autocomplete="off">
+					<small class="text-muted" data-i18n="sync.rfid.peersHint"></small>
+					<div class="d-flex gap-2 mt-2">
+						<input type="checkbox" id="rfidSyncLearn" name="rfidSyncLearn" value="false">
+						<label for="rfidSyncLearn" data-i18n="sync.rfid.onLearn"></label>
+					</div>
+					<small class="text-muted d-block" data-i18n="sync.rfid.runDesc"></small>
+					<div class="text-center mt-3">
+						<button type="button" class="btn btn-primary" onclick="syncSettings()" data-i18n="submit"></button>
+						<button type="button" class="btn btn-outline-secondary ms-2" onclick="startRfidSync()"
+							data-i18n="sync.rfid.runBtn"></button>
+						<span id="rfidSyncStatus" class="ms-2 small text-secondary"></span>
+					</div>
+				</fieldset>
 			</div>
 		</div>
 		<div class="tab-pane fade" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
@@ -5161,18 +5146,44 @@
 			return parseInt(input.replace(/^#([\da-f])([\da-f])([\da-f])$/i, '#$1$1$2$2$3$3').substring(1), 16);
 		};
 
-		// Apply a custom header (navbar brand) and footer brand. Empty values keep the defaults.
+		// Default header/footer texts, captured once so clearing a branding field reverts to them.
+		var brandDefaults = null;
+		function captureBrandDefaults() {
+			if (brandDefaults) return;
+			var h = document.getElementById('navbar-brand-co');
+			var fb = document.getElementById('cp-footer-brand');
+			var fc = document.getElementById('cp-footer-copy');
+			brandDefaults = {
+				header: h ? h.textContent : "",
+				footerBrand: fb ? fb.textContent : "",
+				footerCopy: fc ? fc.innerHTML : ""
+			};
+		}
+		// Apply a custom header (navbar brand) and footer brand. Empty values revert to the defaults.
 		function applyBranding(header, footer) {
-			if (header !== undefined && header !== null && header.trim() !== "") {
-				document.getElementById('navbar-brand-co').textContent = header;
+			captureBrandDefaults();
+			var h = document.getElementById('navbar-brand-co');
+			if (h) {
+				h.textContent = (header && header.trim() !== "") ? header : brandDefaults.header;
 			}
-			if (footer !== undefined && footer !== null && footer.trim() !== "") {
-				var brand = document.getElementById('cp-footer-brand');
+			var brand = document.getElementById('cp-footer-brand');
+			var copy = document.getElementById('cp-footer-copy');
+			if (footer && footer.trim() !== "") {
 				if (brand) { brand.textContent = footer; }
-				var copy = document.getElementById('cp-footer-copy');
 				if (copy) { copy.innerHTML = '© ' + new Date().getFullYear() + ' ' + escapeHtml(footer); }
+			} else {
+				if (brand) { brand.textContent = brandDefaults.footerBrand; }
+				if (copy) { copy.innerHTML = brandDefaults.footerCopy; }
 			}
 		}
+		// Live preview while typing in the branding fields.
+		document.addEventListener("DOMContentLoaded", function () {
+			var h = document.getElementById('headerText');
+			var f = document.getElementById('footerText');
+			var live = function () { applyBranding(h ? h.value : "", f ? f.value : ""); };
+			if (h) h.addEventListener('input', live);
+			if (f) f.addEventListener('input', live);
+		});
 
 		async function genSettings(clickedId) {
 			lastIdclicked = clickedId;

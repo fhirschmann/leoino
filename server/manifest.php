@@ -12,7 +12,18 @@
  *                or {id, timestamp, modId}                 (modification card)
  *
  * Deploy: place this at the web root that serves your sync domain. Audio files live in ./sd.
- * The RFID store (rfid_master.json) is created next to this script on the first POST.
+ * The RFID store (rfid_master.json) is created next to this script on the first POST. Needs PHP-FPM.
+ *
+ * nginx (e.g. SWAG) — route the endpoint to PHP-FPM and protect it with basic auth:
+ *     root /path/to/espuino/sd;            # audio files are served from here
+ *     location = /manifest.php {
+ *         auth_basic "Restricted";
+ *         auth_basic_user_file /config/nginx/.htpasswd_espuino;
+ *         include /etc/nginx/fastcgi_params;
+ *         fastcgi_param SCRIPT_FILENAME /path/to/espuino/manifest.php;
+ *         fastcgi_pass 127.0.0.1:9000;
+ *     }
+ * Point the ESPuino's file-sync URL and RFID-sync URL at https://<host>/manifest.php.
  */
 
 header('Content-Type: application/json; charset=utf-8');
