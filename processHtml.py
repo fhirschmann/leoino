@@ -70,11 +70,20 @@ BINARY_FILES = [
 class HtmlHeaderProcessor:
     @staticmethod
     def _safe_minify(content, suffix):
+        is_html = suffix in [".html", ".htm"]
         lines = []
+        in_pre = False  # never strip whitespace inside <pre> blocks (preserves e.g. JSON examples)
         for line in content.splitlines():
+            if is_html and (in_pre or "<pre" in line):
+                lines.append(line)  # keep verbatim
+                if "<pre" in line and "</pre>" not in line:
+                    in_pre = True
+                elif "</pre>" in line:
+                    in_pre = False
+                continue
             stripped = line.strip()
             if stripped:
-                if suffix in [".html", ".htm"]:
+                if is_html:
                     stripped = re.sub(r'>\s+<', '><', stripped)
                 lines.append(stripped)
         return "\n".join(lines)
