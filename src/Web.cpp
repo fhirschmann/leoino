@@ -988,6 +988,41 @@ void webserverStart(void) {
 			request->send(200, "application/json", buf);
 		});
 
+		// Detailed info about the currently playing track (for the Control-tab info dialog):
+		// ID3 title/artist/album, file path + size, play mode, track x/y, position/duration and the
+		// RFID tag that started the playlist. Computed on demand so it doesn't bloat the websocket.
+		wServer.on("/currenttrack", HTTP_GET, [](AsyncWebServerRequest *request) {
+			AsyncJsonResponse *response = new AsyncJsonResponse(false);
+			JsonObject o = response->getRoot();
+			const bool active = gPlayProperties.playlist && (gPlayProperties.playMode != NO_PLAYLIST) && (gPlayProperties.playMode != BUSY);
+			o["active"] = active;
+			o["title"] = gPlayProperties.title;
+			o["artist"] = gPlayProperties.artist;
+			o["album"] = gPlayProperties.album;
+			o["playMode"] = gPlayProperties.playMode;
+			o["isWebstream"] = gPlayProperties.isWebstream;
+			o["rfidTag"] = gPlayProperties.playRfidTag;
+			o["elapsed"] = AudioPlayer_GetCurrentTime();
+			o["duration"] = AudioPlayer_GetFileDuration();
+			if (active) {
+				o["trackNumber"] = gPlayProperties.currentTrackNumber + 1;
+				o["totalTracks"] = gPlayProperties.playlist->size();
+				const char *path = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
+				if (path) {
+					o["path"] = path;
+					if (!gPlayProperties.isWebstream && path[0] == '/') {
+						File f = gFSystem.open(path);
+						if (f) {
+							o["size"].set((uint64_t) f.size());
+							f.close();
+						}
+					}
+				}
+			}
+			response->setLength();
+			request->send(response);
+		});
+
 		// WiFi scan
 		wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
 

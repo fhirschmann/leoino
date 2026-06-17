@@ -730,11 +730,13 @@
 			box-sizing: border-box;
 		}
 
+		/* Unlocked is the neutral/default state -> look like the other (inactive) control buttons,
+		   so it no longer stands out as if it were "active". Only "locked" gets an accent colour. */
 		.cp-lock-button.unlocked {
-			color: var(--cp-cyan);
-			border: 1px solid rgba(0, 240, 255, .4);
-			background: rgba(0, 240, 255, .05);
-			box-shadow: 0 0 8px rgba(0, 240, 255, .1);
+			color: var(--cp-dim);
+			border: 1px solid var(--cp-border);
+			background: rgba(22, 33, 60, .2);
+			box-shadow: 0 0 6px rgba(0, 0, 0, .2);
 		}
 
 		.cp-lock-button.unlocked:hover {
@@ -1553,6 +1555,20 @@
 			</div>
 		</div>
 	</nav>
+	<!-- Modal dialog: detailed info about the currently playing track (ID3, size, RFID, ...) -->
+	<div class="modal fade" data-bs-backdrop="static" id="modalTrackInfo" role="dialog">
+		<div class="modal-dialog modal-dialog-scrollable" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" data-i18n="control.trackinfo.title"></h5>
+				</div>
+				<div class="modal-body" id="modalTrackInfoContent"></div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-i18n="ok"></button>
+				</div>
+			</div>
+		</div>
+	</div>
 	<!-- Modal dialog for info / shutdown / restart-->
 	<div class="modal fade bd-info-modal-xl" data-bs-backdrop="static" id="modalInfo" role="dialog">
 		<div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
@@ -1934,7 +1950,13 @@
 				</div>
 				<br />
 				<div class="mb-3 col-md-12">
-					<legend data-i18n="control.current"></legend>
+					<legend class="d-flex align-items-center justify-content-between" style="border-bottom:none;">
+						<span data-i18n="control.current"></span>
+						<button type="button" class="btn btn-sm cp-control-button" id="btn-track-info"
+							onclick="showTrackInfo()" data-i18n="[title]control.trackinfo.title">
+							<span class="fas fa-circle-info"></span>
+						</button>
+					</legend>
 					<div id="track"></div>
 					<div id="trackmeta" class="text-secondary small mb-1"></div>
 					<div id="trackProgressDiv" class="progress progress-sm">
@@ -6431,6 +6453,42 @@
 			} catch (e) {
 				console.log("failed to fetch sd capacity", e);
 			}
+		}
+
+		// Detailed info dialog for the currently playing track (ID3 tags, size, RFID tag, ...).
+		async function showTrackInfo() {
+			let d;
+			try { d = await (await fetch("http://" + host + "/currenttrack")).json(); } catch (e) { d = null; }
+			const el = document.getElementById('modalTrackInfoContent');
+			const t = (k) => i18next.t('control.trackinfo.' + k);
+			if (!d || !d.active) {
+				el.innerHTML = '<p class="text-secondary mb-0">' + escapeHtml(t('none')) + '</p>';
+				new bootstrap.Modal(document.getElementById('modalTrackInfo')).show();
+				return;
+			}
+			const fmtBytes = (n) => {
+				n = Number(n); if (!isFinite(n) || n <= 0) return null;
+				const u = ['B', 'KB', 'MB', 'GB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+				return (i === 0 ? n : (n < 10 ? n.toFixed(1) : Math.round(n))) + ' ' + u[i];
+			};
+			const rows = [];
+			const add = (labelKey, value) => { if (value === undefined || value === null || value === '') return; rows.push('<tr><th scope="row">' + t(labelKey) + '</th><td class="text-break">' + escapeHtml(String(value)) + '</td></tr>'); };
+			add('songTitle', d.title);
+			add('artist', d.artist);
+			add('album', d.album);
+			if (d.isWebstream) add('type', t('webstream'));
+			add('path', d.path);
+			add('size', fmtBytes(d.size));
+			if (d.totalTracks > 1) add('track', d.trackNumber + ' / ' + d.totalTracks);
+			if (d.playMode) add('playmode', i18next.t('files.rfid.playmode.mode.' + d.playMode));
+			if (d.duration > 0) add('position', secondsToTime(d.elapsed || 0) + ' / ' + secondsToTime(d.duration));
+			if (d.rfidTag && !/^0+$/.test(d.rfidTag)) add('rfid', d.rfidTag);
+			let html = '';
+			// show the cover thumbnail when one is embedded
+			html += '<div class="text-center mb-3"><img src="http://' + host + '/cover?' + Date.now() + '" alt="" style="max-width:160px;max-height:160px;border-radius:6px" onerror="this.style.display=\'none\'"></div>';
+			html += '<table class="table table-sm table-borderless cp-info-table mb-0"><tbody>' + rows.join('') + '</tbody></table>';
+			el.innerHTML = html;
+			new bootstrap.Modal(document.getElementById('modalTrackInfo')).show();
 		}
 
 		async function fetchInfo() {

@@ -198,7 +198,22 @@
 		"sleepOff": "Timer Aus",
 		"sleepEOT": "Nach Track",
 		"sleepEOP": "Nach Playlist",
-		"sleepDisable": "Timer beenden"
+		"sleepDisable": "Timer beenden",
+		"trackinfo": {
+			"title": "Titel-Info",
+			"none": "Es wird gerade nichts abgespielt.",
+			"artist": "Interpret",
+			"album": "Album",
+			"path": "Datei",
+			"size": "Größe",
+			"track": "Track",
+			"playmode": "Wiedergabemodus",
+			"position": "Position",
+			"rfid": "RFID-Karte",
+			"type": "Typ",
+			"webstream": "Webradio",
+			"songTitle": "Titel"
+		}
 	},
 	"files": {
 		"title": "Dateien",

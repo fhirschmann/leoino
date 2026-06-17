@@ -191,7 +191,22 @@
 		"sleepOff": "Minuterie Off",
 		"sleepEOT": "Après Piste",
 		"sleepEOP": "Après Playlist",
-		"sleepDisable": "Désactiver minuterie"
+		"sleepDisable": "Désactiver minuterie",
+		"trackinfo": {
+			"title": "Infos du titre",
+			"none": "Rien n'est en cours de lecture.",
+			"artist": "Artiste",
+			"album": "Album",
+			"path": "Fichier",
+			"size": "Taille",
+			"track": "Piste",
+			"playmode": "Mode de lecture",
+			"position": "Position",
+			"rfid": "Carte RFID",
+			"type": "Type",
+			"webstream": "Webradio",
+			"songTitle": "Titre"
+		}
 	},
 	"files": {
 		"title": "Fichiers",

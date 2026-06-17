@@ -198,7 +198,22 @@
 		"sleepOff": "Sleep Off",
 		"sleepEOT": "After Track",
 		"sleepEOP": "After Playlist",
-		"sleepDisable": "Disable Timer"
+		"sleepDisable": "Disable Timer",
+		"trackinfo": {
+			"title": "Track info",
+			"none": "Nothing is playing right now.",
+			"artist": "Artist",
+			"album": "Album",
+			"path": "File",
+			"size": "Size",
+			"track": "Track",
+			"playmode": "Play mode",
+			"position": "Position",
+			"rfid": "RFID card",
+			"type": "Type",
+			"webstream": "Webradio",
+			"songTitle": "Title"
+		}
 	},
 	"files": {
 		"title": "Files",
