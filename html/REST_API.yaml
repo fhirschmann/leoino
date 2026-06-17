@@ -1,0 +1,929 @@
+openapi: 3.0.0
+info:
+  title: ESPuino API
+  version: 1.0.5
+  description: >-
+    API for the ESPuino, a DIY Smart Speaker project. ESPuino is a DIY Smart
+    Speaker that uses software-based audio decoding, supports various music
+    sources, and offers a user-friendly web interface. It simplifies audio
+    processing and enhances user feedback with Neopixel rings.
+servers:
+  - url: /
+    description: Local Device
+  - url: "http://espuino.local/"
+    description: Development ESPuino
+# When a web password is set, every endpoint (except /login and a few PWA assets)
+# requires authentication. Two options:
+#   * API key (easiest for scripts/curl): send the web password via the "X-API-Key"
+#     header or an "apikey" query parameter, e.g. `curl -H "X-API-Key: <pw>" ...`.
+#   * Session cookie: POST the password to /login (body {"password":"..."}) to get the
+#     ESPUINO_SESSION cookie (used automatically by the browser/Swagger UI).
+# With no web password set, the API is open and authentication is ignored.
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: 'Web password sent as an API key (X-API-Key header or "apikey" query parameter).'
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: ESPUINO_SESSION
+      description: 'Session cookie obtained from POST /login.'
+security:
+  - apiKey: []
+  - cookieAuth: []
+paths:
+  /explorer:
+    get:
+      summary: List the contents of a directory.
+      description: Get a list of files and directories in the specified path.
+      parameters:
+        - in: query
+          name: path
+          schema:
+            type: string
+            default: /
+          description: Path to the directory to be listed.
+      responses:
+        "200":
+          description: Directory content successfully listed.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    dir:
+                      type: boolean
+                      description: >-
+                        True if item is a directory. This parameter is omitted
+                        for a file.
+    post:
+      summary: Upload a file to a directory.
+      description: Upload a file to the specified directory.
+      parameters:
+        - in: query
+          name: path
+          schema:
+            type: string
+          description: Directory path to upload the file.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: File successfully uploaded.
+    delete:
+      summary: Delete a file or directory.
+      description: Delete a file or directory in the specified path.
+      parameters:
+        - in: query
+          name: path
+          schema:
+            type: string
+          description: Path to the file or directory to be deleted.
+      responses:
+        "200":
+          description: File or directory successfully deleted.
+    put:
+      summary: Create a new directory.
+      description: Create a new directory in the specified path.
+      parameters:
+        - in: query
+          name: path
+          schema:
+            type: string
+          description: Path for the new directory to be created.
+      responses:
+        "200":
+          description: Directory successfully created.
+    patch:
+      summary: Rename a file.
+      description: Rename a file from the source path to the destination path.
+      parameters:
+        - in: query
+          name: srcpath
+          schema:
+            type: string
+          description: Current path of the file to be renamed.
+        - in: query
+          name: dstpath
+          schema:
+            type: string
+          description: New path for the file.
+      responses:
+        "200":
+          description: File successfully renamed.
+  /exploreraudio:
+    post:
+      summary: Play an audio file.
+      description: Play an audio file specified by the path.
+      parameters:
+        - in: query
+          name: path
+          schema:
+            type: string
+          description: Path to the audio file or directory.
+        - in: query
+          name: playmode
+          schema:
+            type: string
+          description: Play mode for audio.
+      responses:
+        "200":
+          description: Successful audio play.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+  /explorerdownload:
+    get:
+      summary: Download a file.
+      description: Download a file specified by the path.
+      parameters:
+        - in: query
+          name: path
+          schema:
+            type: string
+          description: Path of the file to download.
+      responses:
+        "200":
+          description: Successful download.
+  /savedSSIDs:
+    get:
+      summary: Get a list of saved networks.
+      description: Get a list of saved Wi-Fi networks.
+      responses:
+        "200":
+          description: Successful response with saved networks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+    post:
+      summary: Save a new network.
+      description: Save a new Wi-Fi network.
+      requestBody:
+        description: Network details to save.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                SSID:
+                  type: string
+                pwd:
+                  type: string
+                static:
+                  type: boolean
+                static_addr:
+                  type: string
+                static_gateway:
+                  type: string
+                static_subnet:
+                  type: string
+                static_dns1:
+                  type: string
+                static_dns2:
+                  type: string
+              required:
+                - SSID
+                - pwd
+      responses:
+        "200":
+          description: Successful network save.
+    delete:
+      summary: Delete a saved network.
+      description: Delete a saved Wi-Fi network by SSID.
+      parameters:
+        - in: query
+          name: ssid
+          schema:
+            type: string
+          description: SSID of the network to delete.
+      responses:
+        "200":
+          description: Successful network deletion.
+  /activeSSID:
+    get:
+      summary: Get the current active network name.
+      description: Get the SSID of the currently active network.
+      responses:
+        "200":
+          description: Successful response with active network name.
+          content:
+            application/json:
+              schema:
+                type: string
+  /wificonfig:
+    get:
+      summary: Get current common Wi-Fi configuration.
+      description: Get the current common Wi-Fi configuration settings.
+      responses:
+        "200":
+          description: Successful response with Wi-Fi configuration.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hostname:
+                    type: string
+                  ScanWiFiOnStart:
+                    type: boolean
+    post:
+      summary: Save current common Wi-Fi configuration.
+      description: Save the current common Wi-Fi configuration settings.
+      requestBody:
+        description: Common Wi-Fi configuration to save.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hostname:
+                  type: string
+                ScanWiFiOnStart:
+                  type: boolean
+              required:
+                - hostname
+                - ScanWiFiOnStart
+      responses:
+        "200":
+          description: Successful Wi-Fi configuration save.
+  /mode:
+    get:
+      summary: Get current operation mode.
+      description: Get the current operation mode of the device (Normal, Bluetooth Sink, or Bluetooth Source).
+      responses:
+        "200":
+          description: Successful response with current operation mode.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode:
+                    type: integer
+                    description: >-
+                      Operation mode: 0 = Normal, 1 = Bluetooth Sink, 2 = Bluetooth Source
+                    enum:
+                      - 0
+                      - 1
+                      - 2
+    post:
+      summary: Set operation mode.
+      description: >-
+        Set the operation mode of the device. The device will restart immediately after receiving this request.
+        Note: The HTTP response may not be received as the device restarts before sending it.
+        The client should display a restart notification immediately after sending this request.
+      requestBody:
+        description: Operation mode to set.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: integer
+                  description: >-
+                    Operation mode: 0 = Normal, 1 = Bluetooth Sink, 2 = Bluetooth Source
+                  enum:
+                    - 0
+                    - 1
+                    - 2
+              required:
+                - mode
+      responses:
+        "200":
+          description: Operation mode change accepted (device restarts immediately - response may not be received).
+        "400":
+          description: Bad request - missing or invalid 'mode' parameter.
+  /settings:
+    get:
+      summary: Get common settings.
+      description: "Get common settings, optionally for a specific section."
+      parameters:
+        - in: query
+          name: section
+          schema:
+            type: string
+          description: Optional section to retrieve specific settings.
+      responses:
+        "200":
+          description: Successful response with common settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  # Include your common settings properties here.
+                  {}
+    post:
+      summary: Save settings.
+      description: Save common settings.
+      requestBody:
+        description: Settings to save.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                general:
+                  type: object
+                  # Include all general settings properties here
+                defaults:
+                  type: object
+                  # Include all defaults settings properties here
+                wifi:
+                  type: object
+                  # Include all Wi-Fi settings properties here
+                led:
+                  type: object
+                  # Include all LED settings properties here
+                battery:
+                  type: object
+                  # Include all battery settings properties here
+                ftp:
+                  type: object
+                  # Include all FTP settings properties here
+                mqtt:
+                  type: object
+                  # Include all MQTT settings properties here
+                bluetooth:
+                  type: object
+                  # Include all Bluetooth settings properties here
+              required:
+                - general
+      responses:
+        "200":
+          description: Successful settings save.
+  /rfid:
+    get:
+      summary: List all saved RFID-tag assignments with details.
+      description: >-
+        Get a list of saved RFID-tag assignments with details. Optionally,
+        provide an ID to list only a single assignment.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: Optional ID to list only a single assignment.
+      responses:
+        "200":
+          description: Successful response with RFID-tag assignments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  # Include your RFID-tag assignment properties here.
+                  additionalProperties: true
+    post:
+      summary: Save or overwrite RFID-tag assignment.
+      description: Save a new RFID-tag assignment or overwrite an existing one.
+      requestBody:
+        description: RFID-tag assignment details to save.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                fileOrUrl:
+                  type: string
+                modId:
+                  type: string
+                playMode:
+                  type: string
+              required:
+                - id
+                - fileOrUrl
+      responses:
+        "200":
+          description: Successful RFID-tag assignment save.
+    delete:
+      summary: Delete an RFID-tag assignment.
+      description: Delete an RFID-tag assignment by providing its ID.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: string
+          description: ID of the RFID-tag assignment to delete.
+      responses:
+        "200":
+          description: Successful RFID-tag assignment deletion.
+  /rfid/ids-only:
+    get:
+      summary: Get an array of RFID tag ID names.
+      description: Returns an array of RFID tag IDs without additional details.
+      responses:
+        "200":
+          description: Successful response with RFID tag IDs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /cover:
+    get:
+      summary: Get album cover image.
+      description: Handle album cover image requests and serve the current cover art image.
+      responses:
+        "200":
+          description: Successful response with album cover image.
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+  /info:
+    get:
+      summary: Get common information.
+      description: Returns a JSON object with common information about ESPuino.
+      responses:
+        "200":
+          description: Successful response with common information.
+          content:
+            application/json:
+              schema:
+                type: object
+                # Include your common information properties here.
+                additionalProperties: true
+  /log:
+    get:
+      summary: Get current log.
+      description: Returns the current log as text.
+      responses:
+        "200":
+          description: Successful response with log text.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /stats:
+    get:
+      summary: Get task runtime information.
+      description: Returns an HTML webpage with task runtime information.
+      responses:
+        "200":
+          description: Successful response with task runtime information.
+          content:
+            text/html:
+              schema:
+                type: string
+  /debug:
+    get:
+      summary: Get debug information.
+      description: Returns task runtime and debug information as JSON.
+      responses:
+        "200":
+          description: Successful response with debug information.
+          content:
+            application/json:
+              schema:
+                type: object
+                # Include your debug information properties here.
+                additionalProperties: true
+  /upload:
+    post:
+      summary: Upload NVS backup.
+      description: Uploads a NVS backup file.
+      responses:
+        "200":
+          description: Successful response for NVS backup upload.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+  /update:
+    post:
+      summary: Upload new firmware.
+      description: Uploads new firmware to ESPuino. Make sure to restart afterwards.
+      responses:
+        "200":
+          description: Successful response for firmware update.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                firmwareUpload:
+                  type: string
+                  format: binary
+  /restart:
+    post:
+      summary: Restart ESPuino.
+      description: Performs a restart of ESPuino. No parameters required.
+      responses:
+        "200":
+          description: Successful response for ESPuino restart.
+  /shutdown:
+    post:
+      summary: Shutdown ESPuino.
+      description: Performs a shutdown (deep-sleep) of ESPuino. No parameters required.
+      responses:
+        "200":
+          description: Successful response for ESPuino shutdown.
+  /rfidnvserase:
+    post:
+      summary: Erase RFID assignments from NVS.
+      description: Erases all RFID assignments from NVS.
+      responses:
+        "200":
+          description: Successful response for RFID assignments erasure.
+  /wifiscan:
+    get:
+      summary: Get nearby WiFi networks.
+      description: >-
+        Get a list of available nearby WiFi networks. The first request will
+        return 0 results unless you start the scan from somewhere else
+        (loop/setup). Do not request more often than 3-5 seconds!
+      responses:
+        "200":
+          description: Successful response with nearby WiFi networks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /trackprogress:
+    get:
+      summary: Get current track progress.
+      description: "Get current track progress, time, and duration."
+      responses:
+        "200":
+          description: Successful response with track progress information.
+          content:
+            application/json:
+              schema:
+                type: object
+                # Include your track progress information properties here.
+                additionalProperties: true
+  /inithalleffectsensor:
+    get:
+      summary: Initialize Hall Effect Sensor Value.
+      description: Initializes the Hall Effect Sensor Value.
+      responses:
+        "200":
+          description: Successful response for initializing Hall Effect Sensor Value.
+  # ----------------------------------------------------------------------------
+  # Fork-specific endpoints (Leo Industries AT-1)
+  # ----------------------------------------------------------------------------
+  /sync:
+    get:
+      tags: [Fork]
+      summary: Get HTTP file-sync status.
+      description: Poll the progress/result of the HTTP(S) file sync.
+      responses:
+        "200":
+          description: Current sync state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    description: "0=idle, 1=syncing, 2=done, 3=failed, 4=stopped"
+                  progress:
+                    type: integer
+                    description: Percent of files processed.
+                  message:
+                    type: string
+                    description: Current file (while syncing) or the result/error message.
+    post:
+      tags: [Fork]
+      summary: Start an HTTP file sync.
+      description: >-
+        Starts a background sync that pulls the files listed in the configured
+        manifest URL onto the SD card. No-op if a sync is already running. If
+        audio is playing it is paused for the SD-writing phase.
+      responses:
+        "200":
+          description: Sync started (or already running).
+  /syncstop:
+    post:
+      tags: [Fork]
+      summary: Stop the running file sync.
+      description: Requests a cooperative cancel of the currently running sync.
+      responses:
+        "200":
+          description: Stop requested.
+  /playlist:
+    post:
+      tags: [Fork]
+      summary: Create an .m3u playlist.
+      description: >-
+        Writes an .m3u playlist to the SD card from the given ordered list of
+        SD-file paths and/or webradio URLs (played interchangeably by LOCAL_M3U).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, tracks]
+              properties:
+                path:
+                  type: string
+                  description: Target path; ".m3u" is appended if missing (e.g. /Playlists/mix).
+                tracks:
+                  type: array
+                  items:
+                    type: string
+                  description: Ordered track lines (SD paths or http(s) URLs).
+      responses:
+        "200":
+          description: Playlist created.
+        "400":
+          description: Missing path or tracks.
+        "500":
+          description: File could not be created.
+  /githubupdate:
+    get:
+      tags: [Fork]
+      summary: Get GitHub OTA status.
+      description: Poll the status of the GitHub firmware update.
+      responses:
+        "200":
+          description: Current update status.
+    post:
+      tags: [Fork]
+      summary: Start a GitHub OTA update.
+      description: Downloads the rolling "latest" firmware from GitHub over HTTPS and flashes it.
+      responses:
+        "200":
+          description: Update started.
+  /version:
+    get:
+      tags: [Fork]
+      summary: Get firmware version info.
+      description: Returns the running build/rolling version and whether an update is available.
+      responses:
+        "200":
+          description: Version info.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /security:
+    get:
+      tags: [Fork]
+      summary: Is web-interface password protection enabled?
+      responses:
+        "200":
+          description: Whether a web password is set.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+    post:
+      tags: [Fork]
+      summary: Set or clear the web-interface password.
+      description: Sets a new web password (enables protection) or clears it when empty.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Password updated.
+  /login:
+    post:
+      tags: [Fork]
+      summary: Log in to the web interface.
+      description: >-
+        Validates the password and sets the ESPUINO_SESSION cookie used to
+        authenticate all subsequent requests.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful; session cookie set.
+        "401":
+          description: Wrong password.
+        "429":
+          description: Temporarily locked after too many failed attempts.
+  /logout:
+    post:
+      tags: [Fork]
+      summary: Log out of the web interface.
+      description: Clears the ESPUINO_SESSION cookie.
+      responses:
+        "200":
+          description: Logged out.
+  /eqrules:
+    get:
+      tags: [Fork]
+      summary: List per-file/folder equalizer rules.
+      responses:
+        "200":
+          description: Equalizer rules.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+  /eqrule:
+    post:
+      tags: [Fork]
+      summary: Set a per-path equalizer rule.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema:
+            type: string
+          description: SD path (file or folder) the rule applies to.
+        - in: query
+          name: low
+          schema:
+            type: integer
+        - in: query
+          name: band
+          schema:
+            type: integer
+        - in: query
+          name: high
+          schema:
+            type: integer
+        - in: query
+          name: profile
+          schema:
+            type: string
+          description: "Profile name (flat/music/speech/voiceBoost) or empty for custom bands."
+      responses:
+        "200":
+          description: Rule stored.
+    delete:
+      tags: [Fork]
+      summary: Delete a per-path equalizer rule.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rule deleted.
+  /activeequalizer:
+    get:
+      tags: [Fork]
+      summary: Get the active equalizer profile.
+      responses:
+        "200":
+          description: Active equalizer settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /bluetoothscan:
+    get:
+      tags: [Fork]
+      summary: Start a Bluetooth device scan.
+      responses:
+        "200":
+          description: Scan started.
+  /bluetoothresults:
+    get:
+      tags: [Fork]
+      summary: Get Bluetooth scan results.
+      responses:
+        "200":
+          description: Discovered devices.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /bluetoothconnect:
+    post:
+      tags: [Fork]
+      summary: Connect to a Bluetooth device.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Connect requested.
+  /sdclean:
+    post:
+      tags: [Fork]
+      summary: Clean the SD card cache.
+      description: Removes ESPuino's cached playlist/index files from the SD card.
+      responses:
+        "200":
+          description: Cleaned.
+  /currenttrack:
+    get:
+      tags: [Fork]
+      summary: Detailed info about the currently playing track.
+      description: >-
+        Returns ID3 title/artist/album, file path + size, play mode, track x/y,
+        codec/sampleRate/bitRate/channels, position/duration and the RFID tag that
+        started the playlist. Powers the Control-tab info dialog.
+      responses:
+        "200":
+          description: Current-track detail (active=false when nothing is playing).
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+  /rfidsync:
+    get:
+      tags: [Fork]
+      summary: RFID-tag sync status.
+      responses:
+        "200":
+          description: '{"status":0..3,"message":"..."} (0 idle,1 running,2 done,3 failed)'
+    post:
+      tags: [Fork]
+      summary: Trigger a full bidirectional RFID-tag sync (server + peers).
+      responses:
+        "200":
+          description: Sync started.
+  /playstats:
+    get:
+      tags: [Fork]
+      summary: Listening-statistics ring buffer (for backup).
+      responses:
+        "200":
+          description: '{"lastDay":<day>,"days":[<365 ints>]}'
+    post:
+      tags: [Fork]
+      summary: Restore the listening-statistics ring buffer (from a backup).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lastDay: { type: integer }
+                days: { type: array, items: { type: integer } }
+      responses:
+        "200":
+          description: Restored.
