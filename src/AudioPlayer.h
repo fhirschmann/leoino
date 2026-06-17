@@ -22,6 +22,8 @@ typedef struct { // Bit field
 	uint8_t playMode; // playMode
 	Playlist *playlist; // playlist
 	char title[255]; // current title
+	char artist[255]; // current artist (from ID3/Vorbis tags, empty if none)
+	char album[255]; // current album (from ID3/Vorbis tags, empty if none)
 	bool repeatCurrentTrack		: 1; // If current track should be looped
 	bool repeatPlaylist			: 1; // If whole playlist should be looped
 	uint16_t currentTrackNumber : 9; // Current tracknumber

@@ -1936,7 +1936,7 @@
 				<div class="mb-3 col-md-12">
 					<legend data-i18n="control.current"></legend>
 					<div id="track"></div>
-					<div></div>
+					<div id="trackmeta" class="text-secondary small mb-1"></div>
 					<div id="trackProgressDiv" class="progress progress-sm">
 						<div id="trackProgress" class="progress-bar" role="progressbar" aria-valuenow="0"
 							aria-valuemin="0" aria-valuemax="100"></div>
@@ -4508,6 +4508,13 @@
 				}
 				if ("trackinfo" in socketMsg) {
 					document.getElementById('track').innerHTML = socketMsg.trackinfo.name;
+					// ID3/Vorbis artist + album (if present): shown as "Artist — Album" under the title
+					var tmeta = document.getElementById('trackmeta');
+					if (tmeta) {
+						var artist = (socketMsg.trackinfo.artist || "").trim();
+						var album = (socketMsg.trackinfo.album || "").trim();
+						tmeta.textContent = [artist, album].filter(Boolean).join(" — ");
+					}
 					setTrackProgress(socketMsg.trackinfo);
 					if ("controlsLocked" in socketMsg.trackinfo) {
 						updateLockControlsState(socketMsg.trackinfo.controlsLocked);

@@ -107,6 +107,7 @@ static void AudioPlayer_SortPlaylist(Playlist *playlist);
 static void AudioPlayer_RandomizePlaylist(Playlist *playlist);
 static size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _playPosition, const uint8_t _playMode, const uint16_t _trackLastPlayed);
 static void AudioPlayer_ClearCover(void);
+static void Audio_SetMeta(char *dest, size_t destSize, const char *line); // store an ID3/Vorbis field value (after ':'/'=') + notify the web UI
 static void audio_id3image(File &file, const size_t pos, const size_t size);
 static void audio_oggimage(File &file, std::vector<uint32_t> v);
 
@@ -179,6 +180,12 @@ void Audio_InfoCallback(Audio::msg_t m) {
 				} else {
 					Audio_setTitle("%s", m.msg + titleStart);
 				}
+			}
+			// get artist / album (ID3 "Artist:"/"Album:" + VORBISCOMMENT "ARTIST="/"ALBUM=")
+			else if (startsWith((char *) m.msg, "Artist") || startsWith((char *) m.msg, "ARTIST=") || startsWith((char *) m.msg, "artist=")) {
+				Audio_SetMeta(gPlayProperties.artist, sizeof(gPlayProperties.artist), (const char *) m.msg);
+			} else if (startsWith((char *) m.msg, "Album") || startsWith((char *) m.msg, "ALBUM=") || startsWith((char *) m.msg, "album=")) {
+				Audio_SetMeta(gPlayProperties.album, sizeof(gPlayProperties.album), (const char *) m.msg);
 			}
 			break;
 		}
@@ -529,6 +536,26 @@ void Audio_setTitle(const char *format, ...) {
 #ifdef MQTT_ENABLE
 	publishMqtt(topicTrack, gPlayProperties.title, false);
 #endif
+}
+
+// Store an ID3/Vorbis metadata field (e.g. "Artist: X" or "ARTIST=X"): copies the value after the
+// first ':' or '=' delimiter (leading spaces trimmed) into dest, then notifies the web UI.
+static void Audio_SetMeta(char *dest, size_t destSize, const char *line) {
+	const char *v = strchr(line, '=');
+	if (!v) {
+		v = strchr(line, ':');
+	}
+	if (v) {
+		v++;
+		while (*v == ' ') {
+			v++;
+		}
+	} else {
+		v = "";
+	}
+	strncpy(dest, v, destSize - 1);
+	dest[destSize - 1] = '\0';
+	Web_SendWebsocketData(0, WebsocketCodeType::TrackInfo);
 }
 
 // Set maxVolume depending on headphone-adjustment is enabled and headphone is/is not connected
@@ -1706,6 +1733,10 @@ void AudioPlayer_SortPlaylist(Playlist *playlist) {
 void AudioPlayer_ClearCover(void) {
 	gPlayProperties.coverFilePos = 0;
 	AudioPlayer_StationLogoUrl = "";
+	// reset per-track metadata too (called at the start of every track), so artist/album from a
+	// previous track don't linger if the new one carries no ID3/Vorbis tags
+	gPlayProperties.artist[0] = '\0';
+	gPlayProperties.album[0] = '\0';
 	// websocket and mqtt notify cover image has changed
 	Web_SendWebsocketData(0, WebsocketCodeType::CoverImg);
 #ifdef MQTT_ENABLE

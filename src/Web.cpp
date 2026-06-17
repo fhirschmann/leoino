@@ -2252,6 +2252,8 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 		entry["numberOfTracks"] = (gPlayProperties.playlist) ? gPlayProperties.playlist->size() : 0;
 		entry["volume"] = AudioPlayer_GetCurrentVolume();
 		entry["name"] = gPlayProperties.title;
+		entry["artist"] = gPlayProperties.artist; // ID3/Vorbis artist (empty if none)
+		entry["album"] = gPlayProperties.album; // ID3/Vorbis album (empty if none)
 		entry["posPercent"] = gPlayProperties.currentRelPos;
 		entry["playMode"] = gPlayProperties.playMode;
 		entry["controlsLocked"] = System_AreControlsLocked();
