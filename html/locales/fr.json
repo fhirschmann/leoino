@@ -207,7 +207,10 @@
 			"rename": "Renommer",
 			"download": "Télécharger",
 			"eq": "Profil EQ",
-			"eqRemove": "Pas d'EQ (retirer)"
+			"eqRemove": "Pas d'EQ (retirer)",
+			"rfid": "Associer RFID",
+			"rfidNoCard": "Posez d'abord une carte RFID",
+			"rfidRemove": "Retirer l'association RFID"
 		},
 		"files": {
 			"title": "Fichiers",

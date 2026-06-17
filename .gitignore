@@ -16,6 +16,7 @@ src/settings-override.h
 src/settings-custom-override.h
 node_modules/
 html/REST_API.yaml
+agents/
 html/*.min.html
 html/locales/*.min.json
 html/js/*.min.min.js

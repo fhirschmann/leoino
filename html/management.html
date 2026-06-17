@@ -1331,37 +1331,29 @@
 			position: relative;
 		}
 
-		/* File/folder size, shown right-aligned and dimmed in the explorer tree */
-		.jstree-anchor[data-size]::after {
-			content: attr(data-size);
+		/* Badges right-aligned after the name: RFID assignment (tag) and/or per-path EQ rule (sliders) */
+		.jstree-anchor[data-rfid]::after,
+		.jstree-anchor[data-eq]::after {
 			float: right;
-			margin-left: 1.5em;
-			font-size: .8em;
-			opacity: .55;
-		}
-
-		/* Badges in front of the name: RFID assignment (tag) and/or per-path EQ rule (sliders) */
-		.jstree-anchor[data-rfid]::before,
-		.jstree-anchor[data-eq]::before {
 			font-family: "Font Awesome 6 Free";
 			font-weight: 900;
 			font-size: .8em;
-			margin-right: .45em;
+			margin-left: .6em;
 			vertical-align: 1px;
 		}
 
-		.jstree-anchor[data-rfid]:not([data-eq])::before {
+		.jstree-anchor[data-rfid]:not([data-eq])::after {
 			content: "\f02b";
 			color: var(--cp-cyan);
 		}
 
-		.jstree-anchor[data-eq]:not([data-rfid])::before {
+		.jstree-anchor[data-eq]:not([data-rfid])::after {
 			content: "\f1de";
 			color: #f0a020;
 		}
 
-		.jstree-anchor[data-rfid][data-eq]::before {
-			content: "\f02b\00a0\f1de";
+		.jstree-anchor[data-rfid][data-eq]::after {
+			content: "\f1de\00a0\f02b";
 			color: var(--cp-cyan);
 		}
 
@@ -3853,7 +3845,7 @@
 			var child = {
 				text: data.name,
 				type: getType(data),
-				a_attr: explorerNodeAttr(fullPath, data.size),
+				a_attr: explorerNodeAttr(fullPath),
 				data: {
 					path: fullPath,
 					directory: data.dir
@@ -3873,6 +3865,10 @@
 		function refreshNode(nodeId) {
 			var ref = $('#explorerTree').jstree(true);
 			var node = ref.get_node(nodeId);
+			// Guard against the virtual root ('#') / nodes without a path (nothing to list).
+			if (!node || !node.data || !node.data.path) {
+				return;
+			}
 			// Refresh the RFID/EQ assignment caches first so the per-node badges are current.
 			loadAssignmentCaches(function () {
 				getData("http://" + host + "/explorer?path=" + encodeURIComponent(node.data.path), function (data) {
@@ -4031,6 +4027,46 @@
 							icon: "fas fa-sliders-h",
 							submenu: eqSubmenu
 						};
+						/* RFID: learn the currently scanned card onto this file/folder (pick a play
+						   mode = assign directly, no tab switch / submit) or remove its assignment. */
+						var rfidSubmenu = {};
+						var scannedId = document.getElementById('rfidIdMusic').value;
+						var hasCard = /^[0-9]{12}$/.test(scannedId || "");
+						if (hasCard) {
+							$('#playMode option').each(function () {
+								var cls = this.className || "";
+								var ok = node.data.directory
+									? /option-folder|option-file-and-folder/.test(cls)
+									: (node.type === "playlist"
+										? /option-file\b|option-file-and-folder|option-stream/.test(cls)
+										: /option-file\b|option-file-and-folder/.test(cls));
+								if (!ok) return;
+								var val = this.value, label = (this.textContent || "").trim() || ("Mode " + val);
+								rfidSubmenu["m" + val] = {
+									label: label,
+									action: (function (v) { return function () { assignRfidToPath(node.data.path, v, nodeId); }; })(val)
+								};
+							});
+						} else {
+							rfidSubmenu.nocard = {
+								label: () => i18next.t("files.context.rfidNoCard"),
+								_disabled: true,
+								action: function () { }
+							};
+						}
+						if (hasRfidAssignment(node.data.path)) {
+							rfidSubmenu.remove = {
+								label: () => i18next.t("files.context.rfidRemove"),
+								icon: "fas fa-times",
+								separator_before: true,
+								action: function () { removeRfidForPath(node.data.path, nodeId); }
+							};
+						}
+						items.rfid = {
+							label: () => i18next.t("files.context.rfid"),
+							icon: "fas fa-tag",
+							submenu: rfidSubmenu
+						};
 						/* Refresh */
 						items.refresh = {
 							label: () => i18next.t("files.context.refresh"),
@@ -4109,7 +4145,7 @@
 						var newChild = {
 							text: data[i].name,
 							type: getType(data[i]),
-							a_attr: explorerNodeAttr("/" + data[i].name, data[i].size),
+							a_attr: explorerNodeAttr("/" + data[i].name),
 							data: {
 								path: "/" + data[i].name,
 								directory: data[i].dir
@@ -6156,32 +6192,62 @@
 		// Cache of per-path EQ rules (loaded from the device).
 		window.eqRules = window.eqRules || [];
 		window.rfidPaths = window.rfidPaths || new Set();
-		// Human-readable byte size (e.g. "3.2 MB") for the explorer tree.
-		function formatBytes(n) {
-			n = Number(n);
-			if (!isFinite(n) || n < 0) return "";
-			if (n < 1024) return n + " B";
-			var units = ["KB", "MB", "GB", "TB"], i = -1, v = n;
-			do { v /= 1024; i++; } while (v >= 1024 && i < units.length - 1);
-			return (v < 10 ? v.toFixed(1) : Math.round(v)) + " " + units[i];
-		}
-		// Cache the set of file/URL paths that have an RFID tag assigned (for the explorer badge).
+		window.rfidPathIds = window.rfidPathIds || {};
+		// Cache the file/URL paths that have an RFID tag assigned (Set for the badge) plus a
+		// path -> [tagId, ...] map so an assignment can be removed straight from the explorer.
 		function loadRfidPaths(cb) {
 			getData("http://" + host + "/rfid", function (data) {
 				var set = new Set();
+				var byPath = {};
 				if (Array.isArray(data)) {
 					data.forEach(function (t) {
-						if (t && typeof t.fileOrUrl === "string" && t.fileOrUrl.charAt(0) === "/") {
+						if (t && t.id && typeof t.fileOrUrl === "string" && t.fileOrUrl.charAt(0) === "/") {
 							set.add(t.fileOrUrl);
+							(byPath[t.fileOrUrl] = byPath[t.fileOrUrl] || []).push(t.id);
 						}
 					});
 				}
 				window.rfidPaths = set;
+				window.rfidPathIds = byPath;
 				if (cb) cb();
 			});
 		}
 		function hasRfidAssignment(path) {
 			return !!(window.rfidPaths && window.rfidPaths.has(path));
+		}
+		// Assign the currently scanned RFID card to a file/folder path with the given play mode
+		// (the elegant path: triggered from the explorer context menu, no tab switch / submit).
+		async function assignRfidToPath(path, playMode, nodeId) {
+			var id = document.getElementById('rfidIdMusic').value;
+			if (!/^[0-9]{12}$/.test(id || "")) {
+				toaster.warning(i18next.t("files.context.rfidNoCard"));
+				return;
+			}
+			await fetch("http://" + host + "/settings", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ rfidAssign: { rfidIdMusic: id, fileOrUrl: removeTrSlash(path), playMode: String(playMode) } })
+			});
+			toaster.info(i18next.t("toast.saved"));
+			refreshRfidBadgesAround(nodeId);
+		}
+		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.
+		async function removeRfidForPath(path, nodeId) {
+			var ids = (window.rfidPathIds && window.rfidPathIds[path]) || [];
+			if (!ids.length) { return; }
+			for (var i = 0; i < ids.length; i++) {
+				await fetch("http://" + host + "/rfid?id=" + encodeURIComponent(ids[i]), { method: "DELETE" });
+			}
+			flashActionOk();
+			refreshRfidBadgesAround(nodeId);
+		}
+		// Reload the RFID cache and re-render the affected explorer level so badges reflect the change.
+		function refreshRfidBadgesAround(nodeId) {
+			var inst = $('#explorerTree').jstree(true);
+			loadRfidPaths(function () {
+				if (inst && nodeId) { refreshNode(inst.get_parent(nodeId)); }
+				if (typeof toolsTabActive !== "undefined" && toolsTabActive) { rebuildRFIDList(); }
+			});
 		}
 		// True when a per-path EQ rule is defined for exactly this path (not just inherited).
 		function hasEqRuleExact(path) {
@@ -6208,12 +6274,9 @@
 				if (eq) { anchor.attr("data-eq", "1"); } else { anchor.removeAttr("data-eq"); }
 			}
 		}
-		// Build the jstree anchor attributes (size text + RFID/EQ badge markers) for a node.
-		function explorerNodeAttr(fullPath, size) {
+		// Build the jstree anchor attributes (RFID/EQ badge markers) for a node.
+		function explorerNodeAttr(fullPath) {
 			var a = {};
-			if (size !== undefined && size !== null) {
-				a["data-size"] = formatBytes(size);
-			}
 			if (hasRfidAssignment(fullPath)) {
 				a["data-rfid"] = "1";
 			}

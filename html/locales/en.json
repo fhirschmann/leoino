@@ -86,8 +86,8 @@
 			"button4": "Btn4-Button",
 			"button5": "Btn5-Button",
 			"button6": "Btn6-Button"
-			},
-			"multibuttons": {
+		},
+		"multibuttons": {
 			"title": "Multi-Button Assignments",
 			"01": "0+1 (Next + Prev)",
 			"02": "0+2 (Next + Play/Pause)",
@@ -110,8 +110,7 @@
 			"45": "4+5 (Btn4 + Btn5)",
 			"46": "4+6 (Btn4 + Btn6)",
 			"56": "5+6 (Btn5 + Btn6)"
-			},
-
+		},
 		"rotary": {
 			"title": "Rotary encoder",
 			"reverse": "Reverse direction of rotation"
@@ -215,7 +214,10 @@
 			"rename": "Rename",
 			"download": "Download",
 			"eq": "EQ profile",
-			"eqRemove": "No EQ (remove)"
+			"eqRemove": "No EQ (remove)",
+			"rfid": "Assign RFID",
+			"rfidNoCard": "Place an RFID card first",
+			"rfidRemove": "Remove RFID assignment"
 		},
 		"files": {
 			"title": "Files",
@@ -531,7 +533,6 @@
 				"description": "8-digit password in hexadecimal format (e.g. 01020304) for reading SLIX2 tags."
 			},
 			"mfrc522Gain": "MFRC522 Gain",
-
 			"mfrc522GainExp": "Sets the sensitivity of the MFRC522 RFID reader. Possible values are 0 (lowest sensitivity) to 7 (highest sensitivity). Default is 7."
 		},
 		"options": {

@@ -214,7 +214,10 @@
 			"rename": "Umbenennen",
 			"download": "Herunterladen",
 			"eq": "EQ-Profil",
-			"eqRemove": "Kein EQ (entfernen)"
+			"eqRemove": "Kein EQ (entfernen)",
+			"rfid": "RFID anlernen",
+			"rfidNoCard": "Erst RFID-Karte auflegen",
+			"rfidRemove": "RFID-Zuweisung entfernen"
 		},
 		"files": {
 			"title": "Dateien",
