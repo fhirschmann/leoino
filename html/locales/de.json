@@ -212,7 +212,12 @@
 			"rfid": "RFID-Karte",
 			"type": "Typ",
 			"webstream": "Webradio",
-			"songTitle": "Titel"
+			"songTitle": "Titel",
+			"codec": "Codec",
+			"samplerate": "Abtastrate",
+			"bitrate": "Bitrate",
+			"mono": "Mono",
+			"stereo": "Stereo"
 		}
 	},
 	"files": {

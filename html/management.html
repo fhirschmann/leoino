@@ -6481,6 +6481,12 @@
 			add('size', fmtBytes(d.size));
 			if (d.totalTracks > 1) add('track', d.trackNumber + ' / ' + d.totalTracks);
 			if (d.playMode) add('playmode', i18next.t('files.rfid.playmode.mode.' + d.playMode));
+			if (d.codec) {
+				var ch = d.channels === 1 ? t('mono') : (d.channels === 2 ? t('stereo') : (d.channels ? d.channels + ' ch' : ''));
+				add('codec', d.codec + (ch ? ' · ' + ch : ''));
+			}
+			if (d.sampleRate > 0) add('samplerate', (d.sampleRate / 1000).toFixed(1).replace(/\.0$/, '') + ' kHz');
+			if (d.bitRate > 0) add('bitrate', Math.round(d.bitRate / 1000) + ' kbps');
 			if (d.duration > 0) add('position', secondsToTime(d.elapsed || 0) + ' / ' + secondsToTime(d.duration));
 			if (d.rfidTag && !/^0+$/.test(d.rfidTag)) add('rfid', d.rfidTag);
 			let html = '';

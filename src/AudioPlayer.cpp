@@ -49,6 +49,12 @@ static uint8_t AudioPlayer_InitVolume = AUDIOPLAYER_VOLUME_INIT;
 uint32_t AudioPlayer_CurrentTime = 0;
 uint32_t AudioPlayer_FileDuration = 0;
 
+// current stream format (cached from the audio task; 0/"" when nothing is decoding)
+uint32_t AudioPlayer_BitRate = 0;
+uint32_t AudioPlayer_SampleRate = 0;
+uint8_t AudioPlayer_Channels = 0;
+char AudioPlayer_CodecName[16] = "";
+
 // Playtime stats
 time_t playTimeSecTotal = 0;
 time_t playTimeSecSinceStart = 0;
@@ -521,6 +527,19 @@ uint32_t AudioPlayer_GetFileDuration(void) {
 	return AudioPlayer_FileDuration;
 }
 
+uint32_t AudioPlayer_GetBitRate(void) {
+	return AudioPlayer_BitRate;
+}
+uint32_t AudioPlayer_GetSampleRate(void) {
+	return AudioPlayer_SampleRate;
+}
+uint8_t AudioPlayer_GetChannels(void) {
+	return AudioPlayer_Channels;
+}
+const char *AudioPlayer_GetCodecName(void) {
+	return AudioPlayer_CodecName;
+}
+
 String AudioPlayer_GetStationLogoUrl(void) {
 	return AudioPlayer_StationLogoUrl;
 }
@@ -643,6 +662,15 @@ void AudioPlayer_Loop() {
 		// Update current playtime and duration
 		AudioPlayer_CurrentTime = audio->getAudioCurrentTime();
 		AudioPlayer_FileDuration = audio->getAudioFileDuration();
+		// Cache the current stream format for the now-playing info dialog (read cross-core)
+		AudioPlayer_BitRate = audio->getBitRate();
+		AudioPlayer_SampleRate = audio->getSampleRate();
+		AudioPlayer_Channels = audio->getChannels();
+		{
+			const char *cn = audio->getCodecname();
+			strncpy(AudioPlayer_CodecName, cn ? cn : "", sizeof(AudioPlayer_CodecName) - 1);
+			AudioPlayer_CodecName[sizeof(AudioPlayer_CodecName) - 1] = '\0';
+		}
 		// Calculate relative position in file (for trackprogress neopixel & web-ui)
 		gPlayProperties.audioFileDuration = AudioPlayer_FileDuration;
 		if (!gPlayProperties.playlistFinished && AudioPlayer_FileDuration > 0) {

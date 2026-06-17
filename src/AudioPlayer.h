@@ -100,4 +100,8 @@ time_t AudioPlayer_GetPlayTimeSinceStart(void);
 time_t AudioPlayer_GetPlayTimeAllTime(void);
 uint32_t AudioPlayer_GetCurrentTime(void);
 uint32_t AudioPlayer_GetFileDuration(void);
+uint32_t AudioPlayer_GetBitRate(void); // current stream bitrate (bit/s), 0 if unknown
+uint32_t AudioPlayer_GetSampleRate(void); // current sample rate (Hz), 0 if unknown
+uint8_t AudioPlayer_GetChannels(void); // channel count (1=mono, 2=stereo), 0 if unknown
+const char *AudioPlayer_GetCodecName(void); // codec name (e.g. "MP3", "FLAC"), "" if unknown
 String AudioPlayer_GetStationLogoUrl(void);

@@ -205,7 +205,12 @@
 			"rfid": "Carte RFID",
 			"type": "Type",
 			"webstream": "Webradio",
-			"songTitle": "Titre"
+			"songTitle": "Titre",
+			"codec": "Codec",
+			"samplerate": "Échantillonnage",
+			"bitrate": "Débit",
+			"mono": "Mono",
+			"stereo": "Stéréo"
 		}
 	},
 	"files": {

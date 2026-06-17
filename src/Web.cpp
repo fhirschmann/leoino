@@ -1004,6 +1004,10 @@ void webserverStart(void) {
 			o["rfidTag"] = gPlayProperties.playRfidTag;
 			o["elapsed"] = AudioPlayer_GetCurrentTime();
 			o["duration"] = AudioPlayer_GetFileDuration();
+			o["bitRate"] = AudioPlayer_GetBitRate();
+			o["sampleRate"] = AudioPlayer_GetSampleRate();
+			o["channels"] = AudioPlayer_GetChannels();
+			o["codec"] = AudioPlayer_GetCodecName();
 			if (active) {
 				o["trackNumber"] = gPlayProperties.currentTrackNumber + 1;
 				o["totalTracks"] = gPlayProperties.playlist->size();
