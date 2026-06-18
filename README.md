@@ -101,6 +101,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 
 | Change | Commit |
 | --- | --- |
+| **HTTP-sync robustness**: the file-sync manifest is now streamed straight from the network into the JSON parser (instead of buffering the whole payload in a `String` first), roughly halving peak RAM during the parse on large manifests; the cross-core sync progress message is guarded by a spinlock so the web UI can never read a half-written line | [`PENDING3`](../../commit/PENDING3) |
 | PWA support: web app manifest + app icon, "add to home screen" with proper icon and name | [`b4287b9`](../../commit/b4287b9) |
 | PWA offline fallback: a service worker serves a cyberpunk "ESPuino Offline" page (with auto-reconnect) instead of a black screen when the home-screen app is launched while the player is powered off | [`bd07a7c`](../../commit/bd07a7c) |
 | Full backup: export/import of all settings + RFID assignments as JSON, WiFi credentials optional | [`4c90ff4`](../../commit/4c90ff4) |

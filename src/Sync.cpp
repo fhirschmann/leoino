@@ -15,6 +15,7 @@
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <memory>
+#include <stdarg.h>
 
 // Abort a single file download if no data arrives for this long (connection still
 // "open" but stalled), so one bad/slow file can't hang the whole sync forever.
@@ -25,7 +26,33 @@ static constexpr uint32_t SYNC_STALL_TIMEOUT_MS = 20000;
 static volatile uint8_t gSyncStatus = 0;
 static volatile uint8_t gSyncProgress = 0; // percent (files processed / total)
 static volatile bool gSyncCancel = false; // cooperative cancel flag
+
+// gSyncMsg is written by the sync task (core 1) and read by the web server (core 0).
+// A short spinlock guards the buffer so the web server can never read a half-written
+// string (which would otherwise show up as a brief garbage line in the sync progress UI).
 static char gSyncMsg[96] = "";
+static portMUX_TYPE gSyncMsgMux = portMUX_INITIALIZER_UNLOCKED;
+
+// Thread-safe setter: format into a stack buffer first, then copy under the lock so the
+// critical section stays as short as possible (a single memcpy, no formatting/IO).
+static void syncSetMessage(const char *msg) {
+	char tmp[sizeof(gSyncMsg)];
+	snprintf(tmp, sizeof(tmp), "%s", msg ? msg : "");
+	taskENTER_CRITICAL(&gSyncMsgMux);
+	memcpy(gSyncMsg, tmp, sizeof(gSyncMsg));
+	taskEXIT_CRITICAL(&gSyncMsgMux);
+}
+
+static void syncSetMessagef(const char *fmt, ...) {
+	char tmp[sizeof(gSyncMsg)];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(tmp, sizeof(tmp), fmt, ap);
+	va_end(ap);
+	taskENTER_CRITICAL(&gSyncMsgMux);
+	memcpy(gSyncMsg, tmp, sizeof(gSyncMsg));
+	taskEXIT_CRITICAL(&gSyncMsgMux);
+}
 
 uint8_t Sync_GetStatus(void) {
 	return gSyncStatus;
@@ -56,12 +83,22 @@ void Sync_Cancel(void) {
 	}
 }
 
-const char *Sync_GetMessage(void) {
-	return gSyncMsg;
+void Sync_CopyMessage(char *dst, size_t dstLen) {
+	if (!dst || dstLen == 0) {
+		return;
+	}
+	taskENTER_CRITICAL(&gSyncMsgMux);
+	size_t n = strnlen(gSyncMsg, sizeof(gSyncMsg) - 1);
+	if (n >= dstLen) {
+		n = dstLen - 1;
+	}
+	memcpy(dst, gSyncMsg, n);
+	taskEXIT_CRITICAL(&gSyncMsgMux);
+	dst[n] = '\0';
 }
 
 static void syncFail(const char *msg) {
-	snprintf(gSyncMsg, sizeof(gSyncMsg), "%s", msg);
+	syncSetMessage(msg);
 	Log_Printf(LOGLEVEL_ERROR, "Sync failed: %s", msg);
 	gSyncStatus = 3;
 }
@@ -185,7 +222,7 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 
 static void syncTask(void *parameter) {
 	gSyncProgress = 0;
-	gSyncMsg[0] = '\0';
+	syncSetMessage("");
 
 	if (!Wlan_IsConnected()) {
 		syncFail("no WiFi connection");
@@ -202,8 +239,11 @@ static void syncTask(void *parameter) {
 	const String user = gPrefsSettings.getString("syncUser", "");
 	const String pass = gPrefsSettings.getString("syncPwd", "");
 
-	// fetch the manifest
-	String manifestRaw;
+	// fetch + parse the manifest. The JSON is streamed straight from the network into
+	// the parser (deserializeJson over the WiFiClient stream) instead of first buffering
+	// the whole payload in a String — this roughly halves peak RAM during the parse, which
+	// matters for large manifests (hundreds of file entries) on the heap-constrained ESP32.
+	JsonDocument doc;
 	{
 		std::unique_ptr<WiFiClient> client = syncMakeClient(manifestUrl);
 		HTTPClient http;
@@ -222,16 +262,15 @@ static void syncTask(void *parameter) {
 			vTaskDelete(NULL);
 			return;
 		}
-		manifestRaw = http.getString();
+		const DeserializationError err = deserializeJson(doc, *http.getStreamPtr());
 		http.end();
+		if (err) {
+			syncFail("manifest parse error");
+			vTaskDelete(NULL);
+			return;
+		}
 	}
 
-	JsonDocument doc;
-	if (deserializeJson(doc, manifestRaw) != DeserializationError::Ok) {
-		syncFail("manifest parse error");
-		vTaskDelete(NULL);
-		return;
-	}
 	JsonArray files = doc["files"].as<JsonArray>();
 	if (files.isNull()) {
 		syncFail("manifest has no \"files\" array");
@@ -299,7 +338,7 @@ static void syncTask(void *parameter) {
 
 		if (needDownload) {
 			// expose the file currently being downloaded so the web UI can show it
-			snprintf(gSyncMsg, sizeof(gSyncMsg), "%s", path.c_str());
+			syncSetMessage(path.c_str());
 			const String fileUrl = baseUrl + syncUrlEncodePath(path);
 			if (syncDownloadFile(fileUrl, user, pass, localPath)) {
 				downloaded++;
@@ -323,8 +362,10 @@ static void syncTask(void *parameter) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
 	}
 
-	snprintf(gSyncMsg, sizeof(gSyncMsg), "%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) total);
-	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", gSyncMsg);
+	syncSetMessagef("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) total);
+	char summary[sizeof(gSyncMsg)];
+	Sync_CopyMessage(summary, sizeof(summary));
+	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", summary);
 	gSyncStatus = cancelled ? 4 : ((failed > 0) ? 3 : 2);
 	vTaskDelete(NULL);
 }
@@ -336,6 +377,6 @@ void Sync_Trigger(void) {
 	gSyncCancel = false;
 	gSyncStatus = 1;
 	gSyncProgress = 0;
-	gSyncMsg[0] = '\0';
+	syncSetMessage("");
 	xTaskCreatePinnedToCore(syncTask, "httpSync", 16384, NULL, 1, NULL, 1);
 }

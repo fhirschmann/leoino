@@ -15,4 +15,8 @@ void Sync_Cancel(void);
 uint8_t Sync_GetStatus(void); // 0 = idle, 1 = syncing, 2 = done, 3 = failed
 uint8_t Sync_GetProgress(void); // percent (files processed / total)
 const char *Sync_GetStatusText(void); // "idle" / "syncing" / "done" / "failed"
-const char *Sync_GetMessage(void); // short human-readable result/error message
+
+// Copies the short human-readable result/error message into the caller-provided buffer.
+// Thread-safe: the message is written by the sync task on core 1 and read by the web
+// server on core 0, so it is guarded by a spinlock to avoid reading a half-written string.
+void Sync_CopyMessage(char *dst, size_t dstLen);

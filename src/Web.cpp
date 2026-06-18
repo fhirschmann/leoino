@@ -894,8 +894,10 @@ void webserverStart(void) {
 		});
 		// progress/result of the HTTP sync, polled by the web interface
 		wServer.on("/sync", HTTP_GET, [](AsyncWebServerRequest *request) {
+			char msg[96];
+			Sync_CopyMessage(msg, sizeof(msg));
 			char buf[160];
-			snprintf(buf, sizeof(buf), "{\"status\":%u,\"progress\":%u,\"message\":\"%s\"}", Sync_GetStatus(), Sync_GetProgress(), Sync_GetMessage());
+			snprintf(buf, sizeof(buf), "{\"status\":%u,\"progress\":%u,\"message\":\"%s\"}", Sync_GetStatus(), Sync_GetProgress(), msg);
 			request->send(200, "application/json", buf);
 		});
 
