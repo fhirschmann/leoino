@@ -2446,6 +2446,7 @@
 					<a class="nav-item nav-link" id="nav-ftp-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-ftp" href="#nav-ftp" role="tab" aria-controls="nav-ftp"><i class="fas fa-folder"></i> <span class="d-none d-md-inline" data-i18n="nav.ftp"></span></a>
 					<a class="nav-item nav-link" id="nav-sync-tab" data-bs-toggle="tab" data-bs-target="#nav-sync" href="#nav-sync" role="tab" aria-controls="nav-sync"><i class="fas fa-sync"></i> <span class="d-none d-md-inline" data-i18n="nav.sync"></span></a>
 					<a class="nav-item nav-link" id="nav-bt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-bt" href="#nav-bt" role="tab" aria-controls="nav-bt"><i class="fab fa-bluetooth"></i> <span class="d-none d-md-inline" data-i18n="nav.bluetooth"></span></a>
+					<a class="nav-item nav-link" id="nav-homekit-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-homekit" href="#nav-homekit" role="tab" aria-controls="nav-homekit"><i class="fab fa-apple"></i> <span class="d-none d-md-inline">HomeKit</span></a>
 				</div>
 			</nav>
 			<div class="tab-content" id="settings-subcontent">
@@ -3339,7 +3340,41 @@
 				</fieldset>
 			</div>
 		</div>
-		<div class="tab-pane fade" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
+		<div class="tab-pane fade" id="nav-homekit" role="tabpanel" aria-labelledby="nav-homekit-tab">
+				<div class="container" id="homekitConfig">
+					<div class="mb-3 col-md-12">
+						<legend><i class="fab fa-apple"></i> <span data-i18n="homekit.title"></span></legend>
+						<p class="text-secondary" data-i18n="homekit.intro"></p>
+						<div id="homekitStatus" class="mb-3"></div>
+						<div class="row align-items-center g-3">
+							<div class="col-auto text-center">
+								<img id="homekitQr" alt="HomeKit pairing QR code" width="220" height="220" style="background:#fff;border-radius:10px;padding:10px;">
+							</div>
+							<div class="col">
+								<label class="form-label mb-1" data-i18n="homekit.setupcode"></label>
+								<div id="homekitCode" class="h4 font-monospace mb-2">–</div>
+								<p class="small text-secondary mb-0" data-i18n="homekit.howto"></p>
+							</div>
+						</div>
+						<hr>
+						<div class="mb-3">
+							<label class="form-label mb-1" for="homekitDeviceName" data-i18n="homekit.devicename"></label>
+							<input type="text" class="form-control" id="homekitDeviceName" maxlength="32" placeholder="ESPuino">
+							<label class="form-label mb-1 mt-2" for="homekitTvName"><span data-i18n="homekit.tvname"></span> <span class="text-secondary small" data-i18n="homekit.tvnamehint"></span></label>
+							<input type="text" class="form-control" id="homekitTvName" maxlength="32" placeholder="ESPuino">
+							<button type="button" class="btn btn-primary mt-2" id="homekitNamesBtn" onclick="saveHomeKitNames()"><i class="fas fa-save"></i> <span data-i18n="homekit.savenames"></span></button>
+							<p class="small text-secondary mt-1 mb-0" data-i18n="homekit.restartnote"></p>
+						</div>
+						<hr>
+						<div class="d-grid gap-2 d-md-block">
+							<button type="button" class="btn btn-outline-secondary" id="homekitRegenBtn" onclick="regenHomeKit()"><i class="fas fa-sync"></i> <span data-i18n="homekit.regen"></span></button>
+							<button type="button" class="btn btn-outline-danger" id="homekitResetBtn" onclick="resetHomeKit()"><i class="fas fa-unlink"></i> <span data-i18n="homekit.reset"></span></button>
+						</div>
+						<p class="small text-secondary mt-2 mb-0" data-i18n="homekit.actionsnote"></p>
+					</div>
+				</div>
+			</div>
+			<div class="tab-pane fade" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
 			<div class="container" id="btConfig">
 				<form action="#btConfig" method="POST" onsubmit="btSettings('btConfig'); return false">
 					<div class="mb-3 col-md-12">
@@ -5403,7 +5438,78 @@
 			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
 			// populated button dropdowns are covered too). No submit button on these tabs.
 			$('#settings-general, #settings-buttons, #settings-rfid, #settings-leds, #settings-power').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
+			initHomeKit();
 		});
+
+		// ---- Apple HomeKit settings section -------------------------------------
+		function renderHomeKitStatus(hk) {
+			const el = document.getElementById('homekitStatus');
+			if (!el) return;
+			el.innerHTML = hk && hk.paired
+				? '<span class="badge bg-success"><i class="fas fa-check"></i> ' + i18next.t('homekit.paired') + '</span>'
+				: '<span class="badge bg-secondary"><i class="fas fa-circle-notch"></i> ' + i18next.t('homekit.notpaired') + '</span>';
+			const qr = document.getElementById('homekitQr');
+			if (qr) qr.src = "http://" + host + "/homekit/qr.svg?ts=" + Date.now();
+		}
+		async function fetchHomeKit() {
+			return await (await fetch("http://" + host + "/homekit", { cache: "no-store" })).json();
+		}
+		async function initHomeKit() {
+			let hk;
+			try {
+				hk = await fetchHomeKit();
+			} catch (e) {
+				return; // feature compiled out -> leave the tab hidden
+			}
+			if (!hk || hk.enabled !== true) return;
+			document.getElementById('nav-homekit-tab').setAttribute('data-visible', true);
+			document.getElementById('homekitCode').textContent = hk.code || "–";
+			document.getElementById('homekitDeviceName').value = hk.deviceName || "";
+			document.getElementById('homekitTvName').value = hk.tvName || "";
+			renderHomeKitStatus(hk);
+			// Refresh pairing status whenever the user opens the tab.
+			document.getElementById('nav-homekit-tab').addEventListener('shown.bs.tab', async () => {
+				try { renderHomeKitStatus(await fetchHomeKit()); } catch (e) { /* ignore */ }
+			});
+		}
+		async function resetHomeKit() {
+			if (!confirm(i18next.t('homekit.confirmreset'))) return;
+			const btn = document.getElementById('homekitResetBtn');
+			if (btn) btn.disabled = true;
+			try {
+				await fetch("http://" + host + "/homekit/reset", { method: "POST" });
+				renderHomeKitStatus(await fetchHomeKit());
+			} catch (e) { /* ignore */ }
+			if (btn) btn.disabled = false;
+		}
+		async function saveHomeKitNames() {
+			const device = document.getElementById('homekitDeviceName').value.trim();
+			const tv = document.getElementById('homekitTvName').value.trim();
+			const btn = document.getElementById('homekitNamesBtn');
+			if (btn) btn.disabled = true;
+			try {
+				const body = new URLSearchParams({ device: device, tv: tv });
+				await fetch("http://" + host + "/homekit/names", { method: "POST", body: body });
+				if (confirm(i18next.t('homekit.namessaved'))) {
+					await fetch("http://" + host + "/restart", { method: "POST" });
+				}
+			} catch (e) { /* ignore */ }
+			if (btn) btn.disabled = false;
+		}
+		async function regenHomeKit() {
+			if (!confirm(i18next.t('homekit.confirmregen'))) return;
+			const btn = document.getElementById('homekitRegenBtn');
+			if (btn) btn.disabled = true;
+			try {
+				await fetch("http://" + host + "/homekit/regencode", { method: "POST" });
+				// the new code is computed on the device (SRP) -> give it a moment
+				await new Promise(r => setTimeout(r, 2500));
+				const hk = await fetchHomeKit();
+				document.getElementById('homekitCode').textContent = hk.code || "–";
+				renderHomeKitStatus(hk);
+			} catch (e) { /* ignore */ }
+			if (btn) btn.disabled = false;
+		}
 		const rfidListSavedAssignments = document.getElementById("rfidListSavedAssignments");
 		async function rebuildRFIDList() {
 			var rfidList = await (await fetch("http://" + host + "/rfid")).json();

@@ -15,6 +15,7 @@
 #include "Ftp.h"
 #include "HTMLbinary.h"
 #include "HallEffectSensor.h"
+#include "HomeKit.h"
 #include "Led.h"
 #include "Log.h"
 #include "MemX.h"
@@ -545,6 +546,46 @@ void webserverStart(void) {
 
 		// info
 		wServer.on("/info", HTTP_GET, handleGetInfo);
+
+#ifdef HOMEKIT_ENABLE
+		// NB: this AsyncWebServer fork prefix-matches, so the specific /homekit/*
+		// routes must be registered before the generic /homekit one.
+		// HomeKit pairing QR code as a standalone SVG
+		wServer.on("/homekit/qr.svg", HTTP_GET, [](AsyncWebServerRequest *request) {
+			AsyncWebServerResponse *response = request->beginResponse(200, "image/svg+xml", HomeKit_GetQrSvg());
+			response->addHeader("Cache-Control", "no-store");
+			request->send(response);
+		});
+		// Remove all HomeKit pairings (so the device can be added to another Home)
+		wServer.on("/homekit/reset", HTTP_POST, [](AsyncWebServerRequest *request) {
+			HomeKit_ResetPairing();
+			request->send(200);
+		});
+		// Generate a fresh random pairing code (e.g. if the old one leaked)
+		wServer.on("/homekit/regencode", HTTP_POST, [](AsyncWebServerRequest *request) {
+			HomeKit_RequestRegenerate();
+			request->send(200);
+		});
+		// Update the configurable HomeKit names (applied on next reboot)
+		wServer.on("/homekit/names", HTTP_POST, [](AsyncWebServerRequest *request) {
+			const String device = request->hasParam("device", true) ? request->getParam("device", true)->value() : String();
+			const String tv = request->hasParam("tv", true) ? request->getParam("tv", true)->value() : String();
+			HomeKit_SetNames(device, tv);
+			request->send(200);
+		});
+		// HomeKit pairing status + setup code + configurable names (settings section)
+		wServer.on("/homekit", HTTP_GET, [](AsyncWebServerRequest *request) {
+			JsonDocument doc;
+			doc["enabled"] = true;
+			doc["paired"] = HomeKit_IsPaired();
+			doc["code"] = HomeKit_GetSetupCode();
+			doc["deviceName"] = HomeKit_GetDeviceName();
+			doc["tvName"] = HomeKit_GetTvName();
+			String out;
+			serializeJson(doc, out);
+			request->send(200, "application/json", out);
+		});
+#endif
 
 		// NVS-backup-upload
 		wServer.on(

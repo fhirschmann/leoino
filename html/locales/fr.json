@@ -792,5 +792,24 @@
 		"lblPlay7d": "7 derniers jours",
 		"lblPlay30d": "30 derniers jours",
 		"lblTopCard": "Plus joué"
+	},
+	"homekit": {
+		"title": "Apple HomeKit",
+		"intro": "Ajoutez cet ESPuino à l’app Maison d’Apple pour contrôler la lecture, le volume et le verrouillage des touches avec Siri et des automatisations. Se jumelle via votre WiFi existant – sans matériel supplémentaire.",
+		"paired": "Jumelé",
+		"notpaired": "Pas encore jumelé",
+		"setupcode": "Code de configuration",
+		"howto": "Dans l’app Maison, touchez + → Ajouter un accessoire → Plus d’options… → ESPuino, puis scannez le QR code (ou saisissez le code manuellement).",
+		"devicename": "Nom de l’appareil",
+		"tvname": "Nom TV / télécommande",
+		"tvnamehint": "(affiché sur la télécommande du centre de contrôle)",
+		"savenames": "Enregistrer les noms",
+		"restartnote": "Pris en compte après un redémarrage de l’ESPuino.",
+		"regen": "Régénérer le code",
+		"reset": "Réinitialiser le jumelage",
+		"actionsnote": "« Régénérer le code » crée un nouveau code de jumelage + QR (l’ancien cesse de fonctionner ; les maisons déjà jumelées restent connectées). « Réinitialiser le jumelage » supprime tous les contrôleurs jumelés afin d’ajouter le lecteur à une autre Maison.",
+		"confirmreset": "Supprimer tous les jumelages HomeKit de cet ESPuino ?",
+		"confirmregen": "Générer un nouveau code de jumelage ? Le code et le QR actuels cesseront de fonctionner pour les nouveaux jumelages.",
+		"namessaved": "Noms enregistrés. Redémarrer l’ESPuino maintenant pour les appliquer ?"
 	}
 }

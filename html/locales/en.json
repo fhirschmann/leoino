@@ -803,5 +803,24 @@
 		"lblPlay7d": "Last 7 days",
 		"lblPlay30d": "Last 30 days",
 		"lblTopCard": "Most played"
+	},
+	"homekit": {
+		"title": "Apple HomeKit",
+		"intro": "Add this ESPuino to the Apple Home app to control playback, volume and the button-lock with Siri and automations. Pairs over your existing WiFi — no extra hardware needed.",
+		"paired": "Paired",
+		"notpaired": "Not paired yet",
+		"setupcode": "Setup code",
+		"howto": "In the Home app tap + → Add Accessory → More options… → ESPuino, then scan the QR code (or enter the code manually).",
+		"devicename": "Device name",
+		"tvname": "TV / remote name",
+		"tvnamehint": "(shown on the Control-Center remote)",
+		"savenames": "Save names",
+		"restartnote": "Takes effect after a restart of the ESPuino.",
+		"regen": "Regenerate code",
+		"reset": "Reset pairing",
+		"actionsnote": "“Regenerate code” creates a new pairing code + QR (the old one stops working; already-paired homes keep working). “Reset pairing” removes all paired controllers so the player can be added to a different Home.",
+		"confirmreset": "Remove all HomeKit pairings from this ESPuino?",
+		"confirmregen": "Generate a new pairing code? The current code and QR will stop working for new pairings.",
+		"namessaved": "Names saved. Restart the ESPuino now to apply them?"
 	}
 }

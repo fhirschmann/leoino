@@ -803,5 +803,24 @@
 		"lblPlay7d": "Letzte 7 Tage",
 		"lblPlay30d": "Letzte 30 Tage",
 		"lblTopCard": "Meistgespielt"
+	},
+	"homekit": {
+		"title": "Apple HomeKit",
+		"intro": "Füge diesen ESPuino zur Apple-Home-App hinzu, um Wiedergabe, Lautstärke und die Tastensperre per Siri und Automationen zu steuern. Koppelt über dein bestehendes WLAN – ohne Zusatzhardware.",
+		"paired": "Gekoppelt",
+		"notpaired": "Noch nicht gekoppelt",
+		"setupcode": "Kopplungscode",
+		"howto": "In der Home-App auf + → Gerät hinzufügen → Weitere Optionen… → ESPuino tippen, dann den QR-Code scannen (oder den Code manuell eingeben).",
+		"devicename": "Gerätename",
+		"tvname": "TV-/Fernbedienungs-Name",
+		"tvnamehint": "(erscheint auf der Fernbedienung im Kontrollzentrum)",
+		"savenames": "Namen speichern",
+		"restartnote": "Wird nach einem Neustart des ESPuino übernommen.",
+		"regen": "Code neu generieren",
+		"reset": "Kopplung zurücksetzen",
+		"actionsnote": "„Code neu generieren“ erzeugt einen neuen Kopplungscode + QR (der alte funktioniert dann nicht mehr; bereits gekoppelte Zuhause bleiben verbunden). „Kopplung zurücksetzen“ entfernt alle gekoppelten Controller, damit der Player in einem anderen Zuhause hinzugefügt werden kann.",
+		"confirmreset": "Alle HomeKit-Kopplungen von diesem ESPuino entfernen?",
+		"confirmregen": "Neuen Kopplungscode generieren? Der aktuelle Code und QR funktionieren dann für neue Kopplungen nicht mehr.",
+		"namessaved": "Namen gespeichert. ESPuino jetzt neu starten, um sie zu übernehmen?"
 	}
 }

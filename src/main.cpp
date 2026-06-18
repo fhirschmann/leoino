@@ -13,6 +13,7 @@
 #include "Display.h"
 #include "Ftp.h"
 #include "HallEffectSensor.h"
+#include "HomeKit.h"
 #include "IrReceiver.h"
 #include "Led.h"
 #include "Log.h"
@@ -197,6 +198,8 @@ void setup() {
 		Wlan_Cyclic();
 	}
 
+	HomeKit_Init(); // after WiFi is brought up so HomeSpan can ride the existing connection
+
 	IrReceiver_Init();
 	System_UpdateActivityTimer(); // initial set after boot
 	Led_Indicate(LedIndicatorType::BootComplete);
@@ -268,6 +271,7 @@ void loop() {
 	}
 
 	IrReceiver_Cyclic();
+	HomeKit_Cyclic();
 
 #ifdef HALLEFFECT_SENSOR_ENABLE
 	gHallEffectSensor.cyclic();
