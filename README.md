@@ -168,13 +168,9 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 
 <div align="center"><img src="docs/img/feat-playlist.png" width="860" alt="M3U playlist builder modal"></div>
 
-**HTTP file sync** — pull files from a web server (manifest URL + optional Basic Auth); the runner & live progress live in the Tools tab ([`ac24bbc`](../../commit/ac24bbc)):
+**Sync settings tab** — pull files from a web server (manifest URL + optional Basic Auth) *and* keep RFID-tag assignments in sync across a central PHP server and other ESPuinos (P2P, newest-wins with offline catch-up); both runners live in the Tools tab ([`ac24bbc`](../../commit/ac24bbc), [`99ffb5b`](../../commit/99ffb5b)):
 
-<div align="center"><img src="docs/img/feat-sync.png" width="860" alt="HTTP file-sync settings"></div>
-
-**RFID-tag syncing** — keep tag assignments in sync across a central PHP server and other ESPuinos (P2P), newest-wins by timestamp, with offline catch-up ([`99ffb5b`](../../commit/99ffb5b)):
-
-<div align="center"><img src="docs/img/feat-rfid-sync.png" width="860" alt="Sync settings tab — file sync + RFID-tag sync (server + peers)"></div>
+<div align="center"><img src="docs/img/feat-sync.png" width="860" alt="Sync settings tab — file sync + RFID-tag sync (server + peers)"></div>
 
 **Learn RFID cards from the file browser** — right-click a file/folder → pick a play mode → a popup asks you to lay the card ([`7b8e303`](../../commit/7b8e303)):
 
