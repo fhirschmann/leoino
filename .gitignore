@@ -18,6 +18,7 @@ node_modules/
 agents/
 html/*.min.html
 html/locales/*.min.json
+html/REST_API.yaml
 html/js/*.min.min.js
 html/js/swaggerInitializer.min.js
 managed_components/
