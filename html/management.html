@@ -69,35 +69,13 @@
 		}
 
 		/* ============================================================
-		   "Kids" theme - a bright, friendly, rounded look for a
-		   children's player. It piggybacks on the light Bootstrap
+		   "Playful" theme palettes - bright, friendly, rounded looks
+		   for a children's player. They piggyback on the light Bootstrap
 		   theme (set via JS) so all the light-mode structural fixes
-		   apply, then overrides the palette + neon flourishes below.
-		   Placed AFTER the light palette so it wins on source order
+		   apply, then override the palette + neon flourishes below.
+		   Placed AFTER the light palette so they win on source order
 		   (equal specificity).
 		   ============================================================ */
-		body[data-theme="kids"] {
-			--cp-cyan: #3aa0ff;
-			/* primary accent / links - cheerful blue   */
-			--cp-magenta: #ff6b9d;
-			/* bubblegum pink (hover / secondary accent) */
-			--cp-yellow: #ffb703;
-			/* sunny                                     */
-			--cp-green: #38c172;
-			/* grass                                     */
-			--cp-bg: #eaf4ff;
-			/* soft sky                                  */
-			--cp-panel: #ffffff;
-			--cp-surface: #ffffff;
-			--cp-surface-2: #fff4d6;
-			/* warm sunny cards                          */
-			--cp-border: #ffd8a8;
-			--cp-border-glow: rgba(58, 160, 255, .25);
-			--cp-text: #2b2350;
-			/* friendly deep purple-navy                 */
-			--cp-dim: #7c83a8;
-		}
-
 		/* "Candy" - warm sweet pink/purple playful palette. */
 		body[data-theme="candy"] {
 			--cp-cyan: #a25cf0;
@@ -1697,8 +1675,8 @@
 		}
 
 		/* ============================================================
-		   "Playful" theme family - shared overrides for the kids/candy/
-		   galaxy palettes. Strips the cyberpunk neon/CRT flourishes
+		   "Playful" theme family - shared overrides for the candy/galaxy
+		   palettes. Strips the cyberpunk neon/CRT flourishes
 		   (scanlines, glows, angled clip-paths, flicker) and rounds
 		   everything off into a soft, friendly toy-like UI. Only the
 		   colours differ per theme; this structural layer is palette-
@@ -1774,13 +1752,6 @@
 		}
 
 		/* per-palette background washes for a bit of flavour */
-		body[data-theme="kids"] {
-			background-image:
-				radial-gradient(900px 500px at 50% -10%, rgba(255, 183, 3, .18), transparent 70%),
-				radial-gradient(700px 500px at 100% 100%, rgba(255, 107, 157, .15), transparent 70%);
-			background-size: auto, auto;
-		}
-
 		body[data-theme="candy"] {
 			background-image:
 				radial-gradient(900px 500px at 50% -10%, rgba(255, 79, 163, .18), transparent 70%),
@@ -1801,7 +1772,7 @@
 	<!-- Apply the stored theme before paint to avoid a flash of the wrong colours. -->
 	<script>
 		(function () {
-			var families = { cyberpunk: 'neon', kids: 'playful', candy: 'playful', galaxy: 'playful' };
+			var families = { cyberpunk: 'neon', candy: 'playful', galaxy: 'playful' };
 			var theme = localStorage.getItem('uiTheme') || 'cyberpunk';
 			if (!families[theme]) { theme = 'cyberpunk'; }
 			var playful = families[theme] === 'playful';
@@ -1879,7 +1850,6 @@
 										style="margin-left: 0; margin-top: 10px; margin-right: 5px;"></i>
 									<select class="form-control form-select" id="themeSel" name="themeSel">
 										<option value="cyberpunk" data-i18n="themeCyberpunk"></option>
-										<option value="kids" data-i18n="themeKids"></option>
 										<option value="candy" data-i18n="themeCandy"></option>
 										<option value="galaxy" data-i18n="themeGalaxy"></option>
 									</select>
@@ -7448,7 +7418,6 @@
 			 * Bootstrap mode, so the dark-mode toggle has no effect there). */
 			const THEMES = {
 				cyberpunk: { family: 'neon' },
-				kids: { family: 'playful' },
 				candy: { family: 'playful' },
 				galaxy: { family: 'playful' },
 			};
