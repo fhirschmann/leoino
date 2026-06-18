@@ -422,7 +422,10 @@
 		   icon-only rail next to the content. */
 		#nav-general.active {
 			display: flex;
-			align-items: flex-start;
+			/* stretch so the nav column is as tall as the content — this lets the sticky
+			   sub-nav (below) stay pinned next to *any* section while scrolling a long
+			   settings page, instead of scrolling away after the first screenful. */
+			align-items: stretch;
 			gap: 1.1rem;
 			/* keep the [nav | content] pair together and centered on wide screens (like the
 			   other tabs' .container), instead of the nav floating against the screen edge
