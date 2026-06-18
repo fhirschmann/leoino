@@ -424,6 +424,19 @@
 			display: flex;
 			align-items: flex-start;
 			gap: 1.1rem;
+			/* keep the [nav | content] pair together and centered on wide screens (like the
+			   other tabs' .container), instead of the nav floating against the screen edge
+			   while the content drifts to the middle. */
+			max-width: 1320px;
+			margin-inline: auto;
+		}
+
+		/* the content fills the capped layout (no extra Bootstrap centering inside it) so it
+		   sits right next to the sidebar rather than re-centering and re-opening the gap. */
+		#settings-subcontent>.tab-pane>.container {
+			max-width: 100%;
+			margin-left: 0;
+			margin-right: 0;
 		}
 
 		#nav-general>nav {
