@@ -47,7 +47,8 @@
 		"help": "Hilfe",
 		"rfidcards": "RFID",
 		"leds": "LEDs",
-		"power": "Power"
+		"power": "Power",
+		"security": "Sicherheit"
 	},
 	"settingsex": {
 		"title": "Erweiterte Einstellungen",
@@ -132,11 +133,11 @@
 		}
 	},
 	"security": {
-		"title": "Webinterface-Passwort",
+		"title": "Geräte-Passwort",
 		"password": {
 			"title": "Passwort",
 			"placeholder": "Leer lassen, um den Schutz zu deaktivieren",
-			"desc": "Schützt das Webinterface mit einem Passwort. Nach dem Anmelden bleibt man 90 Tage eingeloggt. Im Hotspot-Modus ist der Schutz inaktiv."
+			"desc": "Ein gemeinsames Passwort für alles: Webinterface, FTP und WebDAV. Nach dem Anmelden im Webinterface bleibt man 90 Tage eingeloggt; im Hotspot-Modus ist der Schutz inaktiv. Leer lassen, um den Schutz überall (Webinterface, FTP, WebDAV) zu deaktivieren."
 		}
 	},
 	"wifi": {
@@ -449,7 +450,8 @@
 		"pwd": {
 			"title": "FTP-Passwort",
 			"placeholder": "Passwort",
-			"show": "Passwort anzeigen/verbergen"
+			"show": "Passwort anzeigen/verbergen",
+			"securityHint": "Das FTP-Passwort wird im Tab \"Sicherheit\" gesetzt (gemeinsames Geräte-Passwort)."
 		},
 		"start": {
 			"title": "FTP-Server starten",
@@ -472,7 +474,7 @@
 			"show": "Passwort anzeigen/verbergen"
 		},
 		"auth": {
-			"hint": "Benutzername und Passwort leer lassen, um ohne Anmeldung zuzugreifen."
+			"hint": "Das WebDAV-Passwort wird im Tab \"Sicherheit\" gesetzt (gemeinsames Geräte-Passwort). Benutzername und Passwort leer lassen, um ohne Anmeldung zuzugreifen."
 		},
 		"start": {
 			"title": "WebDAV-Server starten",

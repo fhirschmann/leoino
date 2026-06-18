@@ -250,10 +250,13 @@ paths:
                   ScanWiFiOnStart:
                     type: boolean
     post:
-      summary: Save current common Wi-Fi configuration.
-      description: Save the current common Wi-Fi configuration settings.
+      summary: Save common Wi-Fi configuration (partial updates allowed).
+      description: >
+        Save the common Wi-Fi configuration. Partial updates are supported: send only
+        "hostname" (saved from the General tab) or only "scanOnStart" (from the WiFi tab);
+        omitted fields are left unchanged.
       requestBody:
-        description: Common Wi-Fi configuration to save.
+        description: Common Wi-Fi configuration to save (any subset of the fields).
         required: true
         content:
           application/json:
@@ -262,11 +265,8 @@ paths:
               properties:
                 hostname:
                   type: string
-                ScanWiFiOnStart:
+                scanOnStart:
                   type: boolean
-              required:
-                - hostname
-                - ScanWiFiOnStart
       responses:
         "200":
           description: Successful Wi-Fi configuration save.
@@ -758,8 +758,11 @@ paths:
                     type: boolean
     post:
       tags: [Fork]
-      summary: Set or clear the web-interface password.
-      description: Sets a new web password (enables protection) or clears it when empty.
+      summary: Set or clear the shared device password (web interface, FTP and WebDAV).
+      description: >
+        Sets one shared password that protects the web interface, FTP and WebDAV at once
+        (applied live, no reboot). An empty password is accepted and disables protection
+        for all three.
       requestBody:
         required: true
         content:

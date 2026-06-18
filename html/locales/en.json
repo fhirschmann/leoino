@@ -47,7 +47,8 @@
 		"help": "Help",
 		"rfidcards": "RFID",
 		"leds": "LEDs",
-		"power": "Power"
+		"power": "Power",
+		"security": "Security"
 	},
 	"settingsex": {
 		"title": "Advanced settings",
@@ -132,11 +133,11 @@
 		}
 	},
 	"security": {
-		"title": "Web interface password",
+		"title": "Device password",
 		"password": {
 			"title": "Password",
 			"placeholder": "Leave empty to disable protection",
-			"desc": "Protects the web interface with a password. Once logged in you stay logged in for 90 days. Protection is inactive in hotspot mode."
+			"desc": "One shared password for everything: web interface, FTP and WebDAV. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV)."
 		}
 	},
 	"wifi": {
@@ -449,7 +450,8 @@
 		"pwd": {
 			"title": "FTP-password",
 			"placeholder": "password",
-			"show": "Show/hide password"
+			"show": "Show/hide password",
+			"securityHint": "The FTP password is set on the \"Security\" tab (shared device password)."
 		},
 		"start": {
 			"title": "Start FTP-server",
@@ -472,7 +474,7 @@
 			"show": "Show/hide password"
 		},
 		"auth": {
-			"hint": "Leave username and password empty to allow access without a login."
+			"hint": "The WebDAV password is set on the \"Security\" tab (shared device password). Leave username and password empty to allow access without a login."
 		},
 		"start": {
 			"title": "Start WebDAV server",

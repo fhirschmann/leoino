@@ -423,11 +423,17 @@ static void Web_HandlePostLogin(AsyncWebServerRequest *request, JsonVariant &jso
 
 static void Web_HandlePostSecurity(AsyncWebServerRequest *request, JsonVariant &json) {
 	String password = json["password"] | "";
+	// One shared device password: the same value protects the web interface, FTP and WebDAV.
+	// An empty password is allowed and disables protection everywhere.
+	gPrefsSettings.putString("ftppassword", password);
+	gPrefsSettings.putString("webdavPwd", password);
+	Ftp_ReloadCredentials(); // apply to running FTP server without a reboot
+	Webdav_ReloadCredentials(); // apply to running WebDAV server without a reboot
 	if (password.length() == 0) {
 		gPrefsSettings.remove("wwwPassword");
 		gPrefsSettings.remove("wwwSalt");
 		wwwSessionToken = "";
-		Log_Println("webinterface password protection disabled", LOGLEVEL_NOTICE);
+		Log_Println("device password protection disabled", LOGLEVEL_NOTICE);
 		request->send(200, "application/json", "{\"enabled\":false}");
 		return;
 	}
@@ -437,7 +443,7 @@ static void Web_HandlePostSecurity(AsyncWebServerRequest *request, JsonVariant &
 	snprintf(saltBuf, sizeof(saltBuf), "%08lx%08lx", (unsigned long) esp_random(), (unsigned long) esp_random());
 	gPrefsSettings.putString("wwwSalt", saltBuf);
 	Web_RefreshSessionToken();
-	Log_Println("webinterface password protection enabled", LOGLEVEL_NOTICE);
+	Log_Println("device password protection enabled (web/ftp/webdav)", LOGLEVEL_NOTICE);
 	// keep the client that changed the password logged in
 	AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"enabled\":true}");
 	response->addHeader("Set-Cookie", "ESPUINO_SESSION=" + wwwSessionToken + "; Max-Age=7776000; Path=/; SameSite=Lax");
@@ -1255,13 +1261,11 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 	}
 	if (doc["ftp"].is<JsonObject>()) {
-		const char *_ftpUser = doc["ftp"]["username"];
-		const char *_ftpPwd = doc["ftp"]["password"];
-
+		// Only the username is configured here; the FTP password is the shared device
+		// password set on the Security tab (see Web_HandlePostSecurity).
+		const char *_ftpUser = doc["ftp"]["username"] | "";
 		gPrefsSettings.putString("ftpuser", (String) _ftpUser);
-		gPrefsSettings.putString("ftppassword", (String) _ftpPwd);
-		// Check if settings were written successfully
-		if (!(String(_ftpUser).equals(gPrefsSettings.getString("ftpuser", "-1")) || String(_ftpPwd).equals(gPrefsSettings.getString("ftppassword", "-1")))) {
+		if (!String(_ftpUser).equals(gPrefsSettings.getString("ftpuser", "-1"))) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "ftp");
 			return WebsocketCodeType::Error;
 		}
@@ -1296,10 +1300,10 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 		Web_SendWebsocketData(0, WebsocketCodeType::FtpStatus); // broadcast new status to all clients
 	} else if (doc["webdav"].is<JsonObject>()) {
-		// WebDAV credentials + auto-start-on-boot setting
+		// WebDAV username + auto-start-on-boot setting. The WebDAV password is the shared
+		// device password set on the Security tab (see Web_HandlePostSecurity).
 		JsonObject wd = doc["webdav"];
 		gPrefsSettings.putString("webdavUser", wd["username"] | "");
-		gPrefsSettings.putString("webdavPwd", wd["password"] | "");
 		if (wd["enable"].is<bool>()) {
 			gPrefsSettings.putBool("webdavEnable", wd["enable"].as<bool>());
 		}
@@ -2438,26 +2442,31 @@ void handleGetWiFiConfig(AsyncWebServerRequest *request) {
 void handlePostWiFiConfig(AsyncWebServerRequest *request, JsonVariant &json) {
 	const JsonObject &jsonObj = json.as<JsonObject>();
 
-	// always perform perform a WiFi scan on startup?
-	bool alwaysScan = jsonObj["scanOnStart"];
-	gPrefsSettings.putBool("ScanWiFiOnStart", alwaysScan);
+	// Partial updates are allowed: the hostname is saved from the General tab, the
+	// "scan on start" flag from the WiFi tab. Only touch fields actually present.
+
+	// always perform a WiFi scan on startup?
+	if (jsonObj["scanOnStart"].is<bool>()) {
+		gPrefsSettings.putBool("ScanWiFiOnStart", jsonObj["scanOnStart"].as<bool>());
+	}
 
 	// hostname
-	String strHostname = jsonObj["hostname"];
-	if (!Wlan_ValidateHostname(strHostname)) {
-		Log_Println("hostname validation failed", LOGLEVEL_ERROR);
-		request->send(400, "text/plain; charset=utf-8", "hostname validation failed");
-		return;
+	if (jsonObj["hostname"].is<const char *>()) {
+		String strHostname = jsonObj["hostname"];
+		if (!Wlan_ValidateHostname(strHostname)) {
+			Log_Println("hostname validation failed", LOGLEVEL_ERROR);
+			request->send(400, "text/plain; charset=utf-8", "hostname validation failed");
+			return;
+		}
+		if (!Wlan_SetHostname(strHostname)) {
+			Log_Println("error setting hostname", LOGLEVEL_ERROR);
+			request->send(500, "text/plain; charset=utf-8", "error setting hostname");
+			return;
+		}
 	}
 
-	bool succ = Wlan_SetHostname(strHostname);
-	if (succ) {
-		Log_Println("WiFi configuration saved.", LOGLEVEL_NOTICE);
-		request->send(200, "text/plain; charset=utf-8", strHostname);
-	} else {
-		Log_Println("error setting hostname", LOGLEVEL_ERROR);
-		request->send(500, "text/plain; charset=utf-8", "error setting hostname");
-	}
+	Log_Println("WiFi configuration saved.", LOGLEVEL_NOTICE);
+	request->send(200, "text/plain; charset=utf-8", "ok");
 }
 
 // callback for writing a NVS entry to list

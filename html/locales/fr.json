@@ -47,7 +47,8 @@
 		"help": "Aide",
 		"rfidcards": "RFID",
 		"leds": "LEDs",
-		"power": "Alim."
+		"power": "Alim.",
+		"security": "Sécurité"
 	},
 	"settingsex": {
 		"title": "Paramètres avancés",
@@ -125,11 +126,11 @@
 		}
 	},
 	"security": {
-		"title": "Mot de passe de l'interface web",
+		"title": "Mot de passe de l'appareil",
 		"password": {
 			"title": "Mot de passe",
 			"placeholder": "Laisser vide pour désactiver la protection",
-			"desc": "Protège l'interface web par un mot de passe. Une fois connecté, vous restez connecté pendant 90 jours. La protection est inactive en mode hotspot."
+			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Laisser vide pour désactiver la protection partout (interface web, FTP, WebDAV)."
 		}
 	},
 	"wifi": {
@@ -442,7 +443,8 @@
 		"pwd": {
 			"title": "Mot de passe FTP",
 			"placeholder": "mot de passe",
-			"show": "Afficher/masquer le mot de passe"
+			"show": "Afficher/masquer le mot de passe",
+			"securityHint": "Le mot de passe FTP se règle dans l'onglet « Sécurité » (mot de passe partagé de l'appareil)."
 		},
 		"start": {
 			"title": "Démarrer serveur FTP",
@@ -465,7 +467,7 @@
 			"show": "Afficher/masquer le mot de passe"
 		},
 		"auth": {
-			"hint": "Laissez le nom d'utilisateur et le mot de passe vides pour un accès sans connexion."
+			"hint": "Le mot de passe WebDAV se règle dans l'onglet « Sécurité » (mot de passe partagé de l'appareil). Laissez le nom d'utilisateur et le mot de passe vides pour un accès sans connexion."
 		},
 		"start": {
 			"title": "Démarrer serveur WebDAV",
