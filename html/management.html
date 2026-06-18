@@ -2246,6 +2246,15 @@
 									tabindex="0"><i class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
+								<input type="checkbox" id="savePlayPosPeriodic" name="savePlayPosPeriodic"
+									value="false">
+								<label for="savePlayPosPeriodic"
+									data-i18n="general.options.savePlayPosPeriodic"></label>
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.options.savePlayPosPeriodicExp"
+									tabindex="0"><i class="fas fa-circle-question"></i></a>
+							</div>
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="playLastRfidOnReboot" name="playLastRfidOnReboot"
 									value="false">
 								<label for="playLastRfidOnReboot"
@@ -4757,6 +4766,7 @@
 				$('#playMono').prop('checked', genSettings.playMono);
 				$('#savePlayPosShutdown').prop('checked', genSettings.savePosShutdown);
 				$('#savePlayPosRfidChange').prop('checked', genSettings.savePosRfidChge);
+				$('#savePlayPosPeriodic').prop('checked', genSettings.savePosPeriodic);
 				$('#playLastRfidOnReboot').prop('checked', genSettings.playLastRfidOnReboot);
 				$('#pauseIfRfidRemoved').prop('checked', genSettings.pauseIfRfidRemoved);
 				$('#dontAcceptRfidTwice').prop('checked', genSettings.dontAcceptRfidTwice);
@@ -5110,9 +5120,27 @@
 					rfidElem.appendChild(document.createElement("br"));
 					rfidElem.appendChild(document.createTextNode(rfid.fileOrUrl));
 				}
+				// audiobook modes (AUDIOBOOK / _LOOP / _RECURSIVE) can carry a saved play-position
+				var isAudiobook = (rfid.playMode === 3 || rfid.playMode === 4 || rfid.playMode === 16);
+				var hasProgress = isAudiobook && (((rfid.lastPlayPos || 0) > 0) || ((rfid.trackLastPlayed || 0) > 0));
+				if (hasProgress) {
+					rfidElem.appendChild(document.createElement("br"));
+					let resumeInfo = document.createElement("small");
+					resumeInfo.classList.add("text-info");
+					resumeInfo.textContent = i18next.t("files.rfid.resume.info", { track: (rfid.trackLastPlayed || 0) + 1, pos: rfid.lastPlayPos || 0 });
+					rfidElem.appendChild(resumeInfo);
+				}
 				let deleteSpan = document.createElement("span");
 				deleteSpan.classList.add("float-end");
 				deleteSpan.classList.add("button-group");
+				if (hasProgress) {
+					// reset the saved play-position so the book restarts from the beginning
+					let resetButton = document.createElement("button");
+					resetButton.classList.add("btn", "btn-secondary", "fa", "fa-backward-step", "me-1");
+					resetButton.setAttribute("title", i18next.t("files.rfid.resume.reset"));
+					resetButton.addEventListener("click", function () { resetRfidPos(rfid.id); });
+					deleteSpan.appendChild(resetButton);
+				}
 				let deleteButton = document.createElement("button");
 				deleteButton.classList.add("btn");
 				deleteButton.classList.add("btn-danger");
@@ -5128,6 +5156,16 @@
 			document.getElementById('listNvs').setAttribute('data-visible', (rfidList.length > 0));
 			document.getElementById('eraseNvs').setAttribute('data-visible', (rfidList.length > 0));
 			document.getElementById('exportNvs').setAttribute('data-visible', (rfidList.length > 0));
+		}
+		// reset an audiobook tag's saved play-position back to the start (POST /rfidresetpos)
+		async function resetRfidPos(tagId) {
+			var response = await fetch("http://" + host + "/rfidresetpos?id=" + encodeURIComponent(tagId), { method: "POST" });
+			if (response.ok) {
+				flashActionOk();
+				rebuildRFIDList();
+			} else {
+				toaster.error(response.statusText);
+			}
 		}
 		async function deleteRFID(tagId) {
 			console.log("deleting", tagId);
@@ -5299,6 +5337,7 @@
 					playMono: $('#playMono').prop('checked'),
 					savePosShutdown: $('#savePlayPosShutdown').prop('checked'),
 					savePosRfidChge: $('#savePlayPosRfidChange').prop('checked'),
+					savePosPeriodic: $('#savePlayPosPeriodic').prop('checked'),
 					playLastRfidOnReboot: $('#playLastRfidOnReboot').prop('checked'),
 					pauseIfRfidRemoved: $('#pauseIfRfidRemoved').prop('checked'),
 					dontAcceptRfidTwice: $('#dontAcceptRfidTwice').prop('checked'),

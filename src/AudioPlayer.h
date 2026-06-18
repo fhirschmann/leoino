@@ -65,6 +65,7 @@ void AudioPlayer_NotifyUploadEnd(void);
 
 void AudioPlayer_Init(void);
 void AudioPlayer_Exit(void);
+void AudioPlayer_SetSavePosPeriodic(bool enabled);
 void AudioPlayer_Cyclic(void);
 void AudioPlayer_Loop(void);
 uint8_t AudioPlayer_GetRepeatMode(void);
@@ -76,6 +77,8 @@ String AudioPlayer_GetEqualizerProfile(void);
 void AudioPlayer_ReloadEqRules(void);
 void AudioPlayer_ApplyEqualizerForPath(const char *trackPath);
 void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPos, const uint32_t _playMode, const uint16_t _trackLastPlayed);
+// Resets a tag's saved play-position + last-played track to the start (preserving folder/mode).
+void AudioPlayer_ResetRfidPos(const char *_rfidCardId, const uint8_t _playMode);
 void AudioPlayer_SetTrackControl(const uint8_t trackCommand);
 void AudioPlayer_PauseOnMinVolume(const uint8_t oldVolume, const uint8_t newVolume);
 void AudioPlayer_PlayReadyMsg(void);

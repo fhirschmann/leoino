@@ -292,6 +292,10 @@
 				"title": "Datei, Verzeichnis oder URL (^ und # als Zeichen nicht erlaubt)",
 				"placeholder": "z.B. /mp3/Hoerspiele/Yakari/Yakari_und_seine_Freunde.mp3"
 			},
+			"resume": {
+				"info": "Fortsetzen bei Titel {{track}} ({{pos}} s)",
+				"reset": "Von vorne beginnen"
+			},
 			"playmode": {
 				"title": "Abspielmodus",
 				"placeholder": "Modus auswählen",
@@ -608,6 +612,8 @@
 			"savePlayPosShutdownExp": "Beim Ausschalten der Box wird für Hörbücher die Abspielposition gespeichert. Mehr Infos <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>hier</a> unter <code>SAVE_PLAYPOS_BEFORE_SHUTDOWN</code>.",
 			"savePlayPosRfidChange": "Abspielposition bei RFID-Tag Wechsel merken",
 			"savePlayPosRfidChangeExp": "Beim Wechsel zu einem neuen RFID-Tag wird für Hörbücher die Abspielposition gespeichert. Betrifft keine Modifikations-Tags. Mehr Infos <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>hier</a> unter <code>SAVE_PLAYPOS_WHEN_RFID_CHANGE</code>.",
+			"savePlayPosPeriodic": "Hörbuch-Position regelmäßig sichern",
+			"savePlayPosPeriodicExp": "Während ein Hörbuch läuft, wird die Position alle ~30 s im Flash gesichert. So gehen bei einem unerwarteten Stromausfall (leerer Akku, harter Aus-Schalter) nur die letzten Sekunden verloren statt bis zum Anfang des Tracks zurückzuspringen. Fork-Funktion.",
 			"pauseIfRfidRemoved": "Pause wenn RFID-Tag entfernt",
 			"pauseIfRfidRemovedExp": "Pausieren wenn RFID-Tag entfernt wird. Mehr Infos <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>hier</a> unter <code>PAUSE_WHEN_RFID_REMOVED</code>.",
 			"dontAcceptRfidTwice": "Denselben RFID-Tag nicht erneut akzeptieren",

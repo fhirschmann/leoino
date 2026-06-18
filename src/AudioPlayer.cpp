@@ -298,6 +298,14 @@ float Audio_GetVolume(float t) {
 	return val1 + (val2 - val1) * fraction;
 }
 
+// When true, the audiobook play-position is checkpointed to NVS periodically while playing
+// (see AudioPlayer_Cyclic). Mirrors the "savePosPeriodic" web setting; default on.
+static bool gSavePosPeriodic = true;
+
+void AudioPlayer_SetSavePosPeriodic(bool enabled) {
+	gSavePosPeriodic = enabled;
+}
+
 void AudioPlayer_Init(void) {
 	// create audio object
 	audio = new AudioCustom();
@@ -378,6 +386,7 @@ void AudioPlayer_Init(void) {
 	AudioPlayer_StationLogoUrl = "";
 	gPlayProperties.playlist = allocatePlaylist();
 	gPlayProperties.SavePlayPosRfidChange = gPrefsSettings.getBool("savePosRfidChge", false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
+	gSavePosPeriodic = gPrefsSettings.getBool("savePosPeriodic", true); // periodic audiobook play-position checkpoint
 	gPlayProperties.pauseOnMinVolume = gPrefsSettings.getBool("pauseOnMinVol", false); // PAUSE_ON_MIN_VOLUME
 #ifdef PAUSE_WHEN_RFID_REMOVED
 	gPlayProperties.pauseIfRfidRemoved = gPrefsSettings.getBool("pauseRfidRem", true);
@@ -440,6 +449,13 @@ void AudioPlayer_Exit(void) {
 
 static uint32_t lastPlayingTimestamp = 0;
 
+// Periodically persist the audiobook play-position to NVS while playing, so an *ungraceful*
+// power-off (dead battery, hard power switch) doesn't lose the whole book back to the last
+// track boundary. The existing save points (track change / RFID swap / graceful shutdown)
+// don't cover a sudden loss of power mid-track. Throttled so NVS wear stays negligible.
+static constexpr uint32_t SAVE_POS_CHECKPOINT_INTERVAL_MS = 30000;
+static uint32_t lastPosCheckpointMs = 0;
+
 void AudioPlayer_Cyclic(void) {
 	if (AudioPlayer_UploadActive) {
 		return;
@@ -451,6 +467,15 @@ void AudioPlayer_Cyclic(void) {
 		lastPlayingTimestamp = millis();
 		playTimeSecSinceStart += 1;
 		Playstats_AddSecond(); // accumulate per-day listening-time statistics
+
+		// periodic audiobook play-position checkpoint (see note above). saveLastPlayPosition
+		// is only set for the position-saving audiobook modes, so this is a no-op otherwise.
+		if (gSavePosPeriodic && gPlayProperties.saveLastPlayPosition && gPlayProperties.playlist != nullptr && audio && audio->isRunning()) {
+			if (millis() - lastPosCheckpointMs >= SAVE_POS_CHECKPOINT_INTERVAL_MS) {
+				lastPosCheckpointMs = millis();
+				AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
+			}
+		}
 	}
 
 	// Actual loop stuff
@@ -1676,6 +1701,12 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 	gPrefsRfid.putString("244105171042", "#0#0#111#0"); // modification-card (repeat track)
 	gPrefsRfid.putString("228064156042", "#0#0#110#0"); // modification-card (repeat playlist)
 	gPrefsRfid.putString("212130160042", "#/mp3/Hoerspiele/Yakari/Sammlung2#0#3#0");*/
+}
+
+// Resets a tag's saved play-position and last-played track to the start, keeping the
+// folder/file and play mode intact (so an audiobook can be restarted from the beginning).
+void AudioPlayer_ResetRfidPos(const char *_rfidCardId, const uint8_t _playMode) {
+	AudioPlayer_NvsRfidWriteWrapper(_rfidCardId, 0, _playMode, 0);
 }
 
 // Adds webstream to playlist; same like SdCard_ReturnPlaylist() but always only one entry

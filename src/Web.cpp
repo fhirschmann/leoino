@@ -100,6 +100,7 @@ bool DumpNvsToArrayCallback(const char *key, void *data); // defined later; used
 static void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleDeleteRFIDRequest(AsyncWebServerRequest *request);
+static void handleResetRfidPos(AsyncWebServerRequest *request);
 static void handleGetInfo(AsyncWebServerRequest *request);
 static void handleGetSettings(AsyncWebServerRequest *request);
 static void handlePostSettings(AsyncWebServerRequest *request, JsonVariant &json);
@@ -980,6 +981,9 @@ void webserverStart(void) {
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/rfid", handlePostRFIDRequest));
 		wServer.addRewrite(new OneParamRewrite("/rfid/{id}", "/rfid?id={id}"));
 		wServer.on("/rfid", HTTP_DELETE, handleDeleteRFIDRequest);
+		// reset an audiobook tag's saved play-position back to the start (flat path so it
+		// isn't caught by the "/rfid/{id}" rewrite above)
+		wServer.on("/rfidresetpos", HTTP_POST, handleResetRfidPos);
 
 		// RFID-tag sync: trigger a full bidirectional sync (server + peers) / poll its status.
 		wServer.on("/rfidsync", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -1236,6 +1240,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("playMono", generalObj["playMono"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosShutdown", generalObj["savePosShutdown"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosRfidChge", generalObj["savePosRfidChge"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("savePosPeriodic", generalObj["savePosPeriodic"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("playLastOnBoot", generalObj["playLastRfidOnReboot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseRfidRem", generalObj["pauseIfRfidRemoved"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("dAccRfidTwice", generalObj["dontAcceptRfidTwice"].as<bool>()) != 0);
@@ -1278,6 +1283,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 		gPlayProperties.newPlayMono = generalObj["playMono"].as<bool>();
 		gPlayProperties.SavePlayPosRfidChange = generalObj["savePosRfidChge"].as<bool>();
+		AudioPlayer_SetSavePosPeriodic(generalObj["savePosPeriodic"].as<bool>());
 		gPlayProperties.pauseOnMinVolume = generalObj["pauseOnMinVol"].as<bool>();
 		gPlayProperties.pauseIfRfidRemoved = generalObj["pauseIfRfidRemoved"].as<bool>();
 		if (gPlayProperties.pauseIfRfidRemoved) {
@@ -1666,6 +1672,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["playMono"].set(gPrefsSettings.getBool("playMono", false));
 		generalObj["savePosShutdown"].set(gPrefsSettings.getBool("savePosShutdown", false)); // SAVE_PLAYPOS_BEFORE_SHUTDOWN
 		generalObj["savePosRfidChge"].set(gPrefsSettings.getBool("savePosRfidChge", false)); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
+		generalObj["savePosPeriodic"].set(gPrefsSettings.getBool("savePosPeriodic", true)); // periodic audiobook play-position checkpoint
 		generalObj["playLastRfidOnReboot"].set(gPrefsSettings.getBool("playLastOnBoot", false)); // PLAY_LAST_RFID_AFTER_REBOOT
 		generalObj["pauseIfRfidRemoved"].set(gPrefsSettings.getBool("pauseRfidRem", false)); // PAUSE_WHEN_RFID_REMOVED
 		generalObj["dontAcceptRfidTwice"].set(gPrefsSettings.getBool("dAccRfidTwice", false)); // DONT_ACCEPT_SAME_RFID_TWICE
@@ -1836,6 +1843,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		genSettings["playMono"].set(false); // PLAY_MONO_SPEAKER
 		genSettings["savePosShutdown"].set(false); // SAVE_PLAYPOS_BEFORE_SHUTDOWN
 		genSettings["savePosRfidChge"].set(false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
+		genSettings["savePosPeriodic"].set(true); // periodic audiobook play-position checkpoint
 		genSettings["playLastRfidOnReboot"].set(false); // PLAY_LAST_RFID_AFTER_REBOOT
 		genSettings["pauseIfRfidRemoved"].set(false); // PAUSE_WHEN_RFID_REMOVED
 		genSettings["dontAcceptRfidTwice"].set(false); // DONT_ACCEPT_SAME_RFID_TWICE
@@ -3253,6 +3261,40 @@ static String tagIdToJsonStr(const char *key, const bool nameOnly) {
 		serializeJson(entry, serializedJsonString);
 		return serializedJsonString;
 	}
+}
+
+// Resets an audiobook tag's saved play-position (and last-played track) back to the start,
+// so a finished or abandoned book can be restarted from the beginning without re-assigning
+// the card. Preserves the folder/file and play mode. POST /rfidresetpos?id=<tagId>.
+static void handleResetRfidPos(AsyncWebServerRequest *request) {
+	if (!request->hasParam("id")) {
+		request->send(400, "application/json", "{\"error\":\"missing id\"}");
+		return;
+	}
+	const String tagId = request->getParam("id")->value();
+	String s = gPrefsRfid.getString(tagId.c_str(), "");
+	if (s.length() == 0 || s == "-1") {
+		request->send(404, "application/json", "{\"error\":\"unknown tag\"}");
+		return;
+	}
+	// stored format: #<file/folder>#<playPos>#<playMode>#<trackLastPlayed>; extract the mode
+	char buf[512];
+	strncpy(buf, s.c_str(), sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	uint32_t mode = 0;
+	uint8_t i = 1;
+	for (char *token = strtok(buf, stringDelimiter); token != NULL; token = strtok(NULL, stringDelimiter), i++) {
+		if (i == 3) {
+			mode = strtoul(token, NULL, 10);
+		}
+	}
+	if (mode == 0 || mode >= 100) {
+		// NO_PLAYLIST or a modification-card -- there is no play-position to reset
+		request->send(409, "application/json", "{\"error\":\"not a playlist tag\"}");
+		return;
+	}
+	AudioPlayer_ResetRfidPos(tagId.c_str(), (uint8_t) mode);
+	request->send(200, "application/json", "{}");
 }
 
 // Handles rfid-assignments requests (GET)

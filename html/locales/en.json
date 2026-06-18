@@ -292,6 +292,10 @@
 				"title": "File, directory or URL (^ and # aren't allowed as chars)",
 				"placeholder": "f.e. /mp3/Audiobook/Yakari/Yakari_and_Friends.mp3"
 			},
+			"resume": {
+				"info": "Resume at track {{track}} ({{pos}} s)",
+				"reset": "Restart from the beginning"
+			},
 			"playmode": {
 				"title": "Playmode",
 				"placeholder": "Select mode",
@@ -608,6 +612,8 @@
 			"savePlayPosShutdownExp": "When the box is switched off, the playback position for audio books is saved. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>SAVE_PLAYPOS_BEFORE_SHUTDOWN</code>.",
 			"savePlayPosRfidChange": "Remember playback position at RFID tag change",
 			"savePlayPosRfidChangeExp": "When switching to a new RFID tag, the playback position is saved for audio books. Does not affect modification tags. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>SAVE_PLAYPOS_WHEN_RFID_CHANGE</code>.",
+			"savePlayPosPeriodic": "Checkpoint audiobook position periodically",
+			"savePlayPosPeriodicExp": "While an audio book plays, the position is saved to flash every ~30 s. This way an unexpected power loss (dead battery, hard power-off) only loses the last few seconds instead of falling back to the start of the track. Fork feature.",
 			"pauseIfRfidRemoved": "Pause when RFID tag is removed",
 			"pauseIfRfidRemovedExp": "Playback is paused when the RFID tag is removed. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PAUSE_IF_RFID_REMOVED</code>.",
 			"dontAcceptRfidTwice": "Don't accept the same RFID twice",

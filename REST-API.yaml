@@ -439,6 +439,30 @@ paths:
       responses:
         "200":
           description: Successful RFID-tag assignment deletion.
+  /rfidresetpos:
+    post:
+      tags: [Fork]
+      summary: Reset an audiobook tag's saved play-position.
+      description: >
+        Resets the saved play-position and last-played track of a tag back to the start
+        (preserving the folder/file and play mode), so a finished or abandoned audiobook
+        can be restarted from the beginning without re-assigning the card.
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: string
+          description: RFID tag id.
+      responses:
+        "200":
+          description: Position reset.
+        "400":
+          description: Missing id.
+        "404":
+          description: Unknown tag.
+        "409":
+          description: Tag has no play-position (NO_PLAYLIST or a modification card).
   /rfid/ids-only:
     get:
       summary: Get an array of RFID tag ID names.

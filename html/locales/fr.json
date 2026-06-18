@@ -285,6 +285,10 @@
 				"title": "Fichier, répertoire ou URL (^ et # ne sont pas autorisés comme caractères)",
 				"placeholder": "par exemple /mp3/Audiobook/Yakari/Yakari_and_Friends.mp3"
 			},
+			"resume": {
+				"info": "Reprendre à la piste {{track}} ({{pos}} s)",
+				"reset": "Recommencer depuis le début"
+			},
 			"playmode": {
 				"title": "Mode de lecture",
 				"placeholder": "Sélectionnez le mode",
@@ -597,6 +601,8 @@
 			"savePlayPosShutdownExp": "Lorsque la boîte est éteinte, la position de lecture est enregistrée pour les livres audio. Plus d'informations <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>ici</a> sous <code>SAVE_PLAYPOS_BEFORE_SHUTDOWN</code>.",
 			"savePlayPosRfidChange": "Mémoriser la position de lecture au changement de tag RFID",
 			"savePlayPosRfidChangeExp": "Lors du passage à une nouvelle balise RFID, la position de lecture est enregistrée pour les livres audio. Plus d'informations <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>ici</a> sous <code>SAVE_PLAYPOS_WHEN_RFID_CHANGE</code>.",
+			"savePlayPosPeriodic": "Sauvegarder régulièrement la position du livre audio",
+			"savePlayPosPeriodicExp": "Pendant la lecture d'un livre audio, la position est enregistrée dans la mémoire flash toutes les ~30 s. Ainsi, une coupure de courant inattendue (batterie vide, arrêt brutal) ne perd que les dernières secondes au lieu de revenir au début de la piste. Fonction du fork.",
 			"pauseIfRfidRemoved": "Mettre en pause si la balise RFID est retirée",
 			"pauseIfRfidRemovedExp": "Mettre en pause la lecture si la balise RFID est retirée. Plus d'informations <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>ici</a> sous <code>PAUSE_IF_RFID_REMOVED</code>.",
 			"dontAcceptRfidTwice": "Ne pas accepter la balise RFID deux fois",
