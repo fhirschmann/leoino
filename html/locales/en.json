@@ -18,6 +18,8 @@
 	"darkmode": "Dark Mode",
 	"themeCyberpunk": "Cyberpunk",
 	"themeKids": "Kids",
+	"themeCandy": "Candy",
+	"themeGalaxy": "Galaxy",
 	"restartinfo": "ESPuino is being restarted...<br>Page reloads automatically after restart finished.",
 	"shutdowninfo": "ESPuino is now switched off...<br>Page reloads automatically when the ESPuino is switched on again.",
 	"toast": {
