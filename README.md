@@ -174,7 +174,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 
 **RFID-tag syncing** — keep tag assignments in sync across a central PHP server and other ESPuinos (P2P), newest-wins by timestamp, with offline catch-up ([`99ffb5b`](../../commit/99ffb5b)):
 
-<div align="center"><img src="docs/img/feat-rfid-sync.png" width="420" alt="RFID-tag sync settings (server + peers)"></div>
+<div align="center"><img src="docs/img/feat-rfid-sync.png" width="760" alt="RFID-tag sync settings (server + peers)"></div>
 
 **Learn RFID cards from the file browser** — right-click a file/folder → pick a play mode → a popup asks you to lay the card ([`7b8e303`](../../commit/7b8e303)):
 
