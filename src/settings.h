@@ -59,6 +59,15 @@
 	//#define HALLEFFECT_SENSOR_ENABLE      // Support for hallsensor. For fine-tuning please adjust HallEffectSensor.h Please note: only user-support provided (https://forum.espuino.de/t/magnetische-hockey-tags/1449/35)
 	//#define RTC_ENABLE                    // Battery-backed real-time-clock (DS3231) on i2cBusTwo. Keeps the time correct without WiFi/NTP. RTC stores UTC; timezone is applied on top.
 
+	//################## resume fade-in (audiobook) #############################
+	// When continuing an audiobook from a saved position, opening the file + decoding the
+	// first MP3 frames + seeking briefly saturates SD/CPU, so the first ~2 s can stutter.
+	// To hide it elegantly: rewind a few seconds before the saved position and fade the
+	// volume in over that span. The glitch then lands on already-heard audio -> no content
+	// is lost, and you hear clean sound from where you stopped. Set duration to 0 to disable.
+	#define RESUME_FADEIN_DURATION_MS 2500u // fade-in length in ms (0 = feature off)
+	#define RESUME_FADEIN_REWIND_S    3u    // seconds to rewind before the saved resume-position
+
 	//################## set PAUSE_WHEN_RFID_REMOVED behaviour #############################
 	#ifdef PAUSE_WHEN_RFID_REMOVED
 		#define ACCEPT_SAME_RFID_AFTER_TRACK_END           // Accepts same RFID after playback has ended (https://forum.espuino.de/t/neues-feature-pausieren-wenn-rfid-karte-entfernt-wurde/541/2)

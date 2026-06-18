@@ -98,6 +98,10 @@ BaseType_t trackQStatus = pdFAIL;
 uint8_t trackCommand = NO_ACTION;
 bool audioReturnCode;
 uint32_t AudioPlayer_LastPlaytimeStatsTimestamp = 0u;
+// Resume fade-in (see settings.h RESUME_FADEIN_*): millis() when the fade started after a
+// rewound audiobook-resume; 0 = no fade active. Output starts muted and is ramped up so the
+// brief cold-start glitch is masked and lands on the rewound (already-heard) audio.
+uint32_t AudioPlayer_ResumeFadeStartMs = 0u;
 Playlist *newPlayList = nullptr;
 bool newPlayListAvailable = false;
 
@@ -691,6 +695,21 @@ void AudioPlayer_HeadphoneVolumeManager(void) {
 
 // Function to play music as task
 void AudioPlayer_Loop() {
+	// Resume fade-in: ramp the output volume from 0 back to the user's volume over
+	// RESUME_FADEIN_DURATION_MS after a rewound audiobook-resume, so the brief cold-start
+	// glitch is masked. Only the audio-lib gain is ramped; AudioPlayer_CurrentVolume (and
+	// thus the UI/MQTT-reported volume) is left untouched.
+	if (AudioPlayer_ResumeFadeStartMs && (RESUME_FADEIN_DURATION_MS > 0)) {
+		const uint8_t target = AudioPlayer_GetCurrentVolume();
+		const uint32_t elapsed = millis() - AudioPlayer_ResumeFadeStartMs;
+		if (elapsed >= RESUME_FADEIN_DURATION_MS) {
+			audio->setVolume(target);
+			AudioPlayer_ResumeFadeStartMs = 0;
+		} else {
+			audio->setVolume((uint8_t) ((uint32_t) target * elapsed / RESUME_FADEIN_DURATION_MS));
+		}
+	}
+
 	// Update playtime stats every 250 ms
 	if ((millis() - AudioPlayer_LastPlaytimeStatsTimestamp) > 250) {
 		AudioPlayer_LastPlaytimeStatsTimestamp = millis();
@@ -1084,6 +1103,7 @@ void AudioPlayer_Loop() {
 		}
 		gPlayProperties.currentRelPos = 0;
 		audioReturnCode = false;
+		bool resumeFadeWanted = false; // set when a rewound audiobook-resume should fade in (see AudioPlayer_Loop)
 
 		if (gPlayProperties.playMode == WEBSTREAM || (gPlayProperties.playMode == LOCAL_M3U && gPlayProperties.isWebstream)) { // Webstream
 			audioReturnCode = audio->connecttohost(gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber));
@@ -1099,7 +1119,13 @@ void AudioPlayer_Loop() {
 				int32_t fileStartTime = -1;
 				if (gPlayProperties.startAtFilePos > 0) {
 					fileStartTime = gPlayProperties.startAtFilePos;
-					Log_Printf(LOGLEVEL_NOTICE, trackStartatPos, gPlayProperties.startAtFilePos);
+					if (RESUME_FADEIN_DURATION_MS > 0) {
+						// Rewind a few seconds so the cold-start glitch (file open + header
+						// decode + seek-flush) lands on already-heard audio, then fade in below.
+						fileStartTime = (fileStartTime > (int32_t) RESUME_FADEIN_REWIND_S) ? (fileStartTime - (int32_t) RESUME_FADEIN_REWIND_S) : 1;
+						resumeFadeWanted = true;
+					}
+					Log_Printf(LOGLEVEL_NOTICE, trackStartatPos, fileStartTime);
 					gPlayProperties.startAtFilePos = 0;
 				}
 				String pathToTrack = gFSystem.rawPath(gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber));
@@ -1116,6 +1142,11 @@ void AudioPlayer_Loop() {
 			gPlayProperties.trackFinished = true;
 			return;
 		} else {
+			if (resumeFadeWanted) {
+				// Start the (rewound) resume muted; AudioPlayer_Loop ramps the volume back up.
+				audio->setVolume(0);
+				AudioPlayer_ResumeFadeStartMs = millis();
+			}
 			if (gPlayProperties.currentTrackNumber) {
 				Led_Indicate(LedIndicatorType::PlaylistProgress);
 			}
@@ -1298,6 +1329,7 @@ void AudioPlayer_SetVolume(const int32_t _newVolume) {
 		AudioPlayer_SetCurrentVolume(_volume);
 
 		Log_Printf(LOGLEVEL_INFO, newLoudnessReceived, _volume);
+		AudioPlayer_ResumeFadeStartMs = 0; // a manual volume change cancels an active resume fade-in
 		audio->setVolume(_volume);
 		Web_SendWebsocketData(0, WebsocketCodeType::Volume);
 #ifdef MQTT_ENABLE
