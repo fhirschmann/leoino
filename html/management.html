@@ -4537,10 +4537,14 @@
 							submenu: eqSubmenu
 						};
 						/* RFID: learn a card onto this file/folder. Pick a play mode -> the next card
-						   laid on the reader gets assigned to this path (scan-after-select flow). */
+						   laid on the reader gets assigned to this path (scan-after-select flow).
+						   If a card is already assigned, picking a play mode instead changes that
+						   card's mode in place (no need to lay the card on the reader again). */
 						var rfidSubmenu = {};
 						// Show the currently-assigned card(s) for this path as a disabled info entry.
 						var curRfid = (window.rfidPathInfo && window.rfidPathInfo[node.data.path]) || [];
+						// Current mode of the (first) assigned card -> ticked in the mode list below.
+						var curMode = curRfid.length ? Number(curRfid[0].playMode) : null;
 						if (curRfid.length) {
 							rfidSubmenu.current = {
 								_disabled: true,
@@ -4551,31 +4555,59 @@
 								}).join(", ")
 							};
 						}
-						$('#playMode option').each(function () {
-							var cls = this.className || "";
-							var ok = node.data.directory
-								? /option-folder|option-file-and-folder/.test(cls)
-								: (node.type === "playlist"
-									? /option-file\b|option-file-and-folder|option-stream/.test(cls)
-									: /option-file\b|option-file-and-folder/.test(cls));
-							if (!ok) return;
-							var val = this.value, label = (this.textContent || "").trim() || ("Mode " + val);
-							rfidSubmenu["m" + val] = {
-								label: label,
-								action: (function (v) { return function () { armRfidLearn(node.data.path, v, nodeId); }; })(val)
+						// Run fn(value, label) for every play mode that is valid for this node type.
+						var eachPlayMode = function (fn) {
+							$('#playMode option').each(function () {
+								var cls = this.className || "";
+								var ok = node.data.directory
+									? /option-folder|option-file-and-folder/.test(cls)
+									: (node.type === "playlist"
+										? /option-file\b|option-file-and-folder|option-stream/.test(cls)
+										: /option-file\b|option-file-and-folder/.test(cls));
+								if (!ok) return;
+								fn(this.value, (this.textContent || "").trim() || ("Mode " + this.value));
+							});
+						};
+						if (curRfid.length) {
+							// Card already assigned: picking a mode rewrites the assignment in place.
+							eachPlayMode(function (val, label) {
+								rfidSubmenu["m" + val] = {
+									icon: (Number(val) === curMode) ? "fas fa-check" : undefined,
+									label: label,
+									action: (function (v) { return function () { changeRfidModeForPath(node.data.path, v, nodeId); }; })(val)
+								};
+							});
+							// Sub-menu to learn an additional/replacement card for this path (scan flow).
+							var learnSub = {};
+							eachPlayMode(function (val, label) {
+								learnSub["m" + val] = {
+									label: label,
+									action: (function (v) { return function () { armRfidLearn(node.data.path, v, nodeId); }; })(val)
+								};
+							});
+							rfidSubmenu.learnNew = {
+								separator_before: true,
+								label: () => i18next.t("files.context.rfidLearnNew"),
+								icon: "fas fa-tag",
+								submenu: learnSub
 							};
-						});
-						if (hasRfidAssignment(node.data.path)) {
 							rfidSubmenu.remove = {
 								label: () => i18next.t("files.context.rfidRemove"),
 								icon: "fas fa-times",
-								separator_before: true,
 								action: function () { removeRfidForPath(node.data.path, nodeId); }
 							};
+						} else {
+							// No card yet: picking a mode arms the learn flow (scan the next card).
+							eachPlayMode(function (val, label) {
+								rfidSubmenu["m" + val] = {
+									label: label,
+									action: (function (v) { return function () { armRfidLearn(node.data.path, v, nodeId); }; })(val)
+								};
+							});
 						}
 						items.rfid = {
-							// append the assigned card id(s) to the label, e.g. "Assign RFID: 9000..."
-							label: () => i18next.t("files.context.rfid") + (curRfid.length ? ": " + curRfid.map(function (e) { return e.id; }).join(", ") : ""),
+							// "RFID card: 9000..." when assigned, else "Assign RFID"
+							label: () => (curRfid.length ? i18next.t("files.context.rfidManage") + ": " + curRfid.map(function (e) { return e.id; }).join(", ") : i18next.t("files.context.rfid")),
 							icon: "fas fa-tag",
 							submenu: rfidSubmenu
 						};
@@ -7203,6 +7235,21 @@
 			// The full learned-cards list lives in the Tools tab; refresh it and the explorer badges.
 			rebuildRFIDList();
 			loadRfidPaths(updateSelectedNodeBadges);
+		}
+		// Change the play mode of the card(s) already assigned to this path, in place (no re-scan).
+		// Reuses POST /rfid with the existing fileOrUrl; a saved audiobook play-position is reset.
+		async function changeRfidModeForPath(path, playMode, nodeId) {
+			var entries = (window.rfidPathInfo && window.rfidPathInfo[path]) || [];
+			if (!entries.length) { return; }
+			for (var i = 0; i < entries.length; i++) {
+				await fetch("http://" + host + "/rfid", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ id: entries[i].id, fileOrUrl: removeTrSlash(path), playMode: Number(playMode) })
+				});
+			}
+			toaster.info(i18next.t("files.rfid.modeChanged", { mode: i18next.t("files.rfid.playmode.mode." + playMode) }));
+			refreshRfidBadgesAround(nodeId);
 		}
 		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.
 		async function removeRfidForPath(path, nodeId) {

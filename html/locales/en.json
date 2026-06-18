@@ -258,6 +258,8 @@
 			"eq": "EQ profile",
 			"eqRemove": "No EQ (remove)",
 			"rfid": "Assign RFID",
+			"rfidManage": "RFID card",
+			"rfidLearnNew": "Learn another card",
 			"rfidNoCard": "Place an RFID card first",
 			"rfidRemove": "Remove RFID assignment"
 		},
@@ -299,6 +301,7 @@
 				"info": "Resume at track {{track}} ({{pos}} s)",
 				"reset": "Restart from the beginning"
 			},
+			"modeChanged": "Mode changed: {{mode}}",
 			"playmode": {
 				"title": "Playmode",
 				"placeholder": "Select mode",

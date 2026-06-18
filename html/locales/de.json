@@ -258,6 +258,8 @@
 			"eq": "EQ-Profil",
 			"eqRemove": "Kein EQ (entfernen)",
 			"rfid": "RFID anlernen",
+			"rfidManage": "RFID-Karte",
+			"rfidLearnNew": "Weitere Karte anlernen",
 			"rfidNoCard": "Erst RFID-Karte auflegen",
 			"rfidRemove": "RFID-Zuweisung entfernen"
 		},
@@ -299,6 +301,7 @@
 				"info": "Fortsetzen bei Titel {{track}} ({{pos}} s)",
 				"reset": "Von vorne beginnen"
 			},
+			"modeChanged": "Modus geändert: {{mode}}",
 			"playmode": {
 				"title": "Abspielmodus",
 				"placeholder": "Modus auswählen",

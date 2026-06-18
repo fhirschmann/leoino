@@ -251,6 +251,8 @@
 			"eq": "Profil EQ",
 			"eqRemove": "Pas d'EQ (retirer)",
 			"rfid": "Associer RFID",
+			"rfidManage": "Carte RFID",
+			"rfidLearnNew": "Apprendre une autre carte",
 			"rfidNoCard": "Posez d'abord une carte RFID",
 			"rfidRemove": "Retirer l'association RFID"
 		},
@@ -292,6 +294,7 @@
 				"info": "Reprendre à la piste {{track}} ({{pos}} s)",
 				"reset": "Recommencer depuis le début"
 			},
+			"modeChanged": "Mode modifié : {{mode}}",
 			"playmode": {
 				"title": "Mode de lecture",
 				"placeholder": "Sélectionnez le mode",
