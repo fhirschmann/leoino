@@ -4396,7 +4396,23 @@
 				el.setAttribute('href', '#');
 				el.onclick = function (e) {
 					e.preventDefault();
-					try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) {}
+					// jump to the Tools tab AND scroll the firmware-update section into view so the
+					// progress bar is actually visible. Scroll only once the tab transition has
+					// finished (the pane has no layout while hidden); if we're already on the tab,
+					// scroll straight away since 'shown.bs.tab' won't fire.
+					const scrollToFwUpdate = function () {
+						const sec = document.getElementById('httpUpdate');
+						if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					};
+					try {
+						const toolsTab = document.getElementById('nav-tools-tab');
+						if (toolsTab.classList.contains('active')) {
+							scrollToFwUpdate();
+						} else {
+							toolsTab.addEventListener('shown.bs.tab', scrollToFwUpdate, { once: true });
+							bootstrap.Tab.getOrCreateInstance(toolsTab).show();
+						}
+					} catch (err) {}
 					applyGithubUpdate();
 				};
 			} else {
