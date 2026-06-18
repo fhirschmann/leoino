@@ -810,6 +810,10 @@ paths:
       responses:
         "200":
           description: Rule stored.
+        "413":
+          description: "Rule store is full (NVS ~4 KB limit). Body: {\"error\":\"eqRulesFull\",\"used\":N,\"max\":N}. Delete existing rules first."
+        "500":
+          description: Saving to NVS failed.
     delete:
       tags: [Fork]
       summary: Delete a per-path equalizer rule.

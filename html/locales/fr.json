@@ -655,7 +655,9 @@
 		"eqrules": {
 			"title": "Règles EQ (par fichier/dossier)",
 			"desc": "Aperçu des profils d'égaliseur attribués par chemin. Vous pouvez les consulter et les supprimer ici.",
-			"empty": "Aucune règle EQ définie."
+			"empty": "Aucune règle EQ définie.",
+			"full": "Le stockage des règles EQ est plein — supprimez des règles existantes avant d'en ajouter.",
+			"savefailed": "Impossible d'enregistrer la règle EQ."
 		},
 		"backup": {
 			"title": "Sauvegarde",

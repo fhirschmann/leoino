@@ -2143,6 +2143,10 @@ void handleGetSettings(AsyncWebServerRequest *request) {
 	request->send(response);
 }
 
+// NVS caps a single string value at 4000 bytes; stay safely below that so a near-full
+// rule set still leaves room for the JSON envelope and a final entry.
+static constexpr size_t EQ_RULES_MAX_BYTES = 3900;
+
 // Return all per-path equalizer rules as the stored JSON array.
 void handleGetEqRules(AsyncWebServerRequest *request) {
 	request->send(200, "application/json", gPrefsSettings.getString("eqRules", "[]"));
@@ -2183,7 +2187,20 @@ void handleSetEqRule(AsyncWebServerRequest *request) {
 
 	String out;
 	serializeJson(doc, out);
-	gPrefsSettings.putString("eqRules", out);
+	// NVS caps a single string value at 4000 bytes. If the serialized rule set would
+	// exceed that, putString() silently fails (returns 0) and the rule is lost without
+	// any feedback. Reject the save up-front with a clear error instead, leaving the
+	// previously stored rules untouched, and tell the UI how full the store is.
+	if (out.length() > EQ_RULES_MAX_BYTES) {
+		char err[160];
+		snprintf(err, sizeof(err), "{\"error\":\"eqRulesFull\",\"used\":%u,\"max\":%u}", (unsigned) out.length(), (unsigned) EQ_RULES_MAX_BYTES);
+		request->send(413, "application/json", err);
+		return;
+	}
+	if (gPrefsSettings.putString("eqRules", out) == 0) {
+		request->send(500, "application/json", "{\"error\":\"eqRulesSaveFailed\"}");
+		return;
+	}
 	AudioPlayer_ReloadEqRules();
 	request->send(200, "application/json", "{}");
 }

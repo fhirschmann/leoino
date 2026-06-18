@@ -666,7 +666,9 @@
 		"eqrules": {
 			"title": "EQ rules (per file/folder)",
 			"desc": "Overview of the per-path equalizer profiles. View and delete them here.",
-			"empty": "No EQ rules set."
+			"empty": "No EQ rules set.",
+			"full": "EQ rule storage is full — delete some existing rules before adding new ones.",
+			"savefailed": "Could not save the EQ rule."
 		},
 		"backup": {
 			"title": "Backup",

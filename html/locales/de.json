@@ -666,7 +666,9 @@
 		"eqrules": {
 			"title": "EQ-Regeln (pro Datei/Ordner)",
 			"desc": "Übersicht der per-Pfad zugewiesenen Equalizer-Profile. Hier kannst du sie ansehen und löschen.",
-			"empty": "Keine EQ-Regeln gesetzt."
+			"empty": "Keine EQ-Regeln gesetzt.",
+			"full": "Der Speicher für EQ-Regeln ist voll — lösche bestehende Regeln, bevor du neue hinzufügst.",
+			"savefailed": "EQ-Regel konnte nicht gespeichert werden."
 		},
 		"backup": {
 			"title": "Backup",

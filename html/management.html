@@ -6845,9 +6845,25 @@
 		function setEqRule(path, profileKey) {
 			const g = eqProfiles[profileKey];
 			if (!g) return;
-			postData("http://" + host + "/eqrule?path=" + encodeURIComponent(path)
+			// fetch (not postData) so we can surface the server's error: NVS caps the rule
+			// store at ~4 KB and the device rejects an over-full save with HTTP 413 instead
+			// of silently dropping the rule.
+			fetch("http://" + host + "/eqrule?path=" + encodeURIComponent(path)
 				+ "&low=" + g.gainLowPass + "&band=" + g.gainBandPass + "&high=" + g.gainHighPass
-				+ "&profile=" + encodeURIComponent(profileKey), function () { loadEqRules(function () { updateEqIndicator(); updateSelectedNodeBadges(); }); });
+				+ "&profile=" + encodeURIComponent(profileKey), { method: "POST" })
+				.then(function (resp) {
+					if (resp.status === 413) {
+						toaster.error(i18next.t("tools.eqrules.full"));
+						return;
+					}
+					if (!resp.ok) {
+						toaster.error(i18next.t("tools.eqrules.savefailed"));
+						return;
+					}
+					loadEqRules(function () { updateEqIndicator(); updateSelectedNodeBadges(); });
+					flashActionOk();
+				})
+				.catch(function () { toaster.error(i18next.t("tools.eqrules.savefailed")); });
 		}
 		// Remove the per-path EQ rule for a file/folder path.
 		function deleteEqRule(path) {
