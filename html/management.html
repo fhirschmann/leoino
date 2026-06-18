@@ -568,6 +568,34 @@
 			opacity: .6;
 		}
 
+		/* Flat settings sections: drop the per-section fieldset box so the boxed Settings
+		   panes (General/Buttons/RFID/LEDs/Power) match the flat "// heading + separator"
+		   look of the WiFi/MQTT/FTP/Sync/Bluetooth panes. Scoped to the Settings tab so the
+		   Control and RFID tabs keep their card boxes. The ::after reuses the same cyan
+		   gradient as <hr>, so both pane styles get identical section dividers. */
+		#nav-general fieldset {
+			border: 0;
+			background: none;
+			padding: 0 0 1.25rem;
+			margin-bottom: 1.25rem;
+			position: relative;
+		}
+
+		#nav-general fieldset:not(:last-of-type)::after {
+			content: "";
+			position: absolute;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			height: 1px;
+			background: linear-gradient(90deg, var(--cp-cyan), rgba(0, 240, 255, .05));
+			opacity: .6;
+		}
+
+		body[data-bs-theme="light"] #nav-general fieldset {
+			background: none;
+		}
+
 		label {
 			font-weight: 600;
 			letter-spacing: .03em;
