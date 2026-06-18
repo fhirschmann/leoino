@@ -416,6 +416,86 @@
 			text-shadow: 0 0 10px rgba(255, 42, 109, .7) !important;
 		}
 
+		/* ---------- settings sub-navigation: vertical UniFi-style sidebar ---------- */
+		/* lay the Settings tab out as [vertical nav | content], like UniFi. The sub-nav
+		   labels are hidden < md (d-md-inline), so on mobile this collapses to a narrow
+		   icon-only rail next to the content. */
+		#nav-general.active {
+			display: flex;
+			align-items: flex-start;
+			gap: 1.1rem;
+		}
+
+		#nav-general>nav {
+			flex: 0 0 auto;
+			margin-top: 0 !important;
+		}
+
+		#settings-subnav.nav-tabs {
+			flex-direction: column;
+			flex-wrap: nowrap;
+			border-bottom: none;
+			border-right: 1px solid var(--cp-border);
+			padding-right: 2px;
+			position: sticky;
+			top: 1rem;
+		}
+
+		#settings-subnav .nav-link {
+			border: 1px solid transparent;
+			border-left: 2px solid transparent;
+			text-align: left;
+			white-space: nowrap;
+		}
+
+		#settings-subnav .nav-link i {
+			width: 1.25em;
+			text-align: center;
+		}
+
+		#settings-subnav .nav-link:hover {
+			border-bottom-color: transparent;
+			border-left-color: rgba(0, 240, 255, .4);
+		}
+
+		#settings-subnav .nav-link.active {
+			border: 1px solid var(--cp-border);
+			border-left: 2px solid var(--cp-cyan);
+			border-right-color: transparent;
+			background: linear-gradient(90deg, rgba(0, 240, 255, .12), transparent);
+		}
+
+		#settings-subnav .nav-link.ftp-active.active {
+			border-left: 2px solid var(--cp-yellow) !important;
+			border-bottom-color: var(--cp-border) !important;
+			background: linear-gradient(90deg, rgba(252, 238, 10, .12), transparent) !important;
+		}
+
+		#settings-subnav .nav-link.bt-active.active {
+			border-left: 2px solid var(--cp-magenta) !important;
+			border-bottom-color: var(--cp-border) !important;
+			background: linear-gradient(90deg, rgba(255, 42, 109, .12), transparent) !important;
+		}
+
+		#nav-general>.tab-content {
+			flex: 1 1 auto;
+			min-width: 0;
+		}
+
+		@media (max-width: 767.98px) {
+			#nav-general.active {
+				gap: .55rem;
+			}
+
+			#settings-subnav .nav-link {
+				padding: .55rem .65rem;
+			}
+
+			#settings-subnav .nav-link i {
+				width: auto;
+			}
+		}
+
 		/* ---------- content panels ---------- */
 		.main-tab-pane.active>.container {
 			animation: cp-boot .35s ease-out both;
@@ -2143,7 +2223,7 @@
 		<div class="tab-pane main-tab-pane fade mb-4" id="nav-general" role="tabpanel"
 			aria-labelledby="nav-general-tab">
 			<nav class="mb-3" style="margin-top: -1.25rem;">
-				<div class="nav nav-tabs justify-content-center" id="settings-subnav" role="tablist">
+				<div class="nav nav-tabs flex-column" id="settings-subnav" role="tablist">
 					<a class="nav-item nav-link active" id="settings-general-subtab" data-bs-toggle="tab" data-bs-target="#settings-general" href="#settings-general" role="tab" aria-controls="settings-general" aria-selected="true"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="nav.general"></span></a>
 					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
 					<a class="nav-item nav-link" id="settings-rfid-subtab" data-bs-toggle="tab" data-bs-target="#settings-rfid" href="#settings-rfid" role="tab" aria-controls="settings-rfid"><i class="fas fa-id-card"></i> <span class="d-none d-md-inline" data-i18n="nav.rfidcards"></span></a>
