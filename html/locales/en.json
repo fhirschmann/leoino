@@ -16,6 +16,8 @@
 	"showhide": "Show/Hide",
 	"infos": "Information",
 	"darkmode": "Dark Mode",
+	"themeCyberpunk": "Cyberpunk",
+	"themeKids": "Kids",
 	"restartinfo": "ESPuino is being restarted...<br>Page reloads automatically after restart finished.",
 	"shutdowninfo": "ESPuino is now switched off...<br>Page reloads automatically when the ESPuino is switched on again.",
 	"toast": {

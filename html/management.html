@@ -68,6 +68,36 @@
 			--cp-dim: #5a6a8a;
 		}
 
+		/* ============================================================
+		   "Kids" theme - a bright, friendly, rounded look for a
+		   children's player. It piggybacks on the light Bootstrap
+		   theme (set via JS) so all the light-mode structural fixes
+		   apply, then overrides the palette + neon flourishes below.
+		   Placed AFTER the light palette so it wins on source order
+		   (equal specificity).
+		   ============================================================ */
+		body[data-theme="kids"] {
+			--cp-cyan: #3aa0ff;
+			/* primary accent / links - cheerful blue   */
+			--cp-magenta: #ff6b9d;
+			/* bubblegum pink (hover / secondary accent) */
+			--cp-yellow: #ffb703;
+			/* sunny                                     */
+			--cp-green: #38c172;
+			/* grass                                     */
+			--cp-bg: #eaf4ff;
+			/* soft sky                                  */
+			--cp-panel: #ffffff;
+			--cp-surface: #ffffff;
+			--cp-surface-2: #fff4d6;
+			/* warm sunny cards                          */
+			--cp-border: #ffd8a8;
+			--cp-border-glow: rgba(58, 160, 255, .25);
+			--cp-text: #2b2350;
+			/* friendly deep purple-navy                 */
+			--cp-dim: #7c83a8;
+		}
+
 		body {
 			/* remap Bootstrap theme variables onto the cyberpunk palette */
 			--bs-body-bg: var(--cp-bg);
@@ -1624,10 +1654,97 @@
 			padding-right: 0;
 			padding-left: 5px;
 		}
+
+		/* ============================================================
+		   "Kids" theme - playful overrides on top of the palette.
+		   Strips the cyberpunk neon/CRT flourishes (scanlines, glows,
+		   angled clip-paths, flicker) and rounds everything off into a
+		   soft, friendly toy-like UI.
+		   ============================================================ */
+		body[data-theme="kids"] {
+			font-family: "Comic Sans MS", "Chalkboard SE", "Comic Neue", "Baloo 2", "Quicksand", "Segoe UI Rounded", system-ui, sans-serif;
+			background-image:
+				radial-gradient(900px 500px at 50% -10%, rgba(255, 183, 3, .18), transparent 70%),
+				radial-gradient(700px 500px at 100% 100%, rgba(255, 107, 157, .15), transparent 70%);
+			background-size: auto, auto;
+		}
+
+		/* no CRT scanline overlay */
+		body[data-theme="kids"]::after {
+			display: none;
+		}
+
+		/* kill neon glows, flicker/blink loops and angled corners everywhere */
+		body[data-theme="kids"] *,
+		body[data-theme="kids"] *::before,
+		body[data-theme="kids"] *::after {
+			text-shadow: none !important;
+			clip-path: none !important;
+			animation: none !important;
+			letter-spacing: normal !important;
+			text-transform: none !important;
+		}
+
+		/* round everything off for a soft, toy-like feel */
+		body[data-theme="kids"] .navbar,
+		body[data-theme="kids"] fieldset,
+		body[data-theme="kids"] .card,
+		body[data-theme="kids"] .btn,
+		body[data-theme="kids"] .form-control,
+		body[data-theme="kids"] .form-select,
+		body[data-theme="kids"] .modal-content,
+		body[data-theme="kids"] .toast,
+		body[data-theme="kids"] .dropdown-menu,
+		body[data-theme="kids"] .list-group-item,
+		body[data-theme="kids"] .nav-link {
+			border-radius: 18px !important;
+		}
+
+		body[data-theme="kids"] .btn {
+			font-weight: 700;
+			box-shadow: 0 4px 0 rgba(0, 0, 0, .08);
+		}
+
+		/* bright, friendly navbar instead of the dark neon bar */
+		body[data-theme="kids"] .navbar.bg-primary {
+			background: linear-gradient(180deg, #fff7e6, #ffe3ef) !important;
+			border-bottom: 3px solid var(--cp-magenta);
+			box-shadow: 0 4px 16px rgba(255, 107, 157, .25);
+		}
+
+		body[data-theme="kids"] #navbar-brand-co {
+			color: var(--cp-magenta) !important;
+		}
+
+		body[data-theme="kids"] #navbar-heading {
+			color: var(--cp-cyan) !important;
+		}
+
+		body[data-theme="kids"] #menuToggle,
+		body[data-theme="kids"] .navbar .navbar-text {
+			color: var(--cp-text) !important;
+		}
+
+		body[data-theme="kids"] .nav-logo {
+			filter: none;
+		}
+
+		body[data-theme="kids"] fieldset {
+			box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
+		}
 	</style>
 </head>
 
 <body data-bs-theme="dark">
+	<!-- Apply the stored theme before paint to avoid a flash of the wrong colours. -->
+	<script>
+		(function () {
+			var theme = localStorage.getItem('uiTheme') || 'cyberpunk';
+			document.body.setAttribute('data-theme', theme);
+			var mode = theme === 'kids' ? 'light' : (localStorage.getItem('lightSwitch') || 'dark');
+			document.body.setAttribute('data-bs-theme', mode);
+		})();
+	</script>
 	<div class="toast-container position-fixed top-0 end-0 p-3 mt-5" id="toaster">
 		<div class="toast align-items-center border-0" id="toast-template" role="alert" aria-live="assertive"
 			aria-atomic="true">
@@ -1687,6 +1804,16 @@
 										<option value="de">Deutsch</option>
 										<option value="en">English</option>
 										<option value="fr">Fran&ccedil;aise</option>
+									</select>
+								</div>
+							</li>
+							<li>
+								<div class="dropdown-item d-flex">
+									<i class="fas fa-palette menu-icon"
+										style="margin-left: 0; margin-top: 10px; margin-right: 5px;"></i>
+									<select class="form-control form-select" id="themeSel" name="themeSel">
+										<option value="cyberpunk" data-i18n="themeCyberpunk"></option>
+										<option value="kids" data-i18n="themeKids"></option>
 									</select>
 								</div>
 							</li>
@@ -7246,27 +7373,64 @@
 			});
 
 			const lightSwitch = $('#lightSwitch');
-			/* Changes the color mode to a new one and saves the value to local storage. */
-			function newColorMode(mode) {
-				console.log('new mode', mode);
+			const themeSel = $('#themeSel');
 
+			/* Applies a Bootstrap color mode (dark/light) to body + file explorer. */
+			function applyColorMode(mode) {
 				$('body').attr("data-bs-theme", mode);
 				// File explorer knows 'default' or 'default-dark' as themes
 				$('#explorerTree').jstree('set_theme', mode == 'dark' ? 'default-dark' : 'default');
+			}
 
+			/* Changes the color mode to a new one and saves the value to local storage. */
+			function newColorMode(mode) {
+				console.log('new mode', mode);
+				applyColorMode(mode);
 				localStorage.setItem('lightSwitch', mode);
+			}
+
+			/* The "kids" theme is intrinsically bright, so it pins the light
+			 * Bootstrap mode and the dark-mode toggle has no effect there. */
+			function activeTheme() {
+				return localStorage.getItem('uiTheme') || 'cyberpunk';
+			}
+
+			/* Applies a named UI theme (palette) and reconciles the dark/light
+			 * toggle, which only makes sense for the cyberpunk theme. */
+			function applyTheme(theme) {
+				$('body').attr('data-theme', theme);
+				localStorage.setItem('uiTheme', theme);
+				themeSel.val(theme);
+
+				const darkToggle = lightSwitch.closest('li');
+				if (theme == 'kids') {
+					applyColorMode('light');
+					darkToggle.addClass('d-none');
+				} else {
+					darkToggle.removeClass('d-none');
+					applyColorMode((localStorage.getItem('lightSwitch') || 'dark'));
+				}
 			}
 
 			/* Triggers a newColorMode(..) call with either 'dark' or 'light'  as the new color mode. */
 			function onSwitchDarkMode() {
+				/* The dark/light switch is inert while the kids theme is active. */
+				if (activeTheme() == 'kids') {
+					return;
+				}
 				newColorMode(lightSwitch.prop('checked') ? 'dark' : 'light');
 			}
-			/* Fetches the settings for lightSwitch from storage, defaulting to dark. */
+			/* Fetches the settings for lightSwitch + theme from storage, defaulting
+			 * to the dark cyberpunk look. */
 			function darkmodeSwitchSetup() {
 				/* The cyberpunk theme is dark by default, regardless of the system theme. */
 				lightSwitch.prop('checked', (localStorage.getItem('lightSwitch') || 'dark') == 'dark');
+				applyTheme(activeTheme());
 				onSwitchDarkMode();
 				lightSwitch.change(onSwitchDarkMode);
+				themeSel.change(function() {
+					applyTheme(themeSel.val());
+				});
 			}
 
 			function addOption(selectelement, value) {

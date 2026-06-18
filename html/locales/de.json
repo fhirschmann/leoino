@@ -16,6 +16,8 @@
 	"showhide": "Ein-/Ausblenden",
 	"infos": "Informationen",
 	"darkmode": "Dunkelmodus",
+	"themeCyberpunk": "Cyberpunk",
+	"themeKids": "Kinder",
 	"restartinfo": "ESPuino wird jetzt neu gestartet...<br>Die Seite lädt sich nach dem Neustart automatisch neu.",
 	"shutdowninfo": "ESPuino wird jetzt ausgeschaltet...<br>Die Seite lädt sich nach dem Wiedereinschalten automatisch neu.",
 	"toast": {
