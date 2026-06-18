@@ -626,6 +626,8 @@
 			"recoverVolBootExp": "Die Box erinnert sich über einen Neustart hinweg, welche Lautstärke zuletzt verwendet wurde und stellt diese automatisch wieder ein.",
 			"volumeCurve": "Feinere Abstufungen bei niedriger Lautstärke",
 			"volumeCurveExp": "Verwendung von logarithmischer Lautstärkeberechnung. Kann helfen, wenn im unteren Lautstärkebereich die Abstufungen zu grob sind.",
+			"playStartupSound": "Startton abspielen",
+			"playStartupSoundExp": "Spielt beim Kaltstart einmalig den Bereitschaftston (die MP3 unten) ab. Für einen lautlosen Start deaktivieren.",
 			"readypath": "Pfad zur Begrüßungs-MP3 (Kaltstart)",
 			"noSleepWhenPowered": "Kein Standby wenn am Strom",
 			"noSleepWhenPoweredExp": "Wenn aktiv, geht das Gerät nicht wegen Inaktivität in den Standby, solange es am Strom hängt. Mangels Lade-/USB-Erkennung wird „am Strom“ über die Akkuspannung geschätzt (Ladespannung liegt über der Ruhespannung) — siehe Schwelle. Der manuelle Sleep-Timer bleibt davon unberührt.",

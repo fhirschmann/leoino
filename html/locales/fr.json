@@ -615,6 +615,8 @@
 			"recoverVolBootExp": "Le boîtier se souvient, après un redémarrage, du dernier volume utilisé et le rétablit automatiquement.",
 			"volumeCurve": "Des nuances plus fines à faible volume",
 			"volumeCurveExp": "Utilisation du calcul logarithmique du volume. Peut aider si les nuances sont trop grossières dans la plage de volume inférieure.",
+			"playStartupSound": "Jouer le son de démarrage",
+			"playStartupSoundExp": "Joue le son de disponibilité (le MP3 ci-dessous) une fois au démarrage à froid. Désactivez pour un démarrage silencieux.",
 			"readypath": "Chemin vers le MP3 de bienvenue",
 			"noSleepWhenPowered": "Pas de veille sur secteur",
 			"noSleepWhenPoweredExp": "Si activé, l'appareil ne se met pas en veille par inactivité tant qu'il est sur secteur. Faute de détection de charge/USB, « sur secteur » est estimé via la tension de la batterie (la tension de charge dépasse la tension au repos) — voir le seuil. La minuterie de veille manuelle n'est pas affectée.",

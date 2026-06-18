@@ -2446,6 +2446,13 @@
 									data-i18n="[data-bs-content]general.options.volumeCurveExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
+								<input type="checkbox" id="playStartupSound" name="playStartupSound" value="false">
+								<label for="playStartupSound" data-i18n="general.options.playStartupSound"></label>
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.options.playStartupSoundExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
 							</div>
 							<br>
 							<label for="readyPath" data-i18n="general.options.readypath"></label>
@@ -4939,6 +4946,7 @@
 				if (genSettings.readyPath !== undefined) {
 					document.getElementById('readyPath').value = genSettings.readyPath;
 				}
+				$('#playStartupSound').prop('checked', genSettings.playStartupSnd);
 			}
 			// current values
 			let currSettings = settings.current;
@@ -5491,7 +5499,8 @@
 					pn5180Lpcd: $('#pn5180Lpcd').prop('checked'),
 					slix2Password: $('#slix2Password').val(),
 					mfrc522Gain: Number($('#mfrc522Gain').val()),
-					readyPath: document.getElementById('readyPath').value
+					readyPath: document.getElementById('readyPath').value,
+					playStartupSnd: $('#playStartupSound').prop('checked')
 				},
 				"led": {
 					initBrightness: Number($('#initBrightness').val()),

@@ -973,6 +973,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("savePosShutdown", generalObj["savePosShutdown"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosRfidChge", generalObj["savePosRfidChge"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosPeriodic", generalObj["savePosPeriodic"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("playStartupSnd", generalObj["playStartupSnd"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("playLastOnBoot", generalObj["playLastRfidOnReboot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseRfidRem", generalObj["pauseIfRfidRemoved"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("dAccRfidTwice", generalObj["dontAcceptRfidTwice"].as<bool>()) != 0);
@@ -1416,6 +1417,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["recoverVolBoot"].set(gPrefsSettings.getBool("recoverVolBoot", false)); // USE_LAST_VOLUME_AFTER_REBOOT
 		generalObj["volumeCurve"].set(gPrefsSettings.getUChar("volumeCurve", 0)); // VOLUMECURVE
 		generalObj["readyPath"].set(gPrefsSettings.getString("readyPath", "/ready.mp3")); // READY_PATH
+		generalObj["playStartupSnd"].set(gPrefsSettings.getBool("playStartupSnd", true)); // play the ready sound on cold start
 		generalObj["noSleepWhenPowered"].set(gPrefsSettings.getBool("noSleepPwr", false)); // stay awake on external power
 		generalObj["poweredVoltage"].set(gPrefsSettings.getFloat("pwrSleepVolt", 3.5f)); // voltage threshold for "powered"
 		generalObj["headerText"].set(gPrefsSettings.getString("uiHeader", "")); // custom navbar brand (empty = default)
@@ -1576,6 +1578,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		genSettings["savePosShutdown"].set(false); // SAVE_PLAYPOS_BEFORE_SHUTDOWN
 		genSettings["savePosRfidChge"].set(false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 		genSettings["savePosPeriodic"].set(true); // periodic audiobook play-position checkpoint
+		genSettings["playStartupSnd"].set(true); // play the ready sound on cold start
 		genSettings["playLastRfidOnReboot"].set(false); // PLAY_LAST_RFID_AFTER_REBOOT
 		genSettings["pauseIfRfidRemoved"].set(false); // PAUSE_WHEN_RFID_REMOVED
 		genSettings["dontAcceptRfidTwice"].set(false); // DONT_ACCEPT_SAME_RFID_TWICE

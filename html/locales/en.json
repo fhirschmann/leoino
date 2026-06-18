@@ -626,6 +626,8 @@
 			"recoverVolBootExp": "After a restart, the speaker remembers which volume was last used and automatically adjusts it again.",
 			"volumeCurve": "Finer gradations at low volume",
 			"volumeCurveExp": "Use of logarithmic volume calculation. Can help if the gradations in the lower volume range are too coarse.",
+			"playStartupSound": "Play startup sound",
+			"playStartupSoundExp": "Play the ready sound (the MP3 below) once on cold start. Disable for a silent boot.",
 			"readypath": "Path to ready MP3 (cold start)",
 			"noSleepWhenPowered": "No standby while on power",
 			"noSleepWhenPoweredExp": "When enabled, the device will not go into standby due to inactivity while it is on external power. Since there is no charge/USB sense, being 'on power' is estimated from the battery voltage (charge voltage sits above the resting voltage) — see threshold. The manual sleep timer is unaffected.",

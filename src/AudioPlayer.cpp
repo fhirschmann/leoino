@@ -1453,6 +1453,9 @@ void AudioPlayer_PauseOnMinVolume(const uint8_t oldVolume, const uint8_t newVolu
 }
 
 void AudioPlayer_PlayReadyMsg(void) {
+	if (!gPrefsSettings.getBool("playStartupSnd", true)) {
+		return; // startup sound disabled in the web settings
+	}
 	if (audio != nullptr) {
 		String path = gPrefsSettings.getString("readyPath", "/ready.mp3");
 		if (path.length() > 0 && gFSystem.exists(path)) {
