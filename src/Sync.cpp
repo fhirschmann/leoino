@@ -243,7 +243,14 @@ static void syncTask(void *parameter) {
 	// the parser (deserializeJson over the WiFiClient stream) instead of first buffering
 	// the whole payload in a String — this roughly halves peak RAM during the parse, which
 	// matters for large manifests (hundreds of file entries) on the heap-constrained ESP32.
-	JsonDocument doc;
+	// Download the manifest to a temp file on SD, then parse it one entry at a time.
+	// Loading the whole manifest into a JsonDocument fails on two counts: a large
+	// manifest (this fork syncs 1000+ files) needs far more than the ~90 kB of free
+	// heap available at runtime (NoMemory -> "parse error"), and the PHP-generated
+	// manifest is sent "Transfer-Encoding: chunked", whose chunk framing corrupts a
+	// parse that reads the raw socket. writeToStream() decodes the chunking for us;
+	// streaming the entries back off SD keeps only one file object in RAM at a time.
+	const char *manifestTmp = "/.sync_manifest.json";
 	{
 		std::unique_ptr<WiFiClient> client = syncMakeClient(manifestUrl);
 		HTTPClient http;
@@ -262,18 +269,32 @@ static void syncTask(void *parameter) {
 			vTaskDelete(NULL);
 			return;
 		}
-		const DeserializationError err = deserializeJson(doc, *http.getStreamPtr());
-		http.end();
-		if (err) {
-			syncFail("manifest parse error");
+		File mf = gFSystem.open(manifestTmp, "w", true);
+		if (!mf) {
+			syncFail("manifest: cannot buffer to SD");
+			http.end();
 			vTaskDelete(NULL);
 			return;
 		}
+		http.writeToStream(&mf); // decodes chunked transfer-encoding, minimal RAM
+		mf.close();
+		http.end();
 	}
 
-	JsonArray files = doc["files"].as<JsonArray>();
-	if (files.isNull()) {
+	// Re-open the buffered manifest and seek to the start of the "files" array; from
+	// here entries are deserialized one object at a time.
+	File manifest = gFSystem.open(manifestTmp, "r");
+	if (!manifest) {
+		syncFail("manifest: reopen failed");
+		gFSystem.remove(manifestTmp);
+		vTaskDelete(NULL);
+		return;
+	}
+	const size_t manifestBytes = manifest.size();
+	if (!manifest.find("\"files\"") || !manifest.find('[')) {
 		syncFail("manifest has no \"files\" array");
+		manifest.close();
+		gFSystem.remove(manifestTmp);
 		vTaskDelete(NULL);
 		return;
 	}
@@ -285,12 +306,9 @@ static void syncTask(void *parameter) {
 		baseUrl = baseUrl.substring(0, lastSlash + 1);
 	}
 
-	const size_t total = files.size();
 	size_t processed = 0;
 	size_t downloaded = 0;
 	size_t failed = 0;
-
-	Log_Printf(LOGLEVEL_NOTICE, "Sync: %u files in manifest", (unsigned) total);
 
 	// If playback is running, pause it for the SD-writing phase so the card isn't
 	// read and written at the same time. Pressing play again cancels the sync (see
@@ -308,51 +326,62 @@ static void syncTask(void *parameter) {
 	Led_ShowSyncColor(); // indicate the running sync with a solid blue (single transmission, no repeated show())
 
 	bool cancelled = false;
-	for (JsonObject entry : files) {
+	bool more = true;
+	while (more) {
 		if (gSyncCancel) {
 			cancelled = true;
 			break;
 		}
+		JsonDocument entryDoc; // holds a single manifest entry -> stays tiny
+		if (deserializeJson(entryDoc, manifest)) {
+			break; // no (more) entries -> we reached the closing ']'
+		}
+		JsonObject entry = entryDoc.as<JsonObject>();
 		String path = entry["path"].as<String>();
 		const long size = entry["size"] | -1;
 		while (path.startsWith("/")) {
 			path = path.substring(1);
 		}
-		if (path.length() == 0) {
-			processed++;
-			continue;
-		}
-		const String localPath = "/" + path;
+		if (path.length() > 0) {
+			const String localPath = "/" + path;
 
-		// additive diff: skip if a local file of the same size already exists
-		bool needDownload = true;
-		if ((size >= 0) && gFSystem.exists(localPath)) {
-			File existing = gFSystem.open(localPath, "r");
-			if (existing) {
-				if ((long) existing.size() == size) {
-					needDownload = false;
+			// additive diff: skip if a local file of the same size already exists
+			bool needDownload = true;
+			if ((size >= 0) && gFSystem.exists(localPath)) {
+				File existing = gFSystem.open(localPath, "r");
+				if (existing) {
+					if ((long) existing.size() == size) {
+						needDownload = false;
+					}
+					existing.close();
 				}
-				existing.close();
 			}
-		}
 
-		if (needDownload) {
-			// expose the file currently being downloaded so the web UI can show it
-			syncSetMessage(path.c_str());
-			const String fileUrl = baseUrl + syncUrlEncodePath(path);
-			if (syncDownloadFile(fileUrl, user, pass, localPath)) {
-				downloaded++;
-				Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
-			} else {
-				failed++;
-				Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+			if (needDownload) {
+				// expose the file currently being downloaded so the web UI can show it
+				syncSetMessage(path.c_str());
+				const String fileUrl = baseUrl + syncUrlEncodePath(path);
+				if (syncDownloadFile(fileUrl, user, pass, localPath)) {
+					downloaded++;
+					Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+				} else {
+					failed++;
+					Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+				}
 			}
 		}
 
 		processed++;
-		gSyncProgress = (total > 0) ? (uint8_t) ((processed * 100) / total) : 100;
+		// total entry count is unknown while streaming, so track progress by how far
+		// we are through the manifest file instead
+		gSyncProgress = (manifestBytes > 0) ? (uint8_t) (((uint32_t) manifest.position() * 100) / manifestBytes) : 100;
 		vTaskDelay(pdMS_TO_TICKS(1));
+
+		more = manifest.findUntil(",", "]"); // step to the next entry, or stop at ']'
 	}
+
+	manifest.close();
+	gFSystem.remove(manifestTmp);
 
 	System_PauseTasksDuringUpload(false);
 
@@ -362,7 +391,7 @@ static void syncTask(void *parameter) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
 	}
 
-	syncSetMessagef("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) total);
+	syncSetMessagef("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) processed);
 	char summary[sizeof(gSyncMsg)];
 	Sync_CopyMessage(summary, sizeof(summary));
 	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", summary);
