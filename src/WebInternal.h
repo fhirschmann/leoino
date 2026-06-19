@@ -6,8 +6,21 @@
 #include "ESPAsyncWebServer.h"
 #include "FS.h"
 
-// Internal interface between Web.cpp (route table + lifecycle) and WebExplorer.cpp
-// (SD file-browser + chunked upload subsystem). Not part of the public Web.h API.
+// Internal interface between Web.cpp (route table + lifecycle) and the extracted web
+// subsystems (WebExplorer.cpp = SD file-browser + chunked upload, WebRfid.cpp = RFID
+// tag-assignment endpoints). Not part of the public Web.h API.
+
+// RFID tag-assignment handlers (registered as routes in Web.cpp::webserverStart, implemented
+// in WebRfid.cpp).
+void handleGetRFIDRequest(AsyncWebServerRequest *request);
+void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json);
+void handleDeleteRFIDRequest(AsyncWebServerRequest *request);
+void handleResetRfidPos(AsyncWebServerRequest *request);
+
+// NVS helpers owned by Web.cpp but reused by the extracted modules.
+bool listNVSKeys(const char *_namespace, void *data, bool (*callback)(const char *key, void *data));
+bool DumpNvsToArrayCallback(const char *key, void *data); // collects NVS keys into a std::vector<String>
+bool Web_DumpNvsToSd(const char *_namespace, const char *_destFile); // mirror an NVS namespace to a backup file on SD
 
 // File-browser handlers (registered as routes in Web.cpp::webserverStart).
 void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
