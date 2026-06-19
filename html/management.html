@@ -7059,6 +7059,47 @@
 			new bootstrap.Modal(document.getElementById('modalTrackInfo')).show();
 		}
 
+		// Build a small inline-SVG bar chart of the last 30 days of listening time from the raw
+		// /playstats ring buffer. Pure client-side (no chart lib, stays offline); bars use the
+		// active theme's accent colour so it matches Cyberpunk/Candy/Galaxy. Returns '' if empty.
+		function renderStatsChart(ps) {
+			if (!ps || !ps.lastDay || !Array.isArray(ps.days) || !ps.days.length) return '';
+			const size = ps.days.length; // 365
+			const N = 30;
+			const series = [];
+			let total = 0;
+			for (let i = N - 1; i >= 0; i--) {
+				const day = ps.lastDay - i;
+				if (day < 0) continue;
+				const secs = ps.days[((day % size) + size) % size] || 0;
+				total += secs;
+				series.push({ day: day, secs: secs });
+			}
+			if (!series.length || total === 0) return '';
+			const max = Math.max.apply(null, series.map(function (s) { return s.secs; })) || 1;
+			const W = 600, H = 130, padB = 20, padT = 6, padX = 2;
+			const n = series.length;
+			const bw = (W - padX * 2) / n;
+			const esc = (typeof escapeHtml === 'function') ? escapeHtml : function (x) { return x; };
+			let bars = '';
+			series.forEach(function (s, idx) {
+				const h = s.secs > 0 ? Math.max(2, (s.secs / max) * (H - padB - padT)) : 0;
+				const x = padX + idx * bw;
+				const y = H - padB - h;
+				const dt = new Date(s.day * 86400000); // day number -> UTC midnight of that calendar date
+				const dateLabel = String(dt.getUTCDate()).padStart(2, '0') + '.' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '.' + dt.getUTCFullYear();
+				const title = dateLabel + (s.secs > 0 ? ' — ' + timestampToDuration(s.secs * 1000, true) : '');
+				bars += '<rect x="' + (x + 0.6).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(1, bw - 1.2).toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1" fill="var(--c, #00f0ff)" opacity="' + (s.secs > 0 ? 0.85 : 0.12) + '"><title>' + esc(title) + '</title></rect>';
+			});
+			const first = new Date(series[0].day * 86400000);
+			const last = new Date(series[series.length - 1].day * 86400000);
+			const fmt = function (d) { return String(d.getUTCDate()).padStart(2, '0') + '.' + String(d.getUTCMonth() + 1).padStart(2, '0') + '.'; };
+			const axis = '<text x="' + padX + '" y="' + (H - 6) + '" font-size="11" fill="var(--t, #cfe)" opacity="0.6">' + fmt(first) + '</text>'
+				+ '<text x="' + (W - padX) + '" y="' + (H - 6) + '" font-size="11" text-anchor="end" fill="var(--t, #cfe)" opacity="0.6">' + fmt(last) + '</text>'
+				+ '<line x1="' + padX + '" y1="' + (H - padB) + '" x2="' + (W - padX) + '" y2="' + (H - padB) + '" stroke="var(--t, #cfe)" stroke-opacity="0.15"/>';
+			return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" preserveAspectRatio="none" role="img" style="height:130px;overflow:visible">' + bars + axis + '</svg>';
+		}
+
 		async function fetchInfo() {
 			let info = await (await fetch("http://" + host + "/info")).json();
 			console.log(info);
@@ -7116,7 +7157,20 @@
 			}
 
 			const html = '<table class="table table-sm table-borderless cp-info-table mb-0"><tbody>' + rows.join('') + '</tbody></table>';
-			$('#modalInfoContent').html(html);
+			// listening-time chart (last 30 days) + CSV export, built from the raw /playstats ring
+			let statsBlock = '';
+			try {
+				const ps = await (await fetch("http://" + host + "/playstats")).json();
+				const chart = renderStatsChart(ps);
+				if (chart) {
+					statsBlock = '<div class="cp-stats-chart mt-3 pt-2" style="border-top:1px solid var(--b, rgba(255,255,255,.1))">'
+						+ '<div class="d-flex justify-content-between align-items-center mb-1">'
+						+ '<span style="text-transform:uppercase;letter-spacing:.06em;opacity:.8;font-size:.8rem">' + i18next.t('systeminfo.chartTitle') + '</span>'
+						+ '<a href="http://' + host + '/stats.csv" download="espuino-listening-stats.csv" style="font-size:.8rem"><i class="fas fa-download"></i> ' + i18next.t('systeminfo.exportCsv') + '</a>'
+						+ '</div>' + chart + '</div>';
+				}
+			} catch (e) { /* ignore -- chart is optional */ }
+			$('#modalInfoContent').html(html + statsBlock);
 		}
 		var liveLogInterval;
 		async function fetchLog() {

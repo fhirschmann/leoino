@@ -25,3 +25,7 @@ uint16_t Playstats_GetRingSize(void); // number of day-slots (365)
 uint32_t Playstats_GetRingLastDay(void); // local day number of the most recent tracked day
 uint32_t Playstats_GetRingSlot(uint16_t i); // seconds in raw slot i (0..size-1)
 void Playstats_RestoreRing(uint32_t lastDay, const uint32_t *slots, uint16_t count); // restore from backup
+
+// Convert a ring-buffer day number (local days since 1970-01-01) back to a calendar date, e.g. for
+// a CSV export. Any of the out-pointers may be null.
+void Playstats_DayToDate(uint32_t dayNum, int *year, int *month, int *dayOfMonth);

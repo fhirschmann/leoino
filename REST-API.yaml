@@ -523,6 +523,20 @@ paths:
             text/html:
               schema:
                 type: string
+  /stats.csv:
+    get:
+      summary: Export listening statistics as CSV.
+      description: >
+        Returns the daily listening-time statistics as a CSV download
+        (header `date,seconds`), one row per calendar day from the first day
+        with any playback up to the most recent tracked day (oldest first).
+      responses:
+        "200":
+          description: CSV with one `date,seconds` row per day.
+          content:
+            text/csv:
+              schema:
+                type: string
   /debug:
     get:
       summary: Get debug information.

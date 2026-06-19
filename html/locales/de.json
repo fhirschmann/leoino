@@ -805,7 +805,9 @@
 		"lblPlayYesterday": "Gestern gehört",
 		"lblPlay7d": "Letzte 7 Tage",
 		"lblPlay30d": "Letzte 30 Tage",
-		"lblTopCard": "Meistgespielt"
+		"lblTopCard": "Meistgespielt",
+		"chartTitle": "Letzte 30 Tage",
+		"exportCsv": "CSV"
 	},
 	"homekit": {
 		"title": "Apple HomeKit",

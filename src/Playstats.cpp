@@ -57,6 +57,29 @@ static long Playstats_DaysFromCivil(int y, unsigned m, unsigned d) {
 	return era * 146097 + (long) doe - 719468;
 }
 
+// Inverse of Playstats_DaysFromCivil: turn a day number (days since 1970-01-01) back into a
+// (proleptic Gregorian) calendar date (Howard Hinnant's civil_from_days algorithm).
+void Playstats_DayToDate(uint32_t dayNum, int *year, int *month, int *dayOfMonth) {
+	long z = (long) dayNum + 719468;
+	long era = (z >= 0 ? z : z - 146096) / 146097;
+	unsigned long doe = (unsigned long) (z - era * 146097); // [0, 146096]
+	unsigned long yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // [0, 399]
+	long y = (long) yoe + era * 400;
+	unsigned long doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+	unsigned long mp = (5 * doy + 2) / 153; // [0, 11]
+	unsigned long d = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
+	unsigned long m = mp < 10 ? mp + 3 : mp - 9; // [1, 12]
+	if (year) {
+		*year = (int) (y + (m <= 2));
+	}
+	if (month) {
+		*month = (int) m;
+	}
+	if (dayOfMonth) {
+		*dayOfMonth = (int) d;
+	}
+}
+
 // Local calendar day number (days since epoch in local time). 0 if the clock is not valid yet.
 static uint32_t Playstats_CurrentDay(void) {
 	time_t now = time(nullptr);

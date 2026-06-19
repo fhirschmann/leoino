@@ -837,6 +837,39 @@ void webserverStart(void) {
 			request->send(200, "text/plain; charset=utf-8", "ok");
 		}));
 
+		// Listening stats as a CSV download (date,seconds), oldest -> newest. Contiguous daily
+		// series from the first day with any playback up to the most recent tracked day, so it
+		// drops straight into a spreadsheet.
+		wServer.on("/stats.csv", HTTP_GET, [](AsyncWebServerRequest *request) {
+			AsyncResponseStream *response = request->beginResponseStream("text/csv; charset=utf-8");
+			response->addHeader("Content-Disposition", "attachment; filename=\"espuino-listening-stats.csv\"");
+			response->print("date,seconds\n");
+			const uint16_t n = Playstats_GetRingSize();
+			const uint32_t lastDay = Playstats_GetRingLastDay();
+			if (lastDay >= n) { // a valid clock has been seen (lastDay is days-since-epoch, ~20000)
+				const uint32_t firstDay = lastDay - (n - 1);
+				uint32_t start = lastDay;
+				bool found = false;
+				for (uint32_t d = firstDay; d <= lastDay; d++) {
+					if (Playstats_GetRingSlot(d % n) > 0) {
+						start = d;
+						found = true;
+						break;
+					}
+				}
+				if (found) {
+					for (uint32_t d = start; d <= lastDay; d++) {
+						int y = 0, mo = 0, dd = 0;
+						Playstats_DayToDate(d, &y, &mo, &dd);
+						char line[40];
+						snprintf(line, sizeof(line), "%04d-%02d-%02d,%lu\n", y, mo, dd, (unsigned long) Playstats_GetRingSlot(d % n));
+						response->print(line);
+					}
+				}
+			}
+			request->send(response);
+		});
+
 		// Most-played RFID cards (top 10 by play count), with their assigned file/URL + play mode.
 		wServer.on("/topcards", HTTP_GET, [](AsyncWebServerRequest *request) {
 			std::vector<String> ids;
