@@ -68,12 +68,14 @@ def transform_html(src: str) -> str:
     )
     out = out.replace("<head>\n", head_inject, 1)
 
-    # 5) demo banner right after <body>
+    # 5) demo banner right after <body>. The data-i18n keys come from the "demo"
+    #    namespace the mock merges into each locales file, so the banner follows
+    #    the language selected in the UI. The inline text is the pre-i18n fallback.
     banner = (
         '\n\t<div id="demoBanner">\n'
-        '\t\t<span class="demo-pill">DEMO</span>\n'
-        '\t\t<span>Statische Vorschau des ESPuino-Webinterface &ndash; kein Geraet verbunden, Aktionen ohne Wirkung.</span>\n'
-        '\t\t<a href="https://github.com/fhirschmann/leoino" target="_blank" rel="noopener">Projekt auf GitHub</a>\n'
+        '\t\t<span class="demo-pill" data-i18n="demo.label">DEMO</span>\n'
+        '\t\t<span data-i18n="demo.text">Statische Vorschau des ESPuino-Webinterface &ndash; kein Gerät verbunden, Aktionen ohne Wirkung.</span>\n'
+        '\t\t<a href="https://github.com/fhirschmann/leoino" target="_blank" rel="noopener" data-i18n="demo.link">Projekt auf GitHub</a>\n'
         '\t</div>\n'
     )
     out = re.sub(r"(<body[^>]*>)", lambda m: m.group(1) + banner, out, count=1)

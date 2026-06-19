@@ -25,44 +25,44 @@
 	var FS = {
 		"/": [
 			{ name: "ESPUINO-SD", root: "sd" },
-			{ name: "Hoerspiele", dir: true },
-			{ name: "Maerchen", dir: true },
+			{ name: "Hörspiele", dir: true },
+			{ name: "Märchen", dir: true },
 			{ name: "Klassik", dir: true },
 			{ name: "Musik", dir: true },
 			{ name: "Playlists", dir: true },
 			{ name: "ready.mp3" }
 		],
-		"/Hoerspiele": [
+		"/Hörspiele": [
 			{ name: "Der Wald der tausend Lichter", dir: true },
 			{ name: "Die Robo-Detektive", dir: true },
 			{ name: "Sternenstaub und Mondsilber", dir: true }
 		],
-		"/Hoerspiele/Der Wald der tausend Lichter": [
+		"/Hörspiele/Der Wald der tausend Lichter": [
 			{ name: "01 - Aufbruch in den Nebel.mp3" },
-			{ name: "02 - Die geheime Hoehle.mp3" },
-			{ name: "03 - Das fluesternde Moos.mp3" },
+			{ name: "02 - Die geheime Höhle.mp3" },
+			{ name: "03 - Das flüsternde Moos.mp3" },
 			{ name: "04 - Heimkehr bei Sonnenaufgang.mp3" }
 		],
-		"/Hoerspiele/Die Robo-Detektive": [
-			{ name: "01 - Der verschwundene Schraubenschluessel.mp3" },
+		"/Hörspiele/Die Robo-Detektive": [
+			{ name: "01 - Der verschwundene Schraubenschlüssel.mp3" },
 			{ name: "02 - Alarm im Zahnrad-Werk.mp3" },
-			{ name: "03 - Das Raetsel der blauen Diode.mp3" }
+			{ name: "03 - Das Rätsel der blauen Diode.mp3" }
 		],
-		"/Hoerspiele/Sternenstaub und Mondsilber": [
+		"/Hörspiele/Sternenstaub und Mondsilber": [
 			{ name: "01 - Eine Reise beginnt.mp3" },
-			{ name: "02 - Komet ausser Kurs.mp3" }
+			{ name: "02 - Komet außer Kurs.mp3" }
 		],
-		"/Maerchen": [
-			{ name: "Haensel und Gretel.mp3" },
-			{ name: "Rotkaeppchen.mp3" },
+		"/Märchen": [
+			{ name: "Hänsel und Gretel.mp3" },
+			{ name: "Rotkäppchen.mp3" },
 			{ name: "Die Bremer Stadtmusikanten.mp3" },
-			{ name: "Der Froschkoenig.mp3" },
-			{ name: "Das haessliche Entlein.mp3" },
-			{ name: "Die Schildkroete und der Hase.mp3" }
+			{ name: "Der Froschkönig.mp3" },
+			{ name: "Das hässliche Entlein.mp3" },
+			{ name: "Die Schildkröte und der Hase.mp3" }
 		],
 		"/Klassik": [
-			{ name: "Vivaldi - Der Fruehling.mp3" },
-			{ name: "Beethoven - Fuer Elise.mp3" },
+			{ name: "Vivaldi - Der Frühling.mp3" },
+			{ name: "Beethoven - Für Elise.mp3" },
 			{ name: "Bach - Air.mp3" },
 			{ name: "Mozart - Kleine Nachtmusik.mp3" },
 			{ name: "Grieg - Morgenstimmung.mp3" }
@@ -85,9 +85,9 @@
 
 	// Saved RFID assignments (flat objects like tagIdToJSON()).
 	var RFID = [
-		{ id: "0009094506", fileOrUrl: "/Maerchen/Haensel und Gretel.mp3", playMode: 3, lastPlayPos: 142000, trackLastPlayed: 0 },
+		{ id: "0009094506", fileOrUrl: "/Märchen/Hänsel und Gretel.mp3", playMode: 3, lastPlayPos: 142000, trackLastPlayed: 0 },
 		{ id: "0006981923", fileOrUrl: "/Klassik", playMode: 5, lastPlayPos: 0, trackLastPlayed: 0 },
-		{ id: "0212345678", fileOrUrl: "/Hoerspiele/Die Robo-Detektive", playMode: 16, lastPlayPos: 318000, trackLastPlayed: 1 },
+		{ id: "0212345678", fileOrUrl: "/Hörspiele/Die Robo-Detektive", playMode: 16, lastPlayPos: 318000, trackLastPlayed: 1 },
 		{ id: "0078451200", fileOrUrl: "/Musik/Robo-Beats Vol. 1", playMode: 6, lastPlayPos: 0, trackLastPlayed: 0 },
 		{ id: "0033112299", modId: 110 }
 	];
@@ -133,14 +133,14 @@
 	// The "currently inserted" playlist (public-domain fairy tales). next/prev
 	// step through this list and the title updates accordingly.
 	var TRACKS = [
-		"Haensel und Gretel", "Rotkaeppchen", "Die Bremer Stadtmusikanten",
-		"Der Froschkoenig", "Das haessliche Entlein", "Die Schildkroete und der Hase"
+		"Hänsel und Gretel", "Rotkäppchen", "Die Bremer Stadtmusikanten",
+		"Der Froschkönig", "Das hässliche Entlein", "Die Schildkröte und der Hase"
 	];
 
 	// Now-playing fixture (public-domain audiobook).
 	var TRACK = {
 		name: TRACKS[2],
-		artist: "Gebrueder Grimm", album: "Maerchensammlung",
+		artist: "Gebrüder Grimm", album: "Märchensammlung",
 		pausePlay: true, // true = currently paused
 		currentTrackNumber: 3, numberOfTracks: TRACKS.length,
 		controlsLocked: false, nightMode: false, repeatMode: 0, sleepTimerDuration: 0,
@@ -156,6 +156,15 @@
 
 	var VERSION = { build: "demo (web preview)", upToDate: 1, latest: "demo (web preview)" };
 
+	// Demo banner strings, injected into the locales response under a "demo"
+	// namespace so the banner follows the language picked in the UI (the firmware
+	// locale files stay untouched).
+	var DEMO_I18N = {
+		de: { label: "DEMO", text: "Statische Vorschau des ESPuino-Webinterface – kein Gerät verbunden, Aktionen ohne Wirkung.", link: "Projekt auf GitHub" },
+		en: { label: "DEMO", text: "Static preview of the ESPuino web interface – no device connected, actions have no effect.", link: "Project on GitHub" },
+		fr: { label: "DÉMO", text: "Aperçu statique de l'interface web ESPuino – aucun appareil connecté, les actions n'ont aucun effet.", link: "Projet sur GitHub" }
+	};
+
 	// ---------------------------------------------------------------
 	// REST routing  (returns {status, contentType, body} or null)
 	// ---------------------------------------------------------------
@@ -170,8 +179,10 @@
 		var qs = u.searchParams;
 		method = (method || "GET").toUpperCase();
 
-		// Locales are real static files shipped next to the page -> let them through.
-		if (/\/locales\//.test(p)) { return { passthrough: "." + u.pathname.substring(u.pathname.indexOf("/locales/")) }; }
+		// Locales are real static files shipped next to the page; fetch them for
+		// real but tag the language so the demo strings can be merged in.
+		var locMatch = p.match(/\/locales\/([a-zA-Z]+)\.json$/);
+		if (locMatch) { return { passthrough: "." + u.pathname.substring(u.pathname.indexOf("/locales/")), lng: locMatch[1].toLowerCase() }; }
 
 		// Read endpoints
 		if (method === "GET") {
@@ -206,9 +217,9 @@
 			}
 			if (p === "/topcards") {
 				return jsonResp([
-					{ id: "0009094506", fileOrUrl: "/Maerchen/Haensel und Gretel.mp3", count: 42 },
+					{ id: "0009094506", fileOrUrl: "/Märchen/Hänsel und Gretel.mp3", count: 42 },
 					{ id: "0006981923", fileOrUrl: "/Klassik", count: 31 },
-					{ id: "0212345678", fileOrUrl: "/Hoerspiele/Die Robo-Detektive", count: 27 }
+					{ id: "0212345678", fileOrUrl: "/Hörspiele/Die Robo-Detektive", count: 27 }
 				]);
 			}
 			if (p === "/savedSSIDs") { return jsonResp(["Heimnetz", "Gartenlaube"]); }
@@ -238,7 +249,19 @@
 		var url = (typeof input === "string") ? input : (input && input.url) || String(input);
 		var method = (init && init.method) || (input && input.method) || "GET";
 		var r = route(method, url);
-		if (r && r.passthrough && realFetch) { return realFetch(r.passthrough, init); }
+		if (r && r.passthrough && realFetch) {
+			var p = realFetch(r.passthrough, init);
+			// merge the demo banner strings into the locales file
+			if (r.lng) {
+				return p.then(function (resp) {
+					return resp.json().then(function (data) {
+						data.demo = DEMO_I18N[r.lng] || DEMO_I18N.en;
+						return new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json; charset=utf-8" } });
+					});
+				});
+			}
+			return p;
+		}
 		if (r) {
 			return Promise.resolve(new Response(r.body, {
 				status: r.status,
@@ -312,6 +335,15 @@
 				self.statusText = real.statusText;
 				try { self.responseText = real.responseText; } catch (e) {}
 				try { self.response = real.response; } catch (e) {}
+				// merge demo banner strings into the locales file (XHR path)
+				if (real.readyState === 4 && r && r.lng && real.status >= 200 && real.status < 300) {
+					try {
+						var data = JSON.parse(real.responseText);
+						data.demo = DEMO_I18N[r.lng] || DEMO_I18N.en;
+						self.responseText = JSON.stringify(data);
+						self.response = (self.responseType === "json") ? data : self.responseText;
+					} catch (e) {}
+				}
 				if (typeof self.onreadystatechange === "function") { self.onreadystatechange(); }
 				if (real.readyState === 4) { self._fire(real.status >= 200 && real.status < 300 ? "load" : "error"); self._fire("loadend"); }
 			};
