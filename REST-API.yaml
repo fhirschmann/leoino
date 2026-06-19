@@ -745,10 +745,10 @@ paths:
   /security:
     get:
       tags: [Fork]
-      summary: Is web-interface password protection enabled?
+      summary: Password-protection status and session-cookie lifetime.
       responses:
         "200":
-          description: Whether a web password is set.
+          description: Whether a web password is set, plus the cookie lifetime in days (0 = unlimited).
           content:
             application/json:
               schema:
@@ -756,13 +756,18 @@ paths:
                 properties:
                   enabled:
                     type: boolean
+                  cookieDays:
+                    type: integer
+                    description: Session-cookie lifetime in days; 0 means unlimited.
     post:
       tags: [Fork]
-      summary: Set or clear the shared device password (web interface, FTP and WebDAV).
+      summary: Set the shared device password and/or the session-cookie lifetime.
       description: >
         Sets one shared password that protects the web interface, FTP and WebDAV at once
         (applied live, no reboot). An empty password is accepted and disables protection
-        for all three.
+        for all three. Both fields are optional: send only "cookieDays" to change the
+        session-cookie lifetime without touching the password. If "password" is omitted the
+        password is left unchanged.
       requestBody:
         required: true
         content:
@@ -772,9 +777,12 @@ paths:
               properties:
                 password:
                   type: string
+                cookieDays:
+                  type: integer
+                  description: Session-cookie lifetime in days; 0 means unlimited.
       responses:
         "200":
-          description: Password updated.
+          description: Settings updated.
   /login:
     post:
       tags: [Fork]

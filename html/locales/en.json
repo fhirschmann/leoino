@@ -138,6 +138,12 @@
 			"title": "Password",
 			"placeholder": "Leave empty to disable protection",
 			"desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV)."
+		},
+		"cookie": {
+			"title": "Stay logged in",
+			"unlimited": "Stay logged in indefinitely",
+			"days": "Stay logged in for (days)",
+			"desc": "How long you stay logged in to the web interface after signing in. Browsers usually cap cookies at ~400 days."
 		}
 	},
 	"wifi": {
@@ -444,6 +450,7 @@
 	"ftp": {
 		"title": "FTP-settings",
 		"authHint": "FTP accepts any username - only the password matters. The password is the shared device password (\"Security\" tab). An empty password means access without a login.",
+		"enable": "Start FTP automatically on boot",
 		"user": {
 			"title": "FTP-Username",
 			"placeholder": "username"

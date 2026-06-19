@@ -351,6 +351,17 @@ static String Web_BuildSessionToken(const String &password, const String &salt) 
 	return hex;
 }
 
+// Session-cookie lifetime in days (NVS "wwwCookieDays", default 90). 0 means "unlimited":
+// browsers cap Max-Age (Chrome at ~400 days), so we send 10 years as the practical maximum.
+static const uint32_t WWW_COOKIE_DAYS_DEFAULT = 90;
+static const uint32_t WWW_COOKIE_UNLIMITED_SECONDS = 60UL * 60 * 24 * 3650; // ~10 years
+
+static String Web_SessionCookie(const String &token) {
+	uint32_t days = gPrefsSettings.getUInt("wwwCookieDays", WWW_COOKIE_DAYS_DEFAULT);
+	uint32_t maxAge = (days == 0) ? WWW_COOKIE_UNLIMITED_SECONDS : (days * 24UL * 60 * 60);
+	return "ESPUINO_SESSION=" + token + "; Max-Age=" + String(maxAge) + "; Path=/; SameSite=Lax";
+}
+
 static void Web_RefreshSessionToken(void) {
 	String password = gPrefsSettings.getString("wwwPassword", "");
 	wwwApiKey = password; // refresh the RAM-cached API key
@@ -408,7 +419,7 @@ static void Web_HandlePostLogin(AsyncWebServerRequest *request, JsonVariant &jso
 	if ((wwwSessionToken.length() > 0) && password && gPrefsSettings.getString("wwwPassword", "").equals(password)) {
 		wwwFailedLogins = 0;
 		AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"status\":\"ok\"}");
-		response->addHeader("Set-Cookie", "ESPUINO_SESSION=" + wwwSessionToken + "; Max-Age=7776000; Path=/; SameSite=Lax");
+		response->addHeader("Set-Cookie", Web_SessionCookie(wwwSessionToken));
 		request->send(response);
 		Log_Println("webinterface login successful", LOGLEVEL_NOTICE);
 	} else {
@@ -422,6 +433,17 @@ static void Web_HandlePostLogin(AsyncWebServerRequest *request, JsonVariant &jso
 }
 
 static void Web_HandlePostSecurity(AsyncWebServerRequest *request, JsonVariant &json) {
+	// Session-cookie lifetime in days (0 = unlimited). Independent of the password, so the cookie
+	// form can update just this without touching the password.
+	if (!json["cookieDays"].isNull()) {
+		gPrefsSettings.putUInt("wwwCookieDays", json["cookieDays"].as<uint32_t>());
+	}
+	// The password is only changed when the key is present (the cookie form omits it, so an empty
+	// body must NOT be read as "disable protection").
+	if (json["password"].isNull()) {
+		request->send(200, "application/json", "{\"status\":\"ok\"}");
+		return;
+	}
 	String password = json["password"] | "";
 	// One shared device password: the same value protects the web interface, FTP and WebDAV.
 	// An empty password is allowed and disables protection everywhere.
@@ -446,7 +468,7 @@ static void Web_HandlePostSecurity(AsyncWebServerRequest *request, JsonVariant &
 	Log_Println("device password protection enabled (web/ftp/webdav)", LOGLEVEL_NOTICE);
 	// keep the client that changed the password logged in
 	AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"enabled\":true}");
-	response->addHeader("Set-Cookie", "ESPUINO_SESSION=" + wwwSessionToken + "; Max-Age=7776000; Path=/; SameSite=Lax");
+	response->addHeader("Set-Cookie", Web_SessionCookie(wwwSessionToken));
 	request->send(response);
 }
 
@@ -496,7 +518,9 @@ void webserverStart(void) {
 			request->send(response);
 		});
 		wServer.on("/security", HTTP_GET, [](AsyncWebServerRequest *request) {
-			request->send(200, "application/json", (wwwSessionToken.length() > 0) ? "{\"enabled\":true}" : "{\"enabled\":false}");
+			String body = String("{\"enabled\":") + ((wwwSessionToken.length() > 0) ? "true" : "false")
+				+ ",\"cookieDays\":" + String(gPrefsSettings.getUInt("wwwCookieDays", WWW_COOKIE_DAYS_DEFAULT)) + "}";
+			request->send(200, "application/json", body);
 		});
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/security", Web_HandlePostSecurity));
 
@@ -1261,16 +1285,12 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 	}
 	if (doc["ftp"].is<JsonObject>()) {
-		// Only the username is configured here; the FTP password is the shared device
-		// password set on the Security tab (see Web_HandlePostSecurity).
-		const char *_ftpUser = doc["ftp"]["username"] | "";
-		gPrefsSettings.putString("ftpuser", (String) _ftpUser);
-		if (!String(_ftpUser).equals(gPrefsSettings.getString("ftpuser", "-1"))) {
-			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "ftp");
-			return WebsocketCodeType::Error;
+		// Only the auto-start-on-boot flag is configured here. FTP accepts any username and
+		// uses the shared device password set on the Security tab (see Web_HandlePostSecurity).
+		JsonObject ftpObj = doc["ftp"];
+		if (ftpObj["enable"].is<bool>()) {
+			gPrefsSettings.putBool("ftpEnable", ftpObj["enable"].as<bool>());
 		}
-		// apply the new credentials to the running server without requiring a reboot
-		Ftp_ReloadCredentials();
 	} else if (doc["sync"].is<JsonObject>()) {
 		// HTTP file-sync configuration (manifest URL + optional Basic Auth)
 		JsonObject syncObj = doc["sync"];
@@ -1782,6 +1802,7 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		ftpObj["password"] = gPrefsSettings.getString("ftppassword", "-1");
 		ftpObj["maxUserLength"].set(ftpUserLength - 1);
 		ftpObj["maxPwdLength"].set(ftpUserLength - 1);
+		ftpObj["enable"] = gPrefsSettings.getBool("ftpEnable", false);
 	}
 #endif
 #ifdef WEBDAV_ENABLE

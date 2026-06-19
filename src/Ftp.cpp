@@ -24,6 +24,7 @@ String Ftp_Password = "esp32"; // FTP-password (default; can be changed later vi
 FTPServer *ftpSrv; // Heap-alloction takes place later (when needed)
 bool ftpEnableLastStatus = false;
 bool ftpEnableCurrentStatus = false;
+static bool ftpAutostart = false; // start automatically on boot (persisted setting "ftpEnable")
 #endif
 
 void ftpManager(void);
@@ -49,6 +50,10 @@ void Ftp_Init(void) {
 		Ftp_Password = nvsFtpPassword;
 		Log_Printf(LOGLEVEL_INFO, restoredFtpPwdFromNvs, nvsFtpPassword.c_str());
 	}
+
+#ifdef FTP_ENABLE
+	ftpAutostart = gPrefsSettings.getBool("ftpEnable", false);
+#endif
 }
 
 // Re-reads the FTP credentials from NVS into the in-memory globals the running
@@ -83,6 +88,14 @@ void Ftp_Exit(void) {
 
 void Ftp_Cyclic(void) {
 #ifdef FTP_ENABLE
+	// One-shot auto-start: when the persisted setting asks for it, fire the server up the first time
+	// WiFi is available after boot, then never touch it again (so a manual stop isn't overridden).
+	static bool autostartHandled = false;
+	if (ftpAutostart && !autostartHandled && Wlan_IsConnected()) {
+		autostartHandled = true;
+		Ftp_EnableServer();
+	}
+
 	ftpManager();
 
 	if (WL_CONNECTED == WiFi.status()) {

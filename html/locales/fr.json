@@ -131,6 +131,12 @@
 			"title": "Mot de passe",
 			"placeholder": "Laisser vide pour désactiver la protection",
 			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Pour le FTP et le WebDAV, le nom d'utilisateur n'a pas d'importance - n'importe quel nom fonctionne, seul ce mot de passe est vérifié. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Laisser vide pour désactiver la protection partout (interface web, FTP, WebDAV)."
+		},
+		"cookie": {
+			"title": "Rester connecté",
+			"unlimited": "Rester connecté indéfiniment",
+			"days": "Rester connecté pendant (jours)",
+			"desc": "Durée pendant laquelle vous restez connecté à l'interface web après la connexion. Les navigateurs limitent généralement les cookies à ~400 jours."
 		}
 	},
 	"wifi": {
@@ -437,6 +443,7 @@
 	"ftp": {
 		"title": "Paramètres FTP",
 		"authHint": "Le FTP accepte n'importe quel nom d'utilisateur - seul le mot de passe compte. C'est le mot de passe partagé de l'appareil (onglet « Sécurité »). Un mot de passe vide permet l'accès sans connexion.",
+		"enable": "Démarrer le FTP automatiquement au démarrage",
 		"user": {
 			"title": "Nom d'utilisateur FTP",
 			"placeholder": "nom d'utilisateur"

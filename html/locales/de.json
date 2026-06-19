@@ -138,6 +138,12 @@
 			"title": "Passwort",
 			"placeholder": "Leer lassen, um den Schutz zu deaktivieren",
 			"desc": "Ein gemeinsames Passwort für alles: Webinterface, FTP und WebDAV. Bei FTP und WebDAV ist der Benutzername egal – jeder Benutzername funktioniert, es zählt nur dieses Passwort. Nach dem Anmelden im Webinterface bleibt man 90 Tage eingeloggt; im Hotspot-Modus ist der Schutz inaktiv. Leer lassen, um den Schutz überall (Webinterface, FTP, WebDAV) zu deaktivieren."
+		},
+		"cookie": {
+			"title": "Anmeldung merken",
+			"unlimited": "Unbegrenzt eingeloggt bleiben",
+			"days": "Eingeloggt bleiben für (Tage)",
+			"desc": "Wie lange du nach dem Anmelden im Webinterface eingeloggt bleibst. Browser begrenzen Cookies meist auf max. ~400 Tage."
 		}
 	},
 	"wifi": {
@@ -444,6 +450,7 @@
 	"ftp": {
 		"title": "FTP-Einstellungen",
 		"authHint": "FTP akzeptiert jeden Benutzernamen – nur das Passwort zählt. Das Passwort ist das gemeinsame Geräte-Passwort (Tab \"Sicherheit\"). Leeres Passwort = Zugriff ohne Anmeldung.",
+		"enable": "FTP beim Start automatisch aktivieren",
 		"user": {
 			"title": "FTP-Benutzername",
 			"placeholder": "Benutzername"

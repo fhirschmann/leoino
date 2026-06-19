@@ -3136,6 +3136,26 @@
 						</fieldset>
 					</div>
 				</form>
+				<hr>
+				<form action="#securityConfig" method="POST" onsubmit="saveCookieTimeout(); return false">
+					<div class="col-md-12 mb-4">
+						<fieldset>
+							<legend class="w-auto" data-i18n="security.cookie.title"></legend>
+							<div class="form-check form-switch mb-2">
+								<input class="form-check-input" type="checkbox" id="cookieUnlimited" name="cookieUnlimited">
+								<label class="form-check-label" for="cookieUnlimited" data-i18n="security.cookie.unlimited"></label>
+							</div>
+							<div class="mb-2">
+								<label for="cookieDays" data-i18n="[prepend]security.cookie.days">:</label>
+								<input type="number" class="form-control" id="cookieDays" name="cookieDays" min="1" max="3650" value="90">
+							</div>
+							<small class="form-text" data-i18n="security.cookie.desc"></small>
+							<div class="text-center mt-2">
+								<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
+							</div>
+						</fieldset>
+					</div>
+				</form>
 			</div>
 		</div>
 		<div class="tab-pane fade" id="nav-wifi" role="tabpanel" aria-labelledby="nav-wifi-tab">
@@ -3239,10 +3259,20 @@
 		</div>
 		<div class="tab-pane fade" id="nav-ftp" role="tabpanel" aria-labelledby="nav-ftp-tab">
 			<div class="container" id="ftpConfig">
-				<div class="mb-3 col-md-12">
-					<legend data-i18n="ftp.title"></legend>
-					<div class="mb-2"><small class="text-muted" data-i18n="ftp.authHint"></small></div>
-				</div>
+				<form action="#ftpConfig" method="POST" onsubmit="ftpSettings('ftpConfig'); return false">
+					<div class="mb-3 col-md-12">
+						<legend data-i18n="ftp.title"></legend>
+						<div class="mb-2"><small class="text-muted" data-i18n="ftp.authHint"></small></div>
+						<div class="form-check form-switch mb-3">
+							<input class="form-check-input" type="checkbox" id="ftpEnable" name="ftpEnable">
+							<label class="form-check-label" for="ftpEnable" data-i18n="ftp.enable"></label>
+						</div>
+					</div>
+					<div class="text-center">
+						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
+							type="submit" class="btn btn-primary" data-i18n="submit"></button>
+					</div>
+				</form>
 				<hr>
 			</div>
 			<div class="container" id="ftpStart">
@@ -5346,6 +5376,7 @@
 			let ftpSettings = settings.ftp;
 			if (ftpSettings) {
 				document.getElementById('nav-ftp-tab').setAttribute('data-visible', true);
+				document.getElementById("ftpEnable").checked = !!ftpSettings.enable;
 			}
 			// webdav (the sub-tab stays hidden unless the firmware reports WebDAV support)
 			let webdavSettingsData = settings.webdav;
@@ -5953,6 +5984,22 @@
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: myJSON
+			});
+			toaster.info(i18next.t("toast.saved"));
+		}
+
+		/* save the FTP auto-start-on-boot flag (no credentials: any username, password via Security tab) */
+		async function ftpSettings(clickedId) {
+			lastIdclicked = clickedId;
+			var myObj = {
+				"ftp": {
+					enable: document.getElementById('ftpEnable').checked
+				}
+			};
+			await fetch("http://" + host + "/settings", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(myObj)
 			});
 			toaster.info(i18next.t("toast.saved"));
 		}
@@ -7037,8 +7084,37 @@
 			try {
 				const status = await (await fetch("http://" + host + "/security")).json();
 				document.getElementById('menuLogout').setAttribute('data-visible', status.enabled === true);
+				if (status.cookieDays !== undefined) {
+					const unlimited = (status.cookieDays === 0);
+					document.getElementById('cookieUnlimited').checked = unlimited;
+					if (!unlimited) document.getElementById('cookieDays').value = status.cookieDays;
+					applyCookieUnlimitedState();
+				}
 			} catch (e) {
 				console.log("failed to fetch security status", e);
+			}
+		}
+
+		// the "unlimited" switch disables the day input (a blank/ignored value while unlimited)
+		function applyCookieUnlimitedState() {
+			document.getElementById('cookieDays').disabled = document.getElementById('cookieUnlimited').checked;
+		}
+		document.getElementById('cookieUnlimited').addEventListener('change', applyCookieUnlimitedState);
+
+		// save just the cookie lifetime (0 = unlimited); never touches the password
+		async function saveCookieTimeout() {
+			const unlimited = document.getElementById('cookieUnlimited').checked;
+			const days = unlimited ? 0 : parseInt(document.getElementById('cookieDays').value, 10) || 90;
+			const response = await fetch("http://" + host + "/security", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ cookieDays: days })
+			});
+			if (response.ok) {
+				flashActionOk();
+				refreshSecurityStatus();
+			} else {
+				toaster.error(response.statusText);
 			}
 		}
 
