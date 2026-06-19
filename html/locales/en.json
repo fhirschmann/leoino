@@ -137,7 +137,7 @@
 		"password": {
 			"title": "Password",
 			"placeholder": "Leave empty to disable protection",
-			"desc": "One shared password for everything: web interface, FTP and WebDAV. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV)."
+			"desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV)."
 		}
 	},
 	"wifi": {

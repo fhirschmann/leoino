@@ -130,7 +130,7 @@
 		"password": {
 			"title": "Mot de passe",
 			"placeholder": "Laisser vide pour désactiver la protection",
-			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Laisser vide pour désactiver la protection partout (interface web, FTP, WebDAV)."
+			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Pour le FTP et le WebDAV, le nom d'utilisateur n'a pas d'importance - n'importe quel nom fonctionne, seul ce mot de passe est vérifié. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Laisser vide pour désactiver la protection partout (interface web, FTP, WebDAV)."
 		}
 	},
 	"wifi": {
