@@ -375,6 +375,18 @@ void HomeKit_Init(void) {
 }
 
 void HomeKit_Cyclic(void) {
+	// --- deferred one-shot bring-up -------------------------------------------
+	// homeSpan.begin() blocks the calling task for ~2 s (and several seconds more on
+	// the first boot, computing the SRP verifier). We therefore keep it out of setup()
+	// and fire it here on the first cyclic call, once BootComplete has lit the idle
+	// animation and the main loop is already running.
+	static bool initialized = false;
+	if (!initialized) {
+		initialized = true;
+		HomeKit_Init();
+		return;
+	}
+
 	// --- regenerate pairing code (web button) ---------------------------------
 	if (gRegenRequested) {
 		gRegenRequested = false;

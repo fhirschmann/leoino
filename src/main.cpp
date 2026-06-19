@@ -200,7 +200,10 @@ void setup() {
 		Wlan_Cyclic();
 	}
 
-	HomeKit_Init(); // after WiFi is brought up so HomeSpan can ride the existing connection
+	// HomeKit is brought up lazily on the first HomeKit_Cyclic() call (see HomeKit.cpp),
+	// *after* BootComplete below. homeSpan.begin() blocks for ~2 s every boot (and several
+	// more on the very first boot, while it computes the SRP pairing verifier); doing that
+	// here held the boot-LED animation and stalled the main loop for the whole duration.
 
 	IrReceiver_Init();
 	System_UpdateActivityTimer(); // initial set after boot
