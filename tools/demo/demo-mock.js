@@ -234,6 +234,31 @@
 			}
 			// backup-upload status poll: pretend the (no-op) upload finished successfully
 			if (p === "/backupupload") { return jsonResp({ status: 2, message: "demo: backup not actually uploaded" }); }
+			if (p === "/mode") { return jsonResp({ mode: 0 }); }
+			if (p === "/activeequalizer") { return jsonResp({ gainLowPass: 0, gainBandPass: 0, gainHighPass: 0 }); }
+			// now-playing detail for the info dialog (built from the now-playing fixture)
+			if (p === "/currenttrack") {
+				return jsonResp({
+					active: true, title: TRACK.name, artist: TRACK.artist, album: TRACK.album,
+					playMode: 3, isWebstream: false, rfidTag: "0212345678",
+					elapsed: TRACK.time, duration: TRACK.duration,
+					bitRate: 128000, sampleRate: 44100, channels: 2, codec: "MP3",
+					trackNumber: TRACK.currentTrackNumber, totalTracks: TRACK.numberOfTracks,
+					path: "/Hörspiele/Die Robo-Detektive/" + TRACK.name + ".mp3", size: 5012992
+				});
+			}
+			// listening-stats ring buffer (used by the info dialog's 30-day chart)
+			if (p === "/playstats") {
+				var nowDay = Math.floor(Date.now() / 86400000);
+				var days = [];
+				for (var di = 0; di < 365; di++) { days.push(0); }
+				// seed the last 30 days with a plausible daily listening time (seconds)
+				var sample = [3600, 1800, 0, 5400, 2700, 900, 4500, 3000, 0, 6300];
+				for (var k = 0; k < 30; k++) {
+					days[(nowDay - k) % 365] = sample[k % sample.length];
+				}
+				return jsonResp({ lastDay: nowDay, days: days });
+			}
 		}
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.

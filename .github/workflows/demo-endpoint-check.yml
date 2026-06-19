@@ -1,0 +1,31 @@
+name: Demo-mock endpoint check
+
+# Fails if a firmware HTTP endpoint (src/Web*.cpp) is added without a matching handler in the
+# GitHub-Pages demo mock (tools/demo/demo-mock.js) or an explicit allow-list entry, so the live
+# demo (https://fhirschmann.github.io/leoino/) can't silently break.
+
+on:
+  push:
+    paths:
+      - "src/Web*.cpp"
+      - "tools/demo/**"
+      - "tools/check_demo_endpoints.py"
+      - ".github/workflows/demo-endpoint-check.yml"
+  pull_request:
+    paths:
+      - "src/Web*.cpp"
+      - "tools/demo/**"
+      - "tools/check_demo_endpoints.py"
+      - ".github/workflows/demo-endpoint-check.yml"
+
+jobs:
+  check:
+    name: Check demo mock covers all endpoints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Verify demo mock is in sync with firmware endpoints
+        run: python3 tools/check_demo_endpoints.py
