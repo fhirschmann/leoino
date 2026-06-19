@@ -705,6 +705,39 @@
 			box-shadow: inset 0 0 18px rgba(0, 240, 255, .3);
 		}
 
+		/* Native file inputs (backup/firmware/NVS upload): Bootstrap's .btn classes
+		   can't reach the browser-rendered "Choose file" button, so it stayed an
+		   unstyled grey box. Theme the file-selector button via its pseudo-element so
+		   it matches the accent of whichever palette is active (--cp-cyan is themed). */
+		input[type="file"].form-control-file {
+			color: var(--cp-text);
+		}
+
+		input[type="file"].form-control-file::file-selector-button,
+		input[type="file"].form-control-file::-webkit-file-upload-button {
+			color: var(--cp-cyan);
+			background: color-mix(in srgb, var(--cp-cyan) 9%, transparent);
+			border: 1px solid color-mix(in srgb, var(--cp-cyan) 55%, transparent);
+			border-radius: 0;
+			padding: .35rem .9rem;
+			margin-right: .75rem;
+			font: inherit;
+			cursor: pointer;
+			transition: background .15s, color .15s;
+		}
+
+		input[type="file"].form-control-file::file-selector-button:hover,
+		input[type="file"].form-control-file::-webkit-file-upload-button:hover {
+			color: #021019;
+			background: var(--cp-cyan);
+		}
+
+		/* match the rounded button shape the candy/galaxy ("playful") palettes use */
+		body[data-family="playful"] input[type="file"].form-control-file::file-selector-button,
+		body[data-family="playful"] input[type="file"].form-control-file::-webkit-file-upload-button {
+			border-radius: 18px;
+		}
+
 		.btn-danger {
 			--bs-btn-color: var(--cp-magenta);
 			--bs-btn-bg: rgba(255, 42, 109, .08);
