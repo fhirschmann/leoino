@@ -209,7 +209,7 @@
 					memory: { freeHeap: 142336, largestFreeBlock: 110592, freePSRam: 3801088 },
 					wifi: { ip: "192.168.1.34", macAddress: "A0:B1:C2:D3:E4:F5", rssi: -58 },
 					audio: { firstStart: Math.floor(Date.now() / 1000) - 5184000, playtimeTotal: 486000, playtimeSinceStart: 5400, playToday: 3600, playYesterday: 7200, play7d: 32400, play30d: 129600 },
-					sdcard: { size: 31914983424, free: 22384230400 },
+					sdcard: { size: 30437, free: 21347 }, // MB, like the device (the UI divides by 1024 -> GB)
 					battery: { currVoltage: 3.94, chargeLevel: 78 }
 				};
 				if (qs.get("section") === "sdcard") { return jsonResp({ sdcard: info.sdcard }); }
