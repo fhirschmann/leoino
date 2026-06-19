@@ -19,8 +19,18 @@ void handleGetRFIDRequest(AsyncWebServerRequest *request);
 String tagIdToJsonStr(const char *key, const bool nameOnly);
 
 // Serialize the device settings into obj. An empty section emits everything; otherwise just that
-// section (e.g. "sync"). Owned by Web.cpp, reused by Backup.cpp to build the settings section.
+// section (e.g. "sync"). Defined in WebSettings.cpp, reused by Backup.cpp to build the settings
+// section and by Web.cpp's websocket dispatcher.
 void settingsToJSON(JsonObject obj, const String section);
+
+// Settings / equalizer-rule / operation-mode endpoints (registered as routes in
+// Web.cpp::webserverStart, implemented in WebSettings.cpp).
+void handleGetSettings(AsyncWebServerRequest *request);
+void handleGetEqRules(AsyncWebServerRequest *request);
+void handleSetEqRule(AsyncWebServerRequest *request);
+void handleDeleteEqRule(AsyncWebServerRequest *request);
+void handleGetOperationMode(AsyncWebServerRequest *request);
+void handlePostOperationMode(AsyncWebServerRequest *request, JsonVariant &json);
 void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json);
 void handleDeleteRFIDRequest(AsyncWebServerRequest *request);
 void handleResetRfidPos(AsyncWebServerRequest *request);
