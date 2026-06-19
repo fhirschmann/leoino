@@ -95,7 +95,7 @@
 	// Full settings object, shaped like Web.cpp::settingsToJSON("").
 	function buildSettings() {
 		return {
-			current: { volume: 12, rfidTagId: "0009094506" },
+			current: { volume: DEMO_VOLUME, rfidTagId: "0009094506" },
 			general: {
 				initVolume: 3, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10,
 				playMono: false, savePosShutdown: false, savePosRfidChge: false,
@@ -130,15 +130,29 @@
 		};
 	}
 
+	// The "currently inserted" playlist (public-domain fairy tales). next/prev
+	// step through this list and the title updates accordingly.
+	var TRACKS = [
+		"Haensel und Gretel", "Rotkaeppchen", "Die Bremer Stadtmusikanten",
+		"Der Froschkoenig", "Das haessliche Entlein", "Die Schildkroete und der Hase"
+	];
+
 	// Now-playing fixture (public-domain audiobook).
 	var TRACK = {
-		name: "Die Bremer Stadtmusikanten",
+		name: TRACKS[2],
 		artist: "Gebrueder Grimm", album: "Maerchensammlung",
 		pausePlay: true, // true = currently paused
-		currentTrackNumber: 3, numberOfTracks: 6,
+		currentTrackNumber: 3, numberOfTracks: TRACKS.length,
 		controlsLocked: false, nightMode: false, repeatMode: 0, sleepTimerDuration: 0,
 		posPercent: 37, time: 142, duration: 386
 	};
+
+	var DEMO_VOLUME = 12;
+
+	function syncTrack() {
+		TRACK.name = TRACKS[TRACK.currentTrackNumber - 1] || TRACK.name;
+		TRACK.posPercent = TRACK.duration ? Math.round(TRACK.time * 100 / TRACK.duration) : 0;
+	}
 
 	var VERSION = { build: "demo (web preview)", upToDate: 1, latest: "demo (web preview)" };
 
@@ -162,7 +176,12 @@
 		// Read endpoints
 		if (method === "GET") {
 			if (p === "/version") { return jsonResp(VERSION); }
-			if (p === "/trackprogress") { return jsonResp({ trackProgress: { posPercent: TRACK.posPercent, time: TRACK.time, duration: TRACK.duration } }); }
+			if (p === "/trackprogress") {
+				// advance the playhead while "playing" so the bar moves like on a real device
+				if (!TRACK.pausePlay && TRACK.time < TRACK.duration) { TRACK.time = Math.min(TRACK.duration, TRACK.time + 1); }
+				syncTrack();
+				return jsonResp({ trackProgress: { posPercent: TRACK.posPercent, time: TRACK.time, duration: TRACK.duration } });
+			}
 			if (p === "/rfid") {
 				if (qs.has("ids-only")) { return jsonResp(RFID.map(function (r) { return r.id; })); }
 				return jsonResp(RFID);
@@ -337,7 +356,7 @@
 			if (typeof self.onopen === "function") { self.onopen({ type: "open" }); }
 			// Proactively push the indicators the firmware would stream.
 			self._emit({ opmode: 0 });
-			self._emit({ volume: 12 });
+			self._emit({ volume: DEMO_VOLUME });
 			self._emit({ rssi: -58 });
 			self._emit({ battery: { level: 78, voltage: 3.94 } });
 			self._emit({ ftpStatus: { running: false } });
@@ -355,7 +374,48 @@
 		if ("trackinfo" in msg) { this._emit({ trackinfo: TRACK }); }
 		if ("coverimg" in msg) { this._emit({ coverimg: true }); }
 		if ("ping" in msg) { this._emit({ pong: "pong", controlsLocked: TRACK.controlsLocked, repeatMode: TRACK.repeatMode }); }
-		if ("controls" in msg || "trackinfo" in msg) { /* control commands -> no-op */ }
+		if ("controls" in msg) { this._handleControl(msg.controls.action); }
+	};
+	// React to the player's control commands (same action codes as the firmware /
+	// the mod-card list) and stream back the updated state so the UI reflects it.
+	MockWebSocket.prototype._handleControl = function (action) {
+		var changed = true;
+		switch (Number(action)) {
+			case 170: // play / pause
+				TRACK.pausePlay = !TRACK.pausePlay;
+				break;
+			case 171: // previous track
+			case 173: // first track
+				TRACK.currentTrackNumber = (Number(action) === 173) ? 1 : Math.max(1, TRACK.currentTrackNumber - 1);
+				TRACK.time = 0; TRACK.pausePlay = false; syncTrack();
+				break;
+			case 172: // next track
+			case 174: // last track
+				TRACK.currentTrackNumber = (Number(action) === 174) ? TRACK.numberOfTracks : Math.min(TRACK.numberOfTracks, TRACK.currentTrackNumber + 1);
+				TRACK.time = 0; TRACK.pausePlay = false; syncTrack();
+				break;
+			case 175: // initial volume
+				DEMO_VOLUME = 3; this._emit({ volume: DEMO_VOLUME }); changed = false;
+				break;
+			case 176: // louder
+				DEMO_VOLUME = Math.min(21, DEMO_VOLUME + 1); this._emit({ volume: DEMO_VOLUME }); changed = false;
+				break;
+			case 177: // quieter
+				DEMO_VOLUME = Math.max(0, DEMO_VOLUME - 1); this._emit({ volume: DEMO_VOLUME }); changed = false;
+				break;
+			case 100: // toggle key lock
+				TRACK.controlsLocked = !TRACK.controlsLocked;
+				break;
+			case 120: // toggle night mode
+				TRACK.nightMode = !TRACK.nightMode;
+				break;
+			case 105: TRACK.sleepTimerDuration = TRACK.sleepTimerDuration ? 0 : 1; break; // sleep after track
+			case 106: TRACK.sleepTimerDuration = TRACK.sleepTimerDuration ? 0 : 1; break; // sleep after playlist
+			case 111: TRACK.repeatMode = TRACK.repeatMode ? 0 : 1; break; // loop track
+			default: changed = false; break;
+		}
+		if (changed) { syncTrack(); this._emit({ trackinfo: TRACK }); }
+		this._emit({ status: "ok" });
 	};
 	MockWebSocket.prototype.close = function () {
 		this.readyState = 3;

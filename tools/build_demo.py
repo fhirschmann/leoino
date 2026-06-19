@@ -101,6 +101,17 @@ def main() -> int:
         else:
             shutil.copy2(src, dst)
 
+    # The bundled CSS references fonts with absolute paths (url(/webfonts/...),
+    # url(/fonts/...)) which 404 on a project sub-path (user.github.io/leoino/).
+    # Rewrite them relative to the css/ folder so the icons + fonts load.
+    css_dir = out_dir / "css"
+    if css_dir.is_dir():
+        for css in css_dir.glob("*.css"):
+            text = css.read_text(encoding="utf-8")
+            text = text.replace("url(/webfonts/", "url(../webfonts/")
+            text = text.replace("url(/fonts/", "url(../fonts/")
+            css.write_text(text, encoding="utf-8")
+
     # demo-only assets
     for item in DEMO_ASSETS:
         shutil.copy2(DEMO / item, out_dir / item)
