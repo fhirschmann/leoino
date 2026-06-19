@@ -21,4 +21,5 @@ html/locales/*.min.json
 html/REST_API.yaml
 html/js/*.min.min.js
 html/js/swaggerInitializer.min.js
+demo_dist/
 managed_components/

@@ -86,6 +86,28 @@ fork-specific features. The full interface (default RFID tab shown below, live f
 
 </div>
 
+### // Live demo
+
+Try the web interface in your browser — **no hardware required**:
+
+<div align="center">
+
+**▶ [fhirschmann.github.io/leoino](https://fhirschmann.github.io/leoino/)**
+
+</div>
+
+It is the real management page with a small mock layer that fakes the WebSocket and every
+REST endpoint, filled with copyright-free content (public-domain fairy tales and classical
+works). Every screen is clickable; write actions (save, restart, …) are no-ops. The demo is
+rebuilt and redeployed automatically on every push by
+[`build_demo.py`](tools/build_demo.py) → GitHub Pages, so it never goes stale. To build it
+locally:
+
+```bash
+python3 tools/build_demo.py demo_dist
+python3 -m http.server --directory demo_dist 8000   # open http://localhost:8000/
+```
+
 ## // Differences to upstream
 
 All changes compared to upstream/`dev`, each with a reference to its commit.
@@ -124,7 +146,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | **Listening statistics**: per-day listening time (today / yesterday / 7 d / 30 d) in a 365-day NVS ring buffer, plus a most-played-cards top list — shown in the info dialog (`GET /info`, `GET /topcards`). The info dialog also draws a **30-day bar chart** (inline SVG, themed, no chart lib) and offers a **CSV export** of the full daily series (`GET /stats.csv`, `date,seconds`) | [`af6c8d3`](../../commit/af6c8d3) · [`c2e7d44`](../../commit/c2e7d44) |
 | **Full backup**: export/import all settings + RFID assignments + per-path EQ rules + listening stats as one JSON file; passwords are only included when explicitly ticked, so a shared backup doesn't leak credentials | [`4c90ff4`](../../commit/4c90ff4) · [`646ec5c`](../../commit/646ec5c) |
 | **Home Assistant MQTT discovery**: auto-registers all entities under one HA device — track/status/firmware/WiFi/battery sensors, volume & LED-brightness numbers, lock & ambient-light switches, equalizer select, transport/update/shutdown buttons | [`db73db1`](../../commit/db73db1) |
-| **Apple HomeKit + Siri** (`HOMEKIT_ENABLE`, via [HomeSpan](https://github.com/HomeSpan/HomeSpan)): pair the player straight into the Home app as a bridge with named tiles — **Playback** (play/pause + battery), **Volume** (brightness dimmer) and **Button-lock** — all controllable by Siri and usable in automations. State is mirrored back, so changes from buttons/RFID show up on the iPhone. Each device generates its **own random pairing code** on first boot (persisted in NVS) instead of a shared hard-coded one, so multiple ESPuinos — and everyone running this firmware — stay distinct and private. A dedicated **HomeKit settings section** shows the scannable pairing **QR code** + that setup code and a "reset pairing" button. Pairs over the existing WiFi (no MFi chip needed); the HAP server runs on its own port and the poll task is pinned to core 0 so it never disturbs the audio pipeline on core 1 | [`6387563`](../../commit/6387563) |
+| **Apple HomeKit + Siri** (`HOMEKIT_ENABLE`, via [HomeSpan](https://github.com/HomeSpan/HomeSpan)): pair the player straight into the Home app as a bridge with named tiles — **Playback** (play/pause + battery), **Volume** (brightness dimmer) and **Button-lock** — all controllable by Siri and usable in automations. State is mirrored back, so changes from buttons/RFID show up on the iPhone. Each device generates its **own random pairing code** on first boot (persisted in NVS) instead of a shared hard-coded one, so multiple ESPuinos — and everyone running this firmware — stay distinct and private. A dedicated **HomeKit settings section** shows the scannable pairing **QR code** + that setup code, a "reset pairing" button and an **on/off switch** to disable HomeKit entirely (HomeSpan then never starts, so it costs nothing at boot). HomeSpan now also comes up **lazily after boot** instead of inside `setup()`, so its multi-second start-up no longer stalls the boot LED. Pairs over the existing WiFi (no MFi chip needed); the HAP server runs on its own port and the poll task is pinned to core 0 so it never disturbs the audio pipeline on core 1 | [`6387563`](../../commit/6387563) |
 | **Control tab**: Repeat / Sleep-Timer (live countdown) / Night-Mode / button-lock / FTP start-stop and a Bluetooth-mode picker (Normal / Speaker / Headphones) right in the control tab; mobile-optimised (full-width louder/quieter buttons instead of the fiddly slider) | [`88a742c`](../../commit/88a742c) · [`520815a`](../../commit/520815a) · [`d57f24a`](../../commit/d57f24a) · [`aef1765`](../../commit/aef1765) |
 | **Battery-backed RTC (DS3231)**: optional real-time clock on the external I²C bus so the time stays correct without WiFi/NTP (seeds the clock at boot, NTP disciplines it); time + die-temperature in the info dialog and via MQTT/HA | [`bf90f66`](../../commit/bf90f66) |
 | **State-driven control LEDs**: the optional control LEDs can mirror a runtime state (key-lock / repeat mode / Bluetooth / battery level) instead of a static colour, per-slot configurable, with a master mute (command **121** / MQTT `control_leds`) | [`d12a496`](../../commit/d12a496) |

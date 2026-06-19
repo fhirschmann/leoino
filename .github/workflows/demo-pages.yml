@@ -1,0 +1,50 @@
+name: Deploy Web-UI demo to GitHub Pages
+
+# Builds a self-contained, device-free demo of the management web interface
+# (mock WebSocket + REST, copyright-free content) and publishes it to GitHub
+# Pages so the UI can be tried out in the browser without any hardware.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "html/**"
+      - "tools/demo/**"
+      - "tools/build_demo.py"
+      - ".github/workflows/demo-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, don't cancel in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Build demo
+        run: python3 tools/build_demo.py demo_dist
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: demo_dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
