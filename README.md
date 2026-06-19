@@ -10,6 +10,10 @@
 [![License](https://img.shields.io/badge/License-GPL--3.0-ff2a6d?style=flat-square&labelColor=05070d)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-ESP32%20%2B%20PN5180-00f0ff?style=flat-square&labelColor=05070d)](platformio.ini)
 
+[![Launch the live demo](https://img.shields.io/badge/▶%20Try%20the%20web%20UI%20live%20demo-00f0ff?style=for-the-badge&labelColor=05070d&color=00f0ff)](https://fhirschmann.github.io/leoino/)
+
+<sub>Runs entirely in your browser — no install, no hardware required.</sub>
+
 </div>
 
 > **LEO INDUSTRIES AT-1** is a private fork of [ESPuino](https://github.com/biologist79/ESPuino)
@@ -92,7 +96,9 @@ Try the web interface in your browser — **no hardware required**:
 
 <div align="center">
 
-**▶ [fhirschmann.github.io/leoino](https://fhirschmann.github.io/leoino/)**
+[![Launch the live demo](https://img.shields.io/badge/▶%20Launch%20the%20live%20demo-00f0ff?style=for-the-badge&labelColor=05070d&color=00f0ff)](https://fhirschmann.github.io/leoino/)
+
+<sub>↗ opens **fhirschmann.github.io/leoino** — no install, no hardware</sub>
 
 </div>
 
