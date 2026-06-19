@@ -37,6 +37,7 @@
 		"wifi": "WiFi",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
+		"webdav": "WebDAV",
 		"sync": "Sync",
 		"bluetooth": "Bluetooth",
 		"general": "Général",
@@ -189,6 +190,8 @@
 		"nightOff": "Nuit Off",
 		"ftpOn": "FTP On",
 		"ftpOff": "FTP Off",
+		"webdavOn": "WebDAV On",
+		"webdavOff": "WebDAV Off",
 		"repeatOff": "Off",
 		"repeatPlaylist": "Playlist",
 		"repeatTrack": "Piste",
@@ -222,6 +225,7 @@
 			"sleep": "Minuterie de veille",
 			"night": "Mode nuit",
 			"ftp": "Serveur FTP",
+			"webdav": "Serveur WebDAV",
 			"bluetooth": "Mode Bluetooth",
 			"lock": "Verrouiller"
 		}
@@ -445,6 +449,29 @@
 			"desc": "Active le serveur FTP jusqu'au redémarrage du périphérique.",
 			"button": "Démarrer le serveur FTP",
 			"stopButton": "Arrêter le serveur FTP"
+		}
+	},
+	"webdav": {
+		"title": "Paramètres WebDAV",
+		"desc": "Monte la carte SD comme lecteur réseau pour copier des fichiers audio directement depuis votre PC/Mac (connectez-vous en tant que serveur WebDAV dans le Finder/Explorateur).",
+		"enable": "Démarrer WebDAV automatiquement au démarrage",
+		"user": {
+			"title": "Nom d'utilisateur WebDAV",
+			"placeholder": "nom d'utilisateur"
+		},
+		"pwd": {
+			"title": "Mot de passe WebDAV",
+			"placeholder": "mot de passe",
+			"show": "Afficher/masquer le mot de passe"
+		},
+		"auth": {
+			"hint": "Laissez le nom d'utilisateur et le mot de passe vides pour un accès sans connexion."
+		},
+		"start": {
+			"title": "Démarrer serveur WebDAV",
+			"desc": "Active le serveur WebDAV jusqu'au redémarrage du périphérique.",
+			"button": "Démarrer le serveur WebDAV",
+			"stopButton": "Arrêter le serveur WebDAV"
 		}
 	},
 	"sync": {

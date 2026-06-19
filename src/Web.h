@@ -16,7 +16,8 @@ typedef enum class WebsocketCode {
 	NotAllowedInCurrentMode,
 	BluetoothScanInProgress,
 	BluetoothScanComplete,
-	FtpStatus
+	FtpStatus,
+	WebdavStatus
 } WebsocketCodeType;
 
 void Web_Cyclic(void);

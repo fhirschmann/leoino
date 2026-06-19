@@ -10,6 +10,7 @@
 #include "Queues.h"
 #include "System.h"
 #include "Web.h"
+#include "Webdav.h"
 #include "Wlan.h"
 #include "mqtt_client.h"
 #include "revision.h"
@@ -362,6 +363,11 @@ static void Mqtt_PublishHassDiscovery(void) {
 	const String controlLedsCmd = Mqtt_GetCommandTopic(topicControlLeds);
 	mqttHassPublish("switch", "controlleds", "\"name\":\"Control LEDs\",\"icon\":\"mdi:led-on\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + controlLedsCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicControlLeds)) + "\"");
 
+	#ifdef WEBDAV_ENABLE
+	const String webdavCmd = Mqtt_GetCommandTopic(topicWebdav);
+	mqttHassPublish("switch", "webdav", "\"name\":\"WebDAV server\",\"icon\":\"mdi:folder-network\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + webdavCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicWebdav)) + "\"");
+	#endif
+
 	// select
 	const String eqCmd = Mqtt_GetCommandTopic(topicEqualizer);
 	mqttHassPublish("select", "equalizer", "\"name\":\"Equalizer\",\"icon\":\"mdi:equalizer\",\"options\":[\"flat\",\"music\",\"speech\",\"voiceBoost\"],\"command_topic\":\"" + eqCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicEqualizer)) + "\"");
@@ -435,6 +441,11 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			// RFID-tag sync (full bidirectional sync trigger)
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicRfidSync), qos);
 
+	#ifdef WEBDAV_ENABLE
+			// WebDAV server start/stop
+			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicWebdav), qos);
+	#endif
+
 			// Home Assistant MQTT discovery (entities auto-register under one device)
 			Mqtt_PublishHassDiscovery();
 
@@ -463,6 +474,9 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			publishMqtt(topicRepeatMode, static_cast<uint32_t>(AudioPlayer_GetRepeatMode()), false);
 			publishMqtt(topicEqualizer, AudioPlayer_GetEqualizerProfile().c_str(), false);
 			publishMqtt(topicFirmwareUpdate, Web_GetGithubOtaStatusText(), false);
+	#ifdef WEBDAV_ENABLE
+			publishMqtt(topicWebdav, Webdav_IsServerRunning() ? "ON" : "OFF", false);
+	#endif
 
 			char revBuf[16];
 			strncpy(revBuf, softwareRevision + 19, sizeof(revBuf) - 1);
@@ -756,6 +770,18 @@ void Mqtt_ClientCallback(const char *topic_buf, uint32_t topic_length, const cha
 				System_IndicateOk();
 			}
 		}
+
+	#ifdef WEBDAV_ENABLE
+		// Start/stop the WebDAV server?
+		else if (reduced_topic_str == topicWebdav) {
+			if (payload_str == "ON" || payload_str == "1") {
+				Webdav_EnableServer();
+			} else if (payload_str == "OFF" || payload_str == "0") {
+				Webdav_DisableServer();
+			}
+			publishMqtt(topicWebdav, Webdav_IsServerRunning() ? "ON" : "OFF", false);
+		}
+	#endif
 
 		// Requested something that isn't specified?
 		else {

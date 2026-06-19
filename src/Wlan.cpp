@@ -11,6 +11,7 @@
 #include "Rtc.h"
 #include "System.h"
 #include "Web.h"
+#include "Webdav.h"
 #include "esp_sntp.h"
 #include "main.h"
 
@@ -489,6 +490,14 @@ void handleWifiStateConnectionSuccess() {
 	if (hostname) {
 		if (MDNS.begin(hostname.c_str())) {
 			MDNS.addService("http", "tcp", 80);
+	#ifdef WEBDAV_ENABLE
+			// Advertise the WebDAV share over Bonjour when auto-start is enabled, so the SD card
+			// shows up by itself in Finder/Explorer (path=/ tells the client what to mount).
+			if (gPrefsSettings.getBool("webdavEnable", false)) {
+				MDNS.addService("webdav", "tcp", webdavPort);
+				MDNS.addServiceTxt("webdav", "tcp", "path", "/");
+			}
+	#endif
 			Log_Printf(LOGLEVEL_NOTICE, mDNSStarted, hostname.c_str());
 		} else {
 			Log_Printf(LOGLEVEL_ERROR, mDNSFailed, hostname.c_str());

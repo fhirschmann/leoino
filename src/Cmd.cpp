@@ -17,6 +17,7 @@
 #include "Sync.h"
 #include "System.h"
 #include "Web.h"
+#include "Webdav.h"
 #include "Wlan.h"
 
 static void Cmd_HandleSleepAction(bool enable, const char *enLogMsg, const char *enMqttMsg) {
@@ -436,6 +437,15 @@ void Cmd_Action(const uint16_t mod) {
 		case CMD_RFID_SYNC: {
 			RfidSync_TriggerFull();
 			System_IndicateOk();
+			break;
+		}
+
+		case CMD_TOGGLE_WEBDAV_SERVER: {
+			if (Webdav_IsServerRunning()) {
+				Webdav_DisableServer();
+			} else {
+				Webdav_EnableServer();
+			}
 			break;
 		}
 

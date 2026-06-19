@@ -38,6 +38,7 @@
 	#define MDNS_ENABLE                     // When enabled, you don't have to handle with ESPuino's IP-address. If hostname is set to "ESPuino", you can reach it via ESPuino.local
 	#define MQTT_ENABLE                     // Make sure to configure mqtt-server and (optionally) username+pwd
 	#define FTP_ENABLE                      // Enables FTP-server; DON'T FORGET TO ACTIVATE AFTER BOOT BY PRESSING PAUSE + NEXT-BUTTONS (IN PARALLEL)!
+	//#define WEBDAV_ENABLE                 // WebDAV-server (mount the SD card as a network drive on http://<ip>:81/). Disabled: macOS Finder doesn't browse it reliably with the current single-threaded server (needs proper HTTP keep-alive / concurrent connections).
 	#define HOMEKIT_ENABLE                  // Apple HomeKit (control + Siri + Television) via HomeSpan. Pairs over the existing WiFi; poll task pinned to core 0
 	#define NEOPIXEL_ENABLE                 // Don't forget configuration of NUM_LEDS if enabled
 	//#define NEOPIXEL_REVERSE_ROTATION     // Some Neopixels are adressed/soldered counter-clockwise. This can be configured here.
@@ -299,6 +300,7 @@
 		constexpr const char topicEqualizer[] = "equalizer"; // Cmnd/State: set / report equalizer profile (flat/music/speech/voiceBoost)
 		constexpr const char topicFirmwareUpdate[] = "firmware_update"; // Cmnd: trigger GitHub OTA (ON/1/update/check); State: idle/updating/up_to_date/failed
 		constexpr const char topicRfidSync[] = "rfid_sync"; // Cmnd: trigger a full bidirectional RFID-tag sync (ON/1/sync)
+		constexpr const char topicWebdav[] = "webdav"; // Cmnd/State: start/stop the WebDAV server (ON/OFF/1/0)
 
 		// Topics (state only)
 		constexpr const char topicTrack[] = "track";          // State: current track info (e.g. "(2/10) /mp3/.../file.mp3")

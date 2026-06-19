@@ -30,6 +30,7 @@
 #include "SdCard.h"
 #include "System.h"
 #include "Web.h"
+#include "Webdav.h"
 #include "Wlan.h"
 #include "revision.h"
 
@@ -186,6 +187,7 @@ void setup() {
 	SdCard_PrintInfo();
 
 	Ftp_Init();
+	Webdav_Init();
 	if (!pn5180LpcdEnabled) {
 		Rfid_Init();
 	}
@@ -247,6 +249,7 @@ void loop() {
 	}
 	RotaryEncoder_Cyclic();
 	Ftp_Cyclic();
+	Webdav_Cyclic();
 	AudioPlayer_Cyclic();
 	Battery_Cyclic();
 	Button_Cyclic();

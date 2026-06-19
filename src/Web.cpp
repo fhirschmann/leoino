@@ -29,6 +29,7 @@
 #include "Sync.h"
 #include "System.h"
 #include "WebInternal.h"
+#include "Webdav.h"
 #include "Wlan.h"
 #include "freertos/ringbuf.h"
 #include "revision.h"
@@ -1294,6 +1295,23 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			Ftp_DisableServer();
 		}
 		Web_SendWebsocketData(0, WebsocketCodeType::FtpStatus); // broadcast new status to all clients
+	} else if (doc["webdav"].is<JsonObject>()) {
+		// WebDAV credentials + auto-start-on-boot setting
+		JsonObject wd = doc["webdav"];
+		gPrefsSettings.putString("webdavUser", wd["username"] | "");
+		gPrefsSettings.putString("webdavPwd", wd["password"] | "");
+		if (wd["enable"].is<bool>()) {
+			gPrefsSettings.putBool("webdavEnable", wd["enable"].as<bool>());
+		}
+		Webdav_ReloadCredentials(); // apply the new credentials to the running server without a reboot
+	} else if (doc["webdavStatus"].is<JsonObject>()) {
+		uint8_t _start = doc["webdavStatus"]["start"].as<uint8_t>();
+		if (_start == 1) { // ifdef WEBDAV_ENABLE is checked in Webdav_EnableServer()
+			Webdav_EnableServer();
+		} else {
+			Webdav_DisableServer();
+		}
+		Web_SendWebsocketData(0, WebsocketCodeType::WebdavStatus); // broadcast new status to all clients
 	}
 	if (doc["mqtt"].is<JsonObject>()) {
 		uint8_t _mqttEnable = doc["mqtt"]["enable"].as<uint8_t>();
@@ -1763,6 +1781,18 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		ftpObj["maxPwdLength"].set(ftpUserLength - 1);
 	}
 #endif
+#ifdef WEBDAV_ENABLE
+	if ((section == "") || (section == "webdav")) {
+		JsonObject wdObj = obj["webdav"].to<JsonObject>();
+		wdObj["username"] = gPrefsSettings.getString("webdavUser", "esp32");
+		wdObj["password"] = gPrefsSettings.getString("webdavPwd", "esp32");
+		wdObj["enable"] = gPrefsSettings.getBool("webdavEnable", false);
+		wdObj["running"] = Webdav_IsServerRunning();
+		wdObj["port"].set(webdavPort);
+		wdObj["maxUserLength"].set(webdavUserLength - 1);
+		wdObj["maxPwdLength"].set(webdavPasswordLength - 1);
+	}
+#endif
 	// HTTP file sync
 	if ((section == "") || (section == "sync")) {
 		JsonObject syncObj = obj["sync"].to<JsonObject>();
@@ -2226,6 +2256,9 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 	} else if (code == WebsocketCodeType::FtpStatus) {
 		JsonObject entry = object["ftpStatus"].to<JsonObject>();
 		entry["running"] = Ftp_IsServerRunning();
+	} else if (code == WebsocketCodeType::WebdavStatus) {
+		JsonObject entry = object["webdavStatus"].to<JsonObject>();
+		entry["running"] = Webdav_IsServerRunning();
 	};
 
 	if (doc.overflowed()) {

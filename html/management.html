@@ -2182,6 +2182,11 @@
 								<span class="fas fa-server"></span>
 								<span id="lbl-ftp" class="d-none d-sm-inline" data-i18n="control.ftpOff">FTP Off</span>
 							</button>
+							<!-- WebDAV Server Button (revealed only when the firmware reports WebDAV support) -->
+							<button type="button" class="btn btn-sm cp-control-button" id="btn-webdav" style="display:none" onclick="toggleWebdav()" data-i18n="[aria-label]control.a11y.webdav">
+								<span class="fas fa-hdd"></span>
+								<span id="lbl-webdav" class="d-none d-sm-inline" data-i18n="control.webdavOff">WebDAV Off</span>
+							</button>
 							<!-- Bluetooth Mode Dropdown -->
 							<div class="dropdown d-inline-flex align-items-center">
 								<button type="button" class="btn btn-sm cp-control-button dropdown-toggle" id="btn-bt-mode" data-bs-toggle="dropdown" aria-expanded="false" data-i18n="[aria-label]control.a11y.bluetooth">
@@ -2444,6 +2449,7 @@
 					<a class="nav-item nav-link" id="nav-wifi-tab" data-bs-toggle="tab" data-bs-target="#nav-wifi" href="#nav-wifi" role="tab" aria-controls="nav-wifi"><i class="fas fa-wifi"></i> <span class="d-none d-md-inline" data-i18n="nav.wifi"></span></a>
 					<a class="nav-item nav-link" id="nav-mqtt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-mqtt" href="#nav-mqtt" role="tab" aria-controls="nav-mqtt"><i class="fas fa-network-wired"></i> <span class="d-none d-md-inline" data-i18n="nav.mqtt"></span></a>
 					<a class="nav-item nav-link" id="nav-ftp-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-ftp" href="#nav-ftp" role="tab" aria-controls="nav-ftp"><i class="fas fa-folder"></i> <span class="d-none d-md-inline" data-i18n="nav.ftp"></span></a>
+					<a class="nav-item nav-link" id="nav-webdav-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-webdav" href="#nav-webdav" role="tab" aria-controls="nav-webdav"><i class="fas fa-hdd"></i> <span class="d-none d-md-inline" data-i18n="nav.webdav"></span></a>
 					<a class="nav-item nav-link" id="nav-sync-tab" data-bs-toggle="tab" data-bs-target="#nav-sync" href="#nav-sync" role="tab" aria-controls="nav-sync"><i class="fas fa-sync"></i> <span class="d-none d-md-inline" data-i18n="nav.sync"></span></a>
 					<a class="nav-item nav-link" id="nav-bt-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-bt" href="#nav-bt" role="tab" aria-controls="nav-bt"><i class="fab fa-bluetooth"></i> <span class="d-none d-md-inline" data-i18n="nav.bluetooth"></span></a>
 					<a class="nav-item nav-link" id="nav-homekit-tab" data-visible="false" data-bs-toggle="tab" data-bs-target="#nav-homekit" href="#nav-homekit" role="tab" aria-controls="nav-homekit"><i class="fab fa-apple"></i> <span class="d-none d-md-inline">HomeKit</span></a>
@@ -3243,6 +3249,50 @@
 					<div class="text-center">
 						<button type="button" class="btn btn-primary" id="ftpModeBtn" onclick="ftpSetStatus(1)"
 							data-i18n="ftp.start.button"></button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="nav-webdav" role="tabpanel" aria-labelledby="nav-webdav-tab">
+			<div class="container" id="webdavConfig">
+				<form action="#webdavConfig" method="POST" onsubmit="webdavSettings('webdavConfig'); return false">
+					<div class="mb-3 col-md-12">
+						<legend data-i18n="webdav.title"></legend>
+						<div class="mb-2" data-i18n="webdav.desc"></div>
+						<div class="mb-3"><code id="webdavMountUrl">http://&lt;ip&gt;:81/</code></div>
+						<div class="form-check form-switch mb-3">
+							<input class="form-check-input" type="checkbox" id="webdavEnable" name="webdavEnable">
+							<label class="form-check-label" for="webdavEnable" data-i18n="webdav.enable"></label>
+						</div>
+						<label for="webdavUser" data-i18n="[prepend]webdav.user.title">:</label>
+						<input type="text" class="form-control" id="webdavUser" maxlength="0"
+							data-i18n="[placeholder]webdav.user.placeholder" name="webdavUser" value="">
+						<label for="webdavPwd" data-i18n="[prepend]webdav.pwd.title">:</label>
+						<div class="input-group">
+							<input type="password" class="form-control" id="webdavPwd" maxlength="0"
+								data-i18n="[placeholder]webdav.pwd.placeholder" name="webdavPwd" value="">
+							<button class="btn cp-reveal-btn" type="button" id="webdavPwdToggle" tabindex="-1"
+								data-i18n="[title]webdav.pwd.show" onclick="togglePasswordField('webdavPwd', 'webdavPwdToggle')">
+								<i class="fas fa-eye"></i>
+							</button>
+						</div>
+						<small class="text-muted" data-i18n="webdav.auth.hint"></small>
+					</div>
+					<div class="text-center">
+						<button type="reset" class="btn btn-warning" data-i18n="reset"></button>&nbsp;<button
+							type="submit" class="btn btn-primary" data-i18n="submit"></button>
+					</div>
+				</form>
+				<hr>
+			</div>
+			<div class="container" id="webdavStart">
+				<div class="col-md-12">
+					<legend data-i18n="webdav.start.title"></legend>
+					<div data-i18n="webdav.start.desc"></div>
+					<br>
+					<div class="text-center">
+						<button type="button" class="btn btn-primary" id="webdavModeBtn" onclick="webdavSetStatus(1)"
+							data-i18n="webdav.start.button"></button>
 					</div>
 				</div>
 			</div>
@@ -4940,6 +4990,9 @@
 				if ("ftpStatus" in socketMsg) {
 					updateFtpButton(socketMsg.ftpStatus.running);
 				}
+				if ("webdavStatus" in socketMsg) {
+					updateWebdavButton(socketMsg.webdavStatus.running);
+				}
 				if ("battery" in socketMsg) {
 					updateBatteryIndicator(socketMsg.battery);
 				}
@@ -5305,6 +5358,20 @@
 				document.getElementById("ftpUser").setAttribute('maxlength', ftpSettings.maxUserLength);
 				document.getElementById("ftpPwd").value = (ftpSettings.password === "-1") ? "" : ftpSettings.password;
 				document.getElementById("ftpPwd").setAttribute('maxlength', ftpSettings.maxPwdLength);
+			}
+			// webdav (the sub-tab stays hidden unless the firmware reports WebDAV support)
+			let webdavSettingsData = settings.webdav;
+			if (webdavSettingsData) {
+				document.getElementById('nav-webdav-tab').setAttribute('data-visible', true);
+				document.getElementById('btn-webdav').style.display = '';
+				document.getElementById("webdavUser").value = (webdavSettingsData.username === "-1") ? "" : webdavSettingsData.username;
+				document.getElementById("webdavUser").setAttribute('maxlength', webdavSettingsData.maxUserLength);
+				document.getElementById("webdavPwd").value = (webdavSettingsData.password === "-1") ? "" : webdavSettingsData.password;
+				document.getElementById("webdavPwd").setAttribute('maxlength', webdavSettingsData.maxPwdLength);
+				document.getElementById("webdavEnable").checked = !!webdavSettingsData.enable;
+				const port = webdavSettingsData.port || 81;
+				document.getElementById("webdavMountUrl").textContent = "http://" + host + ":" + port + "/";
+				updateWebdavButton(!!webdavSettingsData.running);
 			}
 			// http file sync
 			let syncSettingsData = settings.sync;
@@ -5933,6 +6000,33 @@
 			socket.send(myJSON);
 		}
 
+		/* save the WebDAV credentials + auto-start-on-boot flag */
+		async function webdavSettings(clickedId) {
+			lastIdclicked = clickedId;
+			var myObj = {
+				"webdav": {
+					username: document.getElementById('webdavUser').value,
+					password: document.getElementById('webdavPwd').value,
+					enable: document.getElementById('webdavEnable').checked
+				}
+			};
+			await fetch("http://" + host + "/settings", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(myObj)
+			});
+			toaster.info(i18next.t("toast.saved"));
+		}
+
+		function webdavSetStatus(start) {
+			var myObj = {
+				"webdavStatus": {
+					start: start
+				}
+			};
+			socket.send(JSON.stringify(myObj));
+		}
+
 		/* save the HTTP file-sync configuration (manifest URL + optional Basic Auth) */
 		async function syncSettings() {
 			var myObj = {
@@ -6174,6 +6268,36 @@
 		function toggleFtp() {
 			const b = document.getElementById('btn-ftp');
 			ftpSetStatus(b && b.classList.contains('active-green') ? 0 : 1);
+		}
+
+		/* mirror the WebDAV running state onto the start/stop button, the sub-tab and the control-tab button */
+		function updateWebdavButton(running) {
+			const btn = document.getElementById('webdavModeBtn');
+			if (btn) {
+				btn.setAttribute('data-i18n', running ? 'webdav.start.stopButton' : 'webdav.start.button');
+				btn.onclick = () => webdavSetStatus(running ? 0 : 1);
+				btn.classList.toggle('btn-danger', running);
+				btn.classList.toggle('btn-primary', !running);
+				if (localize) {
+					localize('#webdavModeBtn');
+				}
+			}
+			const tab = document.getElementById('nav-webdav-tab');
+			if (tab) {
+				tab.classList.toggle('ftp-active', running);
+			}
+			const cBtn = document.getElementById('btn-webdav');
+			const cLbl = document.getElementById('lbl-webdav');
+			if (cBtn && cLbl) {
+				cBtn.className = running ? "btn btn-sm cp-control-button active-green" : "btn btn-sm cp-control-button";
+				cLbl.setAttribute('data-i18n', running ? 'control.webdavOn' : 'control.webdavOff');
+				cLbl.innerHTML = i18next.t(running ? 'control.webdavOn' : 'control.webdavOff', running ? 'WebDAV On' : 'WebDAV Off');
+			}
+		}
+
+		function toggleWebdav() {
+			const b = document.getElementById('btn-webdav');
+			webdavSetStatus(b && b.classList.contains('active-green') ? 0 : 1);
 		}
 
 		function updateLockControlsState(locked) {

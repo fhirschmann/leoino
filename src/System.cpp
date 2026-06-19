@@ -19,6 +19,7 @@
 #include "SdCard.h"
 #include "Sync.h"
 #include "Web.h"
+#include "Webdav.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -284,6 +285,7 @@ void System_PreparePowerDown(void) {
 	Port_Write(GPIO_HP_EN, false, false);
 #endif
 	Ftp_Exit();
+	Webdav_Exit();
 	Mqtt_Exit();
 	Led_Exit();
 	Bluetooth_Exit();

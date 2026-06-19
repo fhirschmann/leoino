@@ -37,6 +37,7 @@
 		"wifi": "WLAN",
 		"mqtt": "MQTT",
 		"ftp": "FTP",
+		"webdav": "WebDAV",
 		"sync": "Sync",
 		"bluetooth": "Bluetooth",
 		"general": "Allgemein",
@@ -196,6 +197,8 @@
 		"nightOff": "Nacht Aus",
 		"ftpOn": "FTP An",
 		"ftpOff": "FTP Aus",
+		"webdavOn": "WebDAV An",
+		"webdavOff": "WebDAV Aus",
 		"repeatOff": "Aus",
 		"repeatPlaylist": "Playlist",
 		"repeatTrack": "Titel",
@@ -229,6 +232,7 @@
 			"sleep": "Sleep-Timer",
 			"night": "Nachtmodus",
 			"ftp": "FTP-Server",
+			"webdav": "WebDAV-Server",
 			"bluetooth": "Bluetooth-Modus",
 			"lock": "Tasten sperren"
 		}
@@ -452,6 +456,29 @@
 			"desc": "Aktiviert den FTP-Server bis zum Neustart des Geräts.",
 			"button": "FTP-Server starten",
 			"stopButton": "FTP-Server stoppen"
+		}
+	},
+	"webdav": {
+		"title": "WebDAV-Einstellungen",
+		"desc": "Bindet die SD-Karte als Netzlaufwerk ein, sodass du am PC/Mac Audiodateien direkt darauf kopieren kannst (im Finder/Explorer als WebDAV-Server verbinden).",
+		"enable": "WebDAV beim Start automatisch aktivieren",
+		"user": {
+			"title": "WebDAV-Benutzername",
+			"placeholder": "Benutzername"
+		},
+		"pwd": {
+			"title": "WebDAV-Passwort",
+			"placeholder": "Passwort",
+			"show": "Passwort anzeigen/verbergen"
+		},
+		"auth": {
+			"hint": "Benutzername und Passwort leer lassen, um ohne Anmeldung zuzugreifen."
+		},
+		"start": {
+			"title": "WebDAV-Server starten",
+			"desc": "Aktiviert den WebDAV-Server bis zum Neustart des Geräts.",
+			"button": "WebDAV-Server starten",
+			"stopButton": "WebDAV-Server stoppen"
 		}
 	},
 	"sync": {
