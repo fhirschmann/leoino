@@ -1,0 +1,20 @@
+#ifndef CDUP_H_
+#define CDUP_H_
+
+#include <WiFiClient.h>
+
+#include "../FTPCommand.h"
+#include "../FTPResponseCodes.h"
+
+class CDUP : public FTPCommand {
+public:
+  explicit CDUP(WiFiClient *const Client) : FTPCommand("CDUP", 0, Client) {
+  }
+
+  void run(FTPPath &WorkDirectory, const std::vector<String> &Line) override {
+    WorkDirectory.goPathUp();
+    SendResponse(FtpCodes::COMMAND_OK, "Ok. Current directory is " + WorkDirectory.getClearPath());
+  }
+};
+
+#endif

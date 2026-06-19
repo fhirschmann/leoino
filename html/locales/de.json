@@ -443,6 +443,7 @@
 	},
 	"ftp": {
 		"title": "FTP-Einstellungen",
+		"authHint": "FTP akzeptiert jeden Benutzernamen – nur das Passwort zählt. Das Passwort ist das gemeinsame Geräte-Passwort (Tab \"Sicherheit\"). Leeres Passwort = Zugriff ohne Anmeldung.",
 		"user": {
 			"title": "FTP-Benutzername",
 			"placeholder": "Benutzername"
@@ -474,7 +475,7 @@
 			"show": "Passwort anzeigen/verbergen"
 		},
 		"auth": {
-			"hint": "Das WebDAV-Passwort wird im Tab \"Sicherheit\" gesetzt (gemeinsames Geräte-Passwort). Benutzername und Passwort leer lassen, um ohne Anmeldung zuzugreifen."
+			"hint": "WebDAV akzeptiert jeden Benutzernamen – nur das Passwort zählt. Das Passwort ist das gemeinsame Geräte-Passwort (Tab \"Sicherheit\"). Leeres Passwort = Zugriff ohne Anmeldung."
 		},
 		"start": {
 			"title": "WebDAV-Server starten",

@@ -1300,10 +1300,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 		Web_SendWebsocketData(0, WebsocketCodeType::FtpStatus); // broadcast new status to all clients
 	} else if (doc["webdav"].is<JsonObject>()) {
-		// WebDAV username + auto-start-on-boot setting. The WebDAV password is the shared
-		// device password set on the Security tab (see Web_HandlePostSecurity).
+		// Only the auto-start-on-boot flag is configured here. WebDAV accepts any username and
+		// uses the shared device password set on the Security tab (see Web_HandlePostSecurity).
 		JsonObject wd = doc["webdav"];
-		gPrefsSettings.putString("webdavUser", wd["username"] | "");
 		if (wd["enable"].is<bool>()) {
 			gPrefsSettings.putBool("webdavEnable", wd["enable"].as<bool>());
 		}

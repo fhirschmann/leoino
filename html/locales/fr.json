@@ -436,6 +436,7 @@
 	},
 	"ftp": {
 		"title": "Paramètres FTP",
+		"authHint": "Le FTP accepte n'importe quel nom d'utilisateur - seul le mot de passe compte. C'est le mot de passe partagé de l'appareil (onglet « Sécurité »). Un mot de passe vide permet l'accès sans connexion.",
 		"user": {
 			"title": "Nom d'utilisateur FTP",
 			"placeholder": "nom d'utilisateur"
@@ -467,7 +468,7 @@
 			"show": "Afficher/masquer le mot de passe"
 		},
 		"auth": {
-			"hint": "Le mot de passe WebDAV se règle dans l'onglet « Sécurité » (mot de passe partagé de l'appareil). Laissez le nom d'utilisateur et le mot de passe vides pour un accès sans connexion."
+			"hint": "Le WebDAV accepte n'importe quel nom d'utilisateur - seul le mot de passe compte. C'est le mot de passe partagé de l'appareil (onglet « Sécurité »). Un mot de passe vide permet l'accès sans connexion."
 		},
 		"start": {
 			"title": "Démarrer serveur WebDAV",

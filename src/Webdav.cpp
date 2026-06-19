@@ -24,30 +24,44 @@ static TaskHandle_t webdavTaskHandle = nullptr;
 static volatile bool webdavShouldRun = false;
 static volatile bool webdavRunning = false;
 
-String Webdav_User = "esp32"; // default; can be changed via the GUI
-String Webdav_Password = "esp32"; // default; can be changed via the GUI
-static String webdavAuthExpected = ""; // pre-computed "Basic <base64>"; empty => no auth required
+String Webdav_User = "esp32"; // default; kept for compatibility but ignored for auth (any username is accepted)
+String Webdav_Password = "esp32"; // the shared device password (set on the Security tab)
+static bool webdavAuthRequired = false; // true when a password is set; computed in webdavComputeAuth()
 static bool webdavAutostart = false; // start automatically on boot (persisted setting)
 
 static constexpr size_t WEBDAV_BUFFER_SIZE = 2048;
 
 // ---------------------------------------------------------------------------- helpers
 
-// Pre-compute the expected "Basic <base64(user:password)>" header once, so each request is a plain
-// string compare. Empty user AND password means the drive is served without authentication.
+// Auth is required only when a password is set. The username is ignored (any username is accepted),
+// so the check decodes the HTTP Basic header per request and compares only the password.
 static void webdavComputeAuth(void) {
-	if (Webdav_User.isEmpty() && Webdav_Password.isEmpty()) {
-		webdavAuthExpected = "";
-		return;
+	webdavAuthRequired = !Webdav_Password.isEmpty();
+}
+
+// Returns true if the request may proceed: no password set (open drive), or the password part of the
+// "Authorization: Basic <base64(user:password)>" header matches the configured password. Any username
+// is accepted - only the password matters.
+static bool webdavCheckAuth(const String &authz) {
+	if (!webdavAuthRequired) {
+		return true;
 	}
-	String cred = Webdav_User + ":" + Webdav_Password;
-	unsigned char out[128];
-	size_t olen = 0;
-	if (mbedtls_base64_encode(out, sizeof(out), &olen, (const unsigned char *) cred.c_str(), cred.length()) == 0) {
-		webdavAuthExpected = "Basic " + String((const char *) out, olen);
-	} else {
-		webdavAuthExpected = "";
+	if (!authz.startsWith("Basic ")) {
+		return false;
 	}
+	String b64 = authz.substring(6);
+	b64.trim();
+	unsigned char dec[160];
+	size_t dlen = 0;
+	if (mbedtls_base64_decode(dec, sizeof(dec), &dlen, (const unsigned char *) b64.c_str(), b64.length()) != 0) {
+		return false;
+	}
+	String cred = String((const char *) dec, dlen);
+	int colon = cred.indexOf(':');
+	if (colon < 0) {
+		return false;
+	}
+	return cred.substring(colon + 1) == Webdav_Password;
 }
 
 static int webdavFromHex(char c) {
@@ -632,8 +646,9 @@ static void webdavHandleClient(WiFiClient &client) {
 		}
 	}
 
-	// Authentication (HTTP Basic). When no credentials are configured the drive is open.
-	if (webdavAuthExpected.length() > 0 && authz != webdavAuthExpected) {
+	// Authentication (HTTP Basic). Any username is accepted; only the password is checked.
+	// When no password is configured the drive is open.
+	if (!webdavCheckAuth(authz)) {
 		webdavDrain(client, contentLength);
 		client.print("HTTP/1.1 401 Unauthorized\r\n");
 		client.print("WWW-Authenticate: Basic realm=\"ESPuino WebDAV\"\r\n");
@@ -754,7 +769,7 @@ void Webdav_Init(void) {
 void Webdav_ReloadCredentials(void) {
 	Webdav_User = gPrefsSettings.getString("webdavUser", Webdav_User);
 	Webdav_Password = gPrefsSettings.getString("webdavPwd", Webdav_Password);
-	webdavComputeAuth(); // running task reads webdavAuthExpected per request, so no restart needed
+	webdavComputeAuth(); // running task re-checks auth per request, so no restart needed
 }
 
 void Webdav_Cyclic(void) {

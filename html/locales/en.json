@@ -443,6 +443,7 @@
 	},
 	"ftp": {
 		"title": "FTP-settings",
+		"authHint": "FTP accepts any username - only the password matters. The password is the shared device password (\"Security\" tab). An empty password means access without a login.",
 		"user": {
 			"title": "FTP-Username",
 			"placeholder": "username"
@@ -474,7 +475,7 @@
 			"show": "Show/hide password"
 		},
 		"auth": {
-			"hint": "The WebDAV password is set on the \"Security\" tab (shared device password). Leave username and password empty to allow access without a login."
+			"hint": "WebDAV accepts any username - only the password matters. The password is the shared device password (\"Security\" tab). An empty password means access without a login."
 		},
 		"start": {
 			"title": "Start WebDAV server",
