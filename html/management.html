@@ -3417,6 +3417,11 @@
 					<div class="mb-3 col-md-12">
 						<legend><i class="fab fa-apple"></i> <span data-i18n="homekit.title"></span></legend>
 						<p class="text-secondary" data-i18n="homekit.intro"></p>
+						<div class="form-check form-switch mb-1">
+							<input class="form-check-input" type="checkbox" role="switch" id="homekitEnabled" onchange="toggleHomeKit()">
+							<label class="form-check-label" for="homekitEnabled" data-i18n="homekit.enable"></label>
+						</div>
+						<p class="small text-secondary mb-3" data-i18n="homekit.enablehint"></p>
 						<div id="homekitStatus" class="mb-3"></div>
 						<div class="row align-items-center g-3">
 							<div class="col-auto text-center">
@@ -5577,6 +5582,7 @@
 			}
 			if (!hk || hk.enabled !== true) return;
 			document.getElementById('nav-homekit-tab').setAttribute('data-visible', true);
+			document.getElementById('homekitEnabled').checked = hk.active !== false;
 			document.getElementById('homekitCode').textContent = hk.code || "–";
 			document.getElementById('homekitDeviceName').value = hk.deviceName || "";
 			document.getElementById('homekitTvName').value = hk.tvName || "";
@@ -5585,6 +5591,19 @@
 			document.getElementById('nav-homekit-tab').addEventListener('shown.bs.tab', async () => {
 				try { renderHomeKitStatus(await fetchHomeKit()); } catch (e) { /* ignore */ }
 			});
+		}
+		async function toggleHomeKit() {
+			const sw = document.getElementById('homekitEnabled');
+			const enabled = sw.checked;
+			sw.disabled = true;
+			try {
+				const body = new URLSearchParams({ enabled: enabled ? "true" : "false" });
+				await fetch("http://" + host + "/homekit/enable", { method: "POST", body: body });
+				if (confirm(i18next.t('homekit.enablereboot'))) {
+					await fetch("http://" + host + "/restart", { method: "POST" });
+				}
+			} catch (e) { sw.checked = !enabled; }
+			sw.disabled = false;
 		}
 		async function resetHomeKit() {
 			if (!confirm(i18next.t('homekit.confirmreset'))) return;

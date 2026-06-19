@@ -601,10 +601,18 @@ void webserverStart(void) {
 			HomeKit_SetNames(device, tv);
 			request->send(200);
 		});
+		// Turn HomeKit on/off completely (persisted; applied on next reboot). When
+		// off, HomeSpan never starts, so its blocking boot-time start-up is skipped.
+		wServer.on("/homekit/enable", HTTP_POST, [](AsyncWebServerRequest *request) {
+			const bool enabled = request->hasParam("enabled", true) && request->getParam("enabled", true)->value() == "true";
+			HomeKit_SetEnabled(enabled);
+			request->send(200);
+		});
 		// HomeKit pairing status + setup code + configurable names (settings section)
 		wServer.on("/homekit", HTTP_GET, [](AsyncWebServerRequest *request) {
 			JsonDocument doc;
 			doc["enabled"] = true;
+			doc["active"] = HomeKit_IsEnabled();
 			doc["paired"] = HomeKit_IsPaired();
 			doc["code"] = HomeKit_GetSetupCode();
 			doc["deviceName"] = HomeKit_GetDeviceName();

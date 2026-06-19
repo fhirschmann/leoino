@@ -838,6 +838,9 @@
 	"homekit": {
 		"title": "Apple HomeKit",
 		"intro": "Ajoutez cet ESPuino à l’app Maison d’Apple pour contrôler la lecture, le volume et le verrouillage des touches avec Siri et des automatisations. Se jumelle via votre WiFi existant – sans matériel supplémentaire.",
+		"enable": "Activer HomeKit",
+		"enablehint": "Désactivé, HomeSpan ne démarre pas au boot — cela accélère le démarrage si vous n’utilisez pas HomeKit.",
+		"enablereboot": "Réglage enregistré. Redémarrer l’ESPuino maintenant pour l’appliquer ?",
 		"paired": "Jumelé",
 		"notpaired": "Pas encore jumelé",
 		"setupcode": "Code de configuration",

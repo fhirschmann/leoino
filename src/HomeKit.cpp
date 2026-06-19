@@ -383,8 +383,15 @@ void HomeKit_Cyclic(void) {
 	static bool initialized = false;
 	if (!initialized) {
 		initialized = true;
-		HomeKit_Init();
+		if (HomeKit_IsEnabled()) {
+			HomeKit_Init();
+		} else {
+			Log_Println("HomeKit: disabled via web interface -- HomeSpan not started", LOGLEVEL_NOTICE);
+		}
 		return;
+	}
+	if (!HomeKit_IsEnabled()) {
+		return; // turned off: HomeSpan never came up, nothing to service
 	}
 
 	// --- regenerate pairing code (web button) ---------------------------------
@@ -491,8 +498,22 @@ void HomeKit_Cyclic(void) {
 }
 
 // --- Web interface helpers ---------------------------------------------------
+// Runtime on/off switch (persisted as "hkEnable", default on). When off we never
+// call HomeKit_Init(), so homeSpan.begin() and its blocking start-up are skipped
+// entirely. Cached so the cyclic hot path doesn't hit NVS every loop.
+static int8_t gHkEnabledCache = -1; // -1 = not yet read from NVS
+
 bool HomeKit_IsEnabled(void) {
-	return true;
+	if (gHkEnabledCache < 0) {
+		gHkEnabledCache = gPrefsSettings.getBool("hkEnable", true) ? 1 : 0;
+	}
+	return gHkEnabledCache == 1;
+}
+
+void HomeKit_SetEnabled(bool enabled) {
+	gPrefsSettings.putBool("hkEnable", enabled);
+	gHkEnabledCache = enabled ? 1 : 0;
+	Log_Printf(LOGLEVEL_NOTICE, "HomeKit: %s (takes effect after reboot)", enabled ? "enabled" : "disabled");
 }
 
 bool HomeKit_IsPaired(void) {
@@ -601,6 +622,8 @@ void HomeKit_Cyclic(void) {
 }
 bool HomeKit_IsEnabled(void) {
 	return false;
+}
+void HomeKit_SetEnabled(bool) {
 }
 bool HomeKit_IsPaired(void) {
 	return false;

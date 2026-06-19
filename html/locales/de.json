@@ -849,6 +849,9 @@
 	"homekit": {
 		"title": "Apple HomeKit",
 		"intro": "Füge diesen ESPuino zur Apple-Home-App hinzu, um Wiedergabe, Lautstärke und die Tastensperre per Siri und Automationen zu steuern. Koppelt über dein bestehendes WLAN – ohne Zusatzhardware.",
+		"enable": "HomeKit aktivieren",
+		"enablehint": "Wenn deaktiviert, startet HomeSpan beim Booten nicht – das spart Boot-Zeit, falls du HomeKit nicht nutzt.",
+		"enablereboot": "Einstellung gespeichert. ESPuino jetzt neu starten, um sie zu übernehmen?",
 		"paired": "Gekoppelt",
 		"notpaired": "Noch nicht gekoppelt",
 		"setupcode": "Kopplungscode",

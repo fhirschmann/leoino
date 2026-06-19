@@ -14,7 +14,8 @@ void HomeKit_Init(void);
 void HomeKit_Cyclic(void);
 
 // --- Web interface helpers (served by the HomeKit settings section) ----------
-bool HomeKit_IsEnabled(void); // false when compiled out
+bool HomeKit_IsEnabled(void); // runtime on/off (persisted); always false when compiled out
+void HomeKit_SetEnabled(bool enabled); // persist the on/off switch; takes effect on next reboot
 bool HomeKit_IsPaired(void); // at least one admin controller paired
 const char *HomeKit_GetSetupCode(void); // formatted "466-37-726"
 String HomeKit_GetSetupPayload(void); // "X-HM://..." pairing URI

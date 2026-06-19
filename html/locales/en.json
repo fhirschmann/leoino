@@ -849,6 +849,9 @@
 	"homekit": {
 		"title": "Apple HomeKit",
 		"intro": "Add this ESPuino to the Apple Home app to control playback, volume and the button-lock with Siri and automations. Pairs over your existing WiFi — no extra hardware needed.",
+		"enable": "Enable HomeKit",
+		"enablehint": "When disabled, HomeSpan does not start at boot — this saves boot time if you don't use HomeKit.",
+		"enablereboot": "Setting saved. Restart the ESPuino now to apply it?",
 		"paired": "Paired",
 		"notpaired": "Not paired yet",
 		"setupcode": "Setup code",
