@@ -857,7 +857,7 @@
 		"notpaired": "Not paired yet",
 		"setupcode": "Setup code",
 		"howto": "In the Home app tap + → Add Accessory → More options… → ESPuino, then scan the QR code (or enter the code manually).",
-		"namefollowshint": "The device and remote names follow the device name from the General settings automatically.",
+		"namefollowshint": "The device and remote names follow the device name from the General settings automatically. After you rename the device, the new name only applies to new pairings — the Home app keeps the name you assigned when pairing. To update it, rename the accessory inside the Home app, or reset the pairing here and add the ESPuino again.",
 		"devicename": "Device name",
 		"tvname": "TV / remote name",
 		"tvnamehint": "(shown on the Control-Center remote)",

@@ -60,10 +60,20 @@ static volatile int32_t gPendingVolume = -1; // absolute target volume, -1 none
 // Live pairing state, maintained via HomeSpan's pair callback (avoids pulling in
 // HomeSpan's private HAP headers). HomeSpan fires this whenever a controller is
 // added or removed; the web section reads it for its status badge.
+//
+// IMPORTANT: the callback only fires on a *live* pair/unpair event -- HomeSpan
+// does NOT call it at boot for a controller that is already paired. Without the
+// one-shot resync below (HomeKit_Cyclic), gPaired would reset to false on every
+// reboot and the web badge would wrongly read "not paired" for a paired device.
 static volatile bool gPaired = false;
 static void HomeKit_PairCallback(boolean isPaired) {
 	gPaired = isPaired;
 }
+
+// Wall-clock of the last HomeKit_Init(), used to defer the one-shot pairing
+// resync until HomeSpan's poll task (core 0) has loaded its controller list from
+// NVS. 0 = not initialized yet.
+static volatile uint32_t gInitMillis = 0;
 
 // Render target for the QR display callback (web handler runs single-threaded).
 static String *gQrSvgTarget = nullptr;
@@ -376,6 +386,7 @@ void HomeKit_Init(void) {
 	// can always preempt it, so the I2S DMA buffer never underruns.
 	homeSpan.autoPoll(8192, 1, 0);
 
+	gInitMillis = millis();
 	Log_Println("HomeKit: HomeSpan started (autoPoll on core 0)", LOGLEVEL_NOTICE);
 }
 
@@ -397,6 +408,27 @@ void HomeKit_Cyclic(void) {
 	}
 	if (!HomeKit_IsEnabled()) {
 		return; // turned off: HomeSpan never came up, nothing to service
+	}
+
+	// --- one-shot pairing resync after boot -----------------------------------
+	// HomeSpan's pair callback only fires on a live pair/unpair, never at boot for
+	// an already-paired controller, so gPaired would otherwise stay false after
+	// every reboot. Read the real state once from HomeSpan's controller list. We
+	// wait until the poll task (core 0) has had time to load it from NVS in
+	// HAPClient::init(), and do it exactly once -- the only other writer of that
+	// list is a live pairing change, which the callback already covers, so a
+	// single early traversal can't race a concurrent modification.
+	static bool pairedSynced = false;
+	if (!pairedSynced && gInitMillis != 0 && (millis() - gInitMillis) > 3000) {
+		pairedSynced = true;
+		bool paired = false;
+		for (auto it = homeSpan.controllerListBegin(); it != homeSpan.controllerListEnd(); ++it) {
+			if (it->isAdmin()) {
+				paired = true;
+				break;
+			}
+		}
+		gPaired = paired;
 	}
 
 	// --- regenerate pairing code (web button) ---------------------------------

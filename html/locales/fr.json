@@ -846,7 +846,7 @@
 		"notpaired": "Pas encore jumelé",
 		"setupcode": "Code de configuration",
 		"howto": "Dans l’app Maison, touchez + → Ajouter un accessoire → Plus d’options… → ESPuino, puis scannez le QR code (ou saisissez le code manuellement).",
-		"namefollowshint": "Les noms de l’appareil et de la télécommande suivent automatiquement le nom de l’appareil défini dans les réglages généraux.",
+		"namefollowshint": "Les noms de l’appareil et de la télécommande suivent automatiquement le nom de l’appareil défini dans les réglages généraux. Après avoir renommé l’appareil, le nouveau nom ne s’applique qu’aux nouvelles associations — l’app Maison conserve le nom attribué lors de l’association. Pour le mettre à jour, renommez l’accessoire dans l’app Maison, ou réinitialisez l’association ici et ajoutez de nouveau l’ESPuino.",
 		"devicename": "Nom de l’appareil",
 		"tvname": "Nom TV / télécommande",
 		"tvnamehint": "(affiché sur la télécommande du centre de contrôle)",

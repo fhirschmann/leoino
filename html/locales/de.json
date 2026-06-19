@@ -857,7 +857,7 @@
 		"notpaired": "Noch nicht gekoppelt",
 		"setupcode": "Kopplungscode",
 		"howto": "In der Home-App auf + → Gerät hinzufügen → Weitere Optionen… → ESPuino tippen, dann den QR-Code scannen (oder den Code manuell eingeben).",
-		"namefollowshint": "Geräte- und Fernbedienungs-Name folgen automatisch dem Gerätenamen aus den Allgemein-Einstellungen.",
+		"namefollowshint": "Geräte- und Fernbedienungs-Name folgen automatisch dem Gerätenamen aus den Allgemein-Einstellungen. Nach dem Umbenennen gilt der neue Name nur für neue Kopplungen – die Home-App behält den beim Koppeln vergebenen Namen. Zum Ändern den Namen in der Home-App anpassen oder hier die Kopplung zurücksetzen und den ESPuino erneut hinzufügen.",
 		"devicename": "Gerätename",
 		"tvname": "TV-/Fernbedienungs-Name",
 		"tvnamehint": "(erscheint auf der Fernbedienung im Kontrollzentrum)",
