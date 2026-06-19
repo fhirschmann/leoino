@@ -137,7 +137,8 @@
 		"password": {
 			"title": "Password",
 			"placeholder": "Leave empty to disable protection",
-			"desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV)."
+			"desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV).",
+			"show": "Show/hide password"
 		},
 		"cookie": {
 			"title": "Stay logged in",
@@ -856,6 +857,7 @@
 		"notpaired": "Not paired yet",
 		"setupcode": "Setup code",
 		"howto": "In the Home app tap + → Add Accessory → More options… → ESPuino, then scan the QR code (or enter the code manually).",
+		"namefollowshint": "The device and remote names follow the device name from the General settings automatically.",
 		"devicename": "Device name",
 		"tvname": "TV / remote name",
 		"tvnamehint": "(shown on the Control-Center remote)",

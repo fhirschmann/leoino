@@ -130,7 +130,8 @@
 		"password": {
 			"title": "Mot de passe",
 			"placeholder": "Laisser vide pour désactiver la protection",
-			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Pour le FTP et le WebDAV, le nom d'utilisateur n'a pas d'importance - n'importe quel nom fonctionne, seul ce mot de passe est vérifié. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Laisser vide pour désactiver la protection partout (interface web, FTP, WebDAV)."
+			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Pour le FTP et le WebDAV, le nom d'utilisateur n'a pas d'importance - n'importe quel nom fonctionne, seul ce mot de passe est vérifié. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Laisser vide pour désactiver la protection partout (interface web, FTP, WebDAV).",
+			"show": "Afficher/masquer le mot de passe"
 		},
 		"cookie": {
 			"title": "Rester connecté",
@@ -845,6 +846,7 @@
 		"notpaired": "Pas encore jumelé",
 		"setupcode": "Code de configuration",
 		"howto": "Dans l’app Maison, touchez + → Ajouter un accessoire → Plus d’options… → ESPuino, puis scannez le QR code (ou saisissez le code manuellement).",
+		"namefollowshint": "Les noms de l’appareil et de la télécommande suivent automatiquement le nom de l’appareil défini dans les réglages généraux.",
 		"devicename": "Nom de l’appareil",
 		"tvname": "Nom TV / télécommande",
 		"tvnamehint": "(affiché sur la télécommande du centre de contrôle)",

@@ -327,9 +327,14 @@ void HomeKit_Init(void) {
 
 	gCmdQueue = xQueueCreate(8, sizeof(uint16_t));
 
-	// Load the user-configurable names (defaults if unset).
-	gHkDeviceName = gPrefsSettings.getString("hkDeviceName", HOMEKIT_DEFAULT_NAME);
-	gHkTvName = gPrefsSettings.getString("hkTvName", HOMEKIT_DEFAULT_NAME);
+	// Device + remote names simply follow the General device name (the hostname); there is no
+	// separate HomeKit name config. Falls back to the default when the hostname is unset.
+	String hostname = gPrefsSettings.getString("Hostname", HOMEKIT_DEFAULT_NAME);
+	if (hostname.isEmpty()) {
+		hostname = HOMEKIT_DEFAULT_NAME;
+	}
+	gHkDeviceName = hostname;
+	gHkTvName = hostname;
 	gHkControlsName = gHkDeviceName + " Controls";
 
 	homeSpan.begin(Category::Bridges, gHkDeviceName.c_str());
@@ -600,18 +605,13 @@ void HomeKit_RequestRegenerate(void) {
 }
 
 String HomeKit_GetDeviceName(void) {
-	return gPrefsSettings.getString("hkDeviceName", HOMEKIT_DEFAULT_NAME);
+	// Device + remote names follow the General device name (hostname).
+	const String hostname = gPrefsSettings.getString("Hostname", HOMEKIT_DEFAULT_NAME);
+	return hostname.isEmpty() ? String(HOMEKIT_DEFAULT_NAME) : hostname;
 }
 
 String HomeKit_GetTvName(void) {
-	return gPrefsSettings.getString("hkTvName", HOMEKIT_DEFAULT_NAME);
-}
-
-void HomeKit_SetNames(const String &deviceName, const String &tvName) {
-	// Fall back to the default for empty input; takes effect on next reboot.
-	gPrefsSettings.putString("hkDeviceName", deviceName.length() ? deviceName : String(HOMEKIT_DEFAULT_NAME));
-	gPrefsSettings.putString("hkTvName", tvName.length() ? tvName : String(HOMEKIT_DEFAULT_NAME));
-	Log_Println("HomeKit: names updated (restart to apply)", LOGLEVEL_NOTICE);
+	return HomeKit_GetDeviceName();
 }
 
 #else // HOMEKIT_ENABLE
@@ -646,8 +646,6 @@ String HomeKit_GetDeviceName(void) {
 }
 String HomeKit_GetTvName(void) {
 	return String();
-}
-void HomeKit_SetNames(const String &, const String &) {
 }
 
 #endif

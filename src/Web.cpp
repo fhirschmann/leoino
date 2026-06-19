@@ -518,9 +518,15 @@ void webserverStart(void) {
 			request->send(response);
 		});
 		wServer.on("/security", HTTP_GET, [](AsyncWebServerRequest *request) {
-			String body = String("{\"enabled\":") + ((wwwSessionToken.length() > 0) ? "true" : "false")
-				+ ",\"cookieDays\":" + String(gPrefsSettings.getUInt("wwwCookieDays", WWW_COOKIE_DAYS_DEFAULT)) + "}";
-			request->send(200, "application/json", body);
+			JsonDocument doc;
+			doc["enabled"] = (wwwSessionToken.length() > 0);
+			doc["cookieDays"] = gPrefsSettings.getUInt("wwwCookieDays", WWW_COOKIE_DAYS_DEFAULT);
+			// The whole management page already sits behind this very password (same as the FTP tab,
+			// which also returns its password), so the UI can show + reveal the current value.
+			doc["password"] = gPrefsSettings.getString("wwwPassword", "");
+			String out;
+			serializeJson(doc, out);
+			request->send(200, "application/json", out);
 		});
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/security", Web_HandlePostSecurity));
 
@@ -592,13 +598,6 @@ void webserverStart(void) {
 		// Generate a fresh random pairing code (e.g. if the old one leaked)
 		wServer.on("/homekit/regencode", HTTP_POST, [](AsyncWebServerRequest *request) {
 			HomeKit_RequestRegenerate();
-			request->send(200);
-		});
-		// Update the configurable HomeKit names (applied on next reboot)
-		wServer.on("/homekit/names", HTTP_POST, [](AsyncWebServerRequest *request) {
-			const String device = request->hasParam("device", true) ? request->getParam("device", true)->value() : String();
-			const String tv = request->hasParam("tv", true) ? request->getParam("tv", true)->value() : String();
-			HomeKit_SetNames(device, tv);
 			request->send(200);
 		});
 		// Turn HomeKit on/off completely (persisted; applied on next reboot). When

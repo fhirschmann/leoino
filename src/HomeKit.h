@@ -22,6 +22,5 @@ String HomeKit_GetSetupPayload(void); // "X-HM://..." pairing URI
 String HomeKit_GetQrSvg(void); // standalone SVG of the pairing QR code
 void HomeKit_ResetPairing(void); // remove all paired controllers (no reboot)
 void HomeKit_RequestRegenerate(void); // generate a fresh random pairing code
-String HomeKit_GetDeviceName(void); // configurable bridge/device name
-String HomeKit_GetTvName(void); // configurable TV / remote name
-void HomeKit_SetNames(const String &deviceName, const String &tvName); // persists; applied on reboot
+String HomeKit_GetDeviceName(void); // bridge/device name (follows the hostname)
+String HomeKit_GetTvName(void); // TV / remote name (follows the hostname)

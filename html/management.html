@@ -1795,7 +1795,7 @@
 			<a class="navbar-brand overflow-hidden">
 				<img src="/logo" width="35" height="35" class="d-inline-block align-top nav-logo" alt="" />
 				<span id="navbar-brand-co" class="d-none d-md-inline">Leo Industries</span>
-				<span id="navbar-heading" class="d-none d-md-inline" data-i18n="title"></span>
+				<span id="navbar-heading" class="d-none d-md-inline"></span>
 			</a>
 			<div class="collapse navbar-collapse justify-content-end">
 				<span class="navbar-text" id="connLost" data-i18n="[title]toast.conlost"><i class="fas fa-link-slash"></i></span>
@@ -3125,9 +3125,15 @@
 							<legend class="w-auto" data-i18n="security.title"></legend>
 							<div class="mb-3">
 								<label for="wwwPassword" data-i18n="[prepend]security.password.title">:</label>
-								<input type="password" class="form-control" id="wwwPassword" name="wwwPassword"
-									maxlength="64" autocomplete="new-password"
-									data-i18n="[placeholder]security.password.placeholder">
+								<div class="input-group">
+									<input type="password" class="form-control" id="wwwPassword" name="wwwPassword"
+										maxlength="64" autocomplete="new-password"
+										data-i18n="[placeholder]security.password.placeholder">
+									<button class="btn cp-reveal-btn" type="button" id="wwwPasswordToggle" tabindex="-1"
+										data-i18n="[title]security.password.show" onclick="togglePasswordField('wwwPassword', 'wwwPasswordToggle')">
+										<i class="fas fa-eye"></i>
+									</button>
+								</div>
 								<small class="form-text" data-i18n="security.password.desc"></small>
 							</div>
 							<div class="text-center">
@@ -3434,14 +3440,7 @@
 							</div>
 						</div>
 						<hr>
-						<div class="mb-3">
-							<label class="form-label mb-1" for="homekitDeviceName" data-i18n="homekit.devicename"></label>
-							<input type="text" class="form-control" id="homekitDeviceName" maxlength="32" placeholder="ESPuino">
-							<label class="form-label mb-1 mt-2" for="homekitTvName"><span data-i18n="homekit.tvname"></span> <span class="text-secondary small" data-i18n="homekit.tvnamehint"></span></label>
-							<input type="text" class="form-control" id="homekitTvName" maxlength="32" placeholder="ESPuino">
-							<button type="button" class="btn btn-primary mt-2" id="homekitNamesBtn" onclick="saveHomeKitNames()"><i class="fas fa-save"></i> <span data-i18n="homekit.savenames"></span></button>
-							<p class="small text-secondary mt-1 mb-0" data-i18n="homekit.restartnote"></p>
-						</div>
+						<p class="small text-secondary" data-i18n="homekit.namefollowshint"></p>
 						<hr>
 						<div class="d-grid gap-2 d-md-block">
 							<button type="button" class="btn btn-outline-secondary" id="homekitRegenBtn" onclick="regenHomeKit()"><i class="fas fa-sync"></i> <span data-i18n="homekit.regen"></span></button>
@@ -5498,7 +5497,8 @@
 				deleteSpan.classList.add("float-end");
 				deleteSpan.classList.add("button-group");
 				let deleteButton = document.createElement("button");
-				deleteButton.classList.add("btn", "btn-danger", "fa", "fa-trash");
+				deleteButton.classList.add("btn", "btn-danger");
+				deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
 				deleteButton.setAttribute("data-bs-toggle", "modal");
 				deleteButton.setAttribute("data-bs-target", "#deleteSSIDModal");
 				deleteButton.setAttribute("data-ssid", ssid);
@@ -5541,7 +5541,8 @@
 				let delSpan = document.createElement("span");
 				delSpan.classList.add("float-end");
 				let delBtn = document.createElement("button");
-				delBtn.classList.add("btn", "btn-danger", "fa", "fa-trash");
+				delBtn.classList.add("btn", "btn-danger");
+				delBtn.innerHTML = '<i class="fas fa-trash"></i>';
 				delBtn.addEventListener("click", function () {
 					deleteData("http://" + host + "/eqrule?path=" + encodeURIComponent(r.p), rebuildEqRulesList);
 				});
@@ -5584,8 +5585,6 @@
 			document.getElementById('nav-homekit-tab').setAttribute('data-visible', true);
 			document.getElementById('homekitEnabled').checked = hk.active !== false;
 			document.getElementById('homekitCode').textContent = hk.code || "–";
-			document.getElementById('homekitDeviceName').value = hk.deviceName || "";
-			document.getElementById('homekitTvName').value = hk.tvName || "";
 			renderHomeKitStatus(hk);
 			// Refresh pairing status whenever the user opens the tab.
 			document.getElementById('nav-homekit-tab').addEventListener('shown.bs.tab', async () => {
@@ -5612,20 +5611,6 @@
 			try {
 				await fetch("http://" + host + "/homekit/reset", { method: "POST" });
 				renderHomeKitStatus(await fetchHomeKit());
-			} catch (e) { /* ignore */ }
-			if (btn) btn.disabled = false;
-		}
-		async function saveHomeKitNames() {
-			const device = document.getElementById('homekitDeviceName').value.trim();
-			const tv = document.getElementById('homekitTvName').value.trim();
-			const btn = document.getElementById('homekitNamesBtn');
-			if (btn) btn.disabled = true;
-			try {
-				const body = new URLSearchParams({ device: device, tv: tv });
-				await fetch("http://" + host + "/homekit/names", { method: "POST", body: body });
-				if (confirm(i18next.t('homekit.namessaved'))) {
-					await fetch("http://" + host + "/restart", { method: "POST" });
-				}
 			} catch (e) { /* ignore */ }
 			if (btn) btn.disabled = false;
 		}
@@ -5690,7 +5675,8 @@
 				if (hasProgress) {
 					// reset the saved play-position so the book restarts from the beginning
 					let resetButton = document.createElement("button");
-					resetButton.classList.add("btn", "btn-secondary", "fa", "fa-backward-step", "me-1");
+					resetButton.classList.add("btn", "btn-secondary", "me-1");
+					resetButton.innerHTML = '<i class="fas fa-backward-step"></i>';
 					resetButton.setAttribute("title", i18next.t("files.rfid.resume.reset"));
 					resetButton.addEventListener("click", function () { resetRfidPos(rfid.id); });
 					deleteSpan.appendChild(resetButton);
@@ -5698,8 +5684,7 @@
 				let deleteButton = document.createElement("button");
 				deleteButton.classList.add("btn");
 				deleteButton.classList.add("btn-danger");
-				deleteButton.classList.add("fa");
-				deleteButton.classList.add("fa-trash");
+				deleteButton.innerHTML = '<i class="fas fa-trash"></i>';
 				deleteButton.setAttribute("data-bs-toggle", "modal");
 				deleteButton.setAttribute("data-bs-target", "#deleteRFIDModal");
 				deleteButton.setAttribute("data-rfid", rfid.id);
@@ -6207,7 +6192,8 @@
 				li.appendChild(span);
 				var del = document.createElement('button');
 				del.type = "button";
-				del.className = "btn btn-sm btn-danger fa fa-trash";
+				del.className = "btn btn-sm btn-danger";
+				del.innerHTML = '<i class="fas fa-trash"></i>';
 				del.setAttribute('title', i18next.t("delete"));
 				del.addEventListener('click', function () { removePeer(i); });
 				li.appendChild(del);
@@ -7103,6 +7089,9 @@
 			try {
 				const status = await (await fetch("http://" + host + "/security")).json();
 				document.getElementById('menuLogout').setAttribute('data-visible', status.enabled === true);
+				if (status.password !== undefined) {
+					document.getElementById('wwwPassword').value = status.password;
+				}
 				if (status.cookieDays !== undefined) {
 					const unlimited = (status.cookieDays === 0);
 					document.getElementById('cookieUnlimited').checked = unlimited;
@@ -7149,7 +7138,6 @@
 			});
 			if (response.ok) {
 				flashActionOk();
-				document.getElementById('wwwPassword').value = '';
 				refreshSecurityStatus();
 			} else {
 				toaster.error(response.statusText);
@@ -7388,6 +7376,7 @@
 		}
 
 		function setTitle(newTitle) {
+			newTitle = (newTitle && newTitle.trim() !== "") ? newTitle : "ESPuino";
 			$('title').text(newTitle);
 			$('#navbar-heading').text(newTitle);
 		}
