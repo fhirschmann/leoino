@@ -66,7 +66,7 @@ static bool tagIdToJSON(const String tagId, JsonObject entry) {
 	return true;
 }
 
-static String tagIdToJsonStr(const char *key, const bool nameOnly) {
+String tagIdToJsonStr(const char *key, const bool nameOnly) {
 	if (nameOnly) {
 		return "\"" + String(key) + "\"";
 	} else {

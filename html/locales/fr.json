@@ -542,6 +542,18 @@
 			"peerHostPlaceholder": "IP ou nom d'hôte",
 			"peerHostRequired": "Veuillez saisir une IP/nom d'hôte",
 			"noPeers": "Aucun pair pour le moment."
+		},
+		"backup": {
+			"title": "Sauvegarde auto vers le serveur",
+			"desc": "Téléverse une sauvegarde complète de la configuration (réglages, affectations RFID, règles d'égaliseur et statistiques d'écoute) vers un serveur – la même sauvegarde que le bouton d'export, donc restaurable via l'import. Les mots de passe ne sont jamais inclus. Utilise l'identifiant/mot de passe de la section de synchronisation de fichiers ci-dessus.",
+			"url": "URL de sauvegarde (backup.php)",
+			"urlPlaceholder": "http://serveur/espuino/backup.php",
+			"auto": "Sauvegarder automatiquement une fois par jour",
+			"autoHint": "Une fois par jour (dès que l'horloge est réglée et le Wi-Fi connecté), la sauvegarde est téléversée vers le serveur en arrière-plan.",
+			"run": "Sauvegarder maintenant",
+			"started": "Téléversement de la sauvegarde démarré…",
+			"done": "Sauvegarde téléversée",
+			"failed": "Échec du téléversement de la sauvegarde"
 		}
 	},
 	"playlist": {

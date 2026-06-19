@@ -4,6 +4,7 @@
 #include "Cmd.h"
 
 #include "AudioPlayer.h"
+#include "Backup.h"
 #include "Battery.h"
 #include "Bluetooth.h"
 #include "Ftp.h"
@@ -436,6 +437,12 @@ void Cmd_Action(const uint16_t mod) {
 
 		case CMD_RFID_SYNC: {
 			RfidSync_TriggerFull();
+			System_IndicateOk();
+			break;
+		}
+
+		case CMD_BACKUP_UPLOAD: {
+			Backup_Trigger();
 			System_IndicateOk();
 			break;
 		}

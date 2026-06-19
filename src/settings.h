@@ -310,6 +310,7 @@
 		constexpr const char topicFirmwareUpdate[] = "firmware_update"; // Cmnd: trigger GitHub OTA (ON/1/update/check); State: idle/updating/up_to_date/failed
 		constexpr const char topicRfidSync[] = "rfid_sync"; // Cmnd: trigger a full bidirectional RFID-tag sync (ON/1/sync)
 		constexpr const char topicWebdav[] = "webdav"; // Cmnd/State: start/stop the WebDAV server (ON/OFF/1/0)
+		constexpr const char topicBackup[] = "backup"; // Cmnd: upload the full config backup to the sync server (ON/1/backup); State: idle/running/done/failed
 
 		// Topics (state only)
 		constexpr const char topicTrack[] = "track";          // State: current track info (e.g. "(2/10) /mp3/.../file.mp3")

@@ -6,6 +6,7 @@
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "AudioPlayer.h"
+#include "Backup.h"
 #include "Battery.h"
 #include "Bluetooth.h"
 #include "Cmd.h"
@@ -79,7 +80,7 @@ static void handleSetEqRule(AsyncWebServerRequest *request);
 static void handleDeleteEqRule(AsyncWebServerRequest *request);
 
 static void onWebsocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len);
-static void settingsToJSON(JsonObject obj, const String section);
+// settingsToJSON is declared in WebInternal.h (shared with Backup.cpp).
 static WebsocketCodeType JSONToSettings(JsonObject obj);
 static void webserverStart(void);
 
@@ -708,6 +709,20 @@ void webserverStart(void) {
 			request->send(200, "application/json", buf);
 		});
 
+		// upload the full configuration backup to the server (reuses the sync server credentials)
+		wServer.on("/backupupload", HTTP_POST, [](AsyncWebServerRequest *request) {
+			Backup_Trigger();
+			request->send(200, "text/plain", "started");
+		});
+		// progress/result of the backup upload, polled by the web interface
+		wServer.on("/backupupload", HTTP_GET, [](AsyncWebServerRequest *request) {
+			char msg[96];
+			Backup_CopyMessage(msg, sizeof(msg));
+			char buf[160];
+			snprintf(buf, sizeof(buf), "{\"status\":%u,\"message\":\"%s\"}", Backup_GetStatus(), msg);
+			request->send(200, "application/json", buf);
+		});
+
 		// running build + rolling-release up-to-date state, used for the navbar version badge
 		wServer.on("/version", HTTP_GET, [](AsyncWebServerRequest *request) {
 			Web_CheckForUpdate(); // refresh in the background (rate-limited) so the badge can't go stale
@@ -1318,6 +1333,13 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (syncObj["rfidLearn"].is<bool>()) {
 			gPrefsSettings.putBool("rfidSyncLearn", syncObj["rfidLearn"].as<bool>());
 		}
+		// Auto-backup: upload the full config backup to the same server (reuses syncUser/syncPwd).
+		if (syncObj["backupUrl"].is<const char *>()) {
+			gPrefsSettings.putString("backupUrl", syncObj["backupUrl"] | "");
+		}
+		if (syncObj["backupAuto"].is<bool>()) {
+			gPrefsSettings.putBool("backupAuto", syncObj["backupAuto"].as<bool>());
+		}
 	} else if (doc["ftpStatus"].is<JsonObject>()) {
 		uint8_t _ftpStart = doc["ftpStatus"]["start"].as<uint8_t>();
 		if (_ftpStart == 1) { // ifdef FTP_ENABLE is checked in Ftp_EnableServer()
@@ -1507,7 +1529,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 }
 
 // process settings to JSON object
-static void settingsToJSON(JsonObject obj, const String section) {
+void settingsToJSON(JsonObject obj, const String section) {
 	if ((section == "") || (section == "current")) {
 		// current values
 		JsonObject curObj = obj["current"].to<JsonObject>();
@@ -1835,6 +1857,8 @@ static void settingsToJSON(JsonObject obj, const String section) {
 		syncObj["rfidPeers"] = gPrefsSettings.getString("rfidPeers", "");
 		syncObj["rfidPeerKey"] = gPrefsSettings.getString("rfidPeerKey", "");
 		syncObj["rfidLearn"] = gPrefsSettings.getBool("rfidSyncLearn", true);
+		syncObj["backupUrl"] = gPrefsSettings.getString("backupUrl", "");
+		syncObj["backupAuto"] = gPrefsSettings.getBool("backupAuto", false);
 	}
 // MQTT
 #ifdef MQTT_ENABLE

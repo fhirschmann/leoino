@@ -124,7 +124,7 @@
 			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, voltageCheckInterval: 10 },
 			ftp: { username: "esp32", password: "esp32", maxUserLength: 31, maxPwdLength: 31, enable: false },
 			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
-			sync: { url: "", username: "", password: "", abortOnButton: true, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true },
+			sync: { url: "", username: "", password: "", abortOnButton: true, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
 			mqtt: { enable: false, clientID: "espuino-demo", deviceId: "espuino-demo", baseTopic: "espuino", server: "", username: "", password: "", port: 1883 },
 			bluetooth: { deviceName: "ESPuino", pinCode: "" }
 		};
@@ -232,10 +232,12 @@
 				if (section === "defaults") { return jsonResp({ defaults: buildSettings() }); }
 				return jsonResp(buildSettings());
 			}
+			// backup-upload status poll: pretend the (no-op) upload finished successfully
+			if (p === "/backupupload") { return jsonResp({ status: 2, message: "demo: backup not actually uploaded" }); }
 		}
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
-		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|rfidnvserase|rfidresetpos|explorer|exploreraudio|homekit|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
+		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|homekit|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
 			return jsonResp({ status: "ok", demo: true });
 		}
 		return null;

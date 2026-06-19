@@ -684,6 +684,37 @@ paths:
       responses:
         "200":
           description: Stop requested.
+  /backupupload:
+    get:
+      tags: [Fork]
+      summary: Get configuration-backup upload status.
+      description: Poll the progress/result of the backup upload to the server.
+      responses:
+        "200":
+          description: Current backup state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    description: "0=idle, 1=running, 2=done, 3=failed"
+                  message:
+                    type: string
+                    description: Result or error message.
+    post:
+      tags: [Fork]
+      summary: Upload a configuration backup to the server.
+      description: >-
+        Assembles the full configuration backup (settings + RFID assignments +
+        per-path EQ rules + listening statistics, never any passwords) on the SD
+        card and uploads it to the configured backup URL via HTTP POST, reusing
+        the file-sync credentials. No-op if an upload is already running. Also
+        bindable as command 189 or MQTT topic "backup".
+      responses:
+        "200":
+          description: Upload started (or already running).
   /playlist:
     post:
       tags: [Fork]

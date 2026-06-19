@@ -5,6 +5,7 @@
 #include "main.h"
 
 #include "AudioPlayer.h"
+#include "Backup.h"
 #include "Battery.h"
 #include "Bluetooth.h"
 #include "Button.h"
@@ -157,6 +158,7 @@ void setup() {
 
 	// Init audio before power on to avoid speaker noise
 	AudioPlayer_Init();
+	Backup_Init(); // daily auto-backup of the full config to the sync server
 
 	// All checks that could send us to sleep are done, power up fully
 	Power_PeripheralOn();
@@ -258,6 +260,7 @@ void loop() {
 	Button_Cyclic();
 	Rtc_Cyclic();
 	RfidSync_Cyclic();
+	Backup_Cyclic();
 	System_Cyclic();
 #ifdef OLED_ENABLE
 	Display_Cyclic();

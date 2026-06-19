@@ -549,6 +549,18 @@
 			"peerHostPlaceholder": "IP or hostname",
 			"peerHostRequired": "Please enter an IP/hostname",
 			"noPeers": "No peers yet."
+		},
+		"backup": {
+			"title": "Auto-backup to server",
+			"desc": "Uploads a full configuration backup (settings, RFID assignments, EQ rules and listening statistics) to a server – the same backup the export button produces, so it can be restored via import. Passwords are never included. Uses the username/password from the file-sync section above.",
+			"url": "Backup URL (backup.php)",
+			"urlPlaceholder": "http://server/espuino/backup.php",
+			"auto": "Back up automatically once a day",
+			"autoHint": "Once a day (after the clock is set and WiFi is up) the backup is uploaded to the server in the background.",
+			"run": "Back up now",
+			"started": "Backup upload started…",
+			"done": "Backup uploaded",
+			"failed": "Backup upload failed"
 		}
 	},
 	"playlist": {

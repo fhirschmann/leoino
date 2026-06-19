@@ -4,6 +4,7 @@
 #include "Mqtt.h"
 
 #include "AudioPlayer.h"
+#include "Backup.h"
 #include "Led.h"
 #include "Log.h"
 #include "MemX.h"
@@ -379,6 +380,8 @@ static void Mqtt_PublishHassDiscovery(void) {
 	mqttHassPublish("button", "prev", "\"name\":\"Previous track\",\"icon\":\"mdi:skip-previous\",\"payload_press\":\"5\",\"command_topic\":\"" + trackCmd + "\"");
 	mqttHassPublish("button", "update", "\"name\":\"Update firmware\",\"icon\":\"mdi:package-up\",\"entity_category\":\"config\",\"payload_press\":\"update\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicFirmwareUpdate)) + "\"");
 	mqttHassPublish("button", "shutdown", "\"name\":\"Shutdown\",\"icon\":\"mdi:power\",\"payload_press\":\"OFF\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicSleep)) + "\"");
+	mqttHassPublish("button", "backup", "\"name\":\"Backup now\",\"icon\":\"mdi:cloud-upload\",\"entity_category\":\"config\",\"payload_press\":\"backup\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicBackup)) + "\"");
+	mqttHassPublish("sensor", "backup_status", "\"name\":\"Backup status\",\"icon\":\"mdi:cloud-upload-outline\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBackup)) + "\"");
 
 	#ifdef BATTERY_MEASURE_ENABLE
 	mqttHassPublish("sensor", "battery_voltage", "\"name\":\"Battery voltage\",\"device_class\":\"voltage\",\"unit_of_measurement\":\"V\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBatteryVoltage)) + "\"");
@@ -441,6 +444,9 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			// RFID-tag sync (full bidirectional sync trigger)
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicRfidSync), qos);
 
+			// Auto-backup upload trigger
+			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicBackup), qos);
+
 	#ifdef WEBDAV_ENABLE
 			// WebDAV server start/stop
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicWebdav), qos);
@@ -474,6 +480,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			publishMqtt(topicRepeatMode, static_cast<uint32_t>(AudioPlayer_GetRepeatMode()), false);
 			publishMqtt(topicEqualizer, AudioPlayer_GetEqualizerProfile().c_str(), false);
 			publishMqtt(topicFirmwareUpdate, Web_GetGithubOtaStatusText(), false);
+			publishMqtt(topicBackup, Backup_GetStatusText(), false);
 	#ifdef WEBDAV_ENABLE
 			publishMqtt(topicWebdav, Webdav_IsServerRunning() ? "ON" : "OFF", false);
 	#endif
@@ -767,6 +774,15 @@ void Mqtt_ClientCallback(const char *topic_buf, uint32_t topic_length, const cha
 		else if (reduced_topic_str == topicRfidSync) {
 			if (payload_str == "ON" || payload_str == "1" || payload_str == "sync") {
 				RfidSync_TriggerFull();
+				System_IndicateOk();
+			}
+		}
+
+		// Trigger a configuration-backup upload to the sync server?
+		else if (reduced_topic_str == topicBackup) {
+			if (payload_str == "ON" || payload_str == "1" || payload_str == "backup") {
+				Backup_Trigger();
+				publishMqtt(topicBackup, Backup_GetStatusText(), false);
 				System_IndicateOk();
 			}
 		}

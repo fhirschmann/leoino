@@ -83,6 +83,7 @@
 #define CMD_FIRMWARE_UPDATE		 186 // Command: pull the latest firmware from GitHub and OTA-flash it
 #define CMD_RFID_SYNC			 187 // Command: full bidirectional RFID-tag sync (server + peers)
 #define CMD_TOGGLE_WEBDAV_SERVER 188 // Command: start/stop the WebDAV server (mount SD as a network drive)
+#define CMD_BACKUP_UPLOAD		 189 // Command: upload the full configuration backup to the sync server
 
 #define CMD_VIRTUAL_RFID_CARD_01 241 // Command: Virtual RFID-Card 900000000001
 #define CMD_VIRTUAL_RFID_CARD_02 242 // Command: Virtual RFID-Card 900000000002

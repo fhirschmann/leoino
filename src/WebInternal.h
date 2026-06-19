@@ -13,6 +13,14 @@
 // RFID tag-assignment handlers (registered as routes in Web.cpp::webserverStart, implemented
 // in WebRfid.cpp).
 void handleGetRFIDRequest(AsyncWebServerRequest *request);
+
+// Serialize a single RFID tag (by NVS key) to its JSON object string; nameOnly omits the details.
+// Owned by WebRfid.cpp, reused by Backup.cpp to stream the RFID section of a backup.
+String tagIdToJsonStr(const char *key, const bool nameOnly);
+
+// Serialize the device settings into obj. An empty section emits everything; otherwise just that
+// section (e.g. "sync"). Owned by Web.cpp, reused by Backup.cpp to build the settings section.
+void settingsToJSON(JsonObject obj, const String section);
 void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json);
 void handleDeleteRFIDRequest(AsyncWebServerRequest *request);
 void handleResetRfidPos(AsyncWebServerRequest *request);
