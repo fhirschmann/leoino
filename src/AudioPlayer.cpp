@@ -742,6 +742,18 @@ void AudioPlayer_Loop() {
 		}
 	}
 
+	// A track-control keypress (play/pause, next, ...) during a running IP-/time-announcement
+	// aborts the announcement and resumes the audiobook, instead of acting on the speech
+	// audio-object. Clearing currentSpeechActive lets the speech-resume below re-inject the
+	// RFID-tag and continue the book from its saved position.
+	if (gPlayProperties.currentSpeechActive && trackCommand != NO_ACTION) {
+		trackCommand = NO_ACTION;
+		gPlayProperties.tellMode = TTS_NONE;
+		audio->stopSong();
+		gPlayProperties.currentSpeechActive = false;
+		return;
+	}
+
 	if (newPlayListAvailable || gPlayProperties.trackFinished || trackCommand != NO_ACTION) {
 		if (newPlayListAvailable) {
 			newPlayListAvailable = false;
@@ -833,7 +845,10 @@ void AudioPlayer_Loop() {
 					publishMqtt(topicPausePlay, "pause", false);
 #endif
 				}
-				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.pausePlay) {
+				// Don't persist while a TTS-announcement (IP/time) is running: the audio-object is
+				// then decoding the speech, so getAudioCurrentTime() would write the announcement's
+				// position (~0s) into the audiobook's NVS-slot and resume the book from the start.
+				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.pausePlay && !gPlayProperties.currentSpeechActive) {
 					Log_Printf(LOGLEVEL_INFO, trackPausedAtPos, audio->getAudioCurrentTime(), audio->getAudioFileDuration());
 					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
 				}
