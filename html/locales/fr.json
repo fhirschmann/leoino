@@ -681,6 +681,8 @@
 			"savePlayPosRfidChangeExp": "Lors du passage à une nouvelle balise RFID, la position de lecture est enregistrée pour les livres audio. Plus d'informations <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>ici</a> sous <code>SAVE_PLAYPOS_WHEN_RFID_CHANGE</code>.",
 			"savePlayPosPeriodic": "Sauvegarder régulièrement la position du livre audio",
 			"savePlayPosPeriodicExp": "Pendant la lecture d'un livre audio, la position est enregistrée dans la mémoire flash toutes les ~30 s. Ainsi, une coupure de courant inattendue (batterie vide, arrêt brutal) ne perd que les dernières secondes au lieu de revenir au début de la piste. Fonction du fork.",
+			"restartFreshHrs": "Redémarrer le livre audio après (h)",
+			"restartFreshHrsExp": "Si un livre audio n'a pas été lu depuis plus que le nombre d'heures indiqué, il recommence depuis le début lors de la prochaine pose de la carte, au lieu de reprendre à la position enregistrée. Pratique pour les enfants qui, après une journée de pause, ne se souviennent plus où ils en étaient. 0 = désactivé (toujours reprendre). Par défaut : 24. Nécessite une horloge valide (NTP/RTC). Fonction du fork.",
 			"pauseIfRfidRemoved": "Mettre en pause si la balise RFID est retirée",
 			"pauseIfRfidRemovedExp": "Mettre en pause la lecture si la balise RFID est retirée. Plus d'informations <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>ici</a> sous <code>PAUSE_IF_RFID_REMOVED</code>.",
 			"dontAcceptRfidTwice": "Ne pas accepter la balise RFID deux fois",

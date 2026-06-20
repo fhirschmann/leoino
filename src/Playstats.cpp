@@ -46,6 +46,48 @@ void Playstats_ClearCardPlays(const char *tagId) {
 	gPrefsCardCnt.remove(tagId);
 }
 
+// Per-card "last seen" timestamps (epoch seconds) live in their own NVS namespace, keyed by the
+// 12-digit tag id. Used to restart an audiobook from the start after a long pause.
+static constexpr uint32_t PLAYSTATS_MIN_VALID_EPOCH = 1577836800UL; // 2020-01-01, guards against pre-NTP clock
+static Preferences gPrefsCardSeen;
+static bool gCardSeenReady = false;
+static void Playstats_CardSeenInit(void) {
+	if (!gCardSeenReady) {
+		gPrefsCardSeen.begin("rfidLastSeen");
+		gCardSeenReady = true;
+	}
+}
+void Playstats_NoteCardSeen(const char *tagId) {
+	if (!tagId || !tagId[0]) {
+		return;
+	}
+	const time_t now = time(nullptr);
+	if ((uint32_t) now < PLAYSTATS_MIN_VALID_EPOCH) {
+		return; // clock not valid yet -> don't store a bogus timestamp
+	}
+	Playstats_CardSeenInit();
+	gPrefsCardSeen.putULong(tagId, (uint32_t) now);
+}
+bool Playstats_CardSeenAgoExceeds(const char *tagId, uint32_t seconds) {
+	if (!tagId || !tagId[0]) {
+		return false;
+	}
+	const time_t now = time(nullptr);
+	if ((uint32_t) now < PLAYSTATS_MIN_VALID_EPOCH) {
+		return false; // can't reason about elapsed time without a valid clock
+	}
+	Playstats_CardSeenInit();
+	const uint32_t lastSeen = gPrefsCardSeen.getULong(tagId, 0);
+	if (lastSeen == 0 || (uint32_t) now < lastSeen) {
+		return false; // never seen, or clock went backwards -> play it safe, resume as usual
+	}
+	return ((uint32_t) now - lastSeen) > seconds;
+}
+void Playstats_ClearCardSeen(const char *tagId) {
+	Playstats_CardSeenInit();
+	gPrefsCardSeen.remove(tagId);
+}
+
 // Days since 1970-01-01 for a (proleptic Gregorian) calendar date (Howard Hinnant's algorithm).
 // Avoids needing tm_gmtoff (not available in this newlib build): we feed it the local Y/M/D.
 static long Playstats_DaysFromCivil(int y, unsigned m, unsigned d) {

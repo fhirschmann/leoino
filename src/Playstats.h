@@ -20,6 +20,14 @@ void Playstats_NoteCardPlay(const char *tagId);
 uint32_t Playstats_GetCardPlays(const char *tagId);
 void Playstats_ClearCardPlays(const char *tagId); // drop a card's play counter (e.g. when deleted)
 
+// Per-card "last seen" timestamp (epoch seconds), used to restart audiobooks from the beginning
+// after a long pause. Stored only when the system clock is valid (NTP/RTC). NoteCardSeen() stamps
+// the current time; CardSeenAgoExceeds() returns true only if the clock is valid, a stamp exists,
+// and more than <seconds> have elapsed since it.
+void Playstats_NoteCardSeen(const char *tagId);
+bool Playstats_CardSeenAgoExceeds(const char *tagId, uint32_t seconds);
+void Playstats_ClearCardSeen(const char *tagId); // drop a card's last-seen stamp (e.g. when deleted)
+
 // Raw ring-buffer access for backup/restore (JSON is built/parsed by the caller).
 uint16_t Playstats_GetRingSize(void); // number of day-slots (365)
 uint32_t Playstats_GetRingLastDay(void); // local day number of the most recent tracked day

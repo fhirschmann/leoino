@@ -92,6 +92,19 @@ void Rfid_PreferenceLookupHandler(void) {
 				}
 	#endif
 
+				// Restart an audiobook from the beginning if it has not been played for a configured
+				// span (default 24 h; 0 = disabled). After such a gap the listener rarely remembers
+				// where they were, so resuming mid-chapter is more annoying than starting over. Only
+				// the position-saving audiobook modes carry a resume point worth discarding.
+				const uint32_t freshAfterHrs = gPrefsSettings.getUInt("freshAfterHrs", 24);
+				const bool isAudiobook = (_playMode == AUDIOBOOK || _playMode == AUDIOBOOK_LOOP || _playMode == AUDIOBOOK_RECURSIVE);
+				if (freshAfterHrs > 0 && isAudiobook && (_lastPlayPos > 0 || _trackLastPlayed > 0) && Playstats_CardSeenAgoExceeds(gCurrentRfidTagId, freshAfterHrs * 3600UL)) {
+					Log_Printf(LOGLEVEL_NOTICE, "Audiobook idle > %u h -> restarting from the beginning", freshAfterHrs);
+					_lastPlayPos = 0;
+					_trackLastPlayed = 0;
+				}
+				Playstats_NoteCardSeen(gCurrentRfidTagId); // remember when this card was last started
+
 				Playstats_NoteCardPlay(gCurrentRfidTagId); // count plays per music card (most-played stats)
 				AudioPlayer_SetPlaylist(_file, _lastPlayPos, _playMode, _trackLastPlayed);
 			}

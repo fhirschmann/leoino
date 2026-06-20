@@ -1078,6 +1078,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("savePosShutdown", generalObj["savePosShutdown"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosRfidChge", generalObj["savePosRfidChge"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosPeriodic", generalObj["savePosPeriodic"].as<bool>()) != 0);
+		if (!generalObj["restartFreshHrs"].isNull()) { // restart audiobooks from start after this idle gap (0 = off)
+			gPrefsSettings.putUInt("freshAfterHrs", generalObj["restartFreshHrs"].as<uint32_t>());
+		}
 		success = success && (gPrefsSettings.putBool("playStartupSnd", generalObj["playStartupSnd"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("playLastOnBoot", generalObj["playLastRfidOnReboot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseRfidRem", generalObj["pauseIfRfidRemoved"].as<bool>()) != 0);

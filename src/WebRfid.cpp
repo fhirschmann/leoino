@@ -267,6 +267,7 @@ void handleDeleteRFIDRequest(AsyncWebServerRequest *request) {
 		if (gPrefsRfid.remove(tagId.c_str())) {
 			RfidSync_OnDelete(tagId.c_str()); // record tombstone + propagate the deletion to server/peers
 			Playstats_ClearCardPlays(tagId.c_str()); // drop the card's play counter too
+			Playstats_ClearCardSeen(tagId.c_str()); // and its last-seen timestamp
 			Log_Printf(LOGLEVEL_INFO, "/rfid (DELETE): tag %s removed successfuly", tagId);
 			request->send(200, "text/plain; charset=utf-8", tagId + " removed successfuly");
 		} else {
