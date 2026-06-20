@@ -7,6 +7,7 @@
 #include "Backup.h"
 #include "Battery.h"
 #include "Bluetooth.h"
+#include "Display.h"
 #include "Ftp.h"
 #include "Led.h"
 #include "Log.h"
@@ -337,6 +338,16 @@ void Cmd_Action(const uint16_t mod) {
 			} else {
 				System_IndicateError();
 			}
+			break;
+		}
+
+		case CMD_TOGGLE_OLED: {
+#ifdef OLED_ENABLE
+			Display_Toggle();
+			System_IndicateOk();
+#else
+			System_IndicateError();
+#endif
 			break;
 		}
 

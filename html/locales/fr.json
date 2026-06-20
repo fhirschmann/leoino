@@ -47,6 +47,7 @@
 		"help": "Aide",
 		"rfidcards": "RFID",
 		"leds": "LEDs",
+		"oled": "OLED",
 		"power": "Alim.",
 		"security": "Sécurité"
 	},
@@ -81,6 +82,26 @@
 			"dimmablestates": "Étapes à gradation",
 			"reverserotation": "Inversion du sens de rotation",
 			"offset": "Début de l'offset LED"
+		},
+		"oled": {
+			"title": "Écran OLED",
+			"enable": "Activer l'écran OLED",
+			"enablehint": "Désactivé, l'écran est éteint (par ex. la nuit).",
+			"startanim": "Animation de démarrage",
+			"anim": {
+				"none": "Aucune (directement au repos)",
+				"boot": "Terminal de démarrage",
+				"login": "Séquence de connexion",
+				"full": "Complète (démarrage + connexion)"
+			},
+			"idleline1": "Texte au repos ligne 1",
+			"idleline2": "Texte au repos ligne 2",
+			"showfields": "Afficher pendant la lecture",
+			"showbattery": "Afficher le niveau de batterie",
+			"showtime": "Afficher le temps de lecture",
+			"showwifi": "Afficher l'état du WiFi",
+			"showvolume": "Afficher l'overlay de volume",
+			"flip": "Pivoter l'écran de 180°"
 		},
 		"buttons": {
 			"title": "Attribution des boutons",
@@ -358,6 +379,7 @@
 					"0": "Supprimer l'affectation",
 					"153": "Basculement de la lumière ambiante",
 					"154": "Changer de profil d'égaliseur",
+					"156": "Activer/désactiver l'écran OLED",
 					"186": "Mettre à jour le firmware (GitHub)",
 					"170": "Basculer Lecture/Pause",
 					"171": "Piste précédente",

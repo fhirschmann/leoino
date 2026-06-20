@@ -148,6 +148,21 @@ void settingsToJSON(JsonObject obj, const String section) {
 		ledObj["offsetStart"].set(gPrefsSettings.getUChar("ledOffset", 0));
 	}
 #endif
+#ifdef OLED_ENABLE
+	if ((section == "") || (section == "oled")) {
+		// OLED display settings
+		JsonObject oledObj = obj["oled"].to<JsonObject>();
+		oledObj["enable"].set(gPrefsSettings.getBool("oledEnable", true));
+		oledObj["startAnim"].set(gPrefsSettings.getUChar("oledStartAnim", 3)); // 0=none 1=boot 2=login 3=full
+		oledObj["showBattery"].set(gPrefsSettings.getBool("oledShowBatt", true));
+		oledObj["showTime"].set(gPrefsSettings.getBool("oledShowTime", true));
+		oledObj["showWifi"].set(gPrefsSettings.getBool("oledShowWifi", true));
+		oledObj["showVolume"].set(gPrefsSettings.getBool("oledShowVol", true));
+		oledObj["flip"].set(gPrefsSettings.getBool("oledFlip", false));
+		oledObj["idleLine1"].set(gPrefsSettings.getString("oledIdleL1", "LEO INDUSTRIES"));
+		oledObj["idleLine2"].set(gPrefsSettings.getString("oledIdleL2", "AUDIO TERMINAL AT-1"));
+	}
+#endif
 	if ((section == "") || (section == "buttons")) {
 		// button settings
 		JsonObject buttonsObj = obj["buttons"].to<JsonObject>();
@@ -273,6 +288,18 @@ void settingsToJSON(JsonObject obj, const String section) {
 		for (uint8_t controlLed = 0; controlLed < controlLedColors.size(); controlLed++) {
 			colorArr.add(controlLedColors[controlLed]);
 		}
+#endif
+#ifdef OLED_ENABLE
+		JsonObject oledSettings = defaultsObj["oled"].to<JsonObject>();
+		oledSettings["enable"].set(true);
+		oledSettings["startAnim"].set(3u); // full boot + login animation
+		oledSettings["showBattery"].set(true);
+		oledSettings["showTime"].set(true);
+		oledSettings["showWifi"].set(true);
+		oledSettings["showVolume"].set(true);
+		oledSettings["flip"].set(false);
+		oledSettings["idleLine1"].set("LEO INDUSTRIES");
+		oledSettings["idleLine2"].set("AUDIO TERMINAL AT-1");
 #endif
 		JsonObject buttonsSettings = defaultsObj["buttons"].to<JsonObject>();
 		buttonsSettings["short0"].set(BUTTON_0_SHORT);

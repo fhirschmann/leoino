@@ -11,6 +11,7 @@
 #include "Bluetooth.h"
 #include "Cmd.h"
 #include "Common.h"
+#include "Display.h"
 #include "ESPAsyncWebServer.h"
 #include "EnumUtils.h"
 #include "Ftp.h"
@@ -1215,6 +1216,30 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 		Led_Init();
 	}
+#ifdef OLED_ENABLE
+	if (doc["oled"].is<JsonObject>()) {
+		// OLED display settings
+		JsonObject oledObj = doc["oled"];
+		bool success = (gPrefsSettings.putBool("oledEnable", oledObj["enable"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putUChar("oledStartAnim", oledObj["startAnim"].as<uint8_t>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledShowBatt", oledObj["showBattery"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledShowTime", oledObj["showTime"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledShowWifi", oledObj["showWifi"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledShowVol", oledObj["showVolume"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledFlip", oledObj["flip"].as<bool>()) != 0);
+		if (oledObj["idleLine1"].is<const char *>()) {
+			gPrefsSettings.putString("oledIdleL1", oledObj["idleLine1"].as<const char *>());
+		}
+		if (oledObj["idleLine2"].is<const char *>()) {
+			gPrefsSettings.putString("oledIdleL2", oledObj["idleLine2"].as<const char *>());
+		}
+		if (!success) {
+			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "oled");
+			return WebsocketCodeType::Error;
+		}
+		Display_ReloadConfig(); // apply enable/disable, flip and field toggles without a reboot
+	}
+#endif
 	if (doc["buttons"].is<JsonObject>()) {
 		// buttons
 		JsonObject buttonsObj = doc["buttons"];

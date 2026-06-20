@@ -47,6 +47,7 @@
 		"help": "Hilfe",
 		"rfidcards": "RFID",
 		"leds": "LEDs",
+		"oled": "OLED",
 		"power": "Power",
 		"security": "Sicherheit"
 	},
@@ -81,6 +82,26 @@
 			"dimmablestates": "Dimmbare Stufen",
 			"reverserotation": "Drehrichtung umkehren",
 			"offset": "Offset Start-LED"
+		},
+		"oled": {
+			"title": "OLED-Display",
+			"enable": "OLED-Display aktivieren",
+			"enablehint": "Deaktiviert schaltet das Display ab (z. B. für die Nacht).",
+			"startanim": "Startanimation",
+			"anim": {
+				"none": "Keine (direkt zum Leerlauf)",
+				"boot": "Boot-Terminal",
+				"login": "Login-Sequenz",
+				"full": "Komplett (Boot + Login)"
+			},
+			"idleline1": "Leerlauf-Text Zeile 1",
+			"idleline2": "Leerlauf-Text Zeile 2",
+			"showfields": "Anzeige während der Wiedergabe",
+			"showbattery": "Akkustand anzeigen",
+			"showtime": "Spielzeit anzeigen",
+			"showwifi": "WLAN-Status anzeigen",
+			"showvolume": "Lautstärke-Overlay anzeigen",
+			"flip": "Anzeige um 180° drehen"
 		},
 		"buttons": {
 			"title": "Taster-Zuordnungen",
@@ -364,6 +385,7 @@
 					"152": "Uhrzeit ansagen",
 					"153": "Ambient Light umschalten",
 					"154": "Equalizer-Profil durchschalten",
+					"156": "OLED-Display an/aus",
 					"186": "Firmware aktualisieren (GitHub)",
 					"0": "Lösche Zuordnung",
 					"170": "Play/Pause",

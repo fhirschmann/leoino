@@ -47,6 +47,7 @@
 		"help": "Help",
 		"rfidcards": "RFID",
 		"leds": "LEDs",
+		"oled": "OLED",
 		"power": "Power",
 		"security": "Security"
 	},
@@ -81,6 +82,26 @@
 			"dimmablestates": "Dimmable steps",
 			"reverserotation": "Reverse direction of rotation",
 			"offset": "Offset start LED"
+		},
+		"oled": {
+			"title": "OLED display",
+			"enable": "Enable OLED display",
+			"enablehint": "When disabled the panel is powered off (e.g. for night-time).",
+			"startanim": "Startup animation",
+			"anim": {
+				"none": "None (go straight to idle)",
+				"boot": "Boot terminal",
+				"login": "Login sequence",
+				"full": "Full (boot + login)"
+			},
+			"idleline1": "Idle text line 1",
+			"idleline2": "Idle text line 2",
+			"showfields": "Show while playing",
+			"showbattery": "Show battery level",
+			"showtime": "Show playback time",
+			"showwifi": "Show WiFi status",
+			"showvolume": "Show volume overlay",
+			"flip": "Rotate display by 180°"
 		},
 		"buttons": {
 			"title": "Button assignments",
@@ -364,6 +385,7 @@
 					"152": "Announce current time",
 					"153": "Toggle Ambient Light",
 					"154": "Cycle equalizer profile",
+					"156": "Toggle OLED display",
 					"186": "Update firmware (GitHub)",
 					"0": "Remove assignment",
 					"170": "Toggle Play/Pause",

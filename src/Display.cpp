@@ -7,6 +7,7 @@
 #include "Battery.h"
 #include "Display.h"
 #include "Log.h"
+#include "System.h"
 #include "Wlan.h"
 #include "values.h"
 
@@ -14,6 +15,42 @@
 #include <Wire.h>
 
 extern TwoWire i2cBusTwo;
+
+// -------- runtime configuration (web-settings, persisted in NVS) --------
+// Startup-animation selector for the idle/attract screen.
+enum class StartupAnim : uint8_t { None = 0, Boot = 1, Login = 2, Full = 3 };
+
+static constexpr char kDefaultIdleLine1[] = "LEO INDUSTRIES";
+static constexpr char kDefaultIdleLine2[] = "AUDIO TERMINAL AT-1";
+
+static bool        s_cfgEnabled    = true;                       // master on/off (oledEnable)
+static StartupAnim s_cfgStartAnim  = StartupAnim::Full;          // oledStartAnim
+static bool        s_cfgShowBattery = true;                      // oledShowBatt – battery % on playing screen
+static bool        s_cfgShowTime   = true;                       // oledShowTime – elapsed/total on playing screen
+static bool        s_cfgShowWifi   = true;                       // oledShowWifi – WIFI marker on playing screen
+static bool        s_cfgShowVolume = true;                       // oledShowVol – full-screen volume overlay
+static bool        s_cfgFlip       = false;                      // oledFlip – rotate the panel by 180°
+static char        s_cfgIdleLine1[32] = "";                      // oledIdleL1 – idle header line 1
+static char        s_cfgIdleLine2[32] = "";                      // oledIdleL2 – idle header line 2
+
+// Pull the OLED settings out of NVS into the cached statics above.
+static void Display_LoadConfig(void) {
+    s_cfgEnabled     = gPrefsSettings.getBool("oledEnable", true);
+    uint8_t anim     = gPrefsSettings.getUChar("oledStartAnim", static_cast<uint8_t>(StartupAnim::Full));
+    if (anim > static_cast<uint8_t>(StartupAnim::Full)) anim = static_cast<uint8_t>(StartupAnim::Full);
+    s_cfgStartAnim   = static_cast<StartupAnim>(anim);
+    s_cfgShowBattery = gPrefsSettings.getBool("oledShowBatt", true);
+    s_cfgShowTime    = gPrefsSettings.getBool("oledShowTime", true);
+    s_cfgShowWifi    = gPrefsSettings.getBool("oledShowWifi", true);
+    s_cfgShowVolume  = gPrefsSettings.getBool("oledShowVol", true);
+    s_cfgFlip        = gPrefsSettings.getBool("oledFlip", false);
+    String l1        = gPrefsSettings.getString("oledIdleL1", kDefaultIdleLine1);
+    String l2        = gPrefsSettings.getString("oledIdleL2", kDefaultIdleLine2);
+    strncpy(s_cfgIdleLine1, l1.c_str(), sizeof(s_cfgIdleLine1) - 1);
+    s_cfgIdleLine1[sizeof(s_cfgIdleLine1) - 1] = '\0';
+    strncpy(s_cfgIdleLine2, l2.c_str(), sizeof(s_cfgIdleLine2) - 1);
+    s_cfgIdleLine2[sizeof(s_cfgIdleLine2) - 1] = '\0';
+}
 
 static uint8_t Display_I2cByteCb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
     switch (msg) {
@@ -294,6 +331,11 @@ void Display_Exit(void) {
 }
 
 void Display_Init(void) {
+    Display_LoadConfig();
+    if (!s_cfgEnabled) {
+        Log_Println("OLED: disabled via web settings", LOGLEVEL_NOTICE);
+        return;
+    }
     // Allow the peripheral power rail time to stabilise after a power cycle.
     // 20 ms is too short when the rail starts from zero (cold boot / deepsleep).
     delay(200);
@@ -305,11 +347,40 @@ void Display_Init(void) {
     s_u8g2.getU8x8()->byte_cb = Display_I2cByteCb;
     s_u8g2.setI2CAddress(oledI2cAddress << 1);
     s_u8g2.initDisplay();
+    s_u8g2.setFlipMode(s_cfgFlip ? 1 : 0); // 180° rotation when the panel is mounted upside-down
     s_u8g2.setPowerSave(0);
     s_u8g2.clearBuffer();
     s_u8g2.sendBuffer();
     s_displayOk = true;
     Log_Println("OLED: display initialised", LOGLEVEL_INFO);
+}
+
+// Re-read the OLED settings from NVS and apply them without a reboot. Handles the
+// enable→disable (power the panel off) and disable→enable (bring it back up) transitions,
+// and applies a changed flip-mode live.
+void Display_ReloadConfig(void) {
+    Display_LoadConfig();
+    if (!s_cfgEnabled) {
+        if (s_displayOk) Display_Exit();
+        return;
+    }
+    if (!s_displayOk) {
+        Display_Init(); // re-reads the config, but that is harmless
+        return;
+    }
+    s_u8g2.setFlipMode(s_cfgFlip ? 1 : 0);
+}
+
+// Toggle the master enable flag, persist it and apply immediately (CMD_TOGGLE_OLED).
+void Display_Toggle(void) {
+    bool nowEnabled = !gPrefsSettings.getBool("oledEnable", true);
+    gPrefsSettings.putBool("oledEnable", nowEnabled);
+    Display_ReloadConfig();
+    Log_Printf(LOGLEVEL_NOTICE, "OLED: %s via command", nowEnabled ? "enabled" : "disabled");
+}
+
+bool Display_IsEnabled(void) {
+    return s_cfgEnabled;
 }
 
 // -----------------------------------------------------------------------
@@ -349,7 +420,7 @@ void Display_Cyclic(void) {
         s_lastVol      = vol;
         s_volChangedAt = now;
     }
-    bool volScreen = (s_volChangedAt > 0) && (now - s_volChangedAt < kVolBarDurationMs);
+    bool volScreen = s_cfgShowVolume && (s_volChangedAt > 0) && (now - s_volChangedAt < kVolBarDurationMs);
     bool idle      = (gPlayProperties.playMode == NO_PLAYLIST);
 
     s_u8g2.clearBuffer();
@@ -391,20 +462,26 @@ void Display_Cyclic(void) {
         }
         uint32_t idleMs = now - s_idleSince;
 
+        // The startup/attract animation is selectable: it can show the boot screen, the
+        // login splash, both (default) or nothing. Compute each phase's duration so the
+        // disabled phases collapse to zero and we fall straight through to the idle screen.
+        const uint32_t bootDur  = (s_cfgStartAnim == StartupAnim::Boot || s_cfgStartAnim == StartupAnim::Full) ? kBootDurationMs : 0u;
+        const uint32_t loginDur = (s_cfgStartAnim == StartupAnim::Login || s_cfgStartAnim == StartupAnim::Full) ? kLoginDurationMs : 0u;
+
         s_u8g2.setFont(u8g2_font_6x13_tf);
 
-        if (idleMs < kBootDurationMs) {
+        if (idleMs < bootDur) {
             // ---- BOOT SCREEN ----
-            if (idleMs >= kBootLine1Ms) s_u8g2.drawStr(0, 13, "LEO INDUSTRIES");
-            if (idleMs >= kBootLine2Ms) s_u8g2.drawStr(0, 26, "AUDIO TERMINAL AT-1");
+            if (idleMs >= kBootLine1Ms) s_u8g2.drawStr(0, 13, s_cfgIdleLine1);
+            if (idleMs >= kBootLine2Ms) s_u8g2.drawStr(0, 26, s_cfgIdleLine2);
             if (idleMs >= kBootDotsMs) {
                 uint32_t step = ((idleMs - kBootDotsMs) / kBootDotCycle) % 3u;
                 const char *dotStrs[] = {"Booting.", "Booting..", "Booting..."};
                 s_u8g2.drawStr(0, 45, dotStrs[step]);
             }
-        } else if (idleMs < kBootDurationMs + kLoginDurationMs) {
+        } else if (idleMs < bootDur + loginDur) {
             // ---- LOGIN SPLASH ----
-            uint32_t loginMs = idleMs - kBootDurationMs;
+            uint32_t loginMs = idleMs - bootDur;
             bool cursorOn = (now / 400u) % 2u == 0u;
 
             // Header
@@ -442,8 +519,8 @@ void Display_Cyclic(void) {
             }
         } else {
             // ---- NORMAL IDLE ----
-            s_u8g2.drawStr(0, 13, "LEO INDUSTRIES");
-            s_u8g2.drawStr(0, 26, "AUDIO TERMINAL AT-1");
+            s_u8g2.drawStr(0, 13, s_cfgIdleLine1);
+            s_u8g2.drawStr(0, 26, s_cfgIdleLine2);
             String ip = Wlan_GetIpAddress();
             s_u8g2.drawStr(0, 39, ip.length() > 0 ? ip.c_str() : "NO WIFI");
             bool cursorOn = (now / 500u) % 2u == 0u;
@@ -465,27 +542,31 @@ void Display_Cyclic(void) {
 
     // Battery – left
 #ifdef BATTERY_MEASURE_ENABLE
-    char batBuf[8];
-    snprintf(batBuf, sizeof(batBuf), "%d%%",
-             static_cast<int>(Battery_EstimateLevel() * 100.0f));
-    s_u8g2.drawStr(0, 60, batBuf);
+    if (s_cfgShowBattery) {
+        char batBuf[8];
+        snprintf(batBuf, sizeof(batBuf), "%d%%",
+                 static_cast<int>(Battery_EstimateLevel() * 100.0f));
+        s_u8g2.drawStr(0, 60, batBuf);
+    }
 #endif
 
     // Elapsed / total – centred
-    uint32_t elapsed  = AudioPlayer_GetCurrentTime();
-    uint32_t duration = AudioPlayer_GetFileDuration();
-    char timeBuf[16];
-    if (gPlayProperties.isWebstream || duration == 0) {
-        snprintf(timeBuf, sizeof(timeBuf), "%d:%02d", elapsed / 60, elapsed % 60);
-    } else {
-        snprintf(timeBuf, sizeof(timeBuf), "%d:%02d/%d:%02d",
-                 elapsed / 60, elapsed % 60,
-                 duration / 60, duration % 60);
+    if (s_cfgShowTime) {
+        uint32_t elapsed  = AudioPlayer_GetCurrentTime();
+        uint32_t duration = AudioPlayer_GetFileDuration();
+        char timeBuf[16];
+        if (gPlayProperties.isWebstream || duration == 0) {
+            snprintf(timeBuf, sizeof(timeBuf), "%d:%02d", elapsed / 60, elapsed % 60);
+        } else {
+            snprintf(timeBuf, sizeof(timeBuf), "%d:%02d/%d:%02d",
+                     elapsed / 60, elapsed % 60,
+                     duration / 60, duration % 60);
+        }
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(timeBuf)) / 2), 60, timeBuf);
     }
-    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(timeBuf)) / 2), 60, timeBuf);
 
     // WiFi – right ("wifi" when connected, nothing when not)
-    if (Wlan_IsConnected()) {
+    if (s_cfgShowWifi && Wlan_IsConnected()) {
         const char *wifiStr = "WIFI";
         s_u8g2.drawStr(static_cast<int>(128 - s_u8g2.getStrWidth(wifiStr)), 60, wifiStr);
     }

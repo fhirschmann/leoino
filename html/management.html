@@ -2478,6 +2478,7 @@
 					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
 					<a class="nav-item nav-link" id="settings-rfid-subtab" data-bs-toggle="tab" data-bs-target="#settings-rfid" href="#settings-rfid" role="tab" aria-controls="settings-rfid"><i class="fas fa-id-card"></i> <span class="d-none d-md-inline" data-i18n="nav.rfidcards"></span></a>
 					<a class="nav-item nav-link" id="settings-leds-subtab" data-bs-toggle="tab" data-bs-target="#settings-leds" href="#settings-leds" role="tab" aria-controls="settings-leds"><i class="fas fa-lightbulb"></i> <span class="d-none d-md-inline" data-i18n="nav.leds"></span></a>
+					<a class="nav-item nav-link" id="settings-oled-subtab" data-visible="false" data-bs-toggle="tab" data-bs-target="#settings-oled" href="#settings-oled" role="tab" aria-controls="settings-oled"><i class="fas fa-tv"></i> <span class="d-none d-md-inline" data-i18n="nav.oled"></span></a>
 					<a class="nav-item nav-link" id="settings-power-subtab" data-bs-toggle="tab" data-bs-target="#settings-power" href="#settings-power" role="tab" aria-controls="settings-power"><i class="fas fa-bolt"></i> <span class="d-none d-md-inline" data-i18n="nav.power"></span></a>
 					<a class="nav-item nav-link" id="settings-security-subtab" data-bs-toggle="tab" data-bs-target="#settings-security" href="#settings-security" role="tab" aria-controls="settings-security"><i class="fas fa-lock"></i> <span class="d-none d-md-inline" data-i18n="nav.security"></span></a>
 					<a class="nav-item nav-link" id="nav-wifi-tab" data-bs-toggle="tab" data-bs-target="#nav-wifi" href="#nav-wifi" role="tab" aria-controls="nav-wifi"><i class="fas fa-wifi"></i> <span class="d-none d-md-inline" data-i18n="nav.wifi"></span></a>
@@ -3044,6 +3045,40 @@
 									data-i18n="settingsex.led.reverserotation"></label><br><br>
 							</fieldset>
 						</div>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="settings-oled" role="tabpanel" aria-labelledby="settings-oled-subtab">
+			<div class="container">
+				<div class="col-md-12 mb-4">
+					<fieldset>
+						<legend class="w-auto" data-i18n="settingsex.oled.title"></legend><br>
+						<input type="checkbox" id="oled_enable" name="oled_enable" value="true">&nbsp;
+						<label for="oled_enable" data-i18n="settingsex.oled.enable"></label><br>
+						<small class="text-muted" data-i18n="settingsex.oled.enablehint"></small><br><br>
+						<label for="oled_startAnim" data-i18n="settingsex.oled.startanim"></label>: <br>
+						<select class="form-control form-select" id="oled_startAnim" name="oled_startAnim">
+							<option value="0" data-i18n="settingsex.oled.anim.none"></option>
+							<option value="1" data-i18n="settingsex.oled.anim.boot"></option>
+							<option value="2" data-i18n="settingsex.oled.anim.login"></option>
+							<option value="3" data-i18n="settingsex.oled.anim.full"></option>
+						</select><br>
+						<label for="oled_idleLine1" data-i18n="settingsex.oled.idleline1"></label>: <br>
+						<input type="text" class="form-control" id="oled_idleLine1" name="oled_idleLine1" maxlength="21"><br>
+						<label for="oled_idleLine2" data-i18n="settingsex.oled.idleline2"></label>: <br>
+						<input type="text" class="form-control" id="oled_idleLine2" name="oled_idleLine2" maxlength="21"><br>
+						<span data-i18n="settingsex.oled.showfields"></span>:<br>
+						<input type="checkbox" id="oled_showBattery" name="oled_showBattery" value="true">&nbsp;
+						<label for="oled_showBattery" data-i18n="settingsex.oled.showbattery"></label><br>
+						<input type="checkbox" id="oled_showTime" name="oled_showTime" value="true">&nbsp;
+						<label for="oled_showTime" data-i18n="settingsex.oled.showtime"></label><br>
+						<input type="checkbox" id="oled_showWifi" name="oled_showWifi" value="true">&nbsp;
+						<label for="oled_showWifi" data-i18n="settingsex.oled.showwifi"></label><br>
+						<input type="checkbox" id="oled_showVolume" name="oled_showVolume" value="true">&nbsp;
+						<label for="oled_showVolume" data-i18n="settingsex.oled.showvolume"></label><br><br>
+						<input type="checkbox" id="oled_flip" name="oled_flip" value="false">&nbsp;
+						<label for="oled_flip" data-i18n="settingsex.oled.flip"></label><br>
+					</fieldset>
+				</div>
 			</div>
 		</div>
 		<div class="tab-pane fade" id="settings-power" role="tabpanel" aria-labelledby="settings-power-subtab">
@@ -5373,6 +5408,20 @@
 				$('#led_reverseRotation').prop('checked', ledSettings.reverseRot);
 				document.getElementById('led_offsetStart').value = ledSettings.offsetStart;
 			}
+			// OLED display
+			let oledSettings = settings.oled;
+			if (oledSettings) {
+				document.getElementById('settings-oled-subtab').setAttribute('data-visible', true);
+				document.getElementById('oled_enable').checked = oledSettings.enable !== false;
+				document.getElementById('oled_startAnim').value = oledSettings.startAnim != null ? oledSettings.startAnim : 3;
+				document.getElementById('oled_idleLine1').value = oledSettings.idleLine1 != null ? oledSettings.idleLine1 : '';
+				document.getElementById('oled_idleLine2').value = oledSettings.idleLine2 != null ? oledSettings.idleLine2 : '';
+				document.getElementById('oled_showBattery').checked = oledSettings.showBattery !== false;
+				document.getElementById('oled_showTime').checked = oledSettings.showTime !== false;
+				document.getElementById('oled_showWifi').checked = oledSettings.showWifi !== false;
+				document.getElementById('oled_showVolume').checked = oledSettings.showVolume !== false;
+				document.getElementById('oled_flip').checked = oledSettings.flip === true;
+			}
 			// playlist
 			let playlistSettings = settings.playlist;
 			if (playlistSettings) {
@@ -5981,6 +6030,17 @@
 					offsetPause: $('#led_offsetPause').prop('checked'),
 					reverseRot: $('#led_reverseRotation').prop('checked'),
 					offsetStart: Number(document.getElementById("led_offsetStart").value),
+				},
+				"oled": {
+					enable: document.getElementById("oled_enable").checked,
+					startAnim: Number(document.getElementById("oled_startAnim").value),
+					idleLine1: document.getElementById("oled_idleLine1").value,
+					idleLine2: document.getElementById("oled_idleLine2").value,
+					showBattery: document.getElementById("oled_showBattery").checked,
+					showTime: document.getElementById("oled_showTime").checked,
+					showWifi: document.getElementById("oled_showWifi").checked,
+					showVolume: document.getElementById("oled_showVolume").checked,
+					flip: document.getElementById("oled_flip").checked,
 				},
 				"battery": {
 					warnLowVoltage: Number($('#warningLowVoltage').val()),
@@ -6957,7 +7017,7 @@
 			}
 			let errors = 0;
 			// the firmware applies one settings section per request
-			const sections = ['general', 'equalizer', 'led', 'battery', 'playlist', 'buttons', 'rotary', 'ftp', 'mqtt', 'bluetooth', 'sync'];
+			const sections = ['general', 'equalizer', 'led', 'oled', 'battery', 'playlist', 'buttons', 'rotary', 'ftp', 'mqtt', 'bluetooth', 'sync'];
 			for (const section of sections) {
 				if (backup.settings && backup.settings[section]) {
 					const response = await fetch("http://" + host + "/settings", {
@@ -8001,7 +8061,7 @@
 			const cmdElem = document.createElement('select');
 			const cmdNothing = addOption(cmdElem, 0);
 			cmdNothing.setAttribute('data-i18n', "settingsex.buttons.noaction");
-			const cmds = [170, 171, 172, 173, 174, 184, 185, 175, 176, 177, 178, 179, 180, 181, 182, 183, 186, 199, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 120, 121, 100, 101, 102, 103, 104, 105, 106, 107, 110, 111, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
+			const cmds = [170, 171, 172, 173, 174, 184, 185, 175, 176, 177, 178, 179, 180, 181, 182, 183, 186, 199, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 156, 120, 121, 100, 101, 102, 103, 104, 105, 106, 107, 110, 111, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
 			for (const cmd of cmds) {
 				const opt = addOption(cmdElem, cmd);
 				if ([140, 141, 142, 143, 144].includes(cmd)) {
@@ -8015,7 +8075,7 @@
 
 			/* The <select /> that houses all commands for the modification selectors */
 			const modElem = document.createElement('select');
-			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 110, 111, 120, 121, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
+			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 110, 111, 120, 121, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 156, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
 			for (const mod of mods) {
 				const opt = addOption(modElem, mod);
 				if ([140, 141, 142, 143, 144].includes(mod)) {

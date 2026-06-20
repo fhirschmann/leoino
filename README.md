@@ -239,6 +239,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | Unlocking controls via button press while locked | [`d83e15f`](../../commit/d83e15f) |
 | Support for a 6th button | [`b116151`](../../commit/b116151) |
 | OLED display support (SH1106/SSD1306 128×64 over I2C): boot splash, idle screen with IP + READY, now-playing title (up to 3 lines, scrolling) with battery/time/wifi status bar, and a volume bar | [`8ce8104`](../../commit/8ce8104) |
+| Web-configurable OLED (new **OLED** settings tab): enable/disable the display, pick the startup animation (none / boot terminal / login splash / full), set the idle header text, toggle the battery/time/wifi/volume fields, and flip the panel 180°. Also a `CMD_TOGGLE_OLED` command for keybindings to blank the screen (e.g. at night) | [`79f928d`](../../commit/79f928d) |
 | Audiobook resume fade-in: continuing a saved position briefly stutters in the first ~2 s (file open + MP3 header decode + seek-flush saturate the 1-bit SD/CPU while I2S already plays). The resume now rewinds a few seconds and fades the volume up over that span, so the glitch lands on already-heard audio — no content lost, clean sound from where you stopped. Tunable / disable via `RESUME_FADEIN_DURATION_MS` and `RESUME_FADEIN_REWIND_S` in `settings.h` | [`583225f`](../../commit/583225f) |
 
 ### Virtual RFID cards
