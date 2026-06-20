@@ -477,6 +477,26 @@ void Cmd_Action(const uint16_t mod) {
 			break;
 		}
 
+		case CMD_SMART_FORWARDS: {
+			// Smart forward: in-file seek on a single long file, else next track (decision + coalescing in AudioPlayer_Loop)
+			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+				AudioPlayer_SetTrackControl(SMARTFORWARD);
+			} else {
+				Bluetooth_NextTrack();
+			}
+			break;
+		}
+
+		case CMD_SMART_BACKWARDS: {
+			// Smart backward: in-file seek on a single long file, else previous track (decision + coalescing in AudioPlayer_Loop)
+			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+				AudioPlayer_SetTrackControl(SMARTBACKWARD);
+			} else {
+				Bluetooth_PreviousTrack();
+			}
+			break;
+		}
+
 		case CMD_STOP: {
 			AudioPlayer_SetTrackControl(STOP);
 			break;

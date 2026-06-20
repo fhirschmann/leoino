@@ -2687,6 +2687,14 @@
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
+								<label for="seekStep" data-i18n="general.options.seekStep"></label>
+								<input type="number" class="form-control" id="seekStep" name="seekStep"
+									min="5" max="3600" step="5" style="max-width:7em">
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.options.seekStepExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="playLastRfidOnReboot" name="playLastRfidOnReboot"
 									value="false">
 								<label for="playLastRfidOnReboot"
@@ -5416,6 +5424,9 @@
 				if (genSettings.restartFreshHrs !== undefined) {
 					$('#restartFreshHrs').val(genSettings.restartFreshHrs);
 				}
+				if (genSettings.seekStep !== undefined) {
+					$('#seekStep').val(genSettings.seekStep);
+				}
 				$('#playLastRfidOnReboot').prop('checked', genSettings.playLastRfidOnReboot);
 				$('#pauseIfRfidRemoved').prop('checked', genSettings.pauseIfRfidRemoved);
 				$('#stopIfRfidRemoved').prop('checked', genSettings.stopIfRfidRemoved);
@@ -6083,6 +6094,7 @@
 					savePosRfidChge: $('#savePlayPosRfidChange').prop('checked'),
 					savePosPeriodic: $('#savePlayPosPeriodic').prop('checked'),
 					restartFreshHrs: Number($('#restartFreshHrs').val()),
+					seekStep: Number($('#seekStep').val()),
 					playLastRfidOnReboot: $('#playLastRfidOnReboot').prop('checked'),
 					pauseIfRfidRemoved: $('#pauseIfRfidRemoved').prop('checked'),
 					stopIfRfidRemoved: $('#stopIfRfidRemoved').prop('checked'),

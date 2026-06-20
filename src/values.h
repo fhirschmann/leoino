@@ -16,6 +16,8 @@
 #define LASTTRACK	   7 // Last track of playlist
 #define NEXTFOLDER	   8 // Next folder (recursive mode only)
 #define PREVIOUSFOLDER 9 // Previous folder (recursive mode only)
+#define SMARTFORWARD   10 // Smart forward: in-file seek (single long file) or next track (multi-track playlist), with press-coalescing
+#define SMARTBACKWARD  11 // Smart backward: in-file seek (single long file) or previous track (multi-track playlist), with press-coalescing
 
 // Playmodes
 #define NO_PLAYLIST												  0 // If no playlist is active
@@ -85,6 +87,8 @@
 #define CMD_RFID_SYNC			 187 // Command: full bidirectional RFID-tag sync (server + peers)
 #define CMD_TOGGLE_WEBDAV_SERVER 188 // Command: start/stop the WebDAV server (mount SD as a network drive)
 #define CMD_BACKUP_UPLOAD		 189 // Command: upload the full configuration backup to the sync server
+#define CMD_SMART_FORWARDS		 190 // Command: smart forward (in-file seek on a single long file, else next track), coalesces rapid presses; step via web setting "seekStep"
+#define CMD_SMART_BACKWARDS		 191 // Command: smart backward (in-file seek on a single long file, else previous track), coalesces rapid presses; step via web setting "seekStep"
 
 #define CMD_VIRTUAL_RFID_CARD_01 241 // Command: Virtual RFID-Card 900000000001
 #define CMD_VIRTUAL_RFID_CARD_02 242 // Command: Virtual RFID-Card 900000000002

@@ -51,6 +51,8 @@ typedef struct { // Bit field
 	bool stopIfRfidRemoved		 : 1; // When pauseIfRfidRemoved is active: stop playback instead of pausing when RFID is removed.
 	bool dontAcceptRfidTwice	 : 1; // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
 	int16_t jumpToFolderTrack = -1; // track to jump to
+	int32_t smartSeekPendingSec = 0; // accumulated smart-seek offset (seconds, signed) waiting to be applied; coalesces rapid presses
+	uint32_t smartSeekRequestMs = 0; // millis() of the last smart-seek press; the offset is applied once presses settle
 	int8_t gainLowPass = 0; // Low Pass for EQ Control
 	int8_t gainBandPass = 0; // Band Pass for EQ Control
 	int8_t gainHighPass = 0; // High Pass for EQ Control
@@ -67,6 +69,8 @@ void AudioPlayer_NotifyUploadEnd(void);
 void AudioPlayer_Init(void);
 void AudioPlayer_Exit(void);
 void AudioPlayer_SetSavePosPeriodic(bool enabled);
+void AudioPlayer_SetSeekStep(uint16_t seconds); // step (in seconds) for CMD_SMART_FORWARDS/BACKWARDS in-file seeking
+uint16_t AudioPlayer_GetSeekStep(void);
 void AudioPlayer_Cyclic(void);
 void AudioPlayer_Loop(void);
 uint8_t AudioPlayer_GetRepeatMode(void);

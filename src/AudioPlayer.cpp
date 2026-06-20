@@ -310,6 +310,18 @@ void AudioPlayer_SetSavePosPeriodic(bool enabled) {
 	gSavePosPeriodic = enabled;
 }
 
+// Step (in seconds) used by CMD_SMART_FORWARDS/BACKWARDS for in-file seeking. Cached from the
+// "seekStep" web setting so smart-seek presses don't hit NVS. Default see settings.h (seekStepDefault).
+static uint16_t gSeekStep = seekStepDefault;
+
+void AudioPlayer_SetSeekStep(uint16_t seconds) {
+	gSeekStep = (seconds == 0) ? seekStepDefault : seconds;
+}
+
+uint16_t AudioPlayer_GetSeekStep(void) {
+	return gSeekStep;
+}
+
 void AudioPlayer_Init(void) {
 	// create audio object
 	audio = new AudioCustom();
@@ -391,6 +403,7 @@ void AudioPlayer_Init(void) {
 	gPlayProperties.playlist = allocatePlaylist();
 	gPlayProperties.SavePlayPosRfidChange = gPrefsSettings.getBool("savePosRfidChge", false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 	gSavePosPeriodic = gPrefsSettings.getBool("savePosPeriodic", true); // periodic audiobook play-position checkpoint
+	gSeekStep = gPrefsSettings.getUInt("seekStep", seekStepDefault); // step for smart forward/backward in-file seeking
 	gPlayProperties.pauseOnMinVolume = gPrefsSettings.getBool("pauseOnMinVol", false); // PAUSE_ON_MIN_VOLUME
 #ifdef PAUSE_WHEN_RFID_REMOVED
 	gPlayProperties.pauseIfRfidRemoved = gPrefsSettings.getBool("pauseRfidRem", true);
@@ -769,6 +782,7 @@ void AudioPlayer_Loop() {
 			gPlayProperties.pausePlay = false;
 			gPlayProperties.trackFinished = false;
 			gPlayProperties.playlistFinished = false;
+			gPlayProperties.smartSeekPendingSec = 0; // drop any not-yet-applied smart-seek from the previous track
 #ifdef MQTT_ENABLE
 			publishMqtt(topicPausePlay, "play", false);
 			publishMqtt(topicPlaymode, static_cast<uint32_t>(gPlayProperties.playMode), false);
@@ -804,6 +818,29 @@ void AudioPlayer_Loop() {
 			} else {
 				Log_Println(repeatTrackDueToPlaymode, LOGLEVEL_INFO);
 				Led_Indicate(LedIndicatorType::Rewind);
+			}
+		}
+
+		// Resolve smart-seek (SMARTFORWARD/SMARTBACKWARD): on a single long file it becomes a coalesced
+		// in-file seek (rapid presses accumulate into one jump -> one resync), otherwise it falls back to
+		// a normal next/previous track change. Reads the cached duration so it works from any caller context.
+		if (trackCommand == SMARTFORWARD || trackCommand == SMARTBACKWARD) {
+			const bool forward = (trackCommand == SMARTFORWARD);
+			const uint16_t step = AudioPlayer_GetSeekStep();
+			const bool singleLongFile = (gPlayProperties.playlist != nullptr) && (gPlayProperties.playlist->size() == 1) && (gPlayProperties.audioFileDuration > step);
+			if (singleLongFile) {
+				if (gPlayProperties.pausePlay) { // resume before seeking (mirrors the next/previous-track behavior)
+					audio->pauseResume();
+					gPlayProperties.pausePlay = false;
+#ifdef MQTT_ENABLE
+					publishMqtt(topicPausePlay, "play", false);
+#endif
+				}
+				gPlayProperties.smartSeekPendingSec += forward ? (int32_t) step : -(int32_t) step;
+				gPlayProperties.smartSeekRequestMs = millis();
+				trackCommand = NO_ACTION; // applied later (coalesced) in the seek-handling section
+			} else {
+				trackCommand = forward ? NEXTTRACK : PREVIOUSTRACK;
 			}
 		}
 
@@ -890,16 +927,9 @@ void AudioPlayer_Loop() {
 						audio->stopSong();
 					}
 				} else {
-					if (gPlayProperties.playlist->size() == 1 && audio->getAudioFileDuration() > 300) {
-						audio->setTimeOffset(300);
-						Log_Printf(LOGLEVEL_NOTICE, secondsJumpForward, 300);
-						trackCommand = NO_ACTION;
-						return;
-					} else {
-						Log_Println(lastTrackAlreadyActive, LOGLEVEL_NOTICE);
-						System_IndicateError();
-						return;
-					}
+					Log_Println(lastTrackAlreadyActive, LOGLEVEL_NOTICE);
+					System_IndicateError();
+					return;
 				}
 				break;
 
@@ -932,10 +962,12 @@ void AudioPlayer_Loop() {
 					}
 				} else {
 					if (gPlayProperties.currentTrackNumber > 0 || gPlayProperties.repeatPlaylist) {
-						if (gPlayProperties.currentTrackNumber == 0 && gPlayProperties.repeatPlaylist) {
-							gPlayProperties.currentTrackNumber = gPlayProperties.playlist->size() - 1; // Go back to last track in loop-mode when first track is played
-						} else {
-							gPlayProperties.currentTrackNumber--;
+						if (audio->getAudioCurrentTime() < 5) { // play previous track when current track time is small, else play current track again
+							if (gPlayProperties.currentTrackNumber == 0 && gPlayProperties.repeatPlaylist) {
+								gPlayProperties.currentTrackNumber = gPlayProperties.playlist->size() - 1; // Go back to last track in loop-mode when first track is played
+							} else {
+								gPlayProperties.currentTrackNumber--;
+							}
 						}
 
 						if (gPlayProperties.saveLastPlayPosition) {
@@ -948,12 +980,6 @@ void AudioPlayer_Loop() {
 							audio->stopSong();
 						}
 					} else {
-						if (gPlayProperties.playlist->size() == 1 && audio->getAudioFileDuration() > 300) {
-							audio->setTimeOffset(-300);
-							Log_Printf(LOGLEVEL_NOTICE, secondsJumpBackward, 300);
-							trackCommand = NO_ACTION;
-							return;
-						}
 						if (gPlayProperties.saveLastPlayPosition) {
 							AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
 						}
@@ -1178,6 +1204,23 @@ void AudioPlayer_Loop() {
 			AudioPlayer_ClearCover();
 			Log_Printf(LOGLEVEL_NOTICE, currentlyPlaying, gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber), (gPlayProperties.currentTrackNumber + 1), gPlayProperties.playlist->size());
 			gPlayProperties.playlistFinished = false;
+		}
+	}
+
+	// Apply a coalesced smart-seek once the rapid presses have settled. Bundling several presses into a
+	// single setTimeOffset() means one buffer-flush/resync instead of one per press (which felt sluggish,
+	// and dropped presses while the decoder was re-syncing - especially on FLAC).
+	if (gPlayProperties.smartSeekPendingSec != 0 && (millis() - gPlayProperties.smartSeekRequestMs >= smartSeekCoalesceMs)) {
+		const int32_t offset = gPlayProperties.smartSeekPendingSec;
+		gPlayProperties.smartSeekPendingSec = 0;
+		if (audio->setTimeOffset(offset)) {
+			if (offset >= 0) {
+				Log_Printf(LOGLEVEL_NOTICE, secondsJumpForward, offset);
+			} else {
+				Log_Printf(LOGLEVEL_NOTICE, secondsJumpBackward, -offset);
+			}
+		} else {
+			System_IndicateError();
 		}
 	}
 
@@ -1787,6 +1830,8 @@ void AudioPlayer_SetTrackControl(const uint8_t new_trackCommand) {
 		const bool wantsPlayback = (new_trackCommand == PLAY)
 			|| (new_trackCommand == NEXTTRACK)
 			|| (new_trackCommand == PREVIOUSTRACK)
+			|| (new_trackCommand == SMARTFORWARD)
+			|| (new_trackCommand == SMARTBACKWARD)
 			|| ((new_trackCommand == PAUSEPLAY) && gPlayProperties.pausePlay); // PAUSEPLAY while paused == resume
 		if (wantsPlayback) {
 			Sync_Cancel();

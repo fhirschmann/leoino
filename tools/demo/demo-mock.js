@@ -99,7 +99,7 @@
 			general: {
 				initVolume: 3, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10,
 				playMono: false, savePosShutdown: false, savePosRfidChge: false,
-				savePosPeriodic: true, restartFreshHrs: 24, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
+				savePosPeriodic: true, restartFreshHrs: 24, seekStep: 300, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
 				stopIfRfidRemoved: false,
 				dontAcceptRfidTwice: false, rfidReaderType: 0, pn5180Lpcd: false, slix2Password: "",
 				mfrc522Gain: 7, pauseOnMinVol: false, recoverVolBoot: false, volumeCurve: 0,
@@ -458,6 +458,13 @@
 				TRACK.currentTrackNumber = (Number(action) === 174) ? TRACK.numberOfTracks : Math.min(TRACK.numberOfTracks, TRACK.currentTrackNumber + 1);
 				TRACK.time = 0; TRACK.pausePlay = false; syncTrack();
 				break;
+			case 190: // smart forward (in-file seek on a single long file, else next track)
+			case 191: { // smart backward (in-file seek on a single long file, else previous track)
+				var step = (Number(action) === 190) ? 300 : -300;
+				TRACK.time = Math.max(0, Math.min(TRACK.duration, TRACK.time + step));
+				TRACK.pausePlay = false; syncTrack();
+				break;
+			}
 			case 175: // initial volume
 				DEMO_VOLUME = 3; this._emit({ volume: DEMO_VOLUME }); changed = false;
 				break;

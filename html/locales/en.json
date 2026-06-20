@@ -694,6 +694,8 @@
 			"savePlayPosPeriodicExp": "While an audio book plays, the position is saved to flash every ~30 s. This way an unexpected power loss (dead battery, hard power-off) only loses the last few seconds instead of falling back to the start of the track. Fork feature.",
 			"restartFreshHrs": "Restart audiobook after (hrs)",
 			"restartFreshHrsExp": "If an audiobook has not been played for more than the given number of hours, it starts over from the beginning the next time the card is placed, instead of resuming the saved position. Handy for kids who, after a day's break, no longer remember where they were. 0 = off (always resume). Default: 24. Requires a valid clock (NTP/RTC). Fork feature.",
+			"seekStep": "Smart seek step (sec.)",
+			"seekStepExp": "Jump distance in seconds for the \"smart forward/backward\" commands (CMD_SMART_FORWARDS/BACKWARDS). On an audiobook that is a single long file these buttons seek within the file; on a playlist of several files they change tracks instead. Several quick presses are coalesced into one jump (a single re-buffer instead of many). Default: 300 (5 min). Fork feature.",
 			"pauseIfRfidRemoved": "Pause when RFID tag is removed",
 			"pauseIfRfidRemovedExp": "Playback is paused when the RFID tag is removed. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PAUSE_IF_RFID_REMOVED</code>.",
 			"stopIfRfidRemoved": "Stop instead of pause on removal",

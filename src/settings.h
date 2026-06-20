@@ -288,6 +288,8 @@
 
 	// Seekmode-configuration
 	constexpr uint8_t jumpOffset = 30;                            // Offset in seconds to jump for commands CMD_SEEK_FORWARDS / CMD_SEEK_BACKWARDS
+	constexpr uint16_t seekStepDefault = 300;                     // Default step in seconds for CMD_SMART_FORWARDS / CMD_SMART_BACKWARDS (configurable via web setting "seekStep")
+	constexpr uint16_t smartSeekCoalesceMs = 450;                 // Wait this long (ms) after the last smart-seek press before applying the accumulated jump (one resync instead of many)
 
 	// Topics for MQTT: used to build actual topics in webinterface. So normally there's no need to apply any changes here 
 	// MQTT configuration available via webinterface: https://forum.espuino.de/t/dokumentation-webinterface/2807.

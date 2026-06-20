@@ -694,6 +694,8 @@
 			"savePlayPosPeriodicExp": "Während ein Hörbuch läuft, wird die Position alle ~30 s im Flash gesichert. So gehen bei einem unerwarteten Stromausfall (leerer Akku, harter Aus-Schalter) nur die letzten Sekunden verloren statt bis zum Anfang des Tracks zurückzuspringen. Fork-Funktion.",
 			"restartFreshHrs": "Hörbuch von vorn nach (Std.)",
 			"restartFreshHrsExp": "Wird ein Hörbuch länger als die angegebene Stundenzahl nicht abgespielt, startet es beim nächsten Auflegen wieder von vorn statt an der gespeicherten Stelle. Praktisch für Kinder, die sich nach einem Tag Pause nicht mehr erinnern, wo sie waren. 0 = aus (immer fortsetzen). Standard: 24. Benötigt eine gültige Uhrzeit (NTP/RTC). Fork-Funktion.",
+			"seekStep": "Smart-Spulen Schritt (Sek.)",
+			"seekStepExp": "Sprungweite in Sekunden für die Befehle „Smart vor/zurück\" (CMD_SMART_FORWARDS/BACKWARDS). Bei einem Hörbuch, das aus einer einzigen langen Datei besteht, spulen diese Tasten innerhalb der Datei; bei einer Playlist aus mehreren Dateien wechseln sie stattdessen den Track. Mehrere schnelle Tastendrücke werden zu einem Sprung gebündelt (nur ein Neu-Puffern statt vieler). Standard: 300 (5 Min.). Fork-Funktion.",
 			"pauseIfRfidRemoved": "Pause wenn RFID-Tag entfernt",
 			"pauseIfRfidRemovedExp": "Pausieren wenn RFID-Tag entfernt wird. Mehr Infos <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>hier</a> unter <code>PAUSE_WHEN_RFID_REMOVED</code>.",
 			"stopIfRfidRemoved": "Bei Entfernen stoppen statt pausieren",
