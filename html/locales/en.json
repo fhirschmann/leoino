@@ -687,6 +687,7 @@
 			"readypath": "Path to ready MP3 (cold start)",
 			"noSleepWhenPowered": "No standby while on power",
 			"noSleepWhenPoweredExp": "When enabled, the device will not go into standby due to inactivity while it is on external power. Since there is no charge/USB sense, being 'on power' is estimated from the battery voltage (charge voltage sits above the resting voltage) — see threshold. The manual sleep timer is unaffected.",
+			"noSleepWhenPoweredWarn": "Note: if the device stays powered and never sleeps, the scarce internal heap fragments over many hours and the web interface gets progressively slower to load. Remedy: reboot occasionally, or leave this option off so standby (= a cold boot on wake-up) defragments the heap.",
 			"poweredVoltage": "'On power' threshold (V)",
 			"poweredVoltageExp": "At or above this battery voltage the device is considered 'on power'. For LiFePO4, ~3.5 V is a good starting point (charge voltage ~3.6 V, full resting ~3.3-3.4 V)."
 		},

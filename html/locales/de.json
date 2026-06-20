@@ -687,6 +687,7 @@
 			"readypath": "Pfad zur Begrüßungs-MP3 (Kaltstart)",
 			"noSleepWhenPowered": "Kein Standby wenn am Strom",
 			"noSleepWhenPoweredExp": "Wenn aktiv, geht das Gerät nicht wegen Inaktivität in den Standby, solange es am Strom hängt. Mangels Lade-/USB-Erkennung wird „am Strom“ über die Akkuspannung geschätzt (Ladespannung liegt über der Ruhespannung) — siehe Schwelle. Der manuelle Sleep-Timer bleibt davon unberührt.",
+			"noSleepWhenPoweredWarn": "Achtung: Wenn das Gerät dauerhaft am Strom läuft und nie schläft, fragmentiert über viele Stunden der knappe interne Heap. Das Web-Interface lädt dann immer langsamer. Abhilfe: gelegentlich neu starten oder diese Option aus lassen, damit der Standby (= Kaltstart beim Aufwecken) den Heap wieder aufräumt.",
 			"poweredVoltage": "Schwelle „am Strom“ (V)",
 			"poweredVoltageExp": "Ab dieser Akkuspannung gilt das Gerät als „am Strom“. Für LiFePO4 ist ~3,5 V ein guter Startwert (Ladespannung ~3,6 V, Ruhespannung voll ~3,3–3,4 V)."
 		},

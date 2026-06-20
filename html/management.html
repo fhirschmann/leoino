@@ -2659,6 +2659,10 @@
 									data-i18n="[data-bs-content]general.options.noSleepWhenPoweredExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
+							<div class="col-12 mb-1">
+								<div id="noSleepWhenPoweredWarn" class="alert alert-warning d-none py-2 mb-0"
+									role="alert" data-i18n="general.options.noSleepWhenPoweredWarn"></div>
+							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<label for="poweredVoltage" data-i18n="general.options.poweredVoltage"></label>
 								<input type="number" class="form-control" id="poweredVoltage" name="poweredVoltage"
@@ -5292,6 +5296,7 @@
 				$('#pauseOnMinVolume').prop('checked', genSettings.pauseOnMinVol);
 				$('#recoverVolBoot').prop('checked', genSettings.recoverVolBoot);
 				$('#noSleepWhenPowered').prop('checked', genSettings.noSleepWhenPowered);
+				$('#noSleepWhenPoweredWarn').toggleClass('d-none', !genSettings.noSleepWhenPowered);
 				if (genSettings.poweredVoltage !== undefined) {
 					$('#poweredVoltage').val(genSettings.poweredVoltage);
 				}
@@ -7894,6 +7899,10 @@
 				} else {
 					dontAcceptRfidTwice.prop('disabled', false);
 				}
+			});
+
+			$('#noSleepWhenPowered').on('change', function () {
+				$('#noSleepWhenPoweredWarn').toggleClass('d-none', !$(this).prop('checked'));
 			});
 
 			const lightSwitch = $('#lightSwitch');
