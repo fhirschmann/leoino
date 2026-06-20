@@ -68,8 +68,9 @@ void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["playStartupSnd"].set(gPrefsSettings.getBool("playStartupSnd", true)); // play the ready sound on cold start
 		generalObj["noSleepWhenPowered"].set(gPrefsSettings.getBool("noSleepPwr", false)); // stay awake on external power
 		generalObj["poweredVoltage"].set(gPrefsSettings.getFloat("pwrSleepVolt", 3.5f)); // voltage threshold for "powered"
-		generalObj["headerText"].set(gPrefsSettings.getString("uiHeader", "")); // custom navbar brand (empty = default)
-		generalObj["footerText"].set(gPrefsSettings.getString("uiFooter", "")); // custom footer brand (empty = default)
+		// single custom brand text for both navbar header and footer (empty = default).
+		// fall back to the legacy uiHeader key so existing installs keep their brand.
+		generalObj["brandText"].set(gPrefsSettings.getString("uiBrand", gPrefsSettings.getString("uiHeader", "")));
 	}
 	if ((section == "") || (section == "equalizer")) {
 		// equalizer settings

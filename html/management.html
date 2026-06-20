@@ -2564,14 +2564,9 @@
 						<fieldset>
 							<legend class="w-auto" data-i18n="general.branding.title"></legend>
 							<div class="mb-3">
-								<label for="headerText" data-i18n="general.branding.header"></label>
-								<input type="text" class="form-control" id="headerText" name="headerText" maxlength="40"
-									data-i18n="[placeholder]general.branding.headerPlaceholder">
-							</div>
-							<div class="mb-3">
-								<label for="footerText" data-i18n="general.branding.footer"></label>
-								<input type="text" class="form-control" id="footerText" name="footerText" maxlength="40"
-									data-i18n="[placeholder]general.branding.footerPlaceholder">
+								<label for="brandText" data-i18n="general.branding.brand"></label>
+								<input type="text" class="form-control" id="brandText" name="brandText" maxlength="40"
+									data-i18n="[placeholder]general.branding.brandPlaceholder">
 								<small class="form-text text-muted" data-i18n="general.branding.hint"></small>
 							</div>
 						</fieldset>
@@ -5335,13 +5330,10 @@
 				if (genSettings.poweredVoltage !== undefined) {
 					$('#poweredVoltage').val(genSettings.poweredVoltage);
 				}
-				if (genSettings.headerText !== undefined) {
-					document.getElementById('headerText').value = genSettings.headerText;
+				if (genSettings.brandText !== undefined) {
+					document.getElementById('brandText').value = genSettings.brandText;
 				}
-				if (genSettings.footerText !== undefined) {
-					document.getElementById('footerText').value = genSettings.footerText;
-				}
-				applyBranding(genSettings.headerText, genSettings.footerText);
+				applyBranding(genSettings.brandText);
 				$('#volumeCurve').prop('checked', genSettings.volumeCurve > 0);
 				if (genSettings.rfidReaderType !== undefined) {
 					$('#rfidReaderType').val(genSettings.rfidReaderType);
@@ -5955,30 +5947,28 @@
 				footerCopy: fc ? fc.innerHTML : ""
 			};
 		}
-		// Apply a custom header (navbar brand) and footer brand. Empty values revert to the defaults.
-		function applyBranding(header, footer) {
+		// Apply a single custom brand text to both navbar header and footer. Empty reverts to defaults.
+		function applyBranding(brand) {
 			captureBrandDefaults();
+			var hasBrand = brand && brand.trim() !== "";
 			var h = document.getElementById('navbar-brand-co');
 			if (h) {
-				h.textContent = (header && header.trim() !== "") ? header : brandDefaults.header;
+				h.textContent = hasBrand ? brand : brandDefaults.header;
 			}
-			var brand = document.getElementById('cp-footer-brand');
+			var fbrand = document.getElementById('cp-footer-brand');
 			var copy = document.getElementById('cp-footer-copy');
-			if (footer && footer.trim() !== "") {
-				if (brand) { brand.textContent = footer; }
-				if (copy) { copy.innerHTML = '© ' + new Date().getFullYear() + ' ' + escapeHtml(footer); }
+			if (hasBrand) {
+				if (fbrand) { fbrand.textContent = brand; }
+				if (copy) { copy.innerHTML = '© ' + new Date().getFullYear() + ' ' + escapeHtml(brand); }
 			} else {
-				if (brand) { brand.textContent = brandDefaults.footerBrand; }
+				if (fbrand) { fbrand.textContent = brandDefaults.footerBrand; }
 				if (copy) { copy.innerHTML = brandDefaults.footerCopy; }
 			}
 		}
-		// Live preview while typing in the branding fields.
+		// Live preview while typing in the branding field.
 		document.addEventListener("DOMContentLoaded", function () {
-			var h = document.getElementById('headerText');
-			var f = document.getElementById('footerText');
-			var live = function () { applyBranding(h ? h.value : "", f ? f.value : ""); };
-			if (h) h.addEventListener('input', live);
-			if (f) f.addEventListener('input', live);
+			var b = document.getElementById('brandText');
+			if (b) b.addEventListener('input', function () { applyBranding(b.value); });
 		});
 
 		async function genSettings(clickedId) {
@@ -6000,8 +5990,7 @@
 					recoverVolBoot: $('#recoverVolBoot').prop('checked'),
 					noSleepWhenPowered: $('#noSleepWhenPowered').prop('checked'),
 					poweredVoltage: Number($('#poweredVoltage').val()),
-					headerText: document.getElementById('headerText').value,
-					footerText: document.getElementById('footerText').value,
+					brandText: document.getElementById('brandText').value,
 					volumeCurve: $("#volumeCurve").prop('checked') ? 1 : 0,
 					rfidReaderType: Number($('#rfidReaderType').val()),
 					pn5180Lpcd: $('#pn5180Lpcd').prop('checked'),

@@ -103,7 +103,7 @@
 				dontAcceptRfidTwice: false, rfidReaderType: 0, pn5180Lpcd: false, slix2Password: "",
 				mfrc522Gain: 7, pauseOnMinVol: false, recoverVolBoot: false, volumeCurve: 0,
 				readyPath: "/ready.mp3", playStartupSnd: true, noSleepWhenPowered: false,
-				poweredVoltage: 3.5, headerText: "", footerText: ""
+				poweredVoltage: 3.5, brandText: ""
 			},
 			equalizer: { gainLowPass: 0, gainBandPass: 0, gainHighPass: 0, profile: "flat" },
 			wifi: { hostname: "espuino-demo", scanOnStart: false },

@@ -1092,11 +1092,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			gPrefsSettings.putFloat("pwrSleepVolt", generalObj["poweredVoltage"].as<float>());
 		}
 		System_ReloadSleepSettings(); // apply the "no sleep while powered" change without a reboot
-		if (generalObj["headerText"].is<const char *>()) {
-			gPrefsSettings.putString("uiHeader", generalObj["headerText"].as<const char *>());
-		}
-		if (generalObj["footerText"].is<const char *>()) {
-			gPrefsSettings.putString("uiFooter", generalObj["footerText"].as<const char *>());
+		if (generalObj["brandText"].is<const char *>()) {
+			// single brand text drives both navbar header and footer brand
+			gPrefsSettings.putString("uiBrand", generalObj["brandText"].as<const char *>());
 		}
 		if (generalObj["readyPath"].is<const char *>()) {
 			const char *path = generalObj["readyPath"].as<const char *>();

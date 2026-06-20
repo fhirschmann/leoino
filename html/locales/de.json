@@ -742,10 +742,8 @@
 		},
 		"branding": {
 			"title": "Branding",
-			"header": "Kopfzeile (Header-Titel)",
-			"headerPlaceholder": "z.B. Mein Player",
-			"footer": "Fußzeile (Marke)",
-			"footerPlaceholder": "z.B. Mein Player",
+			"brand": "Markenname",
+			"brandPlaceholder": "z.B. Mein Player",
 			"hint": "Leer lassen für den Standard. Ersetzt „Leo Industries“ in Kopf- und Fußzeile."
 		}
 	},

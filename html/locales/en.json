@@ -742,10 +742,8 @@
 		},
 		"branding": {
 			"title": "Branding",
-			"header": "Header title",
-			"headerPlaceholder": "e.g. My Player",
-			"footer": "Footer brand",
-			"footerPlaceholder": "e.g. My Player",
+			"brand": "Brand name",
+			"brandPlaceholder": "e.g. My Player",
 			"hint": "Leave empty for the default. Replaces \"Leo Industries\" in the header and footer."
 		}
 	},
