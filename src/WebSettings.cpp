@@ -57,6 +57,7 @@ void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["restartFreshHrs"].set(gPrefsSettings.getUInt("freshAfterHrs", 24)); // restart audiobooks from start after this idle gap (0 = off)
 		generalObj["playLastRfidOnReboot"].set(gPrefsSettings.getBool("playLastOnBoot", false)); // PLAY_LAST_RFID_AFTER_REBOOT
 		generalObj["pauseIfRfidRemoved"].set(gPrefsSettings.getBool("pauseRfidRem", false)); // PAUSE_WHEN_RFID_REMOVED
+		generalObj["stopIfRfidRemoved"].set(gPrefsSettings.getBool("stopRfidRem", false)); // stop instead of pause when RFID is removed
 		generalObj["dontAcceptRfidTwice"].set(gPrefsSettings.getBool("dAccRfidTwice", false)); // DONT_ACCEPT_SAME_RFID_TWICE
 		generalObj["rfidReaderType"].set(gPrefsRfid.getUChar("rfidReaderType", 0)); // RFID_READER_TYPE_RUNTIME
 		generalObj["pn5180Lpcd"].set(gPrefsRfid.getBool("pn5180Lpcd", false)); // PN5180 LPCD
@@ -247,6 +248,7 @@ void settingsToJSON(JsonObject obj, const String section) {
 		genSettings["playStartupSnd"].set(true); // play the ready sound on cold start
 		genSettings["playLastRfidOnReboot"].set(false); // PLAY_LAST_RFID_AFTER_REBOOT
 		genSettings["pauseIfRfidRemoved"].set(false); // PAUSE_WHEN_RFID_REMOVED
+		genSettings["stopIfRfidRemoved"].set(false); // stop instead of pause when RFID is removed
 		genSettings["dontAcceptRfidTwice"].set(false); // DONT_ACCEPT_SAME_RFID_TWICE
 		genSettings["pauseOnMinVol"].set(false); // PAUSE_ON_MIN_VOLUME
 		genSettings["recoverVolBoot"].set(false); // USE_LAST_VOLUME_AFTER_REBOOT

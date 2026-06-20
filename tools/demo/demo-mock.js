@@ -100,6 +100,7 @@
 				initVolume: 3, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10,
 				playMono: false, savePosShutdown: false, savePosRfidChge: false,
 				savePosPeriodic: true, restartFreshHrs: 24, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
+				stopIfRfidRemoved: false,
 				dontAcceptRfidTwice: false, rfidReaderType: 0, pn5180Lpcd: false, slix2Password: "",
 				mfrc522Gain: 7, pauseOnMinVol: false, recoverVolBoot: false, volumeCurve: 0,
 				readyPath: "/ready.mp3", playStartupSnd: true, noSleepWhenPowered: false,

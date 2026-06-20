@@ -685,6 +685,8 @@
 			"restartFreshHrsExp": "Si un livre audio n'a pas été lu depuis plus que le nombre d'heures indiqué, il recommence depuis le début lors de la prochaine pose de la carte, au lieu de reprendre à la position enregistrée. Pratique pour les enfants qui, après une journée de pause, ne se souviennent plus où ils en étaient. 0 = désactivé (toujours reprendre). Par défaut : 24. Nécessite une horloge valide (NTP/RTC). Fonction du fork.",
 			"pauseIfRfidRemoved": "Mettre en pause si la balise RFID est retirée",
 			"pauseIfRfidRemovedExp": "Mettre en pause la lecture si la balise RFID est retirée. Plus d'informations <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>ici</a> sous <code>PAUSE_IF_RFID_REMOVED</code>.",
+			"stopIfRfidRemoved": "Arrêter au lieu de mettre en pause",
+			"stopIfRfidRemovedExp": "Si activé (uniquement avec « Mettre en pause si la balise RFID est retirée ») : retirer la balise arrête complètement la lecture au lieu de la mettre en pause. Reposer la balise redémarre depuis le début.",
 			"dontAcceptRfidTwice": "Ne pas accepter la balise RFID deux fois",
 			"dontAcceptRfidTwiceExp": "Ne pas accepter la même balise RFID deux fois. Ne peut pas être utilisé avec <em>Mettre en pause si la balise RFID est retirée</em>.",
 			"playLastRfidOnReboot": "Lire la dernière balise RFID au redémarrage",
@@ -802,6 +804,15 @@
 				"started": "L'appareil installe le micrologiciel et va redémarrer – la page se rechargera sous peu…",
 				"error": "Échec de la mise à jour (voir la console/le journal)."
 			}
+		},
+		"nav": {
+			"command": "Commande",
+			"sync": "Sync fichiers",
+			"rfidsync": "Sync RFID",
+			"nvs": "NVS",
+			"eqrules": "Règles EQ",
+			"backup": "Sauvegarde",
+			"fwupdate": "Firmware"
 		}
 	},
 	"help": {

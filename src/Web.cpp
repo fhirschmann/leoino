@@ -1084,6 +1084,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("playStartupSnd", generalObj["playStartupSnd"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("playLastOnBoot", generalObj["playLastRfidOnReboot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseRfidRem", generalObj["pauseIfRfidRemoved"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("stopRfidRem", generalObj["stopIfRfidRemoved"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("dAccRfidTwice", generalObj["dontAcceptRfidTwice"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseOnMinVol", generalObj["pauseOnMinVol"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("recoverVolBoot", generalObj["recoverVolBoot"].as<bool>()) != 0);
@@ -1125,6 +1126,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		AudioPlayer_SetSavePosPeriodic(generalObj["savePosPeriodic"].as<bool>());
 		gPlayProperties.pauseOnMinVolume = generalObj["pauseOnMinVol"].as<bool>();
 		gPlayProperties.pauseIfRfidRemoved = generalObj["pauseIfRfidRemoved"].as<bool>();
+		gPlayProperties.stopIfRfidRemoved = generalObj["stopIfRfidRemoved"].as<bool>();
 		if (gPlayProperties.pauseIfRfidRemoved) {
 			// ignore feature silently if PAUSE_WHEN_RFID_REMOVED is active
 			Log_Println("pauseIfRfidRemoved is enabled -> deactivate dontAcceptRfidTwice", LOGLEVEL_NOTICE);

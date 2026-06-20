@@ -397,6 +397,7 @@ void AudioPlayer_Init(void) {
 #else
 	gPlayProperties.pauseIfRfidRemoved = gPrefsSettings.getBool("pauseRfidRem", false);
 #endif
+	gPlayProperties.stopIfRfidRemoved = gPrefsSettings.getBool("stopRfidRem", false); // stop (instead of pause) when RFID is removed
 #ifdef DONT_ACCEPT_SAME_RFID_TWICE
 	gPlayProperties.dontAcceptRfidTwice = gPrefsSettings.getBool("dAccRfidTwice", true);
 #else

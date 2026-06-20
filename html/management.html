@@ -564,6 +564,82 @@
 			}
 		}
 
+		/* ---------- tools sub-navigation: same UniFi-style sidebar as Settings ---------- */
+		#nav-tools.active {
+			display: flex;
+			align-items: stretch;
+			gap: 1.1rem;
+			max-width: 1320px;
+			margin-inline: auto;
+		}
+
+		#tools-subcontent>.tab-pane>.container {
+			max-width: 100%;
+			margin-left: 0;
+			margin-right: 0;
+		}
+
+		#nav-tools>nav {
+			flex: 0 0 auto;
+			margin-top: 0 !important;
+		}
+
+		#tools-subnav.nav-tabs {
+			flex-direction: column;
+			flex-wrap: nowrap;
+			border-bottom: none;
+			border-right: 1px solid var(--cp-border);
+			padding-right: 2px;
+			position: sticky;
+			top: 1rem;
+		}
+
+		#tools-subnav .nav-link {
+			border: 1px solid transparent;
+			border-left: 2px solid transparent;
+			text-align: left;
+			white-space: nowrap;
+		}
+
+		#tools-subnav .nav-link i {
+			display: inline-block;
+			width: 1.25em;
+			margin-right: .5em;
+			text-align: center;
+		}
+
+		#tools-subnav .nav-link:hover {
+			border-bottom-color: transparent;
+			border-left-color: rgba(0, 240, 255, .4);
+		}
+
+		#tools-subnav .nav-link.active {
+			border: 1px solid var(--cp-border);
+			border-left: 2px solid var(--cp-cyan);
+			border-right-color: transparent;
+			background: linear-gradient(90deg, rgba(0, 240, 255, .12), transparent);
+		}
+
+		#nav-tools>.tab-content {
+			flex: 1 1 auto;
+			min-width: 0;
+		}
+
+		@media (max-width: 767.98px) {
+			#nav-tools.active {
+				gap: .55rem;
+			}
+
+			#tools-subnav .nav-link {
+				padding: .55rem .65rem;
+			}
+
+			#tools-subnav .nav-link i {
+				width: auto;
+				margin-right: 0;
+			}
+		}
+
 		/* ---------- content panels ---------- */
 		.main-tab-pane.active>.container {
 			animation: cp-boot .35s ease-out both;
@@ -2627,6 +2703,13 @@
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
+								<input type="checkbox" id="stopIfRfidRemoved" name="stopIfRfidRemoved" value="false">
+								<label for="stopIfRfidRemoved" data-i18n="general.options.stopIfRfidRemoved"></label>
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.options.stopIfRfidRemovedExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="dontAcceptRfidTwice" name="dontAcceptRfidTwice"
 									value="false">
 								<label for="dontAcceptRfidTwice"
@@ -3616,6 +3699,19 @@
 		<!-- ### Tab Tools ### -->
 		<div class="tab-pane main-tab-pane fade select-div" id="nav-tools" role="tabpanel"
 			aria-labelledby="nav-tools-tab">
+			<nav class="mb-3" style="margin-top: -1.25rem;">
+				<div class="nav nav-tabs flex-column" id="tools-subnav" role="tablist">
+					<a class="nav-item nav-link active" id="tools-command-subtab" data-bs-toggle="tab" data-bs-target="#tools-command" href="#tools-command" role="tab" aria-controls="tools-command" aria-selected="true"><i class="fas fa-terminal"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.command"></span></a>
+					<a class="nav-item nav-link" id="tools-sync-subtab" data-bs-toggle="tab" data-bs-target="#tools-sync" href="#tools-sync" role="tab" aria-controls="tools-sync"><i class="fas fa-download"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.sync"></span></a>
+					<a class="nav-item nav-link" id="tools-rfidsync-subtab" data-bs-toggle="tab" data-bs-target="#tools-rfidsync" href="#tools-rfidsync" role="tab" aria-controls="tools-rfidsync"><i class="fas fa-sync"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.rfidsync"></span></a>
+					<a class="nav-item nav-link" id="tools-nvs-subtab" data-bs-toggle="tab" data-bs-target="#tools-nvs" href="#tools-nvs" role="tab" aria-controls="tools-nvs"><i class="fas fa-save"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.nvs"></span></a>
+					<a class="nav-item nav-link" id="tools-eqrules-subtab" data-bs-toggle="tab" data-bs-target="#tools-eqrules" href="#tools-eqrules" role="tab" aria-controls="tools-eqrules"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.eqrules"></span></a>
+					<a class="nav-item nav-link" id="tools-backup-subtab" data-bs-toggle="tab" data-bs-target="#tools-backup" href="#tools-backup" role="tab" aria-controls="tools-backup"><i class="fas fa-archive"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.backup"></span></a>
+					<a class="nav-item nav-link" id="tools-fwupdate-subtab" data-bs-toggle="tab" data-bs-target="#tools-fwupdate" href="#tools-fwupdate" role="tab" aria-controls="tools-fwupdate"><i class="fas fa-microchip"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.fwupdate"></span></a>
+				</div>
+			</nav>
+			<div class="tab-content" id="tools-subcontent">
+			<div class="tab-pane fade show active" id="tools-command" role="tabpanel" aria-labelledby="tools-command-subtab">
 			<div class="container" id="commandExecutionTool">
 				<legend data-i18n="control.command"></legend>
 				<div class="tab-pane" id="commandExecution" role="tabpanel">
@@ -3628,6 +3724,8 @@
 						data-i18n="execute"></button>
 				</div>
 			</div>
+			</div>
+			<div class="tab-pane fade" id="tools-sync" role="tabpanel" aria-labelledby="tools-sync-subtab">
 			<div class="container" id="syncRunSection">
 				<legend data-i18n="sync.run.title"></legend>
 				<div data-i18n="sync.run.desc"></div>
@@ -3646,8 +3744,9 @@
 					<button type="button" class="btn btn-danger d-none" id="syncStopBtn" onclick="stopSync()"
 						data-i18n="sync.run.stop"></button>
 				</div>
-				<hr>
 			</div>
+			</div>
+			<div class="tab-pane fade" id="tools-rfidsync" role="tabpanel" aria-labelledby="tools-rfidsync-subtab">
 			<div class="container" id="rfidSyncRunSection">
 				<legend data-i18n="sync.rfid.runTitle"></legend>
 				<div data-i18n="sync.rfid.runDesc"></div>
@@ -3657,8 +3756,9 @@
 						data-i18n="sync.rfid.runBtn"></button>
 					<span id="rfidSyncStatus" class="ms-2 small text-secondary"></span>
 				</div>
-				<hr>
 			</div>
+			</div>
+			<div class="tab-pane fade" id="tools-nvs" role="tabpanel" aria-labelledby="tools-nvs-subtab">
 			<div class="container" id="savedAssignments">
 				<legend data-i18n="tools.nvs.title"></legend>
 				<p data-i18n="tools.nvs.desc"></p>
@@ -3701,8 +3801,9 @@
 							data-bs-toggle="modal" data-bs-target="#deleteNVSRFIDModal"></button>
 					</div>
 				</span>
-				<hr>
 			</div>
+			</div>
+			<div class="tab-pane fade" id="tools-eqrules" role="tabpanel" aria-labelledby="tools-eqrules-subtab">
 			<div class="container" id="eqRulesSection">
 				<legend data-i18n="tools.eqrules.title"></legend>
 				<p data-i18n="tools.eqrules.desc"></p>
@@ -3712,8 +3813,9 @@
 				<span class="collapse" id="eqRulesListContainer"><br><br>
 					<ul class="list-group" id="eqRulesList"></ul>
 				</span>
-				<hr>
 			</div>
+			</div>
+			<div class="tab-pane fade" id="tools-backup" role="tabpanel" aria-labelledby="tools-backup-subtab">
 			<div class="container" id="backup">
 				<legend data-i18n="tools.backup.title"></legend>
 				<p data-i18n="tools.backup.desc"></p>
@@ -3737,8 +3839,9 @@
 							data-i18n="tools.backup.import.button"></button>
 					</div>
 				</span>
-				<hr>
 			</div>
+			</div>
+			<div class="tab-pane fade" id="tools-fwupdate" role="tabpanel" aria-labelledby="tools-fwupdate-subtab">
 			<div class="container" id="httpUpdate">
 				<legend id="legendfwupdate" data-i18n="tools.fwupdate.title"></legend>
 				<div id="githubUpdate" class="mb-3">
@@ -3773,6 +3876,8 @@
 						<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
 					</div>
 				</form>
+			</div>
+			</div>
 			</div>
 		</div>
 	</div>
@@ -4937,23 +5042,9 @@
 				el.setAttribute('href', '#');
 				el.onclick = function (e) {
 					e.preventDefault();
-					// jump to the Tools tab AND scroll the firmware-update section into view so the
-					// progress bar is actually visible. Scroll only once the tab transition has
-					// finished (the pane has no layout while hidden); if we're already on the tab,
-					// scroll straight away since 'shown.bs.tab' won't fire.
-					const scrollToFwUpdate = function () {
-						const sec = document.getElementById('httpUpdate');
-						if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-					};
-					try {
-						const toolsTab = document.getElementById('nav-tools-tab');
-						if (toolsTab.classList.contains('active')) {
-							scrollToFwUpdate();
-						} else {
-							toolsTab.addEventListener('shown.bs.tab', scrollToFwUpdate, { once: true });
-							bootstrap.Tab.getOrCreateInstance(toolsTab).show();
-						}
-					} catch (err) {}
+					// jump to the Tools tab and open the firmware-update sub-pane so the
+					// progress bar is actually visible.
+					showToolsSubtab('tools-fwupdate-subtab');
 					applyGithubUpdate();
 				};
 			} else {
@@ -5332,6 +5423,8 @@
 				}
 				$('#playLastRfidOnReboot').prop('checked', genSettings.playLastRfidOnReboot);
 				$('#pauseIfRfidRemoved').prop('checked', genSettings.pauseIfRfidRemoved);
+				$('#stopIfRfidRemoved').prop('checked', genSettings.stopIfRfidRemoved);
+				$('#stopIfRfidRemoved').prop('disabled', !genSettings.pauseIfRfidRemoved);
 				$('#dontAcceptRfidTwice').prop('checked', genSettings.dontAcceptRfidTwice);
 				$('#dontAcceptRfidTwice').prop('disabled', genSettings.pauseIfRfidRemoved);
 				$('#pauseOnMinVolume').prop('checked', genSettings.pauseOnMinVol);
@@ -5997,6 +6090,7 @@
 					restartFreshHrs: Number($('#restartFreshHrs').val()),
 					playLastRfidOnReboot: $('#playLastRfidOnReboot').prop('checked'),
 					pauseIfRfidRemoved: $('#pauseIfRfidRemoved').prop('checked'),
+					stopIfRfidRemoved: $('#stopIfRfidRemoved').prop('checked'),
 					dontAcceptRfidTwice: $('#dontAcceptRfidTwice').prop('checked'),
 					pauseOnMinVol: $('#pauseOnMinVolume').prop('checked'),
 					recoverVolBoot: $('#recoverVolBoot').prop('checked'),
@@ -6292,16 +6386,20 @@
 			}
 		}
 
+		/* Open the Tools tab and activate one of its left-nav sub-panes. */
+		function showToolsSubtab(subtabId) {
+			try {
+				bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show();
+				const t = document.getElementById(subtabId);
+				if (t) bootstrap.Tab.getOrCreateInstance(t).show();
+			} catch (err) { }
+		}
 		/* Jump from the Sync settings sub-tab to the sync runner that now lives in the Tools tab. */
 		function jumpToSyncRun() {
-			try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) { }
-			const sec = document.getElementById('syncRunSection');
-			if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			showToolsSubtab('tools-sync-subtab');
 		}
 		function jumpToRfidSyncRun() {
-			try { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-tools-tab')).show(); } catch (err) { }
-			const sec = document.getElementById('rfidSyncRunSection');
-			if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			showToolsSubtab('tools-rfidsync-subtab');
 		}
 
 		// --- P2P peer editor (list of { host, key }, stored as JSON in the rfidPeers setting) ---
@@ -7952,13 +8050,17 @@
 				$('[data-bs-toggle="tooltip"]').tooltip();
 			});
 
-			/* Disable dontAcceptRfidTwice if pauseIfRfidRemoved enabled. */
+			/* Disable dontAcceptRfidTwice if pauseIfRfidRemoved enabled.
+			   The stop-instead-of-pause option only applies while pauseIfRfidRemoved is on. */
 			$('#pauseIfRfidRemoved').on('change', function () {
 				const dontAcceptRfidTwice = $('#dontAcceptRfidTwice');
+				const stopIfRfidRemoved = $('#stopIfRfidRemoved');
 				if ($(this).prop('checked')) {
 					dontAcceptRfidTwice.prop('checked', false).prop('disabled', true);
+					stopIfRfidRemoved.prop('disabled', false);
 				} else {
 					dontAcceptRfidTwice.prop('disabled', false);
+					stopIfRfidRemoved.prop('checked', false).prop('disabled', true);
 				}
 			});
 

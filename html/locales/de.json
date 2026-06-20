@@ -696,6 +696,8 @@
 			"restartFreshHrsExp": "Wird ein Hörbuch länger als die angegebene Stundenzahl nicht abgespielt, startet es beim nächsten Auflegen wieder von vorn statt an der gespeicherten Stelle. Praktisch für Kinder, die sich nach einem Tag Pause nicht mehr erinnern, wo sie waren. 0 = aus (immer fortsetzen). Standard: 24. Benötigt eine gültige Uhrzeit (NTP/RTC). Fork-Funktion.",
 			"pauseIfRfidRemoved": "Pause wenn RFID-Tag entfernt",
 			"pauseIfRfidRemovedExp": "Pausieren wenn RFID-Tag entfernt wird. Mehr Infos <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>hier</a> unter <code>PAUSE_WHEN_RFID_REMOVED</code>.",
+			"stopIfRfidRemoved": "Bei Entfernen stoppen statt pausieren",
+			"stopIfRfidRemovedExp": "Wenn aktiv (nur in Kombination mit „Pause wenn RFID-Tag entfernt“): Beim Abziehen der Karte wird die Wiedergabe vollständig gestoppt statt nur pausiert. Erneutes Auflegen startet die Karte von vorn.",
 			"dontAcceptRfidTwice": "Denselben RFID-Tag nicht erneut akzeptieren",
 			"resumeOnSameRfidExp": "Wenn die Wiedergabe pausiert ist und derselbe RFID-Tag erneut aufgelegt wird, wird die Wiedergabe fortgesetzt. Funktioniert nur, wenn <em>Denselben RFID-Tag nicht erneut akzeptieren</em> aktiv ist.",
 			"playLastRfidOnReboot": "Letzten RFID-Tag nach Neustart abspielen",
@@ -813,6 +815,15 @@
 				"started": "Gerät installiert die Firmware und startet neu – die Seite lädt gleich automatisch neu…",
 				"error": "Update fehlgeschlagen (siehe Konsole/Log)."
 			}
+		},
+		"nav": {
+			"command": "Befehl",
+			"sync": "Datei-Sync",
+			"rfidsync": "RFID-Sync",
+			"nvs": "NVS",
+			"eqrules": "EQ-Regeln",
+			"backup": "Backup",
+			"fwupdate": "Firmware"
 		}
 	},
 	"help": {

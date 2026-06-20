@@ -285,8 +285,8 @@ void RfidPn5180_Task(void *parameter) {
 		}
 
 		if (gPlayProperties.pauseIfRfidRemoved) {
-			if (!cardAppliedCurrentRun && cardAppliedLastRun && !gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) { // Card removed => pause
-				AudioPlayer_SetTrackControl(PAUSEPLAY);
+			if (!cardAppliedCurrentRun && cardAppliedLastRun && !gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) { // Card removed => pause or stop
+				AudioPlayer_SetTrackControl(gPlayProperties.stopIfRfidRemoved ? STOP : PAUSEPLAY);
 				Log_Println(rfidTagRemoved, LOGLEVEL_NOTICE);
 			}
 			cardAppliedLastRun = cardAppliedCurrentRun;
@@ -360,17 +360,22 @@ void RfidPn5180_Task(void *parameter) {
 			}
 
 			if (gPlayProperties.pauseIfRfidRemoved) {
-	#ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END
-				if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) { // Don't allow to send card to queue if it's the same card again if track or playlist is unfnished
-	#else
-				if (!sameCardReapplied) { // Don't allow to send card to queue if it's the same card again...
-	#endif
+				if (gPlayProperties.stopIfRfidRemoved) {
+					// stop-mode: removal fully stops playback, so any (re)application restarts the card from the beginning
 					xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
 				} else {
-					// If pause-button was pressed while card was not applied, playback could be active. If so: don't pause when card is reapplied again as the desired functionality would be reversed in this case.
-					if (gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) {
-						AudioPlayer_SetTrackControl(PAUSEPLAY); // ... play/pause instead
-						Log_Println(rfidTagReapplied, LOGLEVEL_NOTICE);
+	#ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END
+					if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) { // Don't allow to send card to queue if it's the same card again if track or playlist is unfnished
+	#else
+					if (!sameCardReapplied) { // Don't allow to send card to queue if it's the same card again...
+	#endif
+						xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
+					} else {
+						// If pause-button was pressed while card was not applied, playback could be active. If so: don't pause when card is reapplied again as the desired functionality would be reversed in this case.
+						if (gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) {
+							AudioPlayer_SetTrackControl(PAUSEPLAY); // ... play/pause instead
+							Log_Println(rfidTagReapplied, LOGLEVEL_NOTICE);
+						}
 					}
 				}
 				memcpy(lastValidcardId, uid, cardIdSize);

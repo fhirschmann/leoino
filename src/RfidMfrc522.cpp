@@ -141,16 +141,21 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 			}
 
 			if (gPlayProperties.pauseIfRfidRemoved) {
-	#ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END
-				if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) { // Don't allow to send card to queue if it's the same card again if track or playlist is unfnished
-	#else
-				if (!sameCardReapplied) { // Don't allow to send card to queue if it's the same card again...
-	#endif
+				if (gPlayProperties.stopIfRfidRemoved) {
+					// stop-mode: removal fully stops playback, so any (re)application restarts the card from the beginning
 					xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
 				} else {
-					// If pause-button was pressed while card was not applied, playback could be active. If so: don't pause when card is reapplied again as the desired functionality would be reversed in this case.
-					if (gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) {
-						AudioPlayer_SetTrackControl(PAUSEPLAY); // ... play/pause instead (but not for BT)
+	#ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END
+					if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) { // Don't allow to send card to queue if it's the same card again if track or playlist is unfnished
+	#else
+					if (!sameCardReapplied) { // Don't allow to send card to queue if it's the same card again...
+	#endif
+						xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
+					} else {
+						// If pause-button was pressed while card was not applied, playback could be active. If so: don't pause when card is reapplied again as the desired functionality would be reversed in this case.
+						if (gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) {
+							AudioPlayer_SetTrackControl(PAUSEPLAY); // ... play/pause instead (but not for BT)
+						}
 					}
 				}
 				memcpy(lastValidcardId, reader.uid.uidByte, cardIdSize);
@@ -189,7 +194,7 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 
 				Log_Println(rfidTagRemoved, LOGLEVEL_NOTICE);
 				if (!gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) {
-					AudioPlayer_SetTrackControl(PAUSEPLAY);
+					AudioPlayer_SetTrackControl(gPlayProperties.stopIfRfidRemoved ? STOP : PAUSEPLAY);
 					Log_Println(rfidTagReapplied, LOGLEVEL_NOTICE);
 				}
 				reader.PICC_HaltA();
