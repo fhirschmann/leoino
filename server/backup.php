@@ -9,17 +9,17 @@
  * produces (settings + RFID assignments + EQ rules + listening statistics, never any passwords).
  * The stored file can be fed straight back into the web interface's "import backup".
  *
- * Deploy: place this at the web root that serves your sync domain (next to manifest.php). Backups
- * land in ./backups (must be writable by PHP-FPM). Point the ESPuino's backup URL at
- * https://<host>/backup.php and protect it with the same basic auth as the file sync.
- *
- * nginx (e.g. SWAG) — route to PHP-FPM and protect with basic auth:
- *     location = /backup.php {
+ * Deploy: place this in its own backup/ folder under the web root. Backups land in ./backups next
+ * to it (must be writable by PHP-FPM). Point the ESPuino's backup URL at https://<host>/backup/backup.php
+ * and protect it with the same basic auth as the file sync. One web root above the service folders
+ * serves all three endpoints (see manifest.php / the espuinosync.subdomain.conf example) with the
+ * standard PHP handler (set a generous client_max_body_size, e.g. 0/8m, for large backups):
+ *     root /path/to/espuino;               # listing at / shows sd/, rfid/, backup/
+ *     location ~ \.php$ {
  *         auth_basic "Restricted";
  *         auth_basic_user_file /config/nginx/.htpasswd_espuino;
- *         client_max_body_size 8m;            # backups with many RFID tags can be large
  *         include /etc/nginx/fastcgi_params;
- *         fastcgi_param SCRIPT_FILENAME /path/to/espuino/backup.php;
+ *         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
  *         fastcgi_pass 127.0.0.1:9000;
  *     }
  */

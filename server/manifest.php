@@ -4,26 +4,28 @@
  *
  *   GET manifest.php -> {"version":1,"files":[{path,size},...]}
  *
- * Lists every audio/playlist file under ./sd so the ESPuino can pull missing/changed files.
- * RFID-tag syncing lives in the companion rfid.php (stateful store); this script is stateless.
+ * Lists every audio/playlist file in its own directory so the ESPuino can pull missing/changed
+ * files. RFID-tag syncing lives in the companion rfid.php (stateful store); this script is stateless.
  *
- * Deploy: place this at the web root that serves your sync domain. Audio files live in ./sd.
- * Point the ESPuino's file-sync URL at https://<host>/manifest.php. Needs PHP-FPM.
+ * Deploy: place this file *inside your audio folder* and point the ESPuino's file-sync URL at it
+ * (e.g. https://<host>/sd/manifest.php). The firmware derives the download base URL from the
+ * manifest URL's directory, so the audio is fetched from right next to this script. Needs PHP-FPM.
  *
- * nginx (e.g. SWAG) — route to PHP-FPM and protect with basic auth:
- *     root /path/to/espuino/sd;            # audio files are served from here
- *     location = /manifest.php {
+ * nginx (e.g. SWAG) — one web root above the audio folder, standard PHP handling:
+ *     root /path/to/espuino;               # listing at / shows sd/, rfid/, backup/
+ *     location ~ \.php$ {
  *         auth_basic "Restricted";
  *         auth_basic_user_file /config/nginx/.htpasswd_espuino;
  *         include /etc/nginx/fastcgi_params;
- *         fastcgi_param SCRIPT_FILENAME /path/to/espuino/manifest.php;
+ *         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
  *         fastcgi_pass 127.0.0.1:9000;
  *     }
+ *     location / { autoindex on; try_files $uri $uri/ =404; }
  */
 
 header('Content-Type: application/json; charset=utf-8');
 
-$audioRoot = __DIR__ . '/sd';
+$audioRoot = __DIR__; // audio files live next to this script
 $skip = ['manifest.json', 'manifest.php', 'rfid.php', 'rfid_master.json', '.DS_Store', 'Thumbs.db'];
 
 $files = [];

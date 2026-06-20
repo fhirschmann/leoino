@@ -7,15 +7,16 @@
  *                          -> merges into rfid_master.json (newest-wins by "timestamp"),
  *                             returns {"status":"ok"}
  *
- * The store (rfid_master.json) is created next to this script on the first POST.
- * Point the ESPuino's RFID-sync URL at https://<host>/rfid.php (file-sync URL -> manifest.php).
- *
- * nginx (e.g. SWAG) — route to PHP-FPM and protect with basic auth:
- *     location = /rfid.php {
+ * Deploy: place this in its own rfid/ folder under the web root; the store (rfid_master.json) is
+ * created next to it on the first POST. Point the ESPuino's RFID-sync URL at https://<host>/rfid/rfid.php.
+ * One web root above the service folders serves all three endpoints (see manifest.php / the
+ * espuinosync.subdomain.conf example) with the standard PHP handler:
+ *     root /path/to/espuino;               # listing at / shows sd/, rfid/, backup/
+ *     location ~ \.php$ {
  *         auth_basic "Restricted";
  *         auth_basic_user_file /config/nginx/.htpasswd_espuino;
  *         include /etc/nginx/fastcgi_params;
- *         fastcgi_param SCRIPT_FILENAME /path/to/espuino/rfid.php;
+ *         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
  *         fastcgi_pass 127.0.0.1:9000;
  *     }
  */
