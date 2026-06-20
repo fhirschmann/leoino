@@ -17,6 +17,7 @@
 #include "HTMLbinary.h"
 #include "HallEffectSensor.h"
 #include "HomeKit.h"
+#include "JsonPsram.h"
 #include "Led.h"
 #include "Log.h"
 #include "MemX.h"
@@ -91,19 +92,6 @@ bool canConvertFromJson(JsonVariantConst src, const IPAddress &) {
 	IPAddress dst;
 	return dst.fromString(src.as<const char *>());
 }
-
-// If PSRAM is available use it allocate memory for JSON-objects
-struct SpiRamAllocator : ArduinoJson::Allocator {
-	void *allocate(size_t size) override {
-		return ps_malloc(size);
-	}
-	void deallocate(void *pointer) override {
-		free(pointer);
-	}
-	void *reallocate(void *ptr, size_t new_size) override {
-		return ps_realloc(ptr, new_size);
-	}
-};
 
 static void serveProgmemFiles(const String &uri, const String &contentType, const uint8_t *content, size_t len) {
 	wServer.on(uri.c_str(), HTTP_GET, [contentType, content, len](AsyncWebServerRequest *request) {
@@ -1851,25 +1839,18 @@ void onWebsocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsE
 	} else if (type == WS_EVT_DATA) {
 		// data packet
 		const AwsFrameInfo *info = (AwsFrameInfo *) arg;
-		if (info && info->final && info->index == 0 && info->len == len && client && len > 0) {
-			// the whole message is in a single frame and we got all of it's data
-			// Serial.printf("ws[%s][%u] %s-message[%llu]: ", server->url(), client->id(), (info->opcode == WS_TEXT) ? "text" : "binary", info->len);
+		// only act on a complete single-frame text message. The JSON parser treats data as a
+		// C string, so it MUST be NUL-terminated *before* parsing - the AsyncWebSocket buffer is
+		// not terminated itself, and terminating it afterwards (as before) let the parser read
+		// past the payload, rejecting otherwise-valid commands. Binary frames are not JSON.
+		if (info && info->final && info->index == 0 && info->len == len && client && len > 0 && info->opcode == WS_TEXT) {
+			data[len] = 0;
 
 			WebsocketCodeType result = processJsonRequest((char *) data);
 			if (result != WebsocketCodeType::Error) {
-				if (data && (strncmp((char *) data, "track", 5))) { // Don't send back ok-feedback if track's name is requested in background
+				if (strncmp((char *) data, "track", 5)) { // Don't send back ok-feedback if track's name is requested in background
 					Web_SendWebsocketData(client->id(), result);
 				}
-			}
-
-			if (info->opcode == WS_TEXT) {
-				data[len] = 0;
-				// Serial.printf("%s\n", (char *)data);
-			} else {
-				for (size_t i = 0; i < info->len; i++) {
-					Serial.printf("%02x ", data[i]);
-				}
-				// Serial.printf("\n");
 			}
 		}
 	}

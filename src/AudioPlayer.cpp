@@ -1883,6 +1883,13 @@ void audio_oggimage(File &file, std::vector<uint32_t> v) {
 
 		const size_t chunkSize = 2048; // must be base64 compatible, i.e. a multiple of 4
 		uint8_t *encodedChunk = (uint8_t *) x_malloc(chunkSize);
+		if (!encodedChunk) {
+			// OOM: bail out cleanly instead of dereferencing a null pointer (crash)
+			Log_Println(unableToAllocateMem, LOGLEVEL_ERROR);
+			coverFile.close();
+			gFSystem.remove(tmpDecodedCover);
+			return;
+		}
 		size_t decodedLength;
 		size_t currentRemainder = 0;
 		size_t currentPosition = file.position(); // save current position in audio file otherwise playback will result in an error

@@ -4,6 +4,7 @@
 #include "RfidSync.h"
 
 #include "Common.h"
+#include "JsonPsram.h"
 #include "Log.h"
 #include "System.h"
 #include "Wlan.h"
@@ -246,7 +247,8 @@ static void rfidGetPeers(std::vector<RfidPeer> &out) {
 	String trimmed = peers;
 	trimmed.trim();
 	if (trimmed.startsWith("[")) {
-		JsonDocument doc;
+		SpiRamAllocator allocator;
+		JsonDocument doc(&allocator);
 		if (deserializeJson(doc, trimmed) == DeserializationError::Ok && doc.is<JsonArray>()) {
 			for (JsonObject o : doc.as<JsonArray>()) {
 				rfidAddPeer(out, o["host"].as<String>(), o["key"].is<const char *>() ? o["key"].as<String>() : "", fallbackKey);
@@ -284,7 +286,8 @@ static void rfidPushTagToPeers(const String &id, const String &fileOrUrl, uint32
 	if (peers.empty()) {
 		return;
 	}
-	JsonDocument doc;
+	SpiRamAllocator allocator;
+	JsonDocument doc(&allocator);
 	rfidTagToJson(doc.to<JsonObject>(), id, fileOrUrl, mode, ts);
 	String body;
 	serializeJson(doc, body);
@@ -309,7 +312,8 @@ void RfidSync_OnLearn(const char *tagId) {
 	// Push to the server (single entry; server merges newest-wins by timestamp).
 	const String serverUrl = rfidServerUrl();
 	if (serverUrl.length() > 0) {
-		JsonDocument doc;
+		SpiRamAllocator allocator;
+		JsonDocument doc(&allocator);
 		rfidTagToJson(doc.to<JsonObject>(), id, fileOrUrl, mode, ts);
 		String body;
 		serializeJson(doc, body);
@@ -332,7 +336,8 @@ void RfidSync_OnDelete(const char *tagId) {
 		return; // not now: pushed on the next full sync (also heals ts==0)
 	}
 	String id(tagId);
-	JsonDocument doc;
+	SpiRamAllocator allocator;
+	JsonDocument doc(&allocator);
 	JsonObject o = doc.to<JsonObject>();
 	o["id"] = id;
 	o["timestamp"] = ts;
@@ -403,7 +408,8 @@ static void rfidFullSyncTask(void *param) {
 		http.end();
 
 		if (payload.length() > 0) {
-			JsonDocument doc;
+			SpiRamAllocator allocator;
+			JsonDocument doc(&allocator);
 			if (deserializeJson(doc, payload) == DeserializationError::Ok) {
 				JsonArray tags = doc["rfid"].is<JsonArray>() ? doc["rfid"].as<JsonArray>() : doc.as<JsonArray>();
 				for (JsonObject t : tags) {
@@ -437,7 +443,8 @@ static void rfidFullSyncTask(void *param) {
 
 	// 2) Push all local tags to the server (server merges newest-wins).
 	if (serverUrl.length() > 0) {
-		JsonDocument doc;
+		SpiRamAllocator allocator;
+		JsonDocument doc(&allocator);
 		JsonArray arr = doc["rfid"].to<JsonArray>();
 		rfidCollectLocal(arr);
 		pushed = arr.size();
