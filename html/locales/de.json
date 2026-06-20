@@ -421,7 +421,11 @@
 				"waiting": "Bitte jetzt die RFID-Karte auflegen…",
 				"done": "Karte {{rfidId}} zugewiesen",
 				"timeout": "Anlernen abgebrochen (keine Karte aufgelegt)",
-				"modalTitle": "RFID-Karte anlernen"
+				"modalTitle": "RFID-Karte anlernen",
+				"virtualLabel": "Oder virtuelle Karte zuweisen (Trigger z.B. nur per MQTT/Befehl):",
+				"virtualAssign": "Zuweisen",
+				"virtualOption": "Virtuelle Karte {{n}}",
+				"virtualUsed": "belegt"
 			}
 		}
 	},

@@ -2149,6 +2149,17 @@
 					<p class="mb-1" data-i18n="files.rfid.learn.waiting"></p>
 					<div id="rfidScanTarget" class="small text-secondary text-break"></div>
 					<div class="spinner-border spinner-border-sm mt-3" role="status" aria-hidden="true"></div>
+					<!-- Assign to a virtual card instead of laying a physical one (e.g. to trigger it only
+					     via MQTT/command, without binding it to a button). Calls the same onScanned(id). -->
+					<div class="border-top mt-3 pt-3 text-start">
+						<label for="rfidVirtualSelect" class="form-label small mb-1"
+							data-i18n="files.rfid.learn.virtualLabel"></label>
+						<div class="input-group input-group-sm">
+							<select class="form-select" id="rfidVirtualSelect"></select>
+							<button type="button" class="btn btn-primary" onclick="assignVirtualCard()"
+								data-i18n="files.rfid.learn.virtualAssign"></button>
+						</div>
+					</div>
 				</div>
 				<div class="modal-footer">
 					<button type="button" class="btn btn-secondary" onclick="stopRfidScan()" data-i18n="cancel"></button>
@@ -7689,10 +7700,31 @@
 		// flow and the modification-card learn button.
 		var rfidScanCallback = null;
 		var rfidScanTimer = null;
+		// There are 10 fixed virtual RFID cards, IDs 900000000001..900000000010 (see values.h).
+		var VIRTUAL_RFID_COUNT = 10;
+		function virtualRfidId(n) { return "9000000000" + String(n).padStart(2, "0"); }
+		// (Re)fill the virtual-card dropdown, flagging IDs that are already assigned to something.
+		function populateVirtualCards() {
+			var sel = document.getElementById('rfidVirtualSelect');
+			if (!sel) { return; }
+			var used = new Set();
+			var byPath = window.rfidPathIds || {};
+			Object.keys(byPath).forEach(function (p) { (byPath[p] || []).forEach(function (id) { used.add(String(id)); }); });
+			sel.innerHTML = "";
+			for (var n = 1; n <= VIRTUAL_RFID_COUNT; n++) {
+				var id = virtualRfidId(n);
+				var opt = document.createElement('option');
+				opt.value = id;
+				opt.textContent = i18next.t("files.rfid.learn.virtualOption", { n: n })
+					+ (used.has(id) ? " — " + i18next.t("files.rfid.learn.virtualUsed") : "");
+				sel.appendChild(opt);
+			}
+		}
 		function startRfidScan(label, onScanned) {
 			rfidScanCallback = onScanned;
 			var t = document.getElementById('rfidScanTarget');
 			if (t) { t.textContent = label || ""; }
+			populateVirtualCards();
 			$('#rfidScanModal').modal('show');
 			clearTimeout(rfidScanTimer);
 			rfidScanTimer = setTimeout(function () {
@@ -7704,6 +7736,16 @@
 			clearTimeout(rfidScanTimer);
 			rfidScanCallback = null;
 			$('#rfidScanModal').modal('hide');
+		}
+		// Assign the picked virtual card instead of waiting for a physical one: feed its ID into the
+		// same onScanned callback the scan flow uses (music-learn or mod-learn).
+		function assignVirtualCard() {
+			var sel = document.getElementById('rfidVirtualSelect');
+			if (!sel || !sel.value) { return; }
+			var id = sel.value;
+			var cb = rfidScanCallback;
+			stopRfidScan();
+			if (cb) { cb(id); }
 		}
 		// Arm learning from the explorer: pick a play mode, then the next laid card is assigned.
 		function armRfidLearn(path, playMode, nodeId) {

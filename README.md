@@ -265,8 +265,15 @@ number in the web interface like any normal card, and pressing the bound button 
 effect as placing that card. The fixed ids live in [`src/values.h`](src/values.h) and are enqueued
 in [`src/Cmd.cpp`](src/Cmd.cpp). MQTT can lay the same ids via the `rfid` command topic.
 
+A virtual card does **not** have to be bound to a button: the learn dialog (right-click a
+file/folder → RFID → pick a play mode) now offers an **"assign a virtual card"** dropdown next to
+the "lay a card" prompt, so you can map content to one of the 10 virtual ids without a physical card
+or a button — handy when you only want to trigger it via MQTT (publish the id to the `rfid` command
+topic) or a command/keybinding. Already-assigned ids are flagged in the dropdown.
+
 > Tip: to learn a (physical or virtual) card to a file/folder, right-click it in the file browser →
-> **RFID anlernen** → pick a play mode, then lay the card (or press the button bound to its virtual id).
+> **RFID anlernen** → pick a play mode, then lay the card, press the button bound to its virtual id,
+> or pick a virtual card straight from the dialog.
 
 ## // Flashing
 

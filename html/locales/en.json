@@ -421,7 +421,11 @@
 				"waiting": "Now place the RFID card on the reader…",
 				"done": "Card {{rfidId}} assigned",
 				"timeout": "Learning cancelled (no card was placed)",
-				"modalTitle": "Learn RFID card"
+				"modalTitle": "Learn RFID card",
+				"virtualLabel": "Or assign a virtual card (e.g. to trigger via MQTT/command only):",
+				"virtualAssign": "Assign",
+				"virtualOption": "Virtual card {{n}}",
+				"virtualUsed": "in use"
 			}
 		}
 	},

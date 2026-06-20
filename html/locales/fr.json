@@ -414,7 +414,11 @@
 				"waiting": "Posez maintenant la carte RFID sur le lecteur…",
 				"done": "Carte {{rfidId}} associée",
 				"timeout": "Apprentissage annulé (aucune carte posée)",
-				"modalTitle": "Apprendre la carte RFID"
+				"modalTitle": "Apprendre la carte RFID",
+				"virtualLabel": "Ou assigner une carte virtuelle (déclenchée p.ex. seulement via MQTT/commande) :",
+				"virtualAssign": "Assigner",
+				"virtualOption": "Carte virtuelle {{n}}",
+				"virtualUsed": "utilisée"
 			}
 		}
 	},
