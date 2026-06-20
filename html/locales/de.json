@@ -818,10 +818,8 @@
 		},
 		"nav": {
 			"command": "Befehl",
-			"sync": "Datei-Sync",
-			"rfidsync": "RFID-Sync",
+			"sync": "Sync",
 			"nvs": "NVS",
-			"eqrules": "EQ-Regeln",
 			"backup": "Backup",
 			"fwupdate": "Firmware"
 		}

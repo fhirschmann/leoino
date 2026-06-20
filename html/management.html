@@ -3702,10 +3702,8 @@
 			<nav class="mb-3" style="margin-top: -1.25rem;">
 				<div class="nav nav-tabs flex-column" id="tools-subnav" role="tablist">
 					<a class="nav-item nav-link active" id="tools-command-subtab" data-bs-toggle="tab" data-bs-target="#tools-command" href="#tools-command" role="tab" aria-controls="tools-command" aria-selected="true"><i class="fas fa-terminal"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.command"></span></a>
-					<a class="nav-item nav-link" id="tools-sync-subtab" data-bs-toggle="tab" data-bs-target="#tools-sync" href="#tools-sync" role="tab" aria-controls="tools-sync"><i class="fas fa-download"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.sync"></span></a>
-					<a class="nav-item nav-link" id="tools-rfidsync-subtab" data-bs-toggle="tab" data-bs-target="#tools-rfidsync" href="#tools-rfidsync" role="tab" aria-controls="tools-rfidsync"><i class="fas fa-sync"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.rfidsync"></span></a>
+					<a class="nav-item nav-link" id="tools-sync-subtab" data-bs-toggle="tab" data-bs-target="#tools-sync" href="#tools-sync" role="tab" aria-controls="tools-sync"><i class="fas fa-sync"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.sync"></span></a>
 					<a class="nav-item nav-link" id="tools-nvs-subtab" data-bs-toggle="tab" data-bs-target="#tools-nvs" href="#tools-nvs" role="tab" aria-controls="tools-nvs"><i class="fas fa-save"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.nvs"></span></a>
-					<a class="nav-item nav-link" id="tools-eqrules-subtab" data-bs-toggle="tab" data-bs-target="#tools-eqrules" href="#tools-eqrules" role="tab" aria-controls="tools-eqrules"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.eqrules"></span></a>
 					<a class="nav-item nav-link" id="tools-backup-subtab" data-bs-toggle="tab" data-bs-target="#tools-backup" href="#tools-backup" role="tab" aria-controls="tools-backup"><i class="fas fa-archive"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.backup"></span></a>
 					<a class="nav-item nav-link" id="tools-fwupdate-subtab" data-bs-toggle="tab" data-bs-target="#tools-fwupdate" href="#tools-fwupdate" role="tab" aria-controls="tools-fwupdate"><i class="fas fa-microchip"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.fwupdate"></span></a>
 				</div>
@@ -3745,8 +3743,6 @@
 						data-i18n="sync.run.stop"></button>
 				</div>
 			</div>
-			</div>
-			<div class="tab-pane fade" id="tools-rfidsync" role="tabpanel" aria-labelledby="tools-rfidsync-subtab">
 			<div class="container" id="rfidSyncRunSection">
 				<legend data-i18n="sync.rfid.runTitle"></legend>
 				<div data-i18n="sync.rfid.runDesc"></div>
@@ -3802,8 +3798,6 @@
 					</div>
 				</span>
 			</div>
-			</div>
-			<div class="tab-pane fade" id="tools-eqrules" role="tabpanel" aria-labelledby="tools-eqrules-subtab">
 			<div class="container" id="eqRulesSection">
 				<legend data-i18n="tools.eqrules.title"></legend>
 				<p data-i18n="tools.eqrules.desc"></p>
@@ -6399,7 +6393,7 @@
 			showToolsSubtab('tools-sync-subtab');
 		}
 		function jumpToRfidSyncRun() {
-			showToolsSubtab('tools-rfidsync-subtab');
+			showToolsSubtab('tools-sync-subtab');
 		}
 
 		// --- P2P peer editor (list of { host, key }, stored as JSON in the rfidPeers setting) ---

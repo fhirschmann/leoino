@@ -807,10 +807,8 @@
 		},
 		"nav": {
 			"command": "Commande",
-			"sync": "Sync fichiers",
-			"rfidsync": "Sync RFID",
+			"sync": "Sync",
 			"nvs": "NVS",
-			"eqrules": "Règles EQ",
 			"backup": "Sauvegarde",
 			"fwupdate": "Firmware"
 		}
