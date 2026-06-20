@@ -1213,7 +1213,25 @@ void AudioPlayer_Loop() {
 	if (gPlayProperties.smartSeekPendingSec != 0 && (millis() - gPlayProperties.smartSeekRequestMs >= smartSeekCoalesceMs)) {
 		const int32_t offset = gPlayProperties.smartSeekPendingSec;
 		gPlayProperties.smartSeekPendingSec = 0;
-		if (audio->setTimeOffset(offset)) {
+		const uint32_t duration = audio->getAudioFileDuration();
+		bool ok;
+		if (duration > 0) {
+			// Clamp the target into the file: a forward jump past the end lands a few seconds before
+			// the end and keeps playing, instead of overshooting and ending the file (setTimeOffset
+			// would call stopSong()). Backward clamps to the start.
+			int32_t target = (int32_t) audio->getAudioCurrentTime() + offset;
+			const int32_t maxTarget = (duration > smartSeekEndMarginSec) ? (int32_t) (duration - smartSeekEndMarginSec) : 0;
+			if (target < 0) {
+				target = 0;
+			} else if (target > maxTarget) {
+				target = maxTarget;
+			}
+			ok = audio->setAudioPlayTime((uint16_t) target);
+		} else {
+			// duration unknown -> fall back to a relative offset
+			ok = audio->setTimeOffset(offset);
+		}
+		if (ok) {
 			if (offset >= 0) {
 				Log_Printf(LOGLEVEL_NOTICE, secondsJumpForward, offset);
 			} else {
