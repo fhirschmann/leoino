@@ -45,6 +45,17 @@ function rfid_load($rfidFile) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true);
+
+    // Serialize concurrent POSTs: load -> merge -> write is a read-modify-write, so without an
+    // exclusive lock two devices syncing at the same time could clobber each other's updates
+    // ("lost update"). The lock is held across the whole sequence until the atomic rename below.
+    $lock = fopen($rfidFile . '.lock', 'c');
+    if ($lock === false || !flock($lock, LOCK_EX)) {
+        http_response_code(503);
+        echo json_encode(['error' => 'cannot acquire lock']);
+        exit;
+    }
+
     $master = rfid_load($rfidFile);
 
     // Accept a single entry {id,...}, an ESPuino backup {"rfid":[...]}, or a flat array.
@@ -99,6 +110,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tmp = $rfidFile . '.tmp';
     file_put_contents($tmp, json_encode(array_values($master), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     @rename($tmp, $rfidFile);
+
+    flock($lock, LOCK_UN);
+    fclose($lock);
 
     echo json_encode(['status' => 'ok']);
     exit;

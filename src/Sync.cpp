@@ -342,7 +342,14 @@ static void syncTask(void *parameter) {
 		while (path.startsWith("/")) {
 			path = path.substring(1);
 		}
-		if (path.length() > 0) {
+		// reject path-traversal: a malicious/compromised manifest server must never be able to
+		// write outside the SD root via ".." segments (leading "/" already stripped above).
+		const bool unsafePath = (path == "..") || path.startsWith("../") || (path.indexOf("/../") >= 0) || path.endsWith("/..");
+		if (unsafePath) {
+			Log_Printf(LOGLEVEL_ERROR, "Sync: rejecting unsafe path %s", path.c_str());
+			failed++;
+		}
+		if ((path.length() > 0) && !unsafePath) {
 			const String localPath = "/" + path;
 
 			// additive diff: skip if a local file of the same size already exists

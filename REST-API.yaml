@@ -15,7 +15,7 @@ servers:
 # When a web password is set, every endpoint (except /login and a few PWA assets)
 # requires authentication. Two options:
 #   * API key (easiest for scripts/curl): send the web password via the "X-API-Key"
-#     header or an "apikey" query parameter, e.g. `curl -H "X-API-Key: <pw>" ...`.
+#     header, e.g. `curl -H "X-API-Key: <pw>" ...`.
 #   * Session cookie: POST the password to /login (body {"password":"..."}) to get the
 #     ESPUINO_SESSION cookie (used automatically by the browser/Swagger UI).
 # With no web password set, the API is open and authentication is ignored.
@@ -25,7 +25,7 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
-      description: 'Web password sent as an API key (X-API-Key header or "apikey" query parameter).'
+      description: 'Web password sent as an API key in the X-API-Key header.'
     cookieAuth:
       type: apiKey
       in: cookie

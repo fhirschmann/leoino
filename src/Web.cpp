@@ -355,7 +355,7 @@ static const uint32_t WWW_COOKIE_UNLIMITED_SECONDS = 60UL * 60 * 24 * 3650; // ~
 static String Web_SessionCookie(const String &token) {
 	uint32_t days = gPrefsSettings.getUInt("wwwCookieDays", WWW_COOKIE_DAYS_DEFAULT);
 	uint32_t maxAge = (days == 0) ? WWW_COOKIE_UNLIMITED_SECONDS : (days * 24UL * 60 * 60);
-	return "ESPUINO_SESSION=" + token + "; Max-Age=" + String(maxAge) + "; Path=/; SameSite=Lax";
+	return "ESPUINO_SESSION=" + token + "; Max-Age=" + String(maxAge) + "; Path=/; HttpOnly; SameSite=Lax";
 }
 
 static void Web_RefreshSessionToken(void) {
@@ -379,14 +379,11 @@ static bool Web_IsAuthenticated(AsyncWebServerRequest *request) {
 	if (wwwSessionToken.length() == 0) {
 		return true;
 	}
-	// API key for non-browser clients: the web password sent via the X-API-Key header
-	// or an "apikey" query parameter, compared in RAM (same reliable path as the cookie).
+	// API key for non-browser clients: the web password sent via the X-API-Key header,
+	// compared in RAM (same reliable path as the cookie). Deliberately header-only - a query
+	// parameter would leak the password into server logs, browser history and Referer headers.
 	if (wwwApiKey.length() > 0) {
 		if (request->hasHeader("X-API-Key") && request->header("X-API-Key").equals(wwwApiKey)) {
-			return true;
-		}
-		const AsyncWebParameter *keyParam = request->getParam("apikey");
-		if (keyParam && keyParam->value().equals(wwwApiKey)) {
 			return true;
 		}
 	}
@@ -510,7 +507,7 @@ void webserverStart(void) {
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/login", Web_HandlePostLogin));
 		wServer.on("/logout", HTTP_POST, [](AsyncWebServerRequest *request) {
 			AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"status\":\"ok\"}");
-			response->addHeader("Set-Cookie", "ESPUINO_SESSION=; Max-Age=0; Path=/; SameSite=Lax");
+			response->addHeader("Set-Cookie", "ESPUINO_SESSION=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax");
 			request->send(response);
 		});
 		wServer.on("/security", HTTP_GET, [](AsyncWebServerRequest *request) {
