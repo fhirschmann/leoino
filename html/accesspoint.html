@@ -22,6 +22,15 @@
 			--cp-dim: #67779c;
 		}
 
+		/* match the main UI's monospace font; served locally, falls back in AP mode */
+		@font-face {
+			font-family: 'Share Tech Mono';
+			font-style: normal;
+			font-weight: 400;
+			font-display: swap;
+			src: url(/fonts/sharetechmono-400-latin-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2) format('woff2');
+		}
+
 		body {
 			background-color: var(--cp-bg);
 			background-image:
@@ -30,7 +39,7 @@
 				linear-gradient(90deg, rgba(0, 240, 255, .03) 1px, transparent 1px);
 			background-size: auto, 44px 44px, 44px 44px;
 			background-attachment: fixed;
-			font-family: "Lucida Console", Monaco, monospace;
+			font-family: "Share Tech Mono", "Lucida Console", Monaco, monospace;
 			font-size: 14px;
 			color: var(--cp-text);
 		}
