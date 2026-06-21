@@ -3851,7 +3851,7 @@
 				<legend data-i18n="tools.nvs.title"></legend>
 				<p data-i18n="tools.nvs.desc"></p>
 				<span class="container mb-3" style="padding: 0" id="listNvs">
-					<p style="font-weight: bold" data-i18n="tools.nvs.list.title"></p>
+					<p class="fw-bold mt-4 mb-2" data-i18n="tools.nvs.list.title"></p>
 					<button class="btn btn-primary" type="button" data-bs-toggle="collapse"
 						data-bs-target="#rfidListSavedAssignmentsContainer" aria-expanded="false"
 						aria-controls="rfidListSavedAssignmentsContainer" data-i18n="showhide"></button>
@@ -3860,17 +3860,17 @@
 					</span>
 				</span>
 				<span class="container mb-3" style="padding: 0" id="exportNvs">
-					<p style="font-weight: bold" data-i18n="tools.nvs.export.title"></p>
+					<p class="fw-bold mt-4 mb-2" data-i18n="tools.nvs.export.title"></p>
 					<p data-i18n="tools.nvs.export.desc"></p>
 					<a type="submit" class="btn btn-primary" data-i18n="submit"
 						href="/explorerdownload?path=/backup.txt" target="_blank"></a>
 				</span>
 				<span class="container mb-3" style="padding: 0">
-					<p style="font-weight: bold" data-i18n="tools.nvs.import.title"></p>
+					<p class="fw-bold mt-4 mb-2" data-i18n="tools.nvs.import.title"></p>
 					<form id="nvsUploadForm" action="/upload" enctype="multipart/form-data" method="POST"
 						onsubmit="uploadNVSRFID('nvsUpload'); return false">
 						<div class="mb-3">
-							<label class="form-label" for="nvsUpload" data-i18n="tools.nvs.import.desc"></label>
+							<label class="form-label d-block" for="nvsUpload" data-i18n="tools.nvs.import.desc"></label>
 							<input type="file" class="form-control-file btn btn-primary" id="nvsUpload" name="nvsUpload"
 								accept=".txt">
 							<div class="text-center mt-3">
@@ -3880,7 +3880,7 @@
 					</form>
 				</span>
 				<span class="container mb-3" style="padding: 0" id="eraseNvs">
-					<p style="font-weight: bold" data-i18n="tools.nvs.erase.title"></p>
+					<p class="fw-bold mt-4 mb-2" data-i18n="tools.nvs.erase.title"></p>
 					<p class="mb-3" data-i18n="[html]tools.nvs.erase.desc"></p>
 					<div class="text-center">
 						<button type="submit" class="btn btn-danger" data-i18n="tools.nvs.erase.button"
@@ -3904,7 +3904,7 @@
 				<legend data-i18n="tools.backup.title"></legend>
 				<p data-i18n="tools.backup.desc"></p>
 				<span class="container mb-3" style="padding: 0">
-					<p style="font-weight: bold" data-i18n="tools.backup.export.title"></p>
+					<p class="fw-bold mt-4 mb-2" data-i18n="tools.backup.export.title"></p>
 					<div class="form-check">
 						<input class="form-check-input" type="checkbox" id="backupIncludeWifi" value="false">
 						<label class="form-check-label" for="backupIncludeWifi" data-i18n="tools.backup.export.includeWifi"></label>
@@ -3913,7 +3913,7 @@
 						data-i18n="tools.backup.export.button"></button>
 				</span>
 				<span class="container mb-3" style="padding: 0">
-					<p style="font-weight: bold" data-i18n="tools.backup.import.title"></p>
+					<p class="fw-bold mt-4 mb-2" data-i18n="tools.backup.import.title"></p>
 					<p data-i18n="tools.backup.import.desc"></p>
 					<input type="file" class="form-control-file btn btn-primary" id="backupUpload" accept=".json">
 						<div class="text-center mt-3">
@@ -3943,7 +3943,7 @@
 				<p data-i18n="tools.fwupdate.manual"></p>
 				<form id="firmwareUploadForm" method="POST" enctype="multipart/form-data" action="/update">
 					<div class="mb-3">
-						<label class="form-label" for="firmwareUpload" data-i18n="tools.fwupdate.desc"></label>
+						<label class="form-label d-block" for="firmwareUpload" data-i18n="tools.fwupdate.desc"></label>
 						<input type="file" class="form-control-file btn btn-primary" id="firmwareUpload"
 							name="firmwareUpload" accept=".bin">
 					</div>
