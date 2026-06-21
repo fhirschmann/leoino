@@ -3017,13 +3017,17 @@
 					</div>
 						<div class="col-md-12 mb-4" id="settingsExConfig">
 							<fieldset>
-								<legend class="w-auto" data-i18n="settingsex.led.title"></legend><br>
-								<label for="led_numIndicator" data-i18n="settingsex.led.numindicator"></label>: <br>
-								<input type="number" class="form-control" id="led_numIndicator" name="led_numIndicator"
-									min="0" max="128"><br>
-								<label for="led_numControl" data-i18n="settingsex.led.numcontrol"></label>: <br>
-								<input type="number" class="form-control" id="led_numControl" name="led_numcontrol"
-									min="0" max="128" onChange="listControlColors(Number(this.value), null, null)"><br>
+								<legend class="w-auto" data-i18n="settingsex.led.title"></legend>
+								<div class="mb-3">
+									<label class="form-label" for="led_numIndicator" data-i18n="settingsex.led.numindicator"></label>:
+									<input type="number" class="form-control" id="led_numIndicator" name="led_numIndicator"
+										min="0" max="128">
+								</div>
+								<div class="mb-3">
+									<label class="form-label" for="led_numControl" data-i18n="settingsex.led.numcontrol"></label>:
+									<input type="number" class="form-control" id="led_numControl" name="led_numcontrol"
+										min="0" max="128" onChange="listControlColors(Number(this.value), null, null)">
+								</div>
 								<div id="controlColorList" class="mb-2 d-none"></div>
 								<div id="controlColorTemp" class="pb-2 d-none">
 									<span data-i18n="settingsex.led.controlled"></span>&nbsp;<span
@@ -3044,43 +3048,63 @@
 											data-i18n="settingsex.led.controlledsenabled"></label>
 									</div>
 								</div>
-								<label for="led_idleDots" data-i18n="settingsex.led.numidledots"></label>: <br>
-								<input type="number" class="form-control" id="led_idleDots" name="led_idleDots" min="0"
-									max="128"><br>
-								<label for="led_idleColor" data-i18n="settingsex.led.idlecolor"></label>: <br>
-								<input type="color" class="form-control" id="led_idleColor" name="led_idleColor"><br>
-								<label for="led_idleAnimation" data-i18n="settingsex.led.idleanimation"></label>: <br>
-								<select class="form-control form-select" id="led_idleAnimation" name="led_idleAnimation">
-									<option value="0" data-i18n="settingsex.led.idleanim.standard"></option>
-									<option value="1" data-i18n="settingsex.led.idleanim.cyberpunk"></option>
-								</select><br>
-								<label for="led_progColorStart" data-i18n="settingsex.led.progcolorstart"></label>: <br>
-								<input type="color" class="form-control" id="led_progColorStart" name="led_progColorStart"><br>
-								<label for="led_progColorEnd" data-i18n="settingsex.led.progcolorend"></label>: <br>
-								<input type="color" class="form-control" id="led_progColorEnd" name="led_progColorEnd"><br>
-								<label for="led_hueAtmo" data-i18n="settingsex.led.hueatmo"></label>: <br>
-								<div class="hue-slider">
-									<input id="led_hueAtmo" type="number" data-provide="slider" data-slider-min="-1"
-										data-slider-max="255" min="-1" max="255" class="form-control" name="led_hueAtmo"
-										data-slider-value="-1" value="-1">
+								<div class="mb-3">
+									<label class="form-label" for="led_idleDots" data-i18n="settingsex.led.numidledots"></label>:
+									<input type="number" class="form-control" id="led_idleDots" name="led_idleDots" min="0"
+										max="128">
 								</div>
-								<label for="led_satAtmo" data-i18n="settingsex.led.satatmo"></label>: <br>
-								<div class="sat-slider">
-									<input id="led_satAtmo" type="number" data-provide="slider" data-slider-min="-1"
-										data-slider-max="255" min="-1" max="255" class="form-control" name="led_satAtmo"
-										data-slider-value="-1" value="-1">
+								<div class="mb-3">
+									<label class="form-label" for="led_idleColor" data-i18n="settingsex.led.idlecolor"></label>:
+									<input type="color" class="form-control" id="led_idleColor" name="led_idleColor">
 								</div>
-								<label for="led_dimStates" data-i18n="settingsex.led.dimmablestates"></label>: <br>
-								<input type="number" class="form-control" id="led_dimStates" name="led_dimStates"><br>
-								<label for="led_offsetStart" data-i18n="settingsex.led.offset"></label>: <br>
-								<input type="number" class="form-control" id="led_offsetStart"
-									name="led_offsetStart"><br>
-								<input type="checkbox" id="led_offsetPause" name="led_offsetPause" value="false">&nbsp;
-								<label for="led_offsetPause" data-i18n="settingsex.led.offsetpause"></label><br>
-								<input type="checkbox" id="led_reverseRotation" name="led_reverseRotation"
-									value="false">&nbsp;
-								<label for="led_reverseRotation"
-									data-i18n="settingsex.led.reverserotation"></label><br><br>
+								<div class="mb-3">
+									<label class="form-label" for="led_idleAnimation" data-i18n="settingsex.led.idleanimation"></label>:
+									<select class="form-select" id="led_idleAnimation" name="led_idleAnimation">
+										<option value="0" data-i18n="settingsex.led.idleanim.standard"></option>
+										<option value="1" data-i18n="settingsex.led.idleanim.cyberpunk"></option>
+									</select>
+								</div>
+								<div class="mb-3">
+									<label class="form-label" for="led_progColorStart" data-i18n="settingsex.led.progcolorstart"></label>:
+									<input type="color" class="form-control" id="led_progColorStart" name="led_progColorStart">
+								</div>
+								<div class="mb-3">
+									<label class="form-label" for="led_progColorEnd" data-i18n="settingsex.led.progcolorend"></label>:
+									<input type="color" class="form-control" id="led_progColorEnd" name="led_progColorEnd">
+								</div>
+								<div class="mb-3">
+									<label class="form-label" for="led_hueAtmo" data-i18n="settingsex.led.hueatmo"></label>:
+									<div class="hue-slider">
+										<input id="led_hueAtmo" type="number" data-provide="slider" data-slider-min="-1"
+											data-slider-max="255" min="-1" max="255" class="form-control" name="led_hueAtmo"
+											data-slider-value="-1" value="-1">
+									</div>
+								</div>
+								<div class="mb-3">
+									<label class="form-label" for="led_satAtmo" data-i18n="settingsex.led.satatmo"></label>:
+									<div class="sat-slider">
+										<input id="led_satAtmo" type="number" data-provide="slider" data-slider-min="-1"
+											data-slider-max="255" min="-1" max="255" class="form-control" name="led_satAtmo"
+											data-slider-value="-1" value="-1">
+									</div>
+								</div>
+								<div class="mb-3">
+									<label class="form-label" for="led_dimStates" data-i18n="settingsex.led.dimmablestates"></label>:
+									<input type="number" class="form-control" id="led_dimStates" name="led_dimStates">
+								</div>
+								<div class="mb-3">
+									<label class="form-label" for="led_offsetStart" data-i18n="settingsex.led.offset"></label>:
+									<input type="number" class="form-control" id="led_offsetStart"
+										name="led_offsetStart">
+								</div>
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" id="led_offsetPause" name="led_offsetPause" value="false">
+									<label class="form-check-label" for="led_offsetPause" data-i18n="settingsex.led.offsetpause"></label>
+								</div>
+								<div class="form-check">
+									<input class="form-check-input" type="checkbox" id="led_reverseRotation" name="led_reverseRotation" value="false">
+									<label class="form-check-label" for="led_reverseRotation" data-i18n="settingsex.led.reverserotation"></label>
+								</div>
 							</fieldset>
 						</div>
 			</div>
@@ -3089,34 +3113,50 @@
 			<div class="container">
 				<div class="col-md-12 mb-4">
 					<fieldset>
-						<legend class="w-auto" data-i18n="settingsex.oled.title"></legend><br>
+						<legend class="w-auto" data-i18n="settingsex.oled.title"></legend>
 						<div class="form-check form-switch">
 							<input class="form-check-input" type="checkbox" role="switch" id="oled_enable" name="oled_enable" value="true">
 							<label class="form-check-label" for="oled_enable" data-i18n="settingsex.oled.enable"></label>
 						</div>
-						<small class="text-muted" data-i18n="settingsex.oled.enablehint"></small><br><br>
-						<label for="oled_startAnim" data-i18n="settingsex.oled.startanim"></label>: <br>
-						<select class="form-control form-select" id="oled_startAnim" name="oled_startAnim">
-							<option value="0" data-i18n="settingsex.oled.anim.none"></option>
-							<option value="1" data-i18n="settingsex.oled.anim.boot"></option>
-							<option value="2" data-i18n="settingsex.oled.anim.login"></option>
-							<option value="3" data-i18n="settingsex.oled.anim.full"></option>
-						</select><br>
-						<label for="oled_idleLine1" data-i18n="settingsex.oled.idleline1"></label>: <br>
-						<input type="text" class="form-control" id="oled_idleLine1" name="oled_idleLine1" maxlength="21"><br>
-						<label for="oled_idleLine2" data-i18n="settingsex.oled.idleline2"></label>: <br>
-						<input type="text" class="form-control" id="oled_idleLine2" name="oled_idleLine2" maxlength="21"><br>
-						<span data-i18n="settingsex.oled.showfields"></span>:<br>
-						<input type="checkbox" id="oled_showBattery" name="oled_showBattery" value="true">&nbsp;
-						<label for="oled_showBattery" data-i18n="settingsex.oled.showbattery"></label><br>
-						<input type="checkbox" id="oled_showTime" name="oled_showTime" value="true">&nbsp;
-						<label for="oled_showTime" data-i18n="settingsex.oled.showtime"></label><br>
-						<input type="checkbox" id="oled_showWifi" name="oled_showWifi" value="true">&nbsp;
-						<label for="oled_showWifi" data-i18n="settingsex.oled.showwifi"></label><br>
-						<input type="checkbox" id="oled_showVolume" name="oled_showVolume" value="true">&nbsp;
-						<label for="oled_showVolume" data-i18n="settingsex.oled.showvolume"></label><br><br>
-						<input type="checkbox" id="oled_flip" name="oled_flip" value="false">&nbsp;
-						<label for="oled_flip" data-i18n="settingsex.oled.flip"></label><br>
+						<small class="text-muted d-block mb-3" data-i18n="settingsex.oled.enablehint"></small>
+						<div class="mb-3">
+							<label class="form-label" for="oled_startAnim" data-i18n="settingsex.oled.startanim"></label>:
+							<select class="form-select" id="oled_startAnim" name="oled_startAnim">
+								<option value="0" data-i18n="settingsex.oled.anim.none"></option>
+								<option value="1" data-i18n="settingsex.oled.anim.boot"></option>
+								<option value="2" data-i18n="settingsex.oled.anim.login"></option>
+								<option value="3" data-i18n="settingsex.oled.anim.full"></option>
+							</select>
+						</div>
+						<div class="mb-3">
+							<label class="form-label" for="oled_idleLine1" data-i18n="settingsex.oled.idleline1"></label>:
+							<input type="text" class="form-control" id="oled_idleLine1" name="oled_idleLine1" maxlength="21">
+						</div>
+						<div class="mb-3">
+							<label class="form-label" for="oled_idleLine2" data-i18n="settingsex.oled.idleline2"></label>:
+							<input type="text" class="form-control" id="oled_idleLine2" name="oled_idleLine2" maxlength="21">
+						</div>
+						<label class="form-label" data-i18n="settingsex.oled.showfields"></label>:
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_showBattery" name="oled_showBattery" value="true">
+							<label class="form-check-label" for="oled_showBattery" data-i18n="settingsex.oled.showbattery"></label>
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_showTime" name="oled_showTime" value="true">
+							<label class="form-check-label" for="oled_showTime" data-i18n="settingsex.oled.showtime"></label>
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_showWifi" name="oled_showWifi" value="true">
+							<label class="form-check-label" for="oled_showWifi" data-i18n="settingsex.oled.showwifi"></label>
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_showVolume" name="oled_showVolume" value="true">
+							<label class="form-check-label" for="oled_showVolume" data-i18n="settingsex.oled.showvolume"></label>
+						</div>
+						<div class="form-check mt-3">
+							<input class="form-check-input" type="checkbox" id="oled_flip" name="oled_flip" value="false">
+							<label class="form-check-label" for="oled_flip" data-i18n="settingsex.oled.flip"></label>
+						</div>
 					</fieldset>
 				</div>
 			</div>
