@@ -439,7 +439,7 @@
 		},
 		"server": {
 			"title": "MQTT-Server",
-			"placeholder": "f.e. 192.168.2.89",
+			"placeholder": "z.B. 192.168.2.89",
 			"validation": ""
 		},
 		"baseTopic": {

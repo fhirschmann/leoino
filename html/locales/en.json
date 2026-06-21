@@ -328,7 +328,7 @@
 			"modification": "Modification",
 			"fileurl": {
 				"title": "File, directory or URL (^ and # aren't allowed as chars)",
-				"placeholder": "f.e. /mp3/Audiobook/Yakari/Yakari_and_Friends.mp3"
+				"placeholder": "e.g. /mp3/Audiobook/Yakari/Yakari_and_Friends.mp3"
 			},
 			"resume": {
 				"info": "Resume at track {{track}} ({{pos}} s)",
@@ -434,22 +434,22 @@
 		"enable": "Enable MQTT",
 		"clientId": {
 			"title": "MQTT-ClientId",
-			"placeholder": "f.e. ESPuino-<MAC>",
+			"placeholder": "e.g. ESPuino-<MAC>",
 			"validation": ""
 		},
 		"server": {
 			"title": "MQTT-server",
-			"placeholder": "f.e. 192.168.2.89",
+			"placeholder": "e.g. 192.168.2.89",
 			"validation": ""
 		},
 		"baseTopic": {
 			"title": "Base topic (optional)",
-			"placeholder": "f.e. home/espuino",
+			"placeholder": "e.g. home/espuino",
 			"validation": ""
 		},
 		"deviceId": {
 			"title": "Device Id",
-			"placeholder": "f.e. ESPuino-<MAC>",
+			"placeholder": "e.g. ESPuino-<MAC>",
 			"validation": ""
 		},
 		"topicsPreview": "Full topics (preview)",
@@ -470,7 +470,7 @@
 		},
 		"port": {
 			"title": "MQTT-port",
-			"placeholder": "f.e. 1883",
+			"placeholder": "e.g. 1883",
 			"validation": ""
 		}
 	},
