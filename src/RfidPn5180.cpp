@@ -182,9 +182,7 @@ void RfidPn5180_Task(void *parameter) {
 				vTaskDelay(portTICK_PERIOD_MS * 100u); // there's no way back if shutdown was initiated
 			}
 		}
-		String cardIdString;
 		bool cardReceived = false;
-		bool sameCardReapplied = false;
 
 		if (RFID_PN5180_STATE_INIT == stateMachine) {
 			nfc14443.begin();
@@ -336,52 +334,7 @@ void RfidPn5180_Task(void *parameter) {
 			memcpy(lastCardId, cardId, cardIdSize);
 			showDisablePrivacyNotification = true;
 
-	#ifdef HALLEFFECT_SENSOR_ENABLE
-			cardId[cardIdSize - 1] = cardId[cardIdSize - 1] + gHallEffectSensor.waitForState(HallEffectWaitMS);
-	#endif
-
-			if (memcmp((const void *) lastValidcardId, (const void *) cardId, sizeof(cardId)) == 0) {
-				sameCardReapplied = true;
-			}
-
-			String hexString;
-			for (uint8_t i = 0u; i < cardIdSize; i++) {
-				char str[4];
-				snprintf(str, sizeof(str), "%02x%c", cardId[i], (i < cardIdSize - 1u) ? '-' : ' ');
-				hexString += str;
-			}
-			Log_Printf(LOGLEVEL_NOTICE, rfidTagDetected, hexString.c_str());
-			Log_Printf(LOGLEVEL_NOTICE, "Card type: %s", (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) ? "ISO-14443" : "ISO-15693");
-
-			for (uint8_t i = 0u; i < cardIdSize; i++) {
-				char num[4];
-				snprintf(num, sizeof(num), "%03d", cardId[i]);
-				cardIdString += num;
-			}
-
-			if (gPlayProperties.pauseIfRfidRemoved) {
-				if (gPlayProperties.stopIfRfidRemoved) {
-					// stop-mode: removal fully stops playback, so any (re)application restarts the card from the beginning
-					xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
-				} else {
-	#ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END
-					if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) { // Don't allow to send card to queue if it's the same card again if track or playlist is unfnished
-	#else
-					if (!sameCardReapplied) { // Don't allow to send card to queue if it's the same card again...
-	#endif
-						xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
-					} else {
-						// If pause-button was pressed while card was not applied, playback could be active. If so: don't pause when card is reapplied again as the desired functionality would be reversed in this case.
-						if (gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) {
-							AudioPlayer_SetTrackControl(PAUSEPLAY); // ... play/pause instead
-							Log_Println(rfidTagReapplied, LOGLEVEL_NOTICE);
-						}
-					}
-				}
-				memcpy(lastValidcardId, uid, cardIdSize);
-			} else {
-				xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0); // If pauseIfRfidRemoved isn't active, every card-apply leads to new playlist-generation
-			}
+			Rfid_HandleCardDetected(uid, lastValidcardId, (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) ? "ISO-14443" : "ISO-15693");
 		}
 
 		if (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) { // If 14443 is active, bypass 15693 as next check (performance)
@@ -498,11 +451,7 @@ void RfidPn5180_WakeupCheck(void) {
 	if (isCardPresent) {
 		// uint8_t[10] -> char[cardIdStringSize]
 		char tagId[cardIdStringSize];
-		size_t pos = 0;
-		for (size_t i = 0; i < cardIdSize; i++) {
-			pos += snprintf(tagId + pos, cardIdStringSize - pos, "%03d", uid[i]);
-		}
-		tagId[cardIdStringSize - 1] = '\0';
+		Rfid_CardIdToString(uid, tagId);
 
 		// Try to lookup tagId in NVS
 		if (gPrefsRfid.isKey(tagId)) {

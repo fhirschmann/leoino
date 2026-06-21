@@ -1,4 +1,6 @@
 #pragma once
+#include "values.h" // OPMODE_* constants used by System_UsesLocalAudio()
+
 #include <Preferences.h>
 
 extern Preferences gPrefsRfid;
@@ -27,6 +29,12 @@ void System_IndicateOk(void);
 bool System_IsWebControlAllowed(void);
 void System_SetOperationMode(uint8_t opMode);
 uint8_t System_GetOperationMode(void);
+// True when the current operation mode routes audio through the local player (normal playback or
+// Bluetooth-source). Used to gate playback-control commands that only make sense for local audio.
+static inline bool System_UsesLocalAudio(void) {
+	uint8_t m = System_GetOperationMode();
+	return m == OPMODE_NORMAL || m == OPMODE_BLUETOOTH_SOURCE;
+}
 uint8_t System_GetOperationModeFromNvs(void);
 void System_esp_print_tasks(void);
 void System_ShowWakeUpReason();

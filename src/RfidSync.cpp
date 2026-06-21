@@ -6,13 +6,13 @@
 #include "Common.h"
 #include "JsonPsram.h"
 #include "Log.h"
+#include "Net.h"
 #include "System.h"
 #include "Wlan.h"
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClient.h>
-#include <WiFiClientSecure.h>
 #include <time.h>
 #include <vector>
 
@@ -97,24 +97,6 @@ static String rfidServerUrl(void) {
 	return gPrefsSettings.getString("rfidSyncUrl", "");
 }
 
-// --- HTTP helpers (mirrors Sync.cpp) ---
-static std::unique_ptr<WiFiClient> rfidMakeClient(const String &url) {
-	if (url.startsWith("https://")) {
-		auto *secure = new WiFiClientSecure;
-		secure->setInsecure(); // no cert pinning on a LAN/self-hosted sync server
-		return std::unique_ptr<WiFiClient>(secure);
-	}
-	return std::unique_ptr<WiFiClient>(new WiFiClient);
-}
-static void rfidSetupHttp(HTTPClient &http, const String &user, const String &pass) {
-	http.setConnectTimeout(8000);
-	http.setTimeout(15000);
-	http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-	if (user.length() > 0) {
-		http.setAuthorization(user.c_str(), pass.c_str());
-	}
-}
-
 // Parse a tag's NVS string "#fileOrUrl#lastPlayPos#mode#trackLastPlayed" into fileOrUrl + mode.
 static bool rfidParseTag(const String &tagId, String &fileOrUrl, uint32_t &mode) {
 	String s = gPrefsRfid.getString(tagId.c_str(), "");
@@ -197,9 +179,9 @@ static void rfidCollectLocal(JsonArray arr) {
 
 // POST a JSON body to a URL (optionally with Basic Auth and/or an X-API-Key header).
 static int rfidHttpPostJson(const String &url, const String &user, const String &pass, const String &apiKey, const String &body) {
-	std::unique_ptr<WiFiClient> client = rfidMakeClient(url);
+	std::unique_ptr<WiFiClient> client = Net_MakeClient(url);
 	HTTPClient http;
-	rfidSetupHttp(http, user, pass);
+	Net_SetupHttp(http, user, pass);
 	if (!http.begin(*client, url)) {
 		return -1;
 	}
@@ -317,7 +299,9 @@ void RfidSync_OnLearn(const char *tagId) {
 		rfidTagToJson(doc.to<JsonObject>(), id, fileOrUrl, mode, ts);
 		String body;
 		serializeJson(doc, body);
-		int code = rfidHttpPostJson(serverUrl, gPrefsSettings.getString("syncUser", ""), gPrefsSettings.getString("syncPwd", ""), "", body);
+		String syncUser, syncPwd;
+		Net_GetSyncCreds(syncUser, syncPwd);
+		int code = rfidHttpPostJson(serverUrl, syncUser, syncPwd, "", body);
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: pushed %s to server (HTTP %d)", id.c_str(), code);
 	}
 
@@ -347,7 +331,9 @@ void RfidSync_OnDelete(const char *tagId) {
 
 	const String serverUrl = rfidServerUrl();
 	if (serverUrl.length() > 0) {
-		int code = rfidHttpPostJson(serverUrl, gPrefsSettings.getString("syncUser", ""), gPrefsSettings.getString("syncPwd", ""), "", body);
+		String syncUser, syncPwd;
+		Net_GetSyncCreds(syncUser, syncPwd);
+		int code = rfidHttpPostJson(serverUrl, syncUser, syncPwd, "", body);
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: pushed delete %s to server (HTTP %d)", id.c_str(), code);
 	}
 	std::vector<RfidPeer> peers;
@@ -398,9 +384,11 @@ static void rfidFullSyncTask(void *param) {
 
 	// 1) Pull server tags and merge (newest-wins by timestamp).
 	if (serverUrl.length() > 0) {
-		std::unique_ptr<WiFiClient> client = rfidMakeClient(serverUrl);
+		std::unique_ptr<WiFiClient> client = Net_MakeClient(serverUrl);
 		HTTPClient http;
-		rfidSetupHttp(http, gPrefsSettings.getString("syncUser", ""), gPrefsSettings.getString("syncPwd", ""));
+		String syncUser, syncPwd;
+		Net_GetSyncCreds(syncUser, syncPwd);
+		Net_SetupHttp(http, syncUser, syncPwd);
 		String payload;
 		if (http.begin(*client, serverUrl) && http.GET() == 200) {
 			payload = http.getString();
@@ -450,7 +438,9 @@ static void rfidFullSyncTask(void *param) {
 		pushed = arr.size();
 		String body;
 		serializeJson(doc, body);
-		rfidHttpPostJson(serverUrl, gPrefsSettings.getString("syncUser", ""), gPrefsSettings.getString("syncPwd", ""), "", body);
+		String syncUser, syncPwd;
+		Net_GetSyncCreds(syncUser, syncPwd);
+		rfidHttpPostJson(serverUrl, syncUser, syncPwd, "", body);
 	}
 
 	// 3) Push all local tags to peers (P2P).

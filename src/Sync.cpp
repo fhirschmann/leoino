@@ -4,18 +4,19 @@
 #include "Sync.h"
 
 #include "AudioPlayer.h"
+#include "Common.h"
 #include "Led.h"
 #include "Log.h"
+#include "Net.h"
 #include "SdCard.h"
+#include "StatusMessage.h"
 #include "System.h"
 #include "Wlan.h"
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClient.h>
-#include <WiFiClientSecure.h>
 #include <memory>
-#include <stdarg.h>
 
 // Abort a single file download if no data arrives for this long (connection still
 // "open" but stalled), so one bad/slow file can't hang the whole sync forever.
@@ -27,32 +28,10 @@ static volatile uint8_t gSyncStatus = 0;
 static volatile uint8_t gSyncProgress = 0; // percent (files processed / total)
 static volatile bool gSyncCancel = false; // cooperative cancel flag
 
-// gSyncMsg is written by the sync task (core 1) and read by the web server (core 0).
-// A short spinlock guards the buffer so the web server can never read a half-written
-// string (which would otherwise show up as a brief garbage line in the sync progress UI).
-static char gSyncMsg[96] = "";
-static portMUX_TYPE gSyncMsgMux = portMUX_INITIALIZER_UNLOCKED;
-
-// Thread-safe setter: format into a stack buffer first, then copy under the lock so the
-// critical section stays as short as possible (a single memcpy, no formatting/IO).
-static void syncSetMessage(const char *msg) {
-	char tmp[sizeof(gSyncMsg)];
-	snprintf(tmp, sizeof(tmp), "%s", msg ? msg : "");
-	taskENTER_CRITICAL(&gSyncMsgMux);
-	memcpy(gSyncMsg, tmp, sizeof(gSyncMsg));
-	taskEXIT_CRITICAL(&gSyncMsgMux);
-}
-
-static void syncSetMessagef(const char *fmt, ...) {
-	char tmp[sizeof(gSyncMsg)];
-	va_list ap;
-	va_start(ap, fmt);
-	vsnprintf(tmp, sizeof(tmp), fmt, ap);
-	va_end(ap);
-	taskENTER_CRITICAL(&gSyncMsgMux);
-	memcpy(gSyncMsg, tmp, sizeof(gSyncMsg));
-	taskEXIT_CRITICAL(&gSyncMsgMux);
-}
+// Status message shared across cores: the sync task (core 1) writes the current file/result, the
+// web server (core 0) reads it for the progress UI. StatusMessage's spinlock keeps a reader from
+// ever seeing a half-written string (which would show up as a brief garbage line in the UI).
+static StatusMessage gSyncMsg;
 
 uint8_t Sync_GetStatus(void) {
 	return gSyncStatus;
@@ -84,62 +63,13 @@ void Sync_Cancel(void) {
 }
 
 void Sync_CopyMessage(char *dst, size_t dstLen) {
-	if (!dst || dstLen == 0) {
-		return;
-	}
-	taskENTER_CRITICAL(&gSyncMsgMux);
-	size_t n = strnlen(gSyncMsg, sizeof(gSyncMsg) - 1);
-	if (n >= dstLen) {
-		n = dstLen - 1;
-	}
-	memcpy(dst, gSyncMsg, n);
-	taskEXIT_CRITICAL(&gSyncMsgMux);
-	dst[n] = '\0';
+	gSyncMsg.copy(dst, dstLen);
 }
 
 static void syncFail(const char *msg) {
-	syncSetMessage(msg);
+	gSyncMsg.set(msg);
 	Log_Printf(LOGLEVEL_ERROR, "Sync failed: %s", msg);
 	gSyncStatus = 3;
-}
-
-// Creates a HTTP(S) client matching the URL scheme. https uses an insecure TLS
-// client (no bundled CA store), mirroring the GitHub OTA path.
-static std::unique_ptr<WiFiClient> syncMakeClient(const String &url) {
-	if (url.startsWith("https://")) {
-		auto *secure = new WiFiClientSecure;
-		secure->setInsecure();
-		secure->setHandshakeTimeout(20);
-		return std::unique_ptr<WiFiClient>(secure);
-	}
-	return std::unique_ptr<WiFiClient>(new WiFiClient);
-}
-
-static void syncSetupHttp(HTTPClient &http, const String &user, const String &pass) {
-	http.setConnectTimeout(8000);
-	http.setTimeout(15000);
-	http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-	if (user.length() > 0) {
-		http.setAuthorization(user.c_str(), pass.c_str()); // HTTP Basic Auth
-	}
-}
-
-// Percent-encodes a path for use in a URL, leaving '/' and unreserved characters intact.
-static String syncUrlEncodePath(const String &path) {
-	static const char *hex = "0123456789ABCDEF";
-	String out;
-	out.reserve(path.length() * 2);
-	for (size_t i = 0; i < path.length(); i++) {
-		const char c = path[i];
-		if (isalnum((unsigned char) c) || c == '/' || c == '-' || c == '_' || c == '.' || c == '~') {
-			out += c;
-		} else {
-			out += '%';
-			out += hex[(c >> 4) & 0xF];
-			out += hex[c & 0xF];
-		}
-	}
-	return out;
 }
 
 // Creates every missing parent directory of a "/dir/sub/file" path on the SD card.
@@ -157,9 +87,9 @@ static void syncEnsureParentDirs(const String &path) {
 // Downloads a single file to the SD card, streaming in small chunks so the whole
 // file never has to fit in RAM. Returns true only on a complete download.
 static bool syncDownloadFile(const String &url, const String &user, const String &pass, const String &localPath) {
-	std::unique_ptr<WiFiClient> client = syncMakeClient(url);
+	std::unique_ptr<WiFiClient> client = Net_MakeClient(url);
 	HTTPClient http;
-	syncSetupHttp(http, user, pass);
+	Net_SetupHttp(http, user, pass);
 	if (!http.begin(*client, url)) {
 		return false;
 	}
@@ -222,7 +152,7 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 
 static void syncTask(void *parameter) {
 	gSyncProgress = 0;
-	syncSetMessage("");
+	gSyncMsg.set("");
 
 	if (!Wlan_IsConnected()) {
 		syncFail("no WiFi connection");
@@ -236,8 +166,8 @@ static void syncTask(void *parameter) {
 		vTaskDelete(NULL);
 		return;
 	}
-	const String user = gPrefsSettings.getString("syncUser", "");
-	const String pass = gPrefsSettings.getString("syncPwd", "");
+	String user, pass;
+	Net_GetSyncCreds(user, pass);
 
 	// fetch + parse the manifest. The JSON is streamed straight from the network into
 	// the parser (deserializeJson over the WiFiClient stream) instead of first buffering
@@ -252,9 +182,9 @@ static void syncTask(void *parameter) {
 	// streaming the entries back off SD keeps only one file object in RAM at a time.
 	const char *manifestTmp = "/.sync_manifest.json";
 	{
-		std::unique_ptr<WiFiClient> client = syncMakeClient(manifestUrl);
+		std::unique_ptr<WiFiClient> client = Net_MakeClient(manifestUrl);
 		HTTPClient http;
-		syncSetupHttp(http, user, pass);
+		Net_SetupHttp(http, user, pass);
 		if (!http.begin(*client, manifestUrl)) {
 			syncFail("manifest connection failed");
 			vTaskDelete(NULL);
@@ -366,8 +296,8 @@ static void syncTask(void *parameter) {
 
 			if (needDownload) {
 				// expose the file currently being downloaded so the web UI can show it
-				syncSetMessage(path.c_str());
-				const String fileUrl = baseUrl + syncUrlEncodePath(path);
+				gSyncMsg.set(path.c_str());
+				const String fileUrl = baseUrl + Url_EncodePath(path);
 				if (syncDownloadFile(fileUrl, user, pass, localPath)) {
 					downloaded++;
 					Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
@@ -398,8 +328,8 @@ static void syncTask(void *parameter) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
 	}
 
-	syncSetMessagef("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) processed);
-	char summary[sizeof(gSyncMsg)];
+	gSyncMsg.setf("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) processed);
+	char summary[StatusMessage::Capacity];
 	Sync_CopyMessage(summary, sizeof(summary));
 	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", summary);
 	gSyncStatus = cancelled ? 4 : ((failed > 0) ? 3 : 2);
@@ -413,6 +343,6 @@ void Sync_Trigger(void) {
 	gSyncCancel = false;
 	gSyncStatus = 1;
 	gSyncProgress = 0;
-	syncSetMessage("");
+	gSyncMsg.set("");
 	xTaskCreatePinnedToCore(syncTask, "httpSync", 16384, NULL, 1, NULL, 1);
 }

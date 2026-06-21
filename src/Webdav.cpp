@@ -3,6 +3,7 @@
 
 #include "Webdav.h"
 
+#include "Common.h"
 #include "Log.h"
 #include "SdCard.h"
 #include "System.h"
@@ -96,24 +97,6 @@ static String webdavDecode(const String &in) {
 			out += ' ';
 		} else {
 			out += c;
-		}
-	}
-	return out;
-}
-
-// Percent-encode a logical path for use in an XML <href>. Keeps '/' and the unreserved set.
-static String webdavEncodeHref(const String &in) {
-	static const char *hex = "0123456789ABCDEF";
-	String out;
-	out.reserve(in.length() + 8);
-	for (size_t i = 0; i < in.length(); i++) {
-		unsigned char c = (unsigned char) in[i];
-		if (isalnum(c) || c == '/' || c == '-' || c == '_' || c == '.' || c == '~') {
-			out += (char) c;
-		} else {
-			out += '%';
-			out += hex[c >> 4];
-			out += hex[c & 0x0F];
 		}
 	}
 	return out;
@@ -216,7 +199,7 @@ static void webdavDrain(WiFiClient &client, long n) {
 
 // Append one <D:response> element describing <logicalPath> (a file or directory) to <body>.
 static void webdavAppendResponse(String &body, const String &logicalPath, bool isDir, uint32_t size, time_t mtime) {
-	String href = webdavEncodeHref(logicalPath);
+	String href = Url_EncodePath(logicalPath);
 	if (href.isEmpty()) {
 		href = "/";
 	}
@@ -694,7 +677,7 @@ static void webdavHandleClient(WiFiClient &client) {
 	} else if (method == "PROPPATCH") {
 		webdavDrain(client, contentLength);
 		// We don't persist arbitrary props (e.g. Win32 timestamps); acknowledge so writes complete.
-		String href = webdavEncodeHref((path == "/") ? "" : path);
+		String href = Url_EncodePath((path == "/") ? "" : path);
 		if (href.isEmpty()) {
 			href = "/";
 		}

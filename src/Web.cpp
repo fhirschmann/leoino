@@ -463,6 +463,29 @@ void notFound(AsyncWebServerRequest *request) {
 	request->send(200, "text/html", html);
 }
 
+// Placeholder cover (fa-music note) returned when a track has no embedded/sidecar artwork.
+static const char PLACEHOLDER_COVER_SVG[] = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg width=\"1792\" height=\"1792\" viewBox=\"0 0 1792 1792\" transform=\"scale (0.6)\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M1664 224v1120q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-537l-768 237v709q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-967q0-31 19-56.5t49-35.5l832-256q12-4 28-4 40 0 68 28t28 68z\"/></svg>";
+
+// Sends a small {"status":N[,"progress":N],"message":"..."} body used by the background-task
+// status-poll endpoints (sync/backup/OTA/rfidsync). progress < 0 omits the progress field. The
+// message is minimally JSON-escaped because it can carry a raw file path (e.g. the sync's current file).
+static void Web_SendStatusJson(AsyncWebServerRequest *request, uint8_t status, int progress, const char *msg) {
+	String esc;
+	for (const char *p = msg ? msg : ""; *p; p++) {
+		if (*p == '"' || *p == '\\') {
+			esc += '\\';
+		}
+		esc += *p;
+	}
+	char buf[192];
+	if (progress >= 0) {
+		snprintf(buf, sizeof(buf), "{\"status\":%u,\"progress\":%d,\"message\":\"%s\"}", status, progress, esc.c_str());
+	} else {
+		snprintf(buf, sizeof(buf), "{\"status\":%u,\"message\":\"%s\"}", status, esc.c_str());
+	}
+	request->send(200, "application/json", buf);
+}
+
 void webserverStart(void) {
 	if (!webserverStarted && (Wlan_IsConnected() || (WiFi.getMode() == WIFI_AP))) {
 		// password protection (no-op when no password is set or in accesspoint-mode)
@@ -667,9 +690,7 @@ void webserverStart(void) {
 		wServer.on("/githubupdate", HTTP_GET, [](AsyncWebServerRequest *request) {
 			char msg[96];
 			Web_GetGithubOtaMessage(msg, sizeof(msg));
-			char buf[160];
-			snprintf(buf, sizeof(buf), "{\"status\":%u,\"progress\":%u,\"message\":\"%s\"}", Web_GetGithubOtaStatus(), Web_GetGithubOtaProgress(), msg);
-			request->send(200, "application/json", buf);
+			Web_SendStatusJson(request, Web_GetGithubOtaStatus(), Web_GetGithubOtaProgress(), msg);
 		});
 		// trigger an HTTP file sync from the configured manifest URL (runs in the background)
 		wServer.on("/sync", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -685,9 +706,7 @@ void webserverStart(void) {
 		wServer.on("/sync", HTTP_GET, [](AsyncWebServerRequest *request) {
 			char msg[96];
 			Sync_CopyMessage(msg, sizeof(msg));
-			char buf[160];
-			snprintf(buf, sizeof(buf), "{\"status\":%u,\"progress\":%u,\"message\":\"%s\"}", Sync_GetStatus(), Sync_GetProgress(), msg);
-			request->send(200, "application/json", buf);
+			Web_SendStatusJson(request, Sync_GetStatus(), Sync_GetProgress(), msg);
 		});
 
 		// upload the full configuration backup to the server (reuses the sync server credentials)
@@ -699,9 +718,7 @@ void webserverStart(void) {
 		wServer.on("/backupupload", HTTP_GET, [](AsyncWebServerRequest *request) {
 			char msg[96];
 			Backup_CopyMessage(msg, sizeof(msg));
-			char buf[160];
-			snprintf(buf, sizeof(buf), "{\"status\":%u,\"message\":\"%s\"}", Backup_GetStatus(), msg);
-			request->send(200, "application/json", buf);
+			Web_SendStatusJson(request, Backup_GetStatus(), -1, msg);
 		});
 
 		// running build + rolling-release up-to-date state, used for the navbar version badge
@@ -795,9 +812,7 @@ void webserverStart(void) {
 			request->send(200, "text/plain; charset=utf-8", "ok");
 		});
 		wServer.on("/rfidsync", HTTP_GET, [](AsyncWebServerRequest *request) {
-			char buf[160];
-			snprintf(buf, sizeof(buf), "{\"status\":%u,\"message\":\"%s\"}", RfidSync_GetStatus(), RfidSync_GetMessage());
-			request->send(200, "application/json", buf);
+			Web_SendStatusJson(request, RfidSync_GetStatus(), -1, RfidSync_GetMessage());
 		});
 
 		// Detailed info about the currently playing track (for the Control-tab info dialog):
@@ -917,22 +932,11 @@ void webserverStart(void) {
 				o["id"] = ranked[i].second;
 				o["count"] = ranked[i].first;
 				// extract fileOrUrl + mode from the stored tag string "#fileOrUrl#pos#mode#track"
-				String s = gPrefsRfid.getString(ranked[i].second.c_str(), "");
-				if (s.length() > 0 && s != "-1") {
-					char buf[300];
-					strncpy(buf, s.c_str(), sizeof(buf) - 1);
-					buf[sizeof(buf) - 1] = '\0';
-					char *tok = strtok(buf, stringDelimiter);
-					uint8_t fi = 1;
-					while (tok != NULL) {
-						if (fi == 1) {
-							o["fileOrUrl"] = String(tok);
-						} else if (fi == 3) {
-							o["mode"] = (uint32_t) strtoul(tok, NULL, 10);
-						}
-						fi++;
-						tok = strtok(NULL, stringDelimiter);
-					}
+				char fileOrUrl[256];
+				uint32_t mode = 0;
+				if (Rfid_ParseAssignment(gPrefsRfid.getString(ranked[i].second.c_str(), "").c_str(), fileOrUrl, sizeof(fileOrUrl), NULL, &mode, NULL)) {
+					o["fileOrUrl"] = String(fileOrUrl);
+					o["mode"] = mode;
 				}
 			}
 			response->setLength();
@@ -2069,7 +2073,7 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 				if (gPlayProperties.playMode != NO_PLAYLIST) {
 					Log_Println("no cover image for SD-card audio", LOGLEVEL_DEBUG);
 				}
-				request->send(200, "image/svg+xml", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg width=\"1792\" height=\"1792\" viewBox=\"0 0 1792 1792\" transform=\"scale (0.6)\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M1664 224v1120q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-537l-768 237v709q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-967q0-31 19-56.5t49-35.5l832-256q12-4 28-4 40 0 68 28t28 68z\"/></svg>");
+				request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
 			}
 		return;
 	}
@@ -2128,7 +2132,7 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 		}
 		if (length > 255) {
 			Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type string length (%u > 255). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", length, gPlayProperties.coverFilePos);
-			request->send(200, "image/svg+xml", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg width=\"1792\" height=\"1792\" viewBox=\"0 0 1792 1792\" transform=\"scale (0.6)\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M1664 224v1120q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-537l-768 237v709q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-967q0-31 19-56.5t49-35.5l832-256q12-4 28-4 40 0 68 28t28 68z\"/></svg>");
+			request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
 			coverFile.close();
 			return;
 		}
@@ -2159,7 +2163,7 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 	}
 	if (strncmp(mimeType, "image", 5) != 0 && strncmp(mimeType, "application/octet-stream", 24) != 0) {
 		Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type (%s). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", mimeType, gPlayProperties.coverFilePos);
-		request->send(200, "image/svg+xml", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg width=\"1792\" height=\"1792\" viewBox=\"0 0 1792 1792\" transform=\"scale (0.6)\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M1664 224v1120q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-537l-768 237v709q0 50-34 89t-86 60.5-103.5 32-96.5 10.5-96.5-10.5-103.5-32-86-60.5-34-89 34-89 86-60.5 103.5-32 96.5-10.5q105 0 192 39v-967q0-31 19-56.5t49-35.5l832-256q12-4 28-4 40 0 68 28t28 68z\"/></svg>");
+		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
 		coverFile.close();
 		return;
 	}

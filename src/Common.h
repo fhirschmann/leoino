@@ -5,6 +5,10 @@ constexpr char stringOuterDelimiter[] = "^"; // Character used to encapsulate en
 
 size_t b64decode(const void *input_buffer, void *output_buffer, const size_t input_length);
 
+// Percent-encodes a path for use in a URL (or XML <href>), leaving '/' and the unreserved set
+// (alphanumerics and '-' '_' '.' '~') intact. Everything else becomes %XX.
+String Url_EncodePath(const String &path);
+
 inline bool isNumber(const char *str) {
 	int i = 0;
 

@@ -457,6 +457,18 @@ CRGB Led_DimColor(CRGB color, uint8_t brightness) {
 	const uint8_t factor = uint16_t(brightness * __UINT8_MAX__) / gLedSettings.dimmableStates;
 	return color.nscale8(factor);
 }
+static void Led_QuantizeToBar(uint32_t value, uint32_t inMax, size_t numLeds, uint8_t &fullLeds, uint8_t &lastLed) {
+	const uint32_t outMax = numLeds * gLedSettings.dimmableStates;
+	const uint32_t ledValue = std::clamp<uint32_t>(map(value, 0, inMax, 0, outMax), 0, outMax);
+	fullLeds = ledValue / gLedSettings.dimmableStates;
+	lastLed = ledValue % gLedSettings.dimmableStates;
+}
+static uint8_t Led_PauseOffset(CRGBSet &leds) {
+	if (!gLedSettings.offsetLedPause) {
+		return 0;
+	}
+	return ((leds.size() / gLedSettings.numIdleDots) / 2) - 1;
+}
 CRGB::HTMLColorCode Led_GetIdleColor() {
 	CRGB::HTMLColorCode idleColor = CRGB::Black;
 	if ((OPMODE_BLUETOOTH_SINK == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
@@ -1118,11 +1130,7 @@ AnimationReturnType Animation_Pause(const bool startNewAnimation, CRGBSet &leds)
 		generalColor = CRGB::Blue;
 	}
 
-	uint8_t pauseOffset = 0;
-	if (gLedSettings.offsetLedPause) {
-		pauseOffset = ((leds.size() / gLedSettings.numIdleDots) / 2) - 1;
-	}
-	Led_DrawIdleDots(leds, pauseOffset, generalColor);
+	Led_DrawIdleDots(leds, Led_PauseOffset(leds), generalColor);
 
 	return AnimationReturnType(false, 10, true);
 }
@@ -1135,11 +1143,7 @@ AnimationReturnType Animation_Speech(const bool startNewAnimation, CRGBSet &leds
 	(void) startNewAnimation; // start is not used
 
 	leds = CRGB::Black;
-	uint8_t pauseOffset = 0;
-	if (gLedSettings.offsetLedPause) {
-		pauseOffset = ((leds.size() / gLedSettings.numIdleDots) / 2) - 1;
-	}
-	Led_DrawIdleDots(leds, pauseOffset, CRGB::Yellow);
+	Led_DrawIdleDots(leds, Led_PauseOffset(leds), CRGB::Yellow);
 
 	return AnimationReturnType(false, 10, true);
 }
@@ -1159,9 +1163,8 @@ AnimationReturnType Animation_Progress(const bool startNewAnimation, CRGBSet &le
 		if (gLedSettings.numIndicatorLeds == 1) {
 			leds[0] = blend((CRGB) gLedSettings.progressColorStart, (CRGB) gLedSettings.progressColorEnd, (uint8_t) (gPlayProperties.currentRelPos * 255 / 100));
 		} else {
-			const uint32_t ledValue = std::clamp<uint32_t>(map(gPlayProperties.currentRelPos, 0, 98, 0, leds.size() * gLedSettings.dimmableStates), 0, leds.size() * gLedSettings.dimmableStates);
-			const uint8_t fullLeds = ledValue / gLedSettings.dimmableStates;
-			const uint8_t lastLed = ledValue % gLedSettings.dimmableStates;
+			uint8_t fullLeds, lastLed;
+			Led_QuantizeToBar(gPlayProperties.currentRelPos, 98, leds.size(), fullLeds, lastLed);
 			for (uint8_t led = 0; led < fullLeds; led++) {
 				if (System_AreControlsLocked()) {
 					leds[Led_Address(led)] = CRGB::Red;
@@ -1197,9 +1200,8 @@ AnimationReturnType Animation_Volume(const bool startNewAnimation, CRGBSet &leds
 	static uint16_t cyclesWaited = 0;
 
 	// wait for further volume changes within next 20ms for 50 cycles = 1s
-	const uint32_t ledValue = std::clamp<uint32_t>(map(AudioPlayer_GetCurrentVolume(), 0, AudioPlayer_GetMaxVolume(), 0, leds.size() * gLedSettings.dimmableStates), 0, leds.size() * gLedSettings.dimmableStates);
-	const uint8_t fullLeds = ledValue / gLedSettings.dimmableStates;
-	const uint8_t lastLed = ledValue % gLedSettings.dimmableStates;
+	uint8_t fullLeds, lastLed;
+	Led_QuantizeToBar(AudioPlayer_GetCurrentVolume(), AudioPlayer_GetMaxVolume(), leds.size(), fullLeds, lastLed);
 
 	leds = CRGB::Black;
 
@@ -1253,9 +1255,8 @@ AnimationReturnType Animation_PlaylistProgress(const bool startNewAnimation, CRG
 	if (gLedSettings.numIndicatorLeds >= 4) {
 		const uint16_t currentTrack = (gPlayProperties.playlist) ? gPlayProperties.playlist->size() : 0;
 		if (currentTrack > 1 && gPlayProperties.currentTrackNumber < currentTrack) {
-			const uint32_t ledValue = std::clamp<uint32_t>(map(gPlayProperties.currentTrackNumber, 0, currentTrack - 1, 0, leds.size() * gLedSettings.dimmableStates), 0, leds.size() * gLedSettings.dimmableStates);
-			const uint8_t fullLeds = ledValue / gLedSettings.dimmableStates;
-			const uint8_t lastLed = ledValue % gLedSettings.dimmableStates;
+			uint8_t fullLeds, lastLed;
+			Led_QuantizeToBar(gPlayProperties.currentTrackNumber, currentTrack - 1, leds.size(), fullLeds, lastLed);
 			static LedPlaylistProgressStates animationState = LedPlaylistProgressStates::Done; // Statemachine-variable of this animation
 
 			if (LED_INDICATOR_IS_SET(LedIndicatorType::PlaylistProgress)) {

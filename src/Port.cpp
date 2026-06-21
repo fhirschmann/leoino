@@ -156,6 +156,17 @@ uint8_t Port_ChannelToBit(const uint8_t _channel) {
 	}
 }
 
+// Marks a port-expander channel as output in the in/out-mask by clearing its bit on the matching port.
+// Bits of channels to be configured as input are 1 by default. So in order to change I/O-direction to output we need to set those bits to 0.
+static inline void Port_MarkOutput(uint8_t ch, uint8_t (&inout)[2]) {
+	const uint8_t bit = Port_ChannelToBit(ch);
+	if (ch >= 100 && ch <= 107) {
+		inout[0] &= ~(1 << bit);
+	} else if (ch >= 108 && ch <= 115) {
+		inout[1] &= ~(1 << bit);
+	}
+}
+
 // Writes initial port-configuration (I/O) for port-expander PCA9555
 // If no output-channel is necessary, nothing has to be configured as all channels are in input-mode as per default (255)
 // So every bit representing an output-channel needs to be set to 0.
@@ -176,37 +187,19 @@ void Port_WriteInitMaskForOutputChannels(void) {
 	}
 
 	#ifdef GPIO_PA_EN // Set as output to enable/disable amp for loudspeaker
-	if (GPIO_PA_EN >= 100 && GPIO_PA_EN <= 107) {
-		// Bits of channels to be configured as input are 1 by default.
-		// So in order to change I/O-direction to output we need to set those bits to 0.
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(GPIO_PA_EN));
-	} else if (GPIO_PA_EN >= 108 && GPIO_PA_EN <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(GPIO_PA_EN));
-	}
+	Port_MarkOutput(GPIO_PA_EN, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	#ifdef GPIO_HP_EN // Set as output to enable/disable amp for headphones
-	if (GPIO_HP_EN >= 100 && GPIO_HP_EN <= 107) {
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(GPIO_HP_EN));
-	} else if (GPIO_HP_EN >= 108 && GPIO_HP_EN <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(GPIO_HP_EN));
-	}
+	Port_MarkOutput(GPIO_HP_EN, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	#ifdef POWER // Set as output to trigger mosfet/power-pin for powering peripherals. Hint: logic is inverted if INVERT_POWER is enabled.
-	if (POWER >= 100 && POWER <= 107) {
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(POWER));
-	} else if (POWER >= 108 && POWER <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(POWER));
-	}
+	Port_MarkOutput(POWER, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	#ifdef BUTTONS_LED
-	if (BUTTONS_LED >= 100 && BUTTONS_LED <= 107) {
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(BUTTONS_LED));
-	} else if (BUTTONS_LED >= 108 && BUTTONS_LED <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(BUTTONS_LED));
-	}
+	Port_MarkOutput(BUTTONS_LED, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	// Only change port-config if necessary (at least bitmask changed from base-default for one port)
@@ -239,28 +232,16 @@ void Port_MakeSomeChannelsOutputForShutdown(void) {
 	uint8_t OutputBitMaskLowHighAsPerPort[portsToWrite] = {0x00, 0x00};
 
 	#ifdef HP_DETECT // https://forum.espuino.de/t/lolin-d32-pro-mit-sd-mmc-pn5180-max-fuenf-buttons-und-port-expander-smd/638/33
-	if (HP_DETECT >= 100 && HP_DETECT <= 107) {
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(HP_DETECT));
-	} else if (HP_DETECT >= 108 && HP_DETECT <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(HP_DETECT));
-	}
+	Port_MarkOutput(HP_DETECT, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	// There's no possibility to get current I/O-status from PCA9555. So we just re-set it again for OUTPUT-pins.
 	#ifdef GPIO_PA_EN
-	if (GPIO_PA_EN >= 100 && GPIO_PA_EN <= 107) {
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(GPIO_PA_EN));
-	} else if (GPIO_PA_EN >= 108 && GPIO_PA_EN <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(GPIO_PA_EN));
-	}
+	Port_MarkOutput(GPIO_PA_EN, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	#ifdef GPIO_HP_EN
-	if (GPIO_HP_EN >= 100 && GPIO_HP_EN <= 107) {
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(GPIO_HP_EN));
-	} else if (GPIO_HP_EN >= 108 && GPIO_HP_EN <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(GPIO_HP_EN));
-	}
+	Port_MarkOutput(GPIO_HP_EN, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	#ifdef POWER // Set as output to trigger mosfet/power-pin for powering peripherals. Hint: logic is inverted if INVERT_POWER is enabled.
@@ -280,11 +261,7 @@ void Port_MakeSomeChannelsOutputForShutdown(void) {
 	#endif
 
 	#ifdef BUTTONS_LED
-	if (BUTTONS_LED >= 100 && BUTTONS_LED <= 107) {
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(BUTTONS_LED));
-	} else if (BUTTONS_LED >= 108 && BUTTONS_LED <= 115) {
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(BUTTONS_LED));
-	}
+	Port_MarkOutput(BUTTONS_LED, OutputBitMaskInOutAsPerPort);
 	#endif
 
 	// Only change port-config if necessary (at least bitmask changed from base-default for one port)

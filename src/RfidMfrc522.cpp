@@ -93,9 +93,6 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 		} else {
 			vTaskDelay(portTICK_PERIOD_MS * 20);
 		}
-		byte cardId[cardIdSize];
-		String cardIdString;
-		bool sameCardReapplied = false;
 		if ((millis() - Rfid_LastRfidCheckTimestamp) >= RFID_SCAN_INTERVAL) {
 			// Log_Printf(LOGLEVEL_DEBUG, "%u", uxTaskGetStackHighWaterMark(NULL));
 
@@ -116,52 +113,7 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 				reader.PCD_StopCrypto1();
 			}
 
-			memcpy(cardId, reader.uid.uidByte, cardIdSize);
-
-	#ifdef HALLEFFECT_SENSOR_ENABLE
-			cardId[cardIdSize - 1] = cardId[cardIdSize - 1] + gHallEffectSensor.waitForState(HallEffectWaitMS);
-	#endif
-
-			if (memcmp((const void *) lastValidcardId, (const void *) cardId, sizeof(cardId)) == 0) {
-				sameCardReapplied = true;
-			}
-
-			String hexString;
-			for (uint8_t i = 0u; i < cardIdSize; i++) {
-				char str[4];
-				snprintf(str, sizeof(str), "%02x%c", cardId[i], (i < cardIdSize - 1u) ? '-' : ' ');
-				hexString += str;
-			}
-			Log_Printf(LOGLEVEL_NOTICE, rfidTagDetected, hexString.c_str());
-
-			for (uint8_t i = 0u; i < cardIdSize; i++) {
-				char num[4];
-				snprintf(num, sizeof(num), "%03d", cardId[i]);
-				cardIdString += num;
-			}
-
-			if (gPlayProperties.pauseIfRfidRemoved) {
-				if (gPlayProperties.stopIfRfidRemoved) {
-					// stop-mode: removal fully stops playback, so any (re)application restarts the card from the beginning
-					xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
-				} else {
-	#ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END
-					if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) { // Don't allow to send card to queue if it's the same card again if track or playlist is unfnished
-	#else
-					if (!sameCardReapplied) { // Don't allow to send card to queue if it's the same card again...
-	#endif
-						xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0);
-					} else {
-						// If pause-button was pressed while card was not applied, playback could be active. If so: don't pause when card is reapplied again as the desired functionality would be reversed in this case.
-						if (gPlayProperties.pausePlay && System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) {
-							AudioPlayer_SetTrackControl(PAUSEPLAY); // ... play/pause instead (but not for BT)
-						}
-					}
-				}
-				memcpy(lastValidcardId, reader.uid.uidByte, cardIdSize);
-			} else {
-				xQueueSend(gRfidCardQueue, cardIdString.c_str(), 0); // If pauseIfRfidRemoved isn't active, every card-apply leads to new playlist-generation
-			}
+			Rfid_HandleCardDetected(reader.uid.uidByte, lastValidcardId, NULL);
 
 			if (gPlayProperties.pauseIfRfidRemoved) {
 				// https://github.com/miguelbalboa/rfid/issues/188; voodoo! :-)

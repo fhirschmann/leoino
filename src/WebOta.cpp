@@ -3,6 +3,7 @@
 
 #include "Log.h"
 #include "Mqtt.h"
+#include "StatusMessage.h"
 #include "System.h"
 #include "Web.h"
 #include "logmessages.h"
@@ -25,18 +26,9 @@ static const char *githubVersionUrl = "https://github.com/fhirschmann/leoino/rel
 // 0 = idle, 1 = running/downloading, 2 = already up to date, 3 = failed
 static volatile uint8_t gGithubOtaStatus = 0;
 static volatile uint8_t gGithubOtaProgress = 0; // download progress in percent
-static char gGithubOtaMsg[96] = "";
-// gGithubOtaMsg is written by the OTA task (core 1) and read by the web server (core 0).
-// A short spinlock keeps the web server from ever reading a half-written string.
-static portMUX_TYPE gGithubOtaMsgMux = portMUX_INITIALIZER_UNLOCKED;
-
-static void otaSetMessage(const char *msg) {
-	char tmp[sizeof(gGithubOtaMsg)];
-	snprintf(tmp, sizeof(tmp), "%s", msg ? msg : "");
-	taskENTER_CRITICAL(&gGithubOtaMsgMux);
-	memcpy(gGithubOtaMsg, tmp, sizeof(gGithubOtaMsg));
-	taskEXIT_CRITICAL(&gGithubOtaMsgMux);
-}
+// gGithubOtaMsg is written by the OTA task (core 1) and read by the web server (core 0);
+// StatusMessage's spinlock keeps the web server from ever reading a half-written string.
+static StatusMessage gGithubOtaMsg;
 
 uint8_t Web_GetGithubOtaStatus(void) {
 	return gGithubOtaStatus;
@@ -47,17 +39,7 @@ uint8_t Web_GetGithubOtaProgress(void) {
 }
 
 void Web_GetGithubOtaMessage(char *dst, size_t dstLen) {
-	if (!dst || dstLen == 0) {
-		return;
-	}
-	taskENTER_CRITICAL(&gGithubOtaMsgMux);
-	size_t n = strnlen(gGithubOtaMsg, sizeof(gGithubOtaMsg) - 1);
-	if (n >= dstLen) {
-		n = dstLen - 1;
-	}
-	memcpy(dst, gGithubOtaMsg, n);
-	taskEXIT_CRITICAL(&gGithubOtaMsgMux);
-	dst[n] = '\0';
+	gGithubOtaMsg.copy(dst, dstLen);
 }
 
 // Returns true if the latest release (its "describe" field) matches the running firmware revision.
@@ -92,7 +74,7 @@ static bool githubOtaIsUpToDate() {
 // Runs in its own task because the download/flash blocks for a while; the async webserver must not block.
 static void githubOtaTask(void *parameter) {
 	gGithubOtaProgress = 0;
-	otaSetMessage("");
+	gGithubOtaMsg.set("");
 
 	// Skip the (pointless and error-prone) re-flash if we already run the latest build.
 	if (githubOtaIsUpToDate()) {
@@ -116,9 +98,9 @@ static void githubOtaTask(void *parameter) {
 		});
 		t_httpUpdate_return ret = httpUpdate.update(*secureClient, githubFirmwareUrl);
 		if (ret == HTTP_UPDATE_FAILED) {
-			char msg[96];
+			char msg[StatusMessage::Capacity];
 			snprintf(msg, sizeof(msg), "%d: %s", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-			otaSetMessage(msg);
+			gGithubOtaMsg.set(msg);
 			Log_Printf(LOGLEVEL_ERROR, "GitHub OTA failed (%s)", msg);
 			gGithubOtaStatus = 3;
 		} else if (ret == HTTP_UPDATE_NO_UPDATES) {
@@ -160,7 +142,7 @@ void Web_TriggerGithubOta(void) {
 	if (gGithubOtaStatus != 1) {
 		gGithubOtaStatus = 1;
 		gGithubOtaProgress = 0;
-		otaSetMessage("");
+		gGithubOtaMsg.set("");
 		xTaskCreatePinnedToCore(githubOtaTask, "githubOta", 16384, NULL, 1, NULL, 1);
 	}
 #else

@@ -121,6 +121,29 @@ static void Audio_SetMeta(char *dest, size_t destSize, const char *line); // sto
 static void audio_id3image(File &file, const size_t pos, const size_t size);
 static void audio_oggimage(File &file, std::vector<uint32_t> v);
 
+// Resume playback if currently paused (mirrors the next/previous-track behavior): toggle the
+// audio object, clear the pause flag and notify MQTT. No-op when already playing.
+static void AudioPlayer_ResumeIfPaused(void) {
+	if (gPlayProperties.pausePlay) {
+		audio->pauseResume();
+		gPlayProperties.pausePlay = false;
+#ifdef MQTT_ENABLE
+		publishMqtt(topicPausePlay, "play", false);
+#endif
+	}
+}
+
+// Persist the play-position checkpoint (track start, position 0) for the active RFID-tag, but only
+// when saving is enabled for the current play-mode. Optionally logs the audiobook track-start.
+static void AudioPlayer_SaveTrackStart(uint16_t trackNo, bool logTrackStart = false) {
+	if (gPlayProperties.saveLastPlayPosition) {
+		AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, trackNo);
+		if (logTrackStart) {
+			Log_Println(trackStartAudiobook, LOGLEVEL_INFO);
+		}
+	}
+}
+
 void AudioPlayer_NotifyUploadStart(void) {
 	if (AudioPlayer_UploadActive) {
 		return; // already suspended – ignore nested calls
@@ -801,11 +824,10 @@ void AudioPlayer_Loop() {
 				gPlayProperties.playlistFinished = true;
 				return;
 			}
-			if (gPlayProperties.saveLastPlayPosition) { // Don't save for AUDIOBOOK_LOOP because not necessary
-				if (gPlayProperties.currentTrackNumber + 1 < gPlayProperties.playlist->size()) {
-					// Only save if there's another track, otherwise it will be saved at end of playlist anyway
-					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber + 1);
-				}
+			if (gPlayProperties.currentTrackNumber + 1 < gPlayProperties.playlist->size()) {
+				// Only save if there's another track, otherwise it will be saved at end of playlist anyway
+				// (the helper additionally gates on saveLastPlayPosition; skipped for AUDIOBOOK_LOOP)
+				AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber + 1);
 			}
 			if (gPlayProperties.sleepAfterCurrentTrack) { // Go to sleep if "sleep after track" was requested
 				gPlayProperties.playlistFinished = true;
@@ -829,13 +851,7 @@ void AudioPlayer_Loop() {
 			const uint16_t step = AudioPlayer_GetSeekStep();
 			const bool singleLongFile = (gPlayProperties.playlist != nullptr) && (gPlayProperties.playlist->size() == 1) && (gPlayProperties.audioFileDuration > step);
 			if (singleLongFile) {
-				if (gPlayProperties.pausePlay) { // resume before seeking (mirrors the next/previous-track behavior)
-					audio->pauseResume();
-					gPlayProperties.pausePlay = false;
-#ifdef MQTT_ENABLE
-					publishMqtt(topicPausePlay, "play", false);
-#endif
-				}
+				AudioPlayer_ResumeIfPaused(); // resume before seeking (mirrors the next/previous-track behavior)
 				gPlayProperties.smartSeekPendingSec += forward ? (int32_t) step : -(int32_t) step;
 				gPlayProperties.smartSeekRequestMs = millis();
 				trackCommand = NO_ACTION; // applied later (coalesced) in the seek-handling section
@@ -897,13 +913,7 @@ void AudioPlayer_Loop() {
 
 			case NEXTTRACK:
 				trackCommand = NO_ACTION;
-				if (gPlayProperties.pausePlay) {
-					audio->pauseResume();
-					gPlayProperties.pausePlay = false;
-#ifdef MQTT_ENABLE
-					publishMqtt(topicPausePlay, "play", false);
-#endif
-				}
+				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.repeatCurrentTrack) { // End loop if button was pressed
 					gPlayProperties.repeatCurrentTrack = false;
 #ifdef MQTT_ENABLE
@@ -918,10 +928,7 @@ void AudioPlayer_Loop() {
 					} else {
 						gPlayProperties.currentTrackNumber++;
 					}
-					if (gPlayProperties.saveLastPlayPosition) {
-						AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-						Log_Println(trackStartAudiobook, LOGLEVEL_INFO);
-					}
+					AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber, true);
 					Log_Println(cmndNextTrack, LOGLEVEL_INFO);
 					if (!gPlayProperties.playlistFinished) {
 						audio->stopSong();
@@ -935,13 +942,7 @@ void AudioPlayer_Loop() {
 
 			case PREVIOUSTRACK:
 				trackCommand = NO_ACTION;
-				if (gPlayProperties.pausePlay) {
-					audio->pauseResume();
-					gPlayProperties.pausePlay = false;
-#ifdef MQTT_ENABLE
-					publishMqtt(topicPausePlay, "play", false);
-#endif
-				}
+				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.repeatCurrentTrack) { // End loop if button was pressed
 					gPlayProperties.repeatCurrentTrack = false;
 #ifdef MQTT_ENABLE
@@ -970,19 +971,14 @@ void AudioPlayer_Loop() {
 							}
 						}
 
-						if (gPlayProperties.saveLastPlayPosition) {
-							AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-							Log_Println(trackStartAudiobook, LOGLEVEL_INFO);
-						}
+						AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber, true);
 
 						Log_Println(cmndPrevTrack, LOGLEVEL_INFO);
 						if (!gPlayProperties.playlistFinished) {
 							audio->stopSong();
 						}
 					} else {
-						if (gPlayProperties.saveLastPlayPosition) {
-							AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-						}
+						AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber);
 						audio->stopSong();
 						Led_Indicate(LedIndicatorType::Rewind);
 						String pathToTrack = gFSystem.rawPath(gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber));
@@ -1000,18 +996,9 @@ void AudioPlayer_Loop() {
 				break;
 			case FIRSTTRACK:
 				trackCommand = NO_ACTION;
-				if (gPlayProperties.pausePlay) {
-					audio->pauseResume();
-					gPlayProperties.pausePlay = false;
-#ifdef MQTT_ENABLE
-					publishMqtt(topicPausePlay, "play", false);
-#endif
-				}
+				AudioPlayer_ResumeIfPaused();
 				gPlayProperties.currentTrackNumber = 0;
-				if (gPlayProperties.saveLastPlayPosition) {
-					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-					Log_Println(trackStartAudiobook, LOGLEVEL_INFO);
-				}
+				AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber, true);
 				Log_Println(cmndFirstTrack, LOGLEVEL_INFO);
 				if (!gPlayProperties.playlistFinished) {
 					audio->stopSong();
@@ -1020,19 +1007,10 @@ void AudioPlayer_Loop() {
 
 			case LASTTRACK:
 				trackCommand = NO_ACTION;
-				if (gPlayProperties.pausePlay) {
-					audio->pauseResume();
-					gPlayProperties.pausePlay = false;
-#ifdef MQTT_ENABLE
-					publishMqtt(topicPausePlay, "play", false);
-#endif
-				}
+				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.currentTrackNumber + 1 < gPlayProperties.playlist->size()) {
 					gPlayProperties.currentTrackNumber = gPlayProperties.playlist->size() - 1;
-					if (gPlayProperties.saveLastPlayPosition) {
-						AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-						Log_Println(trackStartAudiobook, LOGLEVEL_INFO);
-					}
+					AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber, true);
 					Log_Println(cmndLastTrack, LOGLEVEL_INFO);
 					if (!gPlayProperties.playlistFinished) {
 						audio->stopSong();
@@ -1054,9 +1032,7 @@ void AudioPlayer_Loop() {
 				if (gPlayProperties.jumpToFolderTrack != -1) {
 					gPlayProperties.currentTrackNumber = gPlayProperties.jumpToFolderTrack;
 					gPlayProperties.jumpToFolderTrack = -1;
-					if (gPlayProperties.saveLastPlayPosition) {
-						AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-					}
+					AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber);
 				} else {
 					Log_Println(lastFolderAlreadyActive, LOGLEVEL_NOTICE);
 					System_IndicateError();
@@ -1075,9 +1051,7 @@ void AudioPlayer_Loop() {
 				if (gPlayProperties.jumpToFolderTrack != -1) {
 					gPlayProperties.currentTrackNumber = gPlayProperties.jumpToFolderTrack;
 					gPlayProperties.jumpToFolderTrack = -1;
-					if (gPlayProperties.saveLastPlayPosition) {
-						AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-					}
+					AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber);
 				} else {
 					System_IndicateError();
 					return;
@@ -1095,9 +1069,7 @@ void AudioPlayer_Loop() {
 		}
 
 		if (gPlayProperties.playUntilTrackNumber == gPlayProperties.currentTrackNumber && gPlayProperties.playUntilTrackNumber > 0) {
-			if (gPlayProperties.saveLastPlayPosition) {
-				AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, 0);
-			}
+			AudioPlayer_SaveTrackStart(0);
 			gPlayProperties.playlistFinished = true;
 			gPlayProperties.playMode = NO_PLAYLIST;
 			System_RequestSleep();
@@ -1107,10 +1079,8 @@ void AudioPlayer_Loop() {
 		if (gPlayProperties.currentTrackNumber >= gPlayProperties.playlist->size()) { // Check if last element of playlist is already reached
 			Log_Println(endOfPlaylistReached, LOGLEVEL_NOTICE);
 			if (!gPlayProperties.repeatPlaylist) {
-				if (gPlayProperties.saveLastPlayPosition) {
-					// Set back to first track
-					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, 0);
-				}
+				// Set back to first track
+				AudioPlayer_SaveTrackStart(0);
 				gPlayProperties.playlistFinished = true;
 				gPlayProperties.playMode = NO_PLAYLIST;
 				Audio_setTitle(noPlaylist);
@@ -1132,9 +1102,7 @@ void AudioPlayer_Loop() {
 				} // Repeat playlist; set current track number back to 0
 				Log_Println(repeatPlaylistDueToPlaymode, LOGLEVEL_NOTICE);
 				gPlayProperties.currentTrackNumber = 0;
-				if (gPlayProperties.saveLastPlayPosition) {
-					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, 0, gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
-				}
+				AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber);
 			}
 		}
 

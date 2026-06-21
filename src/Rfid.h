@@ -15,3 +15,11 @@ void Rfid_TaskReset(void);
 void Rfid_WakeupCheck(void);
 void Rfid_PreferenceLookupHandler(void);
 const char *Rfid_GetReaderFirmwareVersion(void); // PN5180 reader firmware version (RFID_READER_TYPE_RUNTIME builds only)
+
+// Parse a stored tag assignment "#file#pos#mode#track" into its fields (any out-param may be NULL).
+bool Rfid_ParseAssignment(const char *stored, char *fileOut, size_t fileLen, uint32_t *posOut, uint32_t *modeOut, uint16_t *trackOut);
+// Convert a raw card id to the 12-digit decimal queue key (out >= cardIdStringSize bytes).
+void Rfid_CardIdToString(const byte *id, char *out);
+// Shared post-read card handling for both RFID drivers (see RfidCommon.cpp). cardType is the ISO
+// protocol string logged on PN5180, or NULL (MFRC522).
+void Rfid_HandleCardDetected(const byte *uid, byte *lastValidcardId, const char *cardType);

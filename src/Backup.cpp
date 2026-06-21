@@ -4,8 +4,10 @@
 #include "Backup.h"
 
 #include "Log.h"
+#include "Net.h"
 #include "Playstats.h"
 #include "SdCard.h"
+#include "StatusMessage.h"
 #include "System.h"
 #include "WebInternal.h"
 #include "Wlan.h"
@@ -14,7 +16,6 @@
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFiClient.h>
-#include <WiFiClientSecure.h>
 #include <memory>
 #include <time.h>
 #include <vector>
@@ -26,31 +27,12 @@ static constexpr const char BACKUP_TMP_FILE[] = "/.backup-upload.json";
 // State of the backup upload, polled by the web interface / reported via MQTT.
 static volatile uint8_t gBackupStatus = 0; // 0 = idle, 1 = running, 2 = done, 3 = failed
 
-// gBackupMsg is written by the backup task and read by the web server / MQTT on another core; a
-// short spinlock guards the buffer so a reader never sees a half-written string.
-static char gBackupMsg[96] = "";
-static portMUX_TYPE gBackupMsgMux = portMUX_INITIALIZER_UNLOCKED;
-
-static void backupSetMessage(const char *msg) {
-	char tmp[sizeof(gBackupMsg)];
-	snprintf(tmp, sizeof(tmp), "%s", msg ? msg : "");
-	taskENTER_CRITICAL(&gBackupMsgMux);
-	memcpy(gBackupMsg, tmp, sizeof(gBackupMsg));
-	taskEXIT_CRITICAL(&gBackupMsgMux);
-}
+// gBackupMsg is written by the backup task and read by the web server / MQTT on another core;
+// StatusMessage's spinlock guards the buffer so a reader never sees a half-written string.
+static StatusMessage gBackupMsg;
 
 void Backup_CopyMessage(char *dst, size_t dstLen) {
-	if (!dst || dstLen == 0) {
-		return;
-	}
-	taskENTER_CRITICAL(&gBackupMsgMux);
-	size_t n = strnlen(gBackupMsg, sizeof(gBackupMsg) - 1);
-	if (n >= dstLen) {
-		n = dstLen - 1;
-	}
-	memcpy(dst, gBackupMsg, n);
-	taskEXIT_CRITICAL(&gBackupMsgMux);
-	dst[n] = '\0';
+	gBackupMsg.copy(dst, dstLen);
 }
 
 uint8_t Backup_GetStatus(void) {
@@ -71,7 +53,7 @@ const char *Backup_GetStatusText(void) {
 }
 
 static void backupFail(const char *msg) {
-	backupSetMessage(msg);
+	gBackupMsg.set(msg);
 	Log_Printf(LOGLEVEL_ERROR, "Backup failed: %s", msg);
 	gBackupStatus = 3;
 }
@@ -196,16 +178,6 @@ static bool backupWriteToSd(const char *destFile) {
 // Upload the SD backup file to the server.
 // ---------------------------------------------------------------------------
 
-static std::unique_ptr<WiFiClient> backupMakeClient(const String &url) {
-	if (url.startsWith("https://")) {
-		auto *secure = new WiFiClientSecure;
-		secure->setInsecure();
-		secure->setHandshakeTimeout(20);
-		return std::unique_ptr<WiFiClient>(secure);
-	}
-	return std::unique_ptr<WiFiClient>(new WiFiClient);
-}
-
 // Returns the local calendar day number (days since epoch) or 0 if the clock is not yet valid.
 static uint32_t backupCurrentDay(void) {
 	time_t now = time(nullptr);
@@ -236,7 +208,7 @@ static void backupTask(void *parameter) {
 		return;
 	}
 
-	backupSetMessage("writing backup to SD");
+	gBackupMsg.set("writing backup to SD");
 	if (!backupWriteToSd(BACKUP_TMP_FILE)) {
 		vTaskDelete(NULL); // backupFail already set the status/message
 		return;
@@ -250,18 +222,13 @@ static void backupTask(void *parameter) {
 	}
 	const size_t fileSize = file.size();
 
-	backupSetMessage("uploading");
-	const String user = gPrefsSettings.getString("syncUser", "");
-	const String pass = gPrefsSettings.getString("syncPwd", "");
+	gBackupMsg.set("uploading");
+	String user, pass;
+	Net_GetSyncCreds(user, pass);
 
-	std::unique_ptr<WiFiClient> client = backupMakeClient(url);
+	std::unique_ptr<WiFiClient> client = Net_MakeClient(url);
 	HTTPClient http;
-	http.setConnectTimeout(8000);
-	http.setTimeout(20000);
-	http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-	if (user.length() > 0) {
-		http.setAuthorization(user.c_str(), pass.c_str());
-	}
+	Net_SetupHttp(http, user, pass, 20000); // larger read timeout for the (slow) upload
 	if (!http.begin(*client, url)) {
 		file.close();
 		backupFail("bad URL");
@@ -278,9 +245,9 @@ static void backupTask(void *parameter) {
 	gFSystem.remove(BACKUP_TMP_FILE);
 
 	if (code == 200 || code == 201 || code == 204) {
-		char msg[sizeof(gBackupMsg)];
+		char msg[StatusMessage::Capacity];
 		snprintf(msg, sizeof(msg), "uploaded %u bytes (HTTP %d)", (unsigned) fileSize, code);
-		backupSetMessage(msg);
+		gBackupMsg.set(msg);
 		gBackupStatus = 2;
 		// remember the day so the daily auto-backup doesn't run again until tomorrow
 		uint32_t day = backupCurrentDay();
@@ -289,7 +256,7 @@ static void backupTask(void *parameter) {
 		}
 		Log_Printf(LOGLEVEL_NOTICE, "Backup uploaded (%u bytes, HTTP %d)", (unsigned) fileSize, code);
 	} else {
-		char msg[sizeof(gBackupMsg)];
+		char msg[StatusMessage::Capacity];
 		snprintf(msg, sizeof(msg), "upload failed (HTTP %d)", code);
 		backupFail(msg);
 	}
@@ -301,7 +268,7 @@ void Backup_Trigger(void) {
 		return; // already running
 	}
 	gBackupStatus = 1;
-	backupSetMessage("");
+	gBackupMsg.set("");
 	xTaskCreatePinnedToCore(backupTask, "backup", 16384, NULL, 1, NULL, 1);
 }
 

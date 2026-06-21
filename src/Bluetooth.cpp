@@ -69,6 +69,12 @@ static inline bool isValidBdAddr(const esp_bd_addr_t addr) {
 	return false;
 }
 
+// Formats a BT address into buf (size >= 18) as "XX:XX:XX:XX:XX:XX" and returns buf.
+static const char *btAddrStr(const esp_bd_addr_t a, char buf[18]) {
+	snprintf(buf, 18, "%02X:%02X:%02X:%02X:%02X:%02X", a[0], a[1], a[2], a[3], a[4], a[5]);
+	return buf;
+}
+
 // ── connect-retry state ────────────────────────────────────────────────────
 static constexpr uint8_t CONNECT_MAX_RETRIES = 3u;
 static constexpr uint32_t CONNECT_RETRY_DELAY_MS = 1500u;
@@ -241,9 +247,8 @@ void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
 			portENTER_CRITICAL(&cachedPeerAddressMux);
 			memcpy(cachedPeerAddress, a2dp_source->get_last_peer_address(), ESP_BD_ADDR_LEN);
 			portEXIT_CRITICAL(&cachedPeerAddressMux);
-			Log_Printf(LOGLEVEL_INFO, "Bluetooth => connected, cached peer: %02X:%02X:%02X:%02X:%02X:%02X",
-				cachedPeerAddress[0], cachedPeerAddress[1], cachedPeerAddress[2],
-				cachedPeerAddress[3], cachedPeerAddress[4], cachedPeerAddress[5]);
+			char buf[18];
+			Log_Printf(LOGLEVEL_INFO, "Bluetooth => connected, cached peer: %s", btAddrStr(cachedPeerAddress, buf));
 			// Connection succeeded — clear retry and manual-connect state
 			manualConnectPending = false;
 			connectRetryPending = false;
@@ -398,8 +403,8 @@ bool scan_bluetooth_device_callback(const char *ssid, esp_bd_addr_t address, int
 		return false;
 	}
 
-	Log_Printf(LOGLEVEL_INFO, "Bluetooth source => Device found: %s (%02X:%02X:%02X:%02X:%02X:%02X)",
-		ssid, address[0], address[1], address[2], address[3], address[4], address[5]);
+	char buf[18];
+	Log_Printf(LOGLEVEL_INFO, "Bluetooth source => Device found: %s (%s)", ssid, btAddrStr(address, buf));
 
 	if (btDeviceName == "") {
 		return true;
@@ -465,10 +470,9 @@ void Bluetooth_StartScan() {
 			strncpy(connectedDev.name, btDeviceName.length() > 0 ? btDeviceName.c_str() : "Connected Device", ESP_BT_GAP_MAX_BDNAME_LEN);
 			connectedDev.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 			connectedDev.rssi = 0;
-			Log_Printf(LOGLEVEL_INFO, "Bluetooth_StartScan => pre-populating connected device: %s (%02X:%02X:%02X:%02X:%02X:%02X)",
-				connectedDev.name,
-				connectedDev.address[0], connectedDev.address[1], connectedDev.address[2],
-				connectedDev.address[3], connectedDev.address[4], connectedDev.address[5]);
+			char buf[18];
+			Log_Printf(LOGLEVEL_INFO, "Bluetooth_StartScan => pre-populating connected device: %s (%s)",
+				connectedDev.name, btAddrStr(connectedDev.address, buf));
 		}
 	}
 
@@ -581,9 +585,9 @@ std::vector<ScannedBluetoothDevice> Bluetooth_GetScannedDevices() {
 				dev.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 				dev.rssi = 0;
 				scannedDevices.insert(scannedDevices.begin(), dev);
-				Log_Printf(LOGLEVEL_INFO, "Bluetooth_GetScannedDevices => injected connected device at top: %s (%02X:%02X:%02X:%02X:%02X:%02X)",
-					dev.name, currentAddr[0], currentAddr[1], currentAddr[2],
-					currentAddr[3], currentAddr[4], currentAddr[5]);
+				char buf[18];
+				Log_Printf(LOGLEVEL_INFO, "Bluetooth_GetScannedDevices => injected connected device at top: %s (%s)",
+					dev.name, btAddrStr(currentAddr, buf));
 			} else if (it != scannedDevices.begin()) {
 				ScannedBluetoothDevice dev = *it;
 				scannedDevices.erase(it);
@@ -734,9 +738,8 @@ void Bluetooth_Cyclic(void) {
 		if (doConnect) {
 			memcpy(connectRetryAddress, connectAddress, ESP_BD_ADDR_LEN);
 			connectRetryCount = 0;
-			Log_Printf(LOGLEVEL_INFO, "Bluetooth => connecting to %02X:%02X:%02X:%02X:%02X:%02X",
-				connectAddress[0], connectAddress[1], connectAddress[2],
-				connectAddress[3], connectAddress[4], connectAddress[5]);
+			char buf[18];
+			Log_Printf(LOGLEVEL_INFO, "Bluetooth => connecting to %s", btAddrStr(connectAddress, buf));
 			a2dp_source->connect_to(connectAddress);
 		}
 	}
@@ -748,10 +751,9 @@ void Bluetooth_Cyclic(void) {
 			if (connectRetryCount < CONNECT_MAX_RETRIES) {
 				connectRetryCount++;
 				connectRetryTimestamp = millis();
-				Log_Printf(LOGLEVEL_INFO, "Bluetooth => retry connect %u/%u to %02X:%02X:%02X:%02X:%02X:%02X",
-					connectRetryCount, CONNECT_MAX_RETRIES,
-					connectRetryAddress[0], connectRetryAddress[1], connectRetryAddress[2],
-					connectRetryAddress[3], connectRetryAddress[4], connectRetryAddress[5]);
+				char buf[18];
+				Log_Printf(LOGLEVEL_INFO, "Bluetooth => retry connect %u/%u to %s",
+					connectRetryCount, CONNECT_MAX_RETRIES, btAddrStr(connectRetryAddress, buf));
 				a2dp_source->connect_to(connectRetryAddress);
 			} else {
 				Log_Println("Bluetooth => all retries exhausted", LOGLEVEL_NOTICE);

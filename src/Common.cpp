@@ -38,3 +38,20 @@ size_t b64decode(const void *input_buffer, void *output_buffer, const size_t inp
 
 	return j;
 }
+
+String Url_EncodePath(const String &path) {
+	static const char *hex = "0123456789ABCDEF";
+	String out;
+	out.reserve(path.length() + 8);
+	for (size_t i = 0; i < path.length(); i++) {
+		const unsigned char c = (unsigned char) path[i];
+		if (isalnum(c) || c == '/' || c == '-' || c == '_' || c == '.' || c == '~') {
+			out += (char) c;
+		} else {
+			out += '%';
+			out += hex[c >> 4];
+			out += hex[c & 0x0F];
+		}
+	}
+	return out;
+}

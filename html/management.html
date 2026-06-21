@@ -496,7 +496,7 @@
 			margin-top: 0 !important;
 		}
 
-		#settings-subnav.nav-tabs {
+		.subnav.nav-tabs {
 			flex-direction: column;
 			flex-wrap: nowrap;
 			border-bottom: none;
@@ -506,26 +506,26 @@
 			top: 1rem;
 		}
 
-		#settings-subnav .nav-link {
+		.subnav .nav-link {
 			border: 1px solid transparent;
 			border-left: 2px solid transparent;
 			text-align: left;
 			white-space: nowrap;
 		}
 
-		#settings-subnav .nav-link i {
+		.subnav .nav-link i {
 			display: inline-block;
 			width: 1.25em;
 			margin-right: .5em;
 			text-align: center;
 		}
 
-		#settings-subnav .nav-link:hover {
+		.subnav .nav-link:hover {
 			border-bottom-color: transparent;
 			border-left-color: rgba(0, 240, 255, .4);
 		}
 
-		#settings-subnav .nav-link.active {
+		.subnav .nav-link.active {
 			border: 1px solid var(--cp-border);
 			border-left: 2px solid var(--cp-cyan);
 			border-right-color: transparent;
@@ -554,11 +554,11 @@
 				gap: .55rem;
 			}
 
-			#settings-subnav .nav-link {
+			.subnav .nav-link {
 				padding: .55rem .65rem;
 			}
 
-			#settings-subnav .nav-link i {
+			.subnav .nav-link i {
 				width: auto;
 				margin-right: 0;
 			}
@@ -584,42 +584,6 @@
 			margin-top: 0 !important;
 		}
 
-		#tools-subnav.nav-tabs {
-			flex-direction: column;
-			flex-wrap: nowrap;
-			border-bottom: none;
-			border-right: 1px solid var(--cp-border);
-			padding-right: 2px;
-			position: sticky;
-			top: 1rem;
-		}
-
-		#tools-subnav .nav-link {
-			border: 1px solid transparent;
-			border-left: 2px solid transparent;
-			text-align: left;
-			white-space: nowrap;
-		}
-
-		#tools-subnav .nav-link i {
-			display: inline-block;
-			width: 1.25em;
-			margin-right: .5em;
-			text-align: center;
-		}
-
-		#tools-subnav .nav-link:hover {
-			border-bottom-color: transparent;
-			border-left-color: rgba(0, 240, 255, .4);
-		}
-
-		#tools-subnav .nav-link.active {
-			border: 1px solid var(--cp-border);
-			border-left: 2px solid var(--cp-cyan);
-			border-right-color: transparent;
-			background: linear-gradient(90deg, rgba(0, 240, 255, .12), transparent);
-		}
-
 		#nav-tools>.tab-content {
 			flex: 1 1 auto;
 			min-width: 0;
@@ -628,15 +592,6 @@
 		@media (max-width: 767.98px) {
 			#nav-tools.active {
 				gap: .55rem;
-			}
-
-			#tools-subnav .nav-link {
-				padding: .55rem .65rem;
-			}
-
-			#tools-subnav .nav-link i {
-				width: auto;
-				margin-right: 0;
 			}
 		}
 
@@ -2560,7 +2515,7 @@
 		<div class="tab-pane main-tab-pane fade mb-4" id="nav-general" role="tabpanel"
 			aria-labelledby="nav-general-tab">
 			<nav class="mb-3" style="margin-top: -1.25rem;">
-				<div class="nav nav-tabs flex-column" id="settings-subnav" role="tablist">
+				<div class="nav nav-tabs flex-column subnav" id="settings-subnav" role="tablist">
 					<a class="nav-item nav-link active" id="settings-general-subtab" data-bs-toggle="tab" data-bs-target="#settings-general" href="#settings-general" role="tab" aria-controls="settings-general" aria-selected="true"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="nav.general"></span></a>
 					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
 					<a class="nav-item nav-link" id="settings-rfid-subtab" data-bs-toggle="tab" data-bs-target="#settings-rfid" href="#settings-rfid" role="tab" aria-controls="settings-rfid"><i class="fas fa-id-card"></i> <span class="d-none d-md-inline" data-i18n="nav.rfidcards"></span></a>
@@ -3717,7 +3672,7 @@
 		<div class="tab-pane main-tab-pane fade select-div" id="nav-tools" role="tabpanel"
 			aria-labelledby="nav-tools-tab">
 			<nav class="mb-3" style="margin-top: -1.25rem;">
-				<div class="nav nav-tabs flex-column" id="tools-subnav" role="tablist">
+				<div class="nav nav-tabs flex-column subnav" id="tools-subnav" role="tablist">
 					<a class="nav-item nav-link active" id="tools-command-subtab" data-bs-toggle="tab" data-bs-target="#tools-command" href="#tools-command" role="tab" aria-controls="tools-command" aria-selected="true"><i class="fas fa-terminal"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.command"></span></a>
 					<a class="nav-item nav-link" id="tools-sync-subtab" data-bs-toggle="tab" data-bs-target="#tools-sync" href="#tools-sync" role="tab" aria-controls="tools-sync"><i class="fas fa-sync"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.sync"></span></a>
 					<a class="nav-item nav-link" id="tools-nvs-subtab" data-bs-toggle="tab" data-bs-target="#tools-nvs" href="#tools-nvs" role="tab" aria-controls="tools-nvs"><i class="fas fa-save"></i> <span class="d-none d-md-inline" data-i18n="tools.nav.nvs"></span></a>
@@ -4201,16 +4156,34 @@
 			jQuery.ajax(obj);
 		} /* doRest */
 
+		const apiUrl = p => "http://" + host + p;
+		async function apiGet(p) {
+			const r = await fetch(apiUrl(p), { cache: "no-store" });
+			if (!r.ok) { throw new Error(r.statusText); }
+			return r.json();
+		}
+
+		async function postSettings(obj) {
+			await fetch("http://" + host + "/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(obj) });
+			toaster.info(i18next.t("toast.saved"));
+		}
+
+		function showInfoModal(title, bodyHtml, { refresh = true, action = null, actionLabel = null } = {}) {
+			$('.modal-title').text(title);
+			if (bodyHtml != null) { $('.modal-body').html(bodyHtml).removeAttr('style'); }
+			$('#modalInfoRefresh').toggle(refresh);
+			const $btn = $('#modalRestartNow').toggle(!refresh);
+			if (!refresh) { if (actionLabel) { $btn.text(actionLabel); } $btn.off('click'); if (action) { $btn.on('click', action); } }
+			new bootstrap.Modal(document.getElementById('modalInfo')).show();
+		}
+
 		function showSwitchModePrompt() {
 			// Reuse the info modal to prompt for mode switch
-			$('.modal-title').text(i18next.t('bt.switchmode.title'));
-			$('.modal-body').html(i18next.t('bt.switchmode.prompt'));
-			$(".modal-body").removeAttr("style");
-			$('#modalInfoRefresh').hide();
-			$('#modalRestartNow').show().text(i18next.t('bt.switchmode.button')).off('click').on('click', function () {
-				setOperationMode(0, true);
+			showInfoModal(i18next.t('bt.switchmode.title'), i18next.t('bt.switchmode.prompt'), {
+				refresh: false,
+				actionLabel: i18next.t('bt.switchmode.button'),
+				action: function () { setOperationMode(0, true); }
 			});
-			new bootstrap.Modal(document.getElementById('modalInfo')).show();
 		}
 
 		function getData(path, callback) {
@@ -4254,27 +4227,17 @@
 				method: "POST"
 			});
 			tryRedirect();
-			// Ensure modal buttons are in correct state for restart
-			$('#modalRestartNow').hide();
-			$('#modalInfoRefresh').show();
-			$('.modal-title').text(i18next.t("restart"));
-			$('.modal-body').html(i18next.t("restartinfo"));
-			$(".modal-body").removeAttr("style");
-			// Show restart info modal
-			new bootstrap.Modal(document.getElementById('modalInfo')).show();
+			// Ensure modal buttons are in correct state for restart, then show restart info modal
+			showInfoModal(i18next.t("restart"), i18next.t("restartinfo"), { refresh: true });
 		} /* restart */
 
 		function showMqttRestartPrompt() {
 			// Reuse the info modal to prompt the user to restart now or later
-			$('.modal-title').text(i18next.t('restart'));
-			$('.modal-body').html(i18next.t('mqtt.restartPrompt'));
-			$(".modal-body").removeAttr("style");
-			// Hide refresh button and show restart-now button
-			$('#modalInfoRefresh').hide();
-			$('#modalRestartNow').show().text(i18next.t('restart')).off('click').on('click', function () {
-				restartDevice();
+			showInfoModal(i18next.t('restart'), i18next.t('mqtt.restartPrompt'), {
+				refresh: false,
+				actionLabel: i18next.t('restart'),
+				action: function () { restartDevice(); }
 			});
-			new bootstrap.Modal(document.getElementById('modalInfo')).show();
 		}
 
 		async function shutdownDevice() {
@@ -5028,7 +4991,7 @@
 			if (!el) return;
 			let v;
 			try {
-				v = await (await fetch("http://" + host + "/version", { cache: "no-store" })).json();
+				v = await apiGet("/version");
 			} catch (e) {
 				return;
 			}
@@ -5687,9 +5650,7 @@
 		}
 		async function resetSettings() {
 			try {
-				const response = await fetch("http://" + host + "/settings?section=defaults");
-				if (!response.ok) throw new Error(response.statusText);
-				const obj = await response.json();
+				const obj = await apiGet("/settings?section=defaults");
 				const data = obj.defaults ? obj.defaults : obj;
 				await fillSettings(data);
 				await genSettings('generalConfig'); // persist the defaults (no submit button anymore)
@@ -5705,8 +5666,8 @@
 				ssidList = data.savedSSIDs;
 				ssidActive = data.active;
 			} else {
-				ssidList = await (await fetch("http://" + host + "/savedSSIDs")).json();
-				let ssidActiveObj = await (await fetch("http://" + host + "/activeSSID")).json();
+				ssidList = await apiGet("/savedSSIDs");
+				let ssidActiveObj = await apiGet("/activeSSID");
 				console.log(ssidActiveObj);
 				ssidActive = ssidActiveObj.active;
 			}
@@ -5747,7 +5708,7 @@
 			const list = document.getElementById("eqRulesList");
 			if (!list) return;
 			let rules = [];
-			try { rules = await (await fetch("http://" + host + "/eqrules")).json(); } catch (e) { rules = []; }
+			try { rules = await apiGet("/eqrules"); } catch (e) { rules = []; }
 			list.innerHTML = "";
 			if (!Array.isArray(rules) || rules.length === 0) {
 				let empty = document.createElement("li");
@@ -5799,7 +5760,7 @@
 			if (qr) qr.src = "http://" + host + "/homekit/qr.svg?ts=" + Date.now();
 		}
 		async function fetchHomeKit() {
-			return await (await fetch("http://" + host + "/homekit", { cache: "no-store" })).json();
+			return await apiGet("/homekit");
 		}
 		async function initHomeKit() {
 			let hk;
@@ -5857,7 +5818,7 @@
 		}
 		const rfidListSavedAssignments = document.getElementById("rfidListSavedAssignments");
 		async function rebuildRFIDList() {
-			var rfidList = await (await fetch("http://" + host + "/rfid")).json();
+			var rfidList = await apiGet("/rfid");
 			var rfidActive = document.getElementById('rfidIdMusic').value;
 			rfidListSavedAssignments.innerHTML = "";
 			console.log(rfidList.length + ' nvs rfid entries received.');
@@ -6025,7 +5986,7 @@
 				return;
 			};
 			// use http request here, websocket comminication seems to be unstable with many messages
-			let data = await (await fetch("http://" + host + "/trackprogress")).json();
+			let data = await apiGet("/trackprogress");
 			if (data && data.trackProgress) {
 				// console.log(data.trackProgress);
 				setTrackProgress(data.trackProgress);
@@ -6215,19 +6176,13 @@
 				myObj.led.controlFuncs.push(funcElement ? Number(funcElement.value) : 0);
 			}
 			console.log(myObj);
-			var myJSON = JSON.stringify(myObj);
 			// update global settings
 			window.settings = {
 				...window.settings,
 				...myObj
 			};
-			
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: myJSON
-			});
-			toaster.info(i18next.t("toast.saved"));
+
+			await postSettings(myObj);
 		}
 
 		/* save the FTP auto-start-on-boot flag (no credentials: any username, password via Security tab) */
@@ -6238,12 +6193,7 @@
 					enable: document.getElementById('ftpEnable').checked
 				}
 			};
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(myObj)
-			});
-			toaster.info(i18next.t("toast.saved"));
+			await postSettings(myObj);
 		}
 
 		function ftpSetStatus(start) {
@@ -6264,12 +6214,7 @@
 					enable: document.getElementById('webdavEnable').checked
 				}
 			};
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(myObj)
-			});
-			toaster.info(i18next.t("toast.saved"));
+			await postSettings(myObj);
 		}
 
 		function webdavSetStatus(start) {
@@ -6296,12 +6241,7 @@
 					backupAuto: document.getElementById('backupAuto').checked
 				}
 			};
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(myObj)
-			});
-			toaster.info(i18next.t("toast.saved"));
+			await postSettings(myObj);
 		}
 
 		// Trigger a full bidirectional RFID-tag sync (server + peers) and poll its status.
@@ -6312,7 +6252,7 @@
 			clearInterval(rfidSyncPollTimer);
 			rfidSyncPollTimer = setInterval(async function () {
 				try {
-					const s = await (await fetch("http://" + host + "/rfidsync")).json();
+					const s = await apiGet("/rfidsync");
 					const el = document.getElementById('rfidSyncStatus');
 					if (el) {
 						el.textContent = (s.status === 1 ? "… " : "") + (s.message || "");
@@ -6330,7 +6270,7 @@
 			clearInterval(backupPollTimer);
 			backupPollTimer = setInterval(async function () {
 				try {
-					const s = await (await fetch("http://" + host + "/backupupload")).json();
+					const s = await apiGet("/backupupload");
 					const el = document.getElementById('backupRunStatus');
 					if (el) {
 						el.textContent = (s.status === 1 ? "… " : "") + (s.message || "");
@@ -6735,13 +6675,7 @@
 					port: Number(document.getElementById('mqttPort').value)
 				}
 			};
-			var myJSON = JSON.stringify(myObj);
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: myJSON
-			});
-			toaster.info(i18next.t("toast.saved"));
+			await postSettings(myObj);
 
 			// If any MQTT setting changed, prompt user to restart to apply changes
 			try {
@@ -6767,13 +6701,7 @@
 					pinCode: document.getElementById('btPinCode').value
 				}
 			};
-			var myJSON = JSON.stringify(myObj);
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: myJSON
-			});
-			toaster.info(i18next.t("toast.saved"));
+			await postSettings(myObj);
 		}
 
 		function removeTrSlash(str) {
@@ -6876,13 +6804,7 @@
 					}
 				};
 			}
-			var myJSON = JSON.stringify(myObj);
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: myJSON
-			});
-			toaster.info(i18next.t("toast.saved"));
+			await postSettings(myObj);
 			// Refresh the RFID-assignment cache and re-badge the selected explorer node.
 			loadRfidPaths(updateSelectedNodeBadges);
 		}
@@ -7083,15 +7005,15 @@
 			const backup = {
 				espuinoBackup: 1,
 				created: new Date().toISOString(),
-				settings: await (await fetch("http://" + host + "/settings")).json(),
-				rfid: await (await fetch("http://" + host + "/rfid")).json(),
-				eqRules: await (await fetch("http://" + host + "/eqrules")).json(),
-				playStats: await (await fetch("http://" + host + "/playstats")).json()
+				settings: await apiGet("/settings"),
+				rfid: await apiGet("/rfid"),
+				eqRules: await apiGet("/eqrules"),
+				playStats: await apiGet("/playstats")
 			};
 			delete backup.settings.ssids; // names only - not usable for a restore
 			if (includeCreds) {
-				backup.wifiConfig = await (await fetch("http://" + host + "/wificonfig")).json();
-				backup.wifiNetworks = await (await fetch("http://" + host + "/savedSSIDs?credentials=1")).json();
+				backup.wifiConfig = await apiGet("/wificonfig");
+				backup.wifiNetworks = await apiGet("/savedSSIDs?credentials=1");
 			} else {
 				// strip secrets so a shared backup doesn't leak passwords in cleartext
 				const s = backup.settings || {};
@@ -7357,7 +7279,7 @@
 
 		async function refreshSecurityStatus() {
 			try {
-				const status = await (await fetch("http://" + host + "/security")).json();
+				const status = await apiGet("/security");
 				document.getElementById('menuLogout').setAttribute('data-visible', status.enabled === true);
 				if (status.password !== undefined) {
 					document.getElementById('wwwPassword').value = status.password;
@@ -7455,7 +7377,7 @@
 
 		async function refreshSdCapacity() {
 			try {
-				const info = await (await fetch("http://" + host + "/info?section=sdcard")).json();
+				const info = await apiGet("/info?section=sdcard");
 				const sd = info.sdcard;
 				if (!sd || !sd.size) {
 					return;
@@ -7478,7 +7400,7 @@
 		// Detailed info dialog for the currently playing track (ID3 tags, size, RFID tag, ...).
 		async function showTrackInfo() {
 			let d;
-			try { d = await (await fetch("http://" + host + "/currenttrack")).json(); } catch (e) { d = null; }
+			try { d = await apiGet("/currenttrack"); } catch (e) { d = null; }
 			const el = document.getElementById('modalTrackInfoContent');
 			const t = (k) => i18next.t('control.trackinfo.' + k);
 			if (!d || !d.active) {
@@ -7559,7 +7481,7 @@
 		}
 
 		async function fetchInfo() {
-			let info = await (await fetch("http://" + host + "/info")).json();
+			let info = await apiGet("/info");
 			console.log(info);
 			const esc = (typeof escapeHtml === 'function') ? escapeHtml : function (x) { return x; };
 			const num = function (n) { return Number(n).toLocaleString(); };
@@ -7593,7 +7515,7 @@
 			if (info.audio.play30d !== undefined) add('systeminfo.lblPlay30d', timestampToDuration(info.audio.play30d * 1000, true));
 			// most-played cards (top 3), label -> "name (N×)"
 			try {
-				const top = await (await fetch("http://" + host + "/topcards")).json();
+				const top = await apiGet("/topcards");
 				if (Array.isArray(top)) {
 					top.slice(0, 3).forEach(function (c) {
 						const name = (c.fileOrUrl && c.fileOrUrl !== "0") ? c.fileOrUrl : c.id;
@@ -7618,7 +7540,7 @@
 			// listening-time chart (last 30 days) + CSV export, built from the raw /playstats ring
 			let statsBlock = '';
 			try {
-				const ps = await (await fetch("http://" + host + "/playstats")).json();
+				const ps = await apiGet("/playstats");
 				const chart = renderStatsChart(ps);
 				if (chart) {
 					statsBlock = '<div class="cp-stats-chart mt-3 pt-2" style="border-top:1px solid var(--b, rgba(255,255,255,.1))">'

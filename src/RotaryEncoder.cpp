@@ -58,7 +58,7 @@ void RotaryEncoder_Cyclic(void) {
 		// just reset the encoder here, so we get a new delta next time
 		encoder.clearCount();
 
-		if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+		if (System_UsesLocalAudio()) {
 			auto newVol = AudioPlayer_GetCurrentVolume() + (encoderValue / 2);
 			AudioPlayer_SetVolume(newVol);
 		} else {

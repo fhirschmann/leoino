@@ -33,27 +33,8 @@ static bool tagIdToJSON(const String tagId, JsonObject entry) {
 	char _file[256] = {0};
 	uint32_t _lastPlayPos = 0;
 	uint16_t _trackLastPlayed = 0;
-	uint32_t _mode = 1;
-
-	char s_buf[512];
-	strncpy(s_buf, s.c_str(), sizeof(s_buf) - 1);
-	s_buf[sizeof(s_buf) - 1] = '\0';
-
-	char *token = strtok(s_buf, stringDelimiter);
-	uint8_t i = 1;
-	while (token != NULL) { // Try to extract data from string after lookup
-		if (i == 1) {
-			strncpy(_file, token, sizeof(_file) - 1);
-		} else if (i == 2) {
-			_lastPlayPos = strtoul(token, NULL, 10);
-		} else if (i == 3) {
-			_mode = strtoul(token, NULL, 10);
-		} else if (i == 4) {
-			_trackLastPlayed = strtoul(token, NULL, 10);
-		}
-		i++;
-		token = strtok(NULL, stringDelimiter);
-	}
+	uint32_t _mode = 0;
+	Rfid_ParseAssignment(s.c_str(), _file, sizeof(_file), &_lastPlayPos, &_mode, &_trackLastPlayed);
 	entry["id"] = tagId;
 	if (_mode >= 100) {
 		entry["modId"] = _mode;
@@ -96,16 +77,8 @@ void handleResetRfidPos(AsyncWebServerRequest *request) {
 		return;
 	}
 	// stored format: #<file/folder>#<playPos>#<playMode>#<trackLastPlayed>; extract the mode
-	char buf[512];
-	strncpy(buf, s.c_str(), sizeof(buf) - 1);
-	buf[sizeof(buf) - 1] = '\0';
 	uint32_t mode = 0;
-	uint8_t i = 1;
-	for (char *token = strtok(buf, stringDelimiter); token != NULL; token = strtok(NULL, stringDelimiter), i++) {
-		if (i == 3) {
-			mode = strtoul(token, NULL, 10);
-		}
-	}
+	Rfid_ParseAssignment(s.c_str(), NULL, 0, NULL, &mode, NULL);
 	if (mode == 0 || mode >= 100) {
 		// NO_PLAYLIST or a modification-card -- there is no play-position to reset
 		request->send(409, "application/json", "{\"error\":\"not a playlist tag\"}");

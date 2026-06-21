@@ -38,6 +38,17 @@ static void Cmd_HandleSleepAction(bool enable, const char *enLogMsg, const char 
 	}
 }
 
+// Arm the sleep timer for the given number of minutes and clear the other sleep modifiers
+// (sleep-after-track / sleep-after-playlist / play-until-track) so they don't override it.
+static void Cmd_StartSleepTimer(uint8_t minutes) {
+	System_SetSleepTimer(minutes);
+
+	gPlayProperties.sleepAfterCurrentTrack = false; // deactivate/overwrite if already active
+	gPlayProperties.sleepAfterPlaylist = false; // deactivate/overwrite if already active
+	gPlayProperties.playUntilTrackNumber = 0;
+	System_IndicateOk();
+}
+
 void Cmd_Action(const uint16_t mod) {
 	if (System_AreControlsLocked() && (mod != CMD_LOCK_BUTTONS_MOD)) {
 		return;
@@ -64,45 +75,21 @@ void Cmd_Action(const uint16_t mod) {
 			break;
 		}
 
-		case CMD_SLEEP_TIMER_MOD_15: { // Enables/disables sleep after 15 minutes
-			System_SetSleepTimer(15u);
-
-			gPlayProperties.sleepAfterCurrentTrack = false; // deactivate/overwrite if already active
-			gPlayProperties.sleepAfterPlaylist = false; // deactivate/overwrite if already active
-			gPlayProperties.playUntilTrackNumber = 0;
-			System_IndicateOk();
+		case CMD_SLEEP_TIMER_MOD_15: // Enables/disables sleep after 15 minutes
+			Cmd_StartSleepTimer(15u);
 			break;
-		}
 
-		case CMD_SLEEP_TIMER_MOD_30: { // Enables/disables sleep after 30 minutes
-			System_SetSleepTimer(30u);
-
-			gPlayProperties.sleepAfterCurrentTrack = false; // deactivate/overwrite if already active
-			gPlayProperties.sleepAfterPlaylist = false; // deactivate/overwrite if already active
-			gPlayProperties.playUntilTrackNumber = 0;
-			System_IndicateOk();
+		case CMD_SLEEP_TIMER_MOD_30: // Enables/disables sleep after 30 minutes
+			Cmd_StartSleepTimer(30u);
 			break;
-		}
 
-		case CMD_SLEEP_TIMER_MOD_60: { // Enables/disables sleep after 60 minutes
-			System_SetSleepTimer(60u);
-
-			gPlayProperties.sleepAfterCurrentTrack = false; // deactivate/overwrite if already active
-			gPlayProperties.sleepAfterPlaylist = false; // deactivate/overwrite if already active
-			gPlayProperties.playUntilTrackNumber = 0;
-			System_IndicateOk();
+		case CMD_SLEEP_TIMER_MOD_60: // Enables/disables sleep after 60 minutes
+			Cmd_StartSleepTimer(60u);
 			break;
-		}
 
-		case CMD_SLEEP_TIMER_MOD_120: { // Enables/disables sleep after 2 hrs
-			System_SetSleepTimer(120u);
-
-			gPlayProperties.sleepAfterCurrentTrack = false; // deactivate/overwrite if already active
-			gPlayProperties.sleepAfterPlaylist = false; // deactivate/overwrite if already active
-			gPlayProperties.playUntilTrackNumber = 0;
-			System_IndicateOk();
+		case CMD_SLEEP_TIMER_MOD_120: // Enables/disables sleep after 2 hrs
+			Cmd_StartSleepTimer(120u);
 			break;
-		}
 
 		case CMD_SLEEP_AFTER_END_OF_TRACK: { // Puts uC to sleep after end of current track
 			if (gPlayProperties.playMode == NO_PLAYLIST) {
@@ -352,7 +339,7 @@ void Cmd_Action(const uint16_t mod) {
 		}
 
 		case CMD_PLAYPAUSE: {
-			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetTrackControl(PAUSEPLAY);
 			} else {
 				Bluetooth_PlayPauseTrack();
@@ -361,7 +348,7 @@ void Cmd_Action(const uint16_t mod) {
 		}
 
 		case CMD_PREVTRACK: {
-			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetTrackControl(PREVIOUSTRACK);
 			} else {
 				Bluetooth_PreviousTrack();
@@ -370,7 +357,7 @@ void Cmd_Action(const uint16_t mod) {
 		}
 
 		case CMD_NEXTTRACK: {
-			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetTrackControl(NEXTTRACK);
 			} else {
 				Bluetooth_NextTrack();
@@ -404,7 +391,7 @@ void Cmd_Action(const uint16_t mod) {
 		}
 
 		case CMD_VOLUMEUP: {
-			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetVolume(AudioPlayer_GetCurrentVolume() + 1);
 			} else {
 				Bluetooth_SetVolume(Bluetooth_GetCurrentVolume() + 1);
@@ -413,7 +400,7 @@ void Cmd_Action(const uint16_t mod) {
 		}
 
 		case CMD_VOLUMEDOWN: {
-			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetVolume(AudioPlayer_GetCurrentVolume() - 1);
 			} else {
 				Bluetooth_SetVolume(Bluetooth_GetCurrentVolume() - 1);
@@ -479,7 +466,7 @@ void Cmd_Action(const uint16_t mod) {
 
 		case CMD_SMART_FORWARDS: {
 			// Smart forward: in-file seek on a single long file, else next track (decision + coalescing in AudioPlayer_Loop)
-			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetTrackControl(SMARTFORWARD);
 			} else {
 				Bluetooth_NextTrack();
@@ -489,7 +476,7 @@ void Cmd_Action(const uint16_t mod) {
 
 		case CMD_SMART_BACKWARDS: {
 			// Smart backward: in-file seek on a single long file, else previous track (decision + coalescing in AudioPlayer_Loop)
-			if ((OPMODE_NORMAL == System_GetOperationMode()) || (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode())) {
+			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetTrackControl(SMARTBACKWARD);
 			} else {
 				Bluetooth_PreviousTrack();
@@ -502,63 +489,23 @@ void Cmd_Action(const uint16_t mod) {
 			break;
 		}
 
-		case CMD_VIRTUAL_RFID_CARD_01: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_01, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_02: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_02, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_03: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_03, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_04: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_04, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_05: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_05, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_06: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_06, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_07: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_07, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_08: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_08, 0);
-			break;
-		}
-
-		case CMD_VIRTUAL_RFID_CARD_09: {
-			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_09, 0);
-			break;
-		}
-
+		// Virtual RFID-cards 01..10: synthesize the card-id "9000000000NN" and feed it to the
+		// RFID queue. Relies on CMD_VIRTUAL_RFID_CARD_* (and the matching VIRTUAL_RFID_CARD_*
+		// strings in values.h) being contiguous/sequential, so the id is derived from the offset.
+		case CMD_VIRTUAL_RFID_CARD_01:
+		case CMD_VIRTUAL_RFID_CARD_02:
+		case CMD_VIRTUAL_RFID_CARD_03:
+		case CMD_VIRTUAL_RFID_CARD_04:
+		case CMD_VIRTUAL_RFID_CARD_05:
+		case CMD_VIRTUAL_RFID_CARD_06:
+		case CMD_VIRTUAL_RFID_CARD_07:
+		case CMD_VIRTUAL_RFID_CARD_08:
+		case CMD_VIRTUAL_RFID_CARD_09:
 		case CMD_VIRTUAL_RFID_CARD_10: {
+			char id[cardIdStringSize];
+			snprintf(id, sizeof(id), "9000000000%02u", (unsigned) (mod - CMD_VIRTUAL_RFID_CARD_01 + 1));
 			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, VIRTUAL_RFID_CARD_10, 0);
+			xQueueSend(gRfidCardQueue, id, 0);
 			break;
 		}
 
