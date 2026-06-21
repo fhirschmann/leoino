@@ -1007,6 +1007,13 @@
 			box-shadow: 0 0 6px rgba(0, 0, 0, .2);
 		}
 
+		/* light mode: the dark-navy fill + dim text washes out on a light bg (fails AA) */
+		body[data-bs-theme="light"] .cp-control-button {
+			color: #3c4a66;
+			background: rgba(255, 255, 255, .7);
+			box-shadow: 0 0 6px rgba(0, 0, 0, .08);
+		}
+
 		.cp-control-button:hover {
 			color: #021019;
 			background: var(--cp-cyan);
