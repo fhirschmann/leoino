@@ -76,45 +76,52 @@
 		   Placed AFTER the light palette so they win on source order
 		   (equal specificity).
 		   ============================================================ */
-		/* "Candy" - warm sweet pink/purple playful palette. */
-		body[data-theme="candy"] {
-			--cp-cyan: #a25cf0;
-			/* primary accent / links - grape purple     */
-			--cp-magenta: #ff4fa3;
-			/* hot bubblegum pink (hover / secondary)    */
-			--cp-yellow: #ffba08;
-			--cp-green: #59d98e;
-			--cp-bg: #ffeef7;
-			/* soft cotton-candy                         */
-			--cp-panel: #ffffff;
+				/* "Waldhaus" - cosy woodland: cream paper, moss green & terracotta. */
+		body[data-theme="waldhaus"] {
+			--cp-cyan: #4f7a45;
+			--cp-magenta: #c25b3a;
+			--cp-yellow: #cf9526;
+			--cp-green: #4f7a45;
+			--cp-bg: #f4ecd8;
+			--cp-panel: #fbf4e2;
 			--cp-surface: #ffffff;
-			--cp-surface-2: #ffe0f0;
-			--cp-border: #ffc4e3;
-			--cp-border-glow: rgba(162, 92, 240, .25);
-			--cp-text: #5a2a55;
-			/* deep plum                                 */
-			--cp-dim: #a06b95;
+			--cp-surface-2: #e8dcbd;
+			--cp-border: #cdbb8e;
+			--cp-border-glow: rgba(79, 122, 69, .3);
+			--cp-text: #3a3326;
+			--cp-dim: #8a7d5f;
 		}
 
-		/* "Galaxy" - cool blue/indigo adventurous playful palette. */
-		body[data-theme="galaxy"] {
-			--cp-cyan: #2f7bff;
-			/* primary accent / links - azure            */
-			--cp-magenta: #7c4dff;
-			/* indigo (hover / secondary)                */
-			--cp-yellow: #ffce47;
-			/* star yellow                               */
-			--cp-green: #2bd673;
-			--cp-bg: #e8f1ff;
-			/* icy sky                                    */
+		/* "Wölkchen" - soft marshmallow pastel: lavender, mint & rose. */
+		body[data-theme="wolkchen"] {
+			--cp-cyan: #9b6bd6;
+			--cp-magenta: #e07bb3;
+			--cp-yellow: #e3a93e;
+			--cp-green: #5fae93;
+			--cp-bg: #f6f0f6;
 			--cp-panel: #ffffff;
 			--cp-surface: #ffffff;
-			--cp-surface-2: #dde9ff;
-			--cp-border: #b9d0ff;
-			--cp-border-glow: rgba(47, 123, 255, .25);
-			--cp-text: #1b2b54;
-			/* deep navy                                 */
-			--cp-dim: #5f6f9a;
+			--cp-surface-2: #e9def2;
+			--cp-border: #e0d3ea;
+			--cp-border-glow: rgba(155, 107, 214, .25);
+			--cp-text: #534360;
+			--cp-dim: #998aa6;
+		}
+
+		/* "Pixelheld" - dark 8-bit retro: slate, lime, pink & gold (mono font). */
+		body[data-theme="pixelheld"] {
+			--cp-cyan: #9be34a;
+			--cp-magenta: #e84d8a;
+			--cp-yellow: #f5c542;
+			--cp-green: #5fd17a;
+			--cp-bg: #1d2433;
+			--cp-panel: #232c40;
+			--cp-surface: #2c3650;
+			--cp-surface-2: #242d44;
+			--cp-border: #3a4866;
+			--cp-border-glow: rgba(155, 227, 74, .3);
+			--cp-text: #e8eef5;
+			--cp-dim: #8090a8;
 		}
 
 		body {
@@ -763,7 +770,7 @@
 			background: var(--cp-cyan);
 		}
 
-		/* match the rounded button shape the candy/galaxy ("playful") palettes use */
+		/* match the rounded button shape the playful palettes use */
 		body[data-family="playful"] input[type="file"].form-control-file::file-selector-button,
 		body[data-family="playful"] input[type="file"].form-control-file::-webkit-file-upload-button {
 			border-radius: 18px;
@@ -1733,7 +1740,7 @@
 		}
 
 		/* ============================================================
-		   "Playful" theme family - shared overrides for the candy/galaxy
+		   "Playful" theme family - shared overrides for the playful
 		   palettes. Strips the cyberpunk neon/CRT flourishes
 		   (scanlines, glows, angled clip-paths, flicker) and rounds
 		   everything off into a soft, friendly toy-like UI. Only the
@@ -1808,19 +1815,87 @@
 			box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
 		}
 
+				/* ============================================================
+		   "Pixel" theme family - dark 8-bit retro. Squares every corner,
+		   swaps to a monospace face and adds chunky offset button shadows.
+		   Palette-driven (var(--cp-*)); used by the dark "pixelheld" theme.
+		   ============================================================ */
+		body[data-family="pixel"] {
+			font-family: "Share Tech Mono", "Courier New", monospace;
+		}
+
+		body[data-family="pixel"]::after {
+			display: none;
+		}
+
+		body[data-family="pixel"] *,
+		body[data-family="pixel"] *::before,
+		body[data-family="pixel"] *::after {
+			text-shadow: none !important;
+			clip-path: none !important;
+			animation: none !important;
+			border-radius: 0 !important;
+		}
+
+		body[data-family="pixel"] .navbar,
+		body[data-family="pixel"] fieldset,
+		body[data-family="pixel"] .btn,
+		body[data-family="pixel"] .form-control,
+		body[data-family="pixel"] .form-select,
+		body[data-family="pixel"] .modal-content,
+		body[data-family="pixel"] .toast,
+		body[data-family="pixel"] .dropdown-menu,
+		body[data-family="pixel"] .list-group-item,
+		body[data-family="pixel"] .nav-link {
+			border-radius: 0 !important;
+			border-width: 2px;
+		}
+
+		body[data-family="pixel"] .btn {
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: .04em;
+			box-shadow: 3px 3px 0 rgba(0, 0, 0, .4);
+		}
+
+		body[data-family="pixel"] .navbar.bg-primary {
+			background: var(--cp-panel) !important;
+			border-bottom: 3px solid var(--cp-cyan);
+			box-shadow: 0 4px 0 rgba(0, 0, 0, .3);
+		}
+
+		body[data-family="pixel"] #navbar-brand-co {
+			color: var(--cp-cyan) !important;
+		}
+
+		body[data-family="pixel"] #navbar-heading {
+			color: var(--cp-magenta) !important;
+		}
+
+		body[data-family="pixel"] .nav-logo {
+			filter: none;
+		}
+
 		/* per-palette background washes for a bit of flavour */
-		body[data-theme="candy"] {
+		body[data-theme="waldhaus"] {
 			background-image:
-				radial-gradient(900px 500px at 50% -10%, rgba(255, 79, 163, .18), transparent 70%),
-				radial-gradient(700px 500px at 100% 100%, rgba(162, 92, 240, .16), transparent 70%);
+				radial-gradient(900px 500px at 50% -10%, rgba(79, 122, 69, .12), transparent 70%),
+				radial-gradient(700px 500px at 100% 100%, rgba(194, 91, 58, .1), transparent 70%);
 			background-size: auto, auto;
 		}
 
-		body[data-theme="galaxy"] {
+		body[data-theme="wolkchen"] {
 			background-image:
-				radial-gradient(900px 500px at 50% -10%, rgba(124, 77, 255, .16), transparent 70%),
-				radial-gradient(700px 500px at 100% 100%, rgba(47, 123, 255, .16), transparent 70%);
+				radial-gradient(900px 500px at 50% -10%, rgba(155, 107, 214, .12), transparent 70%),
+				radial-gradient(700px 500px at 100% 100%, rgba(224, 123, 179, .1), transparent 70%);
 			background-size: auto, auto;
+		}
+
+		body[data-theme="pixelheld"] {
+			background-image:
+				linear-gradient(rgba(155, 227, 74, .04) 1px, transparent 1px),
+				linear-gradient(90deg, rgba(155, 227, 74, .04) 1px, transparent 1px);
+			background-size: 32px 32px, 32px 32px;
 		}
 	</style>
 </head>
@@ -1829,14 +1904,13 @@
 	<!-- Apply the stored theme before paint to avoid a flash of the wrong colours. -->
 	<script>
 		(function () {
-			var families = { cyberpunk: 'neon', candy: 'playful', galaxy: 'playful' };
-			var theme = localStorage.getItem('uiTheme') || 'cyberpunk';
-			if (!families[theme]) { theme = 'cyberpunk'; }
-			var playful = families[theme] === 'playful';
-			document.body.setAttribute('data-theme', theme);
-			document.body.setAttribute('data-family', families[theme]);
-			var mode = playful ? 'light' : (localStorage.getItem('lightSwitch') || 'dark');
-			document.body.setAttribute('data-bs-theme', mode);
+			var T = { cyberpunk: { family: 'neon' }, waldhaus: { family: 'playful', mode: 'light' }, wolkchen: { family: 'playful', mode: 'light' }, pixelheld: { family: 'pixel', mode: 'dark' } };
+				var theme = localStorage.getItem('uiTheme') || 'cyberpunk';
+				if (!T[theme]) { theme = 'cyberpunk'; }
+				document.body.setAttribute('data-theme', theme);
+				document.body.setAttribute('data-family', T[theme].family);
+				var mode = T[theme].mode || (localStorage.getItem('lightSwitch') || 'dark');
+				document.body.setAttribute('data-bs-theme', mode);
 		})();
 	</script>
 	<div class="toast-container position-fixed top-0 end-0 p-3 mt-5" id="toaster">
@@ -1907,8 +1981,9 @@
 										style="margin-left: 0; margin-top: 10px; margin-right: 5px;"></i>
 									<select class="form-control form-select" id="themeSel" name="themeSel">
 										<option value="cyberpunk" data-i18n="themeCyberpunk"></option>
-										<option value="candy" data-i18n="themeCandy"></option>
-										<option value="galaxy" data-i18n="themeGalaxy"></option>
+										<option value="waldhaus" data-i18n="themeWaldhaus"></option>
+										<option value="wolkchen" data-i18n="themeWolkchen"></option>
+										<option value="pixelheld" data-i18n="themePixel"></option>
 									</select>
 								</div>
 							</li>
@@ -7481,7 +7556,7 @@
 
 		// Build a small inline-SVG bar chart of the last 30 days of listening time from the raw
 		// /playstats ring buffer. Pure client-side (no chart lib, stays offline); bars use the
-		// active theme's accent colour so it matches Cyberpunk/Candy/Galaxy. Returns '' if empty.
+		// active theme's accent colour so it matches the active theme. Returns '' if empty.
 		function renderStatsChart(ps) {
 			if (!ps || !ps.lastDay || !Array.isArray(ps.days) || !ps.days.length) return '';
 			const size = ps.days.length; // 365
@@ -8085,12 +8160,13 @@
 			 * Bootstrap mode, so the dark-mode toggle has no effect there). */
 			const THEMES = {
 				cyberpunk: { family: 'neon' },
-				candy: { family: 'playful' },
-				galaxy: { family: 'playful' },
+				waldhaus: { family: 'playful', mode: 'light' },
+				wolkchen: { family: 'playful', mode: 'light' },
+				pixelheld: { family: 'pixel', mode: 'dark' },
 			};
 
-			function isPlayful(theme) {
-				return (THEMES[theme] || THEMES.cyberpunk).family == 'playful';
+			function pinnedMode(theme) {
+				return (THEMES[theme] || THEMES.cyberpunk).mode;
 			}
 
 			/* Applies a Bootstrap color mode (dark/light) to body + file explorer. */
@@ -8121,9 +8197,10 @@
 				themeSel.val(theme);
 
 				const darkToggle = lightSwitch.closest('li');
-				if (isPlayful(theme)) {
-					/* playful themes are intrinsically bright */
-					applyColorMode('light');
+				const pinned = pinnedMode(theme);
+				if (pinned) {
+					/* playful themes pin light, pixel pins dark */
+					applyColorMode(pinned);
 					darkToggle.addClass('d-none');
 				} else {
 					darkToggle.removeClass('d-none');
@@ -8134,7 +8211,7 @@
 			/* Triggers a newColorMode(..) call with either 'dark' or 'light'  as the new color mode. */
 			function onSwitchDarkMode() {
 				/* The dark/light switch is inert while a playful theme is active. */
-				if (isPlayful(activeTheme())) {
+				if (pinnedMode(activeTheme())) {
 					return;
 				}
 				newColorMode(lightSwitch.prop('checked') ? 'dark' : 'light');

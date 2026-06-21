@@ -17,8 +17,9 @@
 	"infos": "Informations",
 	"darkmode": "Mode sombre",
 	"themeCyberpunk": "Cyberpunk",
-	"themeCandy": "Bonbon",
-	"themeGalaxy": "Galaxie",
+	"themeWaldhaus": "Forêt",
+	"themeWolkchen": "Nuage",
+	"themePixel": "Pixel",
 	"restartinfo": "ESPuino est en cours de redémarrage...<br>La page se recharge automatiquement après la fin du redémarrage.",
 	"shutdowninfo": "ESPuino est maintenant éteint...<br>La page se recharge automatiquement lorsque l'ESPuino est rallumé.",
 	"toast": {
