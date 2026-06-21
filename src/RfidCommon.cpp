@@ -206,7 +206,9 @@ void Rfid_HandleCardDetected(const byte *uid, byte *lastValidcardId, const char 
 
 	if (gPlayProperties.pauseIfRfidRemoved) {
 		if (gPlayProperties.stopIfRfidRemoved) {
-			// stop-mode: removal fully stops playback, so any (re)application restarts the card from the beginning
+			// stop-mode: removal fully stops playback (back to the idle animation). The resume point is
+			// saved on removal (see the STOP case in AudioPlayer_Loop), so re-applying the card continues
+			// an audiobook where it left off; non-position-saving content simply starts over.
 			xQueueSend(gRfidCardQueue, cardIdString, 0);
 		} else {
 #ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END

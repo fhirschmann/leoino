@@ -2726,6 +2726,14 @@
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
+								<label for="minResumeSec" data-i18n="general.options.minResumeSec"></label>
+								<input type="number" class="form-control" id="minResumeSec" name="minResumeSec"
+									min="0" max="3600" step="1" style="max-width:7em">
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.options.minResumeSecExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
+							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<label for="seekStep" data-i18n="general.options.seekStep"></label>
 								<input type="number" class="form-control" id="seekStep" name="seekStep"
 									min="5" max="3600" step="5" style="max-width:7em">
@@ -5511,6 +5519,9 @@
 				if (genSettings.restartFreshHrs !== undefined) {
 					$('#restartFreshHrs').val(genSettings.restartFreshHrs);
 				}
+				if (genSettings.minResumeSec !== undefined) {
+					$('#minResumeSec').val(genSettings.minResumeSec);
+				}
 				if (genSettings.seekStep !== undefined) {
 					$('#seekStep').val(genSettings.seekStep);
 				}
@@ -6179,6 +6190,7 @@
 					savePosRfidChge: $('#savePlayPosRfidChange').prop('checked'),
 					savePosPeriodic: $('#savePlayPosPeriodic').prop('checked'),
 					restartFreshHrs: Number($('#restartFreshHrs').val()),
+					minResumeSec: Number($('#minResumeSec').val()),
 					seekStep: Number($('#seekStep').val()),
 					playLastRfidOnReboot: $('#playLastRfidOnReboot').prop('checked'),
 					pauseIfRfidRemoved: $('#pauseIfRfidRemoved').prop('checked'),

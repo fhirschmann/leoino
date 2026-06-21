@@ -872,6 +872,17 @@ void AudioPlayer_Loop() {
 		   (stop, start, next track, prev. track, last track, first track...) */
 		switch (trackCommand) {
 			case STOP:
+				// Persist the audiobook resume point *before* stopping (e.g. the card was pulled in
+				// stop-on-removal mode) so the next play continues exactly where it left off instead of
+				// from the last ~30 s periodic checkpoint or the track start. Mirrors the pause-save guard:
+				// only the position-saving audiobook modes carry a resume point (saveLastPlayPosition), and
+				// a running TTS announcement is skipped (its ~0 s position would clobber the book's slot).
+				// getAudioCurrentTime() must be read before stopSong() resets it. A pull within the first
+				// few seconds is reset to the very start by AudioPlayer_NvsRfidWriteWrapper (minResumeSec).
+				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.currentSpeechActive && audio && audio->isRunning()) {
+					Log_Printf(LOGLEVEL_INFO, trackPausedAtPos, audio->getAudioCurrentTime(), audio->getAudioFileDuration());
+					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
+				}
 				audio->stopSong();
 				trackCommand = NO_ACTION;
 				Log_Println(cmndStop, LOGLEVEL_INFO);
@@ -1757,6 +1768,20 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 	char firstPart[275] = {0};
 	char prefBuf[275];
 
+	// Don't create a "resume a few seconds in" point when an audiobook is only briefly sampled: if the
+	// card is pulled within the first <minResumeSec> seconds of the very first track, persist position 0
+	// so the next play starts cleanly from the beginning instead of a couple of seconds in. Gated to the
+	// position-saving audiobook modes and track 0, so genuine mid-book progress is never discarded.
+	// 0 = off. Default 20 s.
+	uint32_t playPosition = _playPosition;
+	if (_trackLastPlayed == 0 && _playPosition > 0 && (_playMode == AUDIOBOOK || _playMode == AUDIOBOOK_LOOP || _playMode == AUDIOBOOK_RECURSIVE)) {
+		const uint32_t minResumeSec = gPrefsSettings.getUInt("minResumeSec", 20);
+		if (minResumeSec > 0 && _playPosition < minResumeSec) {
+			Log_Printf(LOGLEVEL_NOTICE, "Audiobook pulled within first %u s -> resetting resume point to start", minResumeSec);
+			playPosition = 0;
+		}
+	}
+
 	gPrefsRfid.getString(_rfidCardId, firstPart, sizeof(firstPart)); // read back previous value from NVS
 
 	// Remove everything after the first part (after the first stringDelimiter)
@@ -1766,7 +1791,7 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 	}
 
 	// Build the new string with the preserved first part (which already contains the track)
-	snprintf(prefBuf, sizeof(prefBuf), "%s%s%" PRIu32 "%s%d%s%" PRIu16, firstPart, stringDelimiter, _playPosition, stringDelimiter, _playMode, stringDelimiter, _trackLastPlayed);
+	snprintf(prefBuf, sizeof(prefBuf), "%s%s%" PRIu32 "%s%d%s%" PRIu16, firstPart, stringDelimiter, playPosition, stringDelimiter, _playMode, stringDelimiter, _trackLastPlayed);
 
 	Log_Printf(LOGLEVEL_INFO, wroteLastTrackToNvs, prefBuf, _rfidCardId, _playMode, _trackLastPlayed);
 	Log_Println(prefBuf, LOGLEVEL_INFO);

@@ -1085,6 +1085,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (!generalObj["restartFreshHrs"].isNull()) { // restart audiobooks from start after this idle gap (0 = off)
 			gPrefsSettings.putUInt("freshAfterHrs", generalObj["restartFreshHrs"].as<uint32_t>());
 		}
+		if (!generalObj["minResumeSec"].isNull()) { // don't resume an audiobook pulled within the first N seconds (0 = off)
+			gPrefsSettings.putUInt("minResumeSec", generalObj["minResumeSec"].as<uint32_t>());
+		}
 		if (!generalObj["seekStep"].isNull()) { // step (s) for smart forward/backward in-file seeking
 			uint16_t seekStep = generalObj["seekStep"].as<uint16_t>();
 			gPrefsSettings.putUInt("seekStep", seekStep);

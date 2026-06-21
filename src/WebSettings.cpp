@@ -55,6 +55,7 @@ void settingsToJSON(JsonObject obj, const String section) {
 		generalObj["savePosRfidChge"].set(gPrefsSettings.getBool("savePosRfidChge", false)); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 		generalObj["savePosPeriodic"].set(gPrefsSettings.getBool("savePosPeriodic", true)); // periodic audiobook play-position checkpoint
 		generalObj["restartFreshHrs"].set(gPrefsSettings.getUInt("freshAfterHrs", 24)); // restart audiobooks from start after this idle gap (0 = off)
+		generalObj["minResumeSec"].set(gPrefsSettings.getUInt("minResumeSec", 20)); // don't resume an audiobook pulled within the first N seconds (0 = off)
 		generalObj["seekStep"].set(gPrefsSettings.getUInt("seekStep", seekStepDefault)); // step (s) for smart forward/backward in-file seeking
 		generalObj["playLastRfidOnReboot"].set(gPrefsSettings.getBool("playLastOnBoot", false)); // PLAY_LAST_RFID_AFTER_REBOOT
 		generalObj["pauseIfRfidRemoved"].set(gPrefsSettings.getBool("pauseRfidRem", false)); // PAUSE_WHEN_RFID_REMOVED
@@ -246,6 +247,7 @@ void settingsToJSON(JsonObject obj, const String section) {
 		genSettings["savePosRfidChge"].set(false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 		genSettings["savePosPeriodic"].set(true); // periodic audiobook play-position checkpoint
 		genSettings["restartFreshHrs"].set(24u); // restart audiobooks from start after 24 h idle (0 = off)
+		genSettings["minResumeSec"].set(20u); // don't resume an audiobook pulled within the first 20 s (0 = off)
 		genSettings["seekStep"].set((uint32_t) seekStepDefault); // step (s) for smart forward/backward in-file seeking
 		genSettings["playStartupSnd"].set(true); // play the ready sound on cold start
 		genSettings["playLastRfidOnReboot"].set(false); // PLAY_LAST_RFID_AFTER_REBOOT
