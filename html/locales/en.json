@@ -670,6 +670,7 @@
 		},
 		"rfid": {
 			"title": "RFID Reader",
+			"behaviorTitle": "RFID behaviour",
 			"readerType": {
 				"title": "Reader Type",
 				"auto": "Auto-detect",
