@@ -2929,9 +2929,9 @@
 							</span>
 						</div>
 					</div>
-					<div class="d-flex gap-2">
-						<input type="checkbox" id="pn5180Lpcd" name="pn5180Lpcd" value="false">
-						<label for="pn5180Lpcd" data-i18n="general.rfid.pn5180Lpcd"></label>
+					<div class="form-check form-switch">
+						<input class="form-check-input" type="checkbox" role="switch" id="pn5180Lpcd" name="pn5180Lpcd" value="false">
+						<label class="form-check-label" for="pn5180Lpcd" data-i18n="general.rfid.pn5180Lpcd"></label>
 						<a href="#" class="link-secondary" data-bs-toggle="popover"
 							data-i18n="[data-bs-content]general.rfid.pn5180LpcdExp" tabindex="0"><i
 								class="fas fa-circle-question"></i></a>
@@ -3037,10 +3037,12 @@
 									</select>&nbsp;<input type="color" class="controlColorInput" value="#ffffff">
 								</div>
 								<div id="controlLedsEnabledWrap" class="pb-2 d-none">
-									<input type="checkbox" id="led_controlLedsEnabled"
-										name="led_controlLedsEnabled" value="true">&nbsp;
-									<label for="led_controlLedsEnabled"
-										data-i18n="settingsex.led.controlledsenabled"></label><br>
+									<div class="form-check form-switch">
+										<input class="form-check-input" type="checkbox" role="switch" id="led_controlLedsEnabled"
+											name="led_controlLedsEnabled" value="true">
+										<label class="form-check-label" for="led_controlLedsEnabled"
+											data-i18n="settingsex.led.controlledsenabled"></label>
+									</div>
 								</div>
 								<label for="led_idleDots" data-i18n="settingsex.led.numidledots"></label>: <br>
 								<input type="number" class="form-control" id="led_idleDots" name="led_idleDots" min="0"
@@ -3088,8 +3090,10 @@
 				<div class="col-md-12 mb-4">
 					<fieldset>
 						<legend class="w-auto" data-i18n="settingsex.oled.title"></legend><br>
-						<input type="checkbox" id="oled_enable" name="oled_enable" value="true">&nbsp;
-						<label for="oled_enable" data-i18n="settingsex.oled.enable"></label><br>
+						<div class="form-check form-switch">
+							<input class="form-check-input" type="checkbox" role="switch" id="oled_enable" name="oled_enable" value="true">
+							<label class="form-check-label" for="oled_enable" data-i18n="settingsex.oled.enable"></label>
+						</div>
 						<small class="text-muted" data-i18n="settingsex.oled.enablehint"></small><br><br>
 						<label for="oled_startAnim" data-i18n="settingsex.oled.startanim"></label>: <br>
 						<select class="form-control form-select" id="oled_startAnim" name="oled_startAnim">
@@ -3136,9 +3140,9 @@
 									<i class="fas fa-hourglass-end fa-2x icon-pos"></i>
 								</div>
 							</div>
-							<div class="mt-3 d-flex gap-2 align-items-center">
-								<input type="checkbox" id="noSleepWhenPowered" name="noSleepWhenPowered" value="false">
-								<label for="noSleepWhenPowered" data-i18n="general.options.noSleepWhenPowered"></label>
+							<div class="form-check form-switch mt-3">
+								<input class="form-check-input" type="checkbox" role="switch" id="noSleepWhenPowered" name="noSleepWhenPowered" value="false">
+								<label class="form-check-label" for="noSleepWhenPowered" data-i18n="general.options.noSleepWhenPowered"></label>
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.noSleepWhenPoweredExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
@@ -3295,9 +3299,9 @@
 					<legend data-i18n="wifi.title"></legend>
 					<form action="#globalWifiConfig" method="POST"
 						onsubmit="globalWifiConfig('globalWifiConfig'); return false">
-						<div class="mb-3 col-md-12">
-							<input type="checkbox" id="scan_wifi_on_start" name="scan_wifi_on_start"
-								value="false">&nbsp; <label for="scan_wifi_on_start"
+						<div class="form-check form-switch mb-3 col-md-12">
+							<input class="form-check-input" type="checkbox" role="switch" id="scan_wifi_on_start" name="scan_wifi_on_start"
+								value="false"> <label class="form-check-label" for="scan_wifi_on_start"
 								data-i18n="wifi.scan.enabled"></label>
 						</div>
 						<div class="text-center">
@@ -3318,8 +3322,10 @@
 							<label for="pwd" data-i18n="[prepend]wifi.password.title">:</label>
 							<input type="password" class="form-control" id="pwd" name="pwd"
 								data-i18n="[placeholder]wifi.password.placeholder" required><br>
-							<input type="checkbox" id="static_enabled" name="static_enabled" value="false">&nbsp; <label
-								for="static_enabled" data-i18n="[prepend]wifi.static.enabled">:</label>
+							<div class="form-check form-switch mb-2">
+								<input class="form-check-input" type="checkbox" role="switch" id="static_enabled" name="static_enabled" value="false">
+								<label class="form-check-label" for="static_enabled" data-i18n="[prepend]wifi.static.enabled"></label>
+							</div>
 							<div id="wifi_static_div" style="display:none">
 								<label for="static_addr" data-i18n="[prepend]wifi.static.addr">:</label>
 								<input type="text" class="form-control" id="static_addr" name="static_addr">
@@ -3353,9 +3359,9 @@
 					onsubmit="mqttSettings('mqttConfig'); return false">
 					<legend data-i18n="mqtt.title"></legend>
 					<div class="mb-2"><small class="text-muted" data-i18n="mqtt.restartNote"></small></div>
-					<div class="form-check col-md-12">
-						<input class="form-check-input" type="checkbox" value="1" id="mqttEnable"
-							name="mqttEnable">&nbsp; <label class="form-check-label" for="mqttEnable"
+					<div class="form-check form-switch col-md-12 mb-2">
+						<input class="form-check-input" type="checkbox" role="switch" value="1" id="mqttEnable"
+							name="mqttEnable"> <label class="form-check-label" for="mqttEnable"
 							data-i18n="mqtt.enable"></label>
 					</div>
 					<div class="mb-3 my-2 col-md-12">
@@ -3477,9 +3483,9 @@
 						<a href="https://github.com/fhirschmann/leoino/blob/master/server/manifest.php"
 							target="_blank" rel="noopener">manifest.php</a>
 					</small>
-					<div class="d-flex gap-2 mt-3">
-						<input type="checkbox" id="syncAbortBtn" name="syncAbortBtn" value="false">
-						<label for="syncAbortBtn" data-i18n="sync.abortBtn"></label>
+					<div class="form-check form-switch mt-3">
+						<input class="form-check-input" type="checkbox" role="switch" id="syncAbortBtn" name="syncAbortBtn" value="false">
+						<label class="form-check-label" for="syncAbortBtn" data-i18n="sync.abortBtn"></label>
 					</div>
 					<small class="text-muted" data-i18n="sync.abortBtn.hint"></small>
 					<div class="text-center mt-3">
@@ -3531,9 +3537,9 @@
 							<i class="fas fa-plus"></i> <span data-i18n="sync.rfid.addPeer"></span></button>
 					</div>
 					<small class="text-muted" data-i18n="sync.rfid.peersHint"></small>
-					<div class="d-flex gap-2 mt-2">
-						<input type="checkbox" id="rfidSyncLearn" name="rfidSyncLearn" value="false">
-						<label for="rfidSyncLearn" data-i18n="sync.rfid.onLearn"></label>
+					<div class="form-check form-switch mt-2">
+						<input class="form-check-input" type="checkbox" role="switch" id="rfidSyncLearn" name="rfidSyncLearn" value="false">
+						<label class="form-check-label" for="rfidSyncLearn" data-i18n="sync.rfid.onLearn"></label>
 					</div>
 					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="rfidSyncSaveBtn" onclick="syncSettings()" data-i18n="submit"></button>
@@ -3554,9 +3560,9 @@
 						<a href="https://github.com/fhirschmann/leoino/blob/master/server/backup.php"
 							target="_blank" rel="noopener">backup.php</a>
 					</small>
-					<div class="d-flex gap-2 mt-2">
-						<input type="checkbox" id="backupAuto" name="backupAuto" value="false">
-						<label for="backupAuto" data-i18n="sync.backup.auto"></label>
+					<div class="form-check form-switch mt-2">
+						<input class="form-check-input" type="checkbox" role="switch" id="backupAuto" name="backupAuto" value="false">
+						<label class="form-check-label" for="backupAuto" data-i18n="sync.backup.auto"></label>
 					</div>
 					<small class="text-muted" data-i18n="sync.backup.autoHint"></small>
 					<div class="text-center mt-3">
