@@ -2302,8 +2302,7 @@
 						</button>
 					</div>
 				</div>
-				<br>
-				<legend class="col-auto"><span data-i18n="control.volume"></span> <span id="volumeValue" class="text-secondary"></span></legend>
+				<legend class="col-auto mt-3"><span data-i18n="control.volume"></span> <span id="volumeValue" class="text-secondary"></span></legend>
 				<div class="slider-container control-volume">
 					<div class="float-end">
 						<button type="button" class="btn btn-primary btn-lg volume-button" onclick="sendControl(177)"
@@ -2329,8 +2328,7 @@
 						</button>
 					</div>
 				</div>
-				<br />
-				<div class="mb-3 col-md-12">
+				<div class="mb-3 mt-3 col-md-12">
 					<legend class="d-flex align-items-center justify-content-between" style="border-bottom:none;">
 						<span data-i18n="control.current"></span>
 						<button type="button" class="btn btn-sm cp-control-button" id="btn-track-info"
@@ -2383,9 +2381,7 @@
 								onclick="resizeFileList(false)" style="display: none;"><span
 									class="fas fa-compress-alt"></span></button>
 						</div>
-						<br>
-						<div>
-							<br>
+						<div class="mt-4">
 							<legend id="filesupload" data-i18n="files.upload.title">Files</legend>
 							<form id="explorerUploadForm" method="POST" enctype="multipart/form-data"
 								action="/explorer">
@@ -2723,9 +2719,10 @@
 										class="fas fa-circle-question"></i></a>
 							</div>
 							</div>
-							<br>
-							<label for="readyPath" data-i18n="general.options.readypath"></label>
-							<input type="text" class="form-control" id="readyPath" name="readyPath">
+							<div class="mt-3">
+								<label class="form-label" for="readyPath" data-i18n="general.options.readypath"></label>
+								<input type="text" class="form-control" id="readyPath" name="readyPath">
+							</div>
 						</fieldset>
 					</div>
 					<div class="col-md-12 mb-4" id="playlistConfig">
@@ -2935,9 +2932,9 @@
 						<a href="#" class="link-secondary" data-bs-toggle="popover"
 							data-i18n="[data-bs-content]general.rfid.pn5180LpcdExp" tabindex="0"><i
 								class="fas fa-circle-question"></i></a>
-					</div><br>
-					<div class="mb-3">
-						<label for="slix2Password" data-i18n="general.rfid.slix2Password.title"></label>
+					</div>
+					<div class="mb-3 mt-3">
+						<label class="form-label" for="slix2Password" data-i18n="general.rfid.slix2Password.title"></label>
 						<div class="input-group">
 							<input type="text" class="form-control" id="slix2Password" name="slix2Password"
 								maxlength="8" placeholder="e.g. 01020304">
@@ -2969,8 +2966,8 @@
 					<div class="col-md-12 mb-4" id="neopixelConfig" data-visible="false">
 						<fieldset>
 							<legend class="w-auto" data-i18n="general.neopixel.title"></legend><br>
-							<label for="initBrightness" data-i18n="[prepend]general.neopixel.restart">:</label>
-							<div class="slider-container">
+							<label class="form-label" for="initBrightness" data-i18n="[prepend]general.neopixel.restart">:</label>
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="far fa-sun fa-2x icon-pos"></i>
 								</div>
@@ -2983,9 +2980,8 @@
 									<i class="fas fa-sun fa-2x icon-pos"></i>
 								</div>
 							</div>
-							<br>
-							<label for="nightBrightness" data-i18n="[prepend]general.neopixel.nightmode">:</label>
-							<div class="slider-container">
+								<label class="form-label" for="nightBrightness" data-i18n="[prepend]general.neopixel.nightmode">:</label>
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="far fa-sun fa-2x icon-pos"></i>
 								</div>
@@ -2998,9 +2994,8 @@
 									<i class="fas fa-sun fa-2x icon-pos"></i>
 								</div>
 							</div>
-							<br>
-							<label for="atmoBrightness" data-i18n="[prepend]general.neopixel.atmomode">:</label>
-							<div class="slider-container">
+								<label class="form-label" for="atmoBrightness" data-i18n="[prepend]general.neopixel.atmomode">:</label>
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="far fa-sun fa-2x icon-pos"></i>
 								</div>
@@ -3167,7 +3162,7 @@
 						<fieldset>
 							<legend data-i18n="general.sleep.title"></legend>
 							<label for="inactivityTime" data-i18n="general.sleep.inactivity"></label>
-							<div class="slider-container">
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="fas fa-hourglass-start fa-2x icon-pos"></i>
 								</div>
@@ -3202,10 +3197,9 @@
 					<div class="col-md-12 mb-4" id="batteryConfig" data-visible="false">
 						<fieldset>
 							<legend data-i18n="general.battery.title">Batterie</legend>
-							<div data-i18n="general.battery.desc"></div>
-							<br>
-							<label for="warningLowVoltage" data-i18n="[prepend]general.battery.lowWarning">:</label>
-							<div class="slider-container">
+							<div class="mb-2" data-i18n="general.battery.desc"></div>
+							<label class="form-label" for="warningLowVoltage" data-i18n="[prepend]general.battery.lowWarning">:</label>
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="fas fa-battery-quarter fa-2x icon-pos"></i>
 								</div>
@@ -3219,8 +3213,8 @@
 									<i class="fas fa-battery-three-quarters fa-2x icon-pos"></i>
 								</div>
 							</div>
-							<label for="voltageIndicatorLow" data-i18n="[prepend]general.battery.lowCritical">:</label>
-							<div class="slider-container">
+							<label class="form-label" for="voltageIndicatorLow" data-i18n="[prepend]general.battery.lowCritical">:</label>
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="fas fa-battery-quarter fa-2x icon-pos"></i>
 								</div>
@@ -3234,8 +3228,8 @@
 									<i class="fas fa-battery-three-quarters fa-2x icon-pos"></i>
 								</div>
 							</div>
-							<label for="voltageIndicatorHigh" data-i18n="[prepend]general.battery.high">:</label>
-							<div class="slider-container">
+							<label class="form-label" for="voltageIndicatorHigh" data-i18n="[prepend]general.battery.high">:</label>
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="fas fa-battery-quarter fa-2x icon-pos"></i>
 								</div>
@@ -3250,9 +3244,9 @@
 								</div>
 							</div>
 							<div id="criticalVoltageSection" data-visible="false">
-								<label for="criticalVoltage"
+								<label class="form-label" for="criticalVoltage"
 									data-i18n="[prepend]general.battery.criticalShutoff">:</label>
-								<div class="slider-container">
+								<div class="slider-container mb-3">
 									<div class="float-end" style="padding-left: 30px">
 										<i class="fas fa-battery-quarter fa-2x icon-pos"></i>
 									</div>
@@ -3269,7 +3263,7 @@
 							</div>
 							<label for="voltageCheckInterval"
 								data-i18n="[prepend]general.battery.measureInterval">:</label>
-							<div class="slider-container">
+							<div class="slider-container mb-3">
 								<div class="float-end" style="padding-left: 30px">
 									<i class="fas fa-hourglass-start fa-2x icon-pos"></i>
 								</div>
@@ -3355,13 +3349,17 @@
 					<legend data-i18n="wifi.networks"></legend>
 					<form action="#wifiConfig" method="POST" onsubmit="wifiConfig('wifiConfig'); return false">
 						<div class="mb-3 col-md-12">
-							<label for="ssid" data-i18n="[prepend]wifi.ssid.title">:</label>
-							<input type="text" class="form-control" id="ssid"
-								data-i18n="[placeholder]wifi.ssid.placeholder" name="ssid" required><br>
-							<div class="invalid-feedback" data-i18n="wifi.ssid.validation"></div>
-							<label for="pwd" data-i18n="[prepend]wifi.password.title">:</label>
-							<input type="password" class="form-control" id="pwd" name="pwd"
-								data-i18n="[placeholder]wifi.password.placeholder" required><br>
+							<div class="mb-3">
+								<label class="form-label" for="ssid" data-i18n="[prepend]wifi.ssid.title">:</label>
+								<input type="text" class="form-control" id="ssid"
+									data-i18n="[placeholder]wifi.ssid.placeholder" name="ssid" required>
+								<div class="invalid-feedback" data-i18n="wifi.ssid.validation"></div>
+							</div>
+							<div class="mb-3">
+								<label class="form-label" for="pwd" data-i18n="[prepend]wifi.password.title">:</label>
+								<input type="password" class="form-control" id="pwd" name="pwd"
+									data-i18n="[placeholder]wifi.password.placeholder" required>
+							</div>
 							<div class="form-check form-switch mb-2">
 								<input class="form-check-input" type="checkbox" role="switch" id="static_enabled" name="static_enabled" value="false">
 								<label class="form-check-label" for="static_enabled" data-i18n="[prepend]wifi.static.enabled"></label>
@@ -3390,9 +3388,7 @@
 					<ul class="list-group" id="wifiListSavedSSIDs">
 					</ul>
 				</div>
-			</div>
-			<br />
-		</div>
+			</div>		</div>
 		<div class="tab-pane fade" id="nav-mqtt" role="tabpanel" aria-labelledby="nav-mqtt-tab">
 			<div class="container" id="mqttConfig">
 				<form class="needs-validation" action="#mqttConfig" method="POST"
@@ -3456,8 +3452,8 @@
 				<div class="col-md-12">
 					<legend data-i18n="ftp.start.title"></legend>
 					<div data-i18n="ftp.start.desc"></div>
-					<br>
-					<div class="text-center">
+					
+					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="ftpModeBtn" onclick="ftpSetStatus(1)"
 							data-i18n="ftp.start.button"></button>
 					</div>
@@ -3488,8 +3484,8 @@
 				<div class="col-md-12">
 					<legend data-i18n="webdav.start.title"></legend>
 					<div data-i18n="webdav.start.desc"></div>
-					<br>
-					<div class="text-center">
+					
+					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="webdavModeBtn" onclick="webdavSetStatus(1)"
 							data-i18n="webdav.start.button"></button>
 					</div>
@@ -3651,12 +3647,14 @@
 				<form action="#btConfig" method="POST" onsubmit="btSettings('btConfig'); return false">
 					<div class="mb-3 col-md-12">
 						<legend data-i18n="bt.source.configtitle"></legend>
-						<label for="btDeviceName" data-i18n="[prepend]bt.device.title">:</label>
-						<input type="text" class="form-control" id="btDeviceName"
-							data-i18n="[placeholder]bt.device.placeholder" name="btDeviceName" value=""><br>
-						<label for="btPinCode" data-i18n="[prepend]bt.pincode.title">:</label>
-						<input type="text" class="form-control" id="btPinCode"
-							data-i18n="[placeholder]bt.pincode.placeholder" name="btPinCode" value="">
+						<div class="mb-3">
+						<label class="form-label" for="btDeviceName" data-i18n="[prepend]bt.device.title">:</label>
+						<input type="text" class="form-control" id="btDeviceName" data-i18n="[placeholder]bt.device.placeholder" name="btDeviceName" value="">
+					</div>
+					<div class="mb-3">
+						<label class="form-label" for="btPinCode" data-i18n="[prepend]bt.pincode.title">:</label>
+						<input type="text" class="form-control" id="btPinCode" data-i18n="[placeholder]bt.pincode.placeholder" name="btPinCode" value="">
+					</div>
 					</div>
 					<div class="mb-3 col-md-12">
 						<label class="form-label" data-i18n="bt.scan.title"></label>
@@ -3687,8 +3685,8 @@
 				<div class="mb-3 col-md-12">
 					<legend data-i18n="bt.source.title"></legend>
 					<div data-i18n="bt.source.desc"></div>
-					<br>
-					<div class="text-center">
+					
+					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="btSourceModeBtn" onclick="setOperationMode(2)"
 							data-i18n="bt.source.button"></button>
 					</div>
@@ -3699,8 +3697,8 @@
 				<div class="mb-3 col-md-12">
 					<legend data-i18n="bt.sink.title"></legend>
 					<div data-i18n="bt.sink.desc"></div>
-					<br>
-					<div class="text-center">
+					
+					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="btSinkModeBtn" onclick="setOperationMode(1)"
 							data-i18n="bt.sink.button"></button>
 					</div>
@@ -3729,8 +3727,8 @@
 					<label for="commandId" data-i18n="files.rfid.mod.title"></label>
 					<select class="form-control form-select" id="commandId" name="commandId"></select>
 				</div>
-				<br>
-				<div class="text-center">
+				
+				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" onclick="executeCommand()"
 						data-i18n="execute"></button>
 				</div>
@@ -3740,7 +3738,6 @@
 			<div class="container" id="syncRunSection">
 				<legend data-i18n="sync.run.title"></legend>
 				<div data-i18n="sync.run.desc"></div>
-				<br>
 				<div id="syncProgress" class="progress upload-progress-bar position-relative">
 					<div class="progress-bar" role="progressbar"></div>
 					<div
@@ -3748,8 +3745,8 @@
 					</div>
 				</div>
 				<div id="syncCurrent" class="small text-muted text-truncate mt-1">&nbsp;</div>
-				<br>
-				<div class="text-center">
+				
+				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" id="syncRunBtn" onclick="startSync()"
 						data-i18n="sync.run.button"></button>
 					<button type="button" class="btn btn-danger d-none" id="syncStopBtn" onclick="stopSync()"
@@ -3759,8 +3756,8 @@
 			<div class="container" id="rfidSyncRunSection">
 				<legend data-i18n="sync.rfid.runTitle"></legend>
 				<div data-i18n="sync.rfid.runDesc"></div>
-				<br>
-				<div class="text-center">
+				
+				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" onclick="startRfidSync()"
 						data-i18n="sync.rfid.runBtn"></button>
 					<span id="rfidSyncStatus" class="ms-2 small text-secondary"></span>
@@ -3771,38 +3768,36 @@
 			<div class="container" id="savedAssignments">
 				<legend data-i18n="tools.nvs.title"></legend>
 				<p data-i18n="tools.nvs.desc"></p>
-				<span class="container" style="padding: 0" id="listNvs">
+				<span class="container mb-3" style="padding: 0" id="listNvs">
 					<p style="font-weight: bold" data-i18n="tools.nvs.list.title"></p>
 					<button class="btn btn-primary" type="button" data-bs-toggle="collapse"
 						data-bs-target="#rfidListSavedAssignmentsContainer" aria-expanded="false"
 						aria-controls="rfidListSavedAssignmentsContainer" data-i18n="showhide"></button>
-					<span class="collapse" id="rfidListSavedAssignmentsContainer"><br><br>
-						<ul class="list-group" id="rfidListSavedAssignments"></ul>
-					</span><br><br>
+					<span class="collapse" id="rfidListSavedAssignmentsContainer">
+						<ul class="list-group my-2" id="rfidListSavedAssignments"></ul>
+					</span>
 				</span>
-				<span class="container" style="padding: 0" id="exportNvs">
+				<span class="container mb-3" style="padding: 0" id="exportNvs">
 					<p style="font-weight: bold" data-i18n="tools.nvs.export.title"></p>
 					<p data-i18n="tools.nvs.export.desc"></p>
 					<a type="submit" class="btn btn-primary" data-i18n="submit"
 						href="/explorerdownload?path=/backup.txt" target="_blank"></a>
-					<br><br>
 				</span>
-				<span class="container" style="padding: 0">
+				<span class="container mb-3" style="padding: 0">
 					<p style="font-weight: bold" data-i18n="tools.nvs.import.title"></p>
 					<form id="nvsUploadForm" action="/upload" enctype="multipart/form-data" method="POST"
 						onsubmit="uploadNVSRFID('nvsUpload'); return false">
 						<div class="mb-3">
-							<label for="nvsUpload" data-i18n="tools.nvs.import.desc"></label><br><br>
+							<label class="form-label" for="nvsUpload" data-i18n="tools.nvs.import.desc"></label>
 							<input type="file" class="form-control-file btn btn-primary" id="nvsUpload" name="nvsUpload"
 								accept=".txt">
-							<br><br>
-							<div class="text-center">
+							<div class="text-center mt-3">
 								<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
 							</div>
 						</div>
 					</form>
 				</span>
-				<span class="container" style="padding: 0" id="eraseNvs">
+				<span class="container mb-3" style="padding: 0" id="eraseNvs">
 					<p style="font-weight: bold" data-i18n="tools.nvs.erase.title"></p>
 					<p class="mb-3" data-i18n="[html]tools.nvs.erase.desc"></p>
 					<div class="text-center">
@@ -3811,14 +3806,13 @@
 					</div>
 				</span>
 			</div>
-			<br><br>
-			<div class="container" id="eqRulesSection">
+			<div class="container mt-4" id="eqRulesSection">
 				<legend data-i18n="tools.eqrules.title"></legend>
 				<p data-i18n="tools.eqrules.desc"></p>
 				<button class="btn btn-primary" type="button" data-bs-toggle="collapse"
 					data-bs-target="#eqRulesListContainer" aria-expanded="false"
 					aria-controls="eqRulesListContainer" data-i18n="showhide"></button>
-				<span class="collapse" id="eqRulesListContainer"><br><br>
+				<span class="collapse" id="eqRulesListContainer">
 					<ul class="list-group" id="eqRulesList"></ul>
 				</span>
 			</div>
@@ -3827,22 +3821,20 @@
 			<div class="container" id="backup">
 				<legend data-i18n="tools.backup.title"></legend>
 				<p data-i18n="tools.backup.desc"></p>
-				<span class="container" style="padding: 0">
+				<span class="container mb-3" style="padding: 0">
 					<p style="font-weight: bold" data-i18n="tools.backup.export.title"></p>
-					<div class="d-flex gap-2">
-						<input type="checkbox" id="backupIncludeWifi" value="false">
-						<label for="backupIncludeWifi" data-i18n="tools.backup.export.includeWifi"></label>
-					</div><br>
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox" id="backupIncludeWifi" value="false">
+						<label class="form-check-label" for="backupIncludeWifi" data-i18n="tools.backup.export.includeWifi"></label>
+					</div>
 					<button type="button" class="btn btn-primary" onclick="exportBackup()"
 						data-i18n="tools.backup.export.button"></button>
-					<br><br>
 				</span>
-				<span class="container" style="padding: 0">
+				<span class="container mb-3" style="padding: 0">
 					<p style="font-weight: bold" data-i18n="tools.backup.import.title"></p>
 					<p data-i18n="tools.backup.import.desc"></p>
 					<input type="file" class="form-control-file btn btn-primary" id="backupUpload" accept=".json">
-					<br><br>
-					<div class="text-center">
+						<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" onclick="importBackup()"
 							data-i18n="tools.backup.import.button"></button>
 					</div>
@@ -3869,7 +3861,7 @@
 				<p data-i18n="tools.fwupdate.manual"></p>
 				<form id="firmwareUploadForm" method="POST" enctype="multipart/form-data" action="/update">
 					<div class="mb-3">
-						<label for="firmwareUpload" data-i18n="tools.fwupdate.desc"></label><br><br>
+						<label class="form-label" for="firmwareUpload" data-i18n="tools.fwupdate.desc"></label>
 						<input type="file" class="form-control-file btn btn-primary" id="firmwareUpload"
 							name="firmwareUpload" accept=".bin">
 					</div>
@@ -3879,8 +3871,8 @@
 							class="label d-flex position-absolute flex-column align-self-center text-center w-100 text-nowrap text-light">
 						</div>
 					</div>
-					<br>
-					<div class="text-center">
+					
+					<div class="text-center mt-3">
 						<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
 					</div>
 				</form>
