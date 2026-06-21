@@ -112,6 +112,23 @@ python3 tools/build_demo.py demo_dist
 python3 -m http.server --directory demo_dist 8000   # open http://localhost:8000/
 ```
 
+### // Themes
+
+Four selectable themes (menu → 🎨) — each a pure client-side swap of the colour palette plus a
+shape/typography "family", remembered per browser. **Cyberpunk** is the default (and the only one
+with a dark/light toggle); the three kid-friendly designs each pin their own mood:
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/img/theme-cyberpunk.png" alt="Cyberpunk theme"><br><sub><strong>Cyberpunk</strong> — neon noir, sharp &amp; glowing</sub></td>
+<td align="center" width="50%"><img src="docs/img/theme-waldhaus.png" alt="Waldhaus theme"><br><sub><strong>Waldhaus</strong> — cosy cream &amp; forest, rounded</sub></td>
+</tr>
+<tr>
+<td align="center" width="50%"><img src="docs/img/theme-wolkchen.png" alt="Wölkchen theme"><br><sub><strong>Wölkchen</strong> — soft marshmallow pastel</sub></td>
+<td align="center" width="50%"><img src="docs/img/theme-pixelheld.png" alt="Pixelheld theme"><br><sub><strong>Pixelheld</strong> — dark 8-bit retro, square &amp; mono</sub></td>
+</tr>
+</table>
+
 ## // Differences to upstream
 
 All changes compared to upstream/`dev`, each with a reference to its commit.
