@@ -29,6 +29,16 @@ static volatile uint8_t gSyncStatus = 0;
 static volatile uint8_t gSyncProgress = 0; // percent (files processed / total)
 static volatile bool gSyncCancel = false; // cooperative cancel flag
 
+// Dry-run: when set, the task does the exact same diff but downloads/deletes nothing and instead
+// writes a human-readable report of what it *would* do to the SD card (so the user can review a
+// mirror-delete before it actually removes files). The report is served via GET /syncreport.
+static volatile bool gSyncDryRun = false;
+static const char *kSyncDryReport = "/.sync_dryrun.txt"; // hidden -> excluded from the manifest and from mirror-delete
+
+const char *Sync_GetDryReportPath(void) {
+	return kSyncDryReport;
+}
+
 // Status message shared across cores: the sync task (core 1) writes the current file/result, the
 // web server (core 0) reads it for the progress UI. StatusMessage's spinlock keeps a reader from
 // ever seeing a half-written string (which would show up as a brief garbage line in the UI).
@@ -219,10 +229,12 @@ static bool syncIsProtected(const String &fullPath, const String &name) {
 	return (fullPath == "/manifest.json") || (fullPath == "/stats.csv") || (fullPath == backupFile);
 }
 
-// Recursively deletes every file under `dir` whose path the manifest did NOT list, then prunes
-// the directories this empties. `keep` must be the COMPLETE set of manifest paths — the caller
-// only runs this when the manifest parsed fully — otherwise wanted files would be deleted.
-static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted) {
+// Recursively handles every file under `dir` whose path the manifest did NOT list. In a real run
+// it deletes them and prunes the directories this empties; in a dry run (`dryRun`) it changes
+// nothing and instead appends each would-be-deleted path to `report`. `keep` must be the COMPLETE
+// set of manifest paths — the caller only runs this when the manifest parsed fully — otherwise
+// wanted files would be deleted.
+static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted, bool dryRun, File *report) {
 	File entry = dir.openNextFile();
 	while (entry) {
 		if (gSyncCancel) { // user pressed stop -> leave the rest of the card untouched
@@ -235,14 +247,23 @@ static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted) {
 		if (syncIsProtected(path, name)) {
 			entry.close();
 		} else if (isDir) {
-			syncMirrorDir(entry, keep, deleted);
+			syncMirrorDir(entry, keep, deleted, dryRun, report);
 			entry.close();
-			gFSystem.rmdir(path); // only succeeds once the directory has been emptied
+			if (!dryRun) {
+				gFSystem.rmdir(path); // only succeeds once the directory has been emptied
+			}
 		} else {
 			entry.close();
-			if (!keep.contains(syncHashPath(path)) && gFSystem.remove(path)) {
-				deleted++;
-				Log_Printf(LOGLEVEL_INFO, "Sync: deleted %s", path.c_str());
+			if (!keep.contains(syncHashPath(path))) {
+				if (dryRun) {
+					deleted++;
+					if (report) {
+						report->printf("RM   %s\n", path.c_str());
+					}
+				} else if (gFSystem.remove(path)) {
+					deleted++;
+					Log_Printf(LOGLEVEL_INFO, "Sync: deleted %s", path.c_str());
+				}
 			}
 		}
 		entry = dir.openNextFile();
@@ -275,6 +296,20 @@ static void syncTask(void *parameter) {
 	const bool mirror = gPrefsSettings.getBool("syncDelete", false);
 	SyncPathSet keepSet;
 	bool keepSetOk = true;
+
+	// Dry run: open the report file up front. The task downloads/deletes nothing and writes
+	// "DL"/"RM" lines here instead, so the user can preview a (mirror-)sync before committing.
+	const bool dryRun = gSyncDryRun;
+	File dryReport;
+	if (dryRun) {
+		dryReport = gFSystem.open(kSyncDryReport, "w", true);
+		if (!dryReport) {
+			syncFail("dry run: cannot write report to SD");
+			vTaskDelete(NULL);
+			return;
+		}
+		dryReport.print("# DRY RUN - nothing was changed. DL = would download, RM = would delete.\n");
+	}
 
 	// fetch + parse the manifest. The JSON is streamed straight from the network into
 	// the parser (deserializeJson over the WiFiClient stream) instead of first buffering
@@ -396,8 +431,9 @@ static void syncTask(void *parameter) {
 			}
 
 			// additive diff: skip if a local file of the same size already exists
+			const bool localExists = gFSystem.exists(localPath);
 			bool needDownload = true;
-			if ((size >= 0) && gFSystem.exists(localPath)) {
+			if ((size >= 0) && localExists) {
 				File existing = gFSystem.open(localPath, "r");
 				if (existing) {
 					if ((long) existing.size() == size) {
@@ -408,15 +444,21 @@ static void syncTask(void *parameter) {
 			}
 
 			if (needDownload) {
-				// expose the file currently being downloaded so the web UI can show it
-				gSyncMsg.set(path.c_str());
-				const String fileUrl = baseUrl + Url_EncodePath(path);
-				if (syncDownloadFile(fileUrl, user, pass, localPath)) {
+				if (dryRun) {
+					// record only what a real run would fetch (new = missing locally, chg = size differs)
 					downloaded++;
-					Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+					dryReport.printf("DL %s %s\n", localExists ? "chg" : "new", localPath.c_str());
 				} else {
-					failed++;
-					Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+					// expose the file currently being downloaded so the web UI can show it
+					gSyncMsg.set(path.c_str());
+					const String fileUrl = baseUrl + Url_EncodePath(path);
+					if (syncDownloadFile(fileUrl, user, pass, localPath)) {
+						downloaded++;
+						Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+					} else {
+						failed++;
+						Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+					}
 				}
 			}
 		}
@@ -441,10 +483,10 @@ static void syncTask(void *parameter) {
 	size_t deleted = 0;
 	if (mirror && !cancelled && keepSetOk && (keepSet.size() > 0)) {
 		keepSet.finalize();
-		gSyncMsg.set("removing files not in manifest");
+		gSyncMsg.set(dryRun ? "scanning for files to delete" : "removing files not in manifest");
 		File root = gFSystem.open("/");
 		if (root && root.isDirectory()) {
-			syncMirrorDir(root, keepSet, deleted);
+			syncMirrorDir(root, keepSet, deleted, dryRun, dryRun ? &dryReport : nullptr);
 			root.close();
 		}
 		if (gSyncCancel) { // stopped during the sweep
@@ -460,25 +502,45 @@ static void syncTask(void *parameter) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
 	}
 
-	if (mirror) {
+	if (dryRun) {
+		if (mirror) {
+			dryReport.printf("# %u to download, %u to delete, %u total\n", (unsigned) downloaded, (unsigned) deleted, (unsigned) processed);
+			gSyncMsg.setf("dry run: %u to download, %u to delete, %u total", (unsigned) downloaded, (unsigned) deleted, (unsigned) processed);
+		} else {
+			dryReport.printf("# %u to download, %u total (mirror-delete is off)\n", (unsigned) downloaded, (unsigned) processed);
+			gSyncMsg.setf("dry run: %u to download, %u total", (unsigned) downloaded, (unsigned) processed);
+		}
+		dryReport.close();
+	} else if (mirror) {
 		gSyncMsg.setf("%u downloaded, %u deleted, %u failed, %u total", (unsigned) downloaded, (unsigned) deleted, (unsigned) failed, (unsigned) processed);
 	} else {
 		gSyncMsg.setf("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) processed);
 	}
 	char summary[StatusMessage::Capacity];
 	Sync_CopyMessage(summary, sizeof(summary));
-	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", summary);
-	gSyncStatus = cancelled ? 4 : ((failed > 0) ? 3 : 2);
+	Log_Printf(LOGLEVEL_NOTICE, "Sync %s%s: %s", dryRun ? "dry run " : "", cancelled ? "stopped" : "finished", summary);
+	gSyncStatus = cancelled ? 4 : ((!dryRun && failed > 0) ? 3 : 2);
 	vTaskDelete(NULL);
 }
 
-void Sync_Trigger(void) {
+static void syncStart(bool dryRun) {
 	if (gSyncStatus == 1) {
 		return; // already running
 	}
+	gSyncDryRun = dryRun;
 	gSyncCancel = false;
 	gSyncStatus = 1;
 	gSyncProgress = 0;
 	gSyncMsg.set("");
 	xTaskCreatePinnedToCore(syncTask, "httpSync", 16384, NULL, 1, NULL, 1);
+}
+
+void Sync_Trigger(void) {
+	syncStart(false);
+}
+
+// Same diff as a real sync but downloads/deletes nothing; writes a report of what it *would* do
+// to kSyncDryReport (served via GET /syncreport). Lets the user preview a mirror-delete first.
+void Sync_TriggerDryRun(void) {
+	syncStart(true);
 }

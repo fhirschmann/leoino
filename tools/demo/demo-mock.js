@@ -239,6 +239,19 @@
 			}
 			// backup-upload status poll: pretend the (no-op) upload finished successfully
 			if (p === "/backupupload") { return jsonResp({ status: 2, message: "demo: backup not actually uploaded" }); }
+			// file-sync status poll: the demo can't really sync, so report it as done immediately
+			if (p === "/sync") { return jsonResp({ status: 2, progress: 100, message: "demo: file sync runs only on the device" }); }
+			// dry-run report: a small sample so the dry-run button shows something in the demo
+			if (p === "/syncreport") {
+				return { status: 200, contentType: "text/plain; charset=utf-8", body: [
+					"# DRY RUN - nothing was changed. DL = would download, RM = would delete.",
+					"DL new /Hoerspiele/Die Robo-Detektive/04.mp3",
+					"DL chg /Maerchen/Haensel und Gretel.mp3",
+					"RM   /Alte Folgen/Pumuckl 99.mp3",
+					"RM   /Alte Folgen/Pumuckl 100.mp3",
+					"# 2 to download, 2 to delete, 1305 total (demo sample)"
+				].join("\n") + "\n" };
+			}
 			if (p === "/mode") { return jsonResp({ mode: 0 }); }
 			if (p === "/activeequalizer") { return jsonResp({ gainLowPass: 0, gainBandPass: 0, gainHighPass: 0 }); }
 			// now-playing detail for the info dialog (built from the now-playing fixture)

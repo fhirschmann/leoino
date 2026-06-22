@@ -538,7 +538,11 @@
 			"desc": "Récupère le manifeste et télécharge les fichiers manquants/modifiés. Peut prendre du temps selon le volume de données.",
 			"button": "Synchroniser maintenant",
 			"stop": "Arrêter",
-			"gotools": "Ouvrir la synchro dans l'onglet Outils"
+			"gotools": "Ouvrir la synchro dans l'onglet Outils",
+			"dryButton": "Simulation",
+			"dryHint": "Simulation : affiche ce que la synchro téléchargerait et (si le mode miroir est activé) supprimerait — sans rien modifier.",
+			"dryDone": "Simulation terminée — voir le rapport ci-dessous",
+			"dryEmpty": "(aucun rapport disponible)"
 		},
 		"manifest": {
 			"title": "Format du manifeste",

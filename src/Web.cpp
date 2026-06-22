@@ -692,10 +692,17 @@ void webserverStart(void) {
 			Web_GetGithubOtaMessage(msg, sizeof(msg));
 			Web_SendStatusJson(request, Web_GetGithubOtaStatus(), Web_GetGithubOtaProgress(), msg);
 		});
-		// trigger an HTTP file sync from the configured manifest URL (runs in the background)
+		// trigger an HTTP file sync from the configured manifest URL (runs in the background).
+		// With ?dry=1 it runs a dry run that downloads/deletes nothing and instead writes a report
+		// of what it would do (fetch it via GET /syncreport) - handy to preview a mirror-delete.
 		wServer.on("/sync", HTTP_POST, [](AsyncWebServerRequest *request) {
-			Sync_Trigger();
-			request->send(200, "text/plain", "started");
+			if (request->hasParam("dry")) {
+				Sync_TriggerDryRun();
+				request->send(200, "text/plain", "dry-run started");
+			} else {
+				Sync_Trigger();
+				request->send(200, "text/plain", "started");
+			}
 		});
 		// request a running sync to stop
 		wServer.on("/syncstop", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -707,6 +714,15 @@ void webserverStart(void) {
 			char msg[96];
 			Sync_CopyMessage(msg, sizeof(msg));
 			Web_SendStatusJson(request, Sync_GetStatus(), Sync_GetProgress(), msg);
+		});
+		// the report written by the last dry run (plain text); fetched after a dry run finishes
+		wServer.on("/syncreport", HTTP_GET, [](AsyncWebServerRequest *request) {
+			const char *path = Sync_GetDryReportPath();
+			if (gFSystem.exists(path)) {
+				request->send(gFSystem, path, "text/plain; charset=utf-8");
+			} else {
+				request->send(404, "text/plain; charset=utf-8", "no dry-run report yet");
+			}
 		});
 
 		// upload the full configuration backup to the server (reuses the sync server credentials)

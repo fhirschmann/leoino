@@ -8,6 +8,14 @@
 // by the web endpoint, a bindable command and/or MQTT.
 void Sync_Trigger(void);
 
+// Starts a dry run: same diff as a real sync, but nothing is downloaded or deleted. Writes a
+// human-readable report of what a real sync would download/delete; retrieve it via the path
+// returned by Sync_GetDryReportPath(). No-op if a sync is already running.
+void Sync_TriggerDryRun(void);
+
+// Path of the dry-run report file on the SD card (served by the web interface as GET /syncreport).
+const char *Sync_GetDryReportPath(void);
+
 // Requests a running sync to stop as soon as possible (cooperative cancel).
 void Sync_Cancel(void);
 

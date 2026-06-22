@@ -3836,9 +3836,13 @@
 				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" id="syncRunBtn" onclick="startSync()"
 						data-i18n="sync.run.button"></button>
+					<button type="button" class="btn btn-secondary ms-2" id="syncDryRunBtn" onclick="startDryRun()"
+						data-i18n="sync.run.dryButton"></button>
 					<button type="button" class="btn btn-danger d-none" id="syncStopBtn" onclick="stopSync()"
 						data-i18n="sync.run.stop"></button>
 				</div>
+				<small class="text-muted d-block text-center mt-2" data-i18n="sync.run.dryHint"></small>
+				<pre id="syncDryReport" class="cp-code-block mt-3 d-none" style="max-height:320px;overflow:auto;white-space:pre-wrap;"></pre>
 			</div>
 			<div class="container" id="rfidSyncRunSection">
 				<legend data-i18n="sync.rfid.runTitle"></legend>
@@ -6413,9 +6417,11 @@
 		}
 
 		let syncPollTimer = null;
+		let syncDryActive = false; // true while the current run is a dry run (fetch + show the report when it finishes)
 		/* toggles the Sync now / Stop buttons depending on whether a sync is running */
 		function setSyncRunning(running) {
 			document.getElementById('syncRunBtn').classList.toggle('d-none', running);
+			document.getElementById('syncDryRunBtn').classList.toggle('d-none', running);
 			const stopBtn = document.getElementById('syncStopBtn');
 			stopBtn.classList.toggle('d-none', !running);
 			stopBtn.disabled = false;
@@ -6445,7 +6451,12 @@
 				clearInterval(syncPollTimer);
 				syncPollTimer = null;
 				setSyncRunning(false);
-				if (d.status === 2) toaster.info(i18next.t('sync.status.done'));
+				const wasDry = syncDryActive;
+				syncDryActive = false;
+				if (d.status === 2) {
+					if (wasDry) { showDryReport(); toaster.info(i18next.t('sync.run.dryDone')); }
+					else toaster.info(i18next.t('sync.status.done'));
+				}
 				else if (d.status === 3) toaster.error(i18next.t('sync.status.failed') + (d.message ? ': ' + d.message : ''));
 				else if (d.status === 4) toaster.info(i18next.t('sync.status.stopped'));
 			} catch (e) {
@@ -6579,6 +6590,38 @@
 			}
 			if (syncPollTimer) clearInterval(syncPollTimer);
 			syncPollTimer = setInterval(pollSync, 1500);
+		}
+
+		/* run a dry run (downloads/deletes nothing) and show the resulting report */
+		async function startDryRun() {
+			const rep = document.getElementById('syncDryReport');
+			rep.classList.add('d-none');
+			rep.textContent = '';
+			syncDryActive = true;
+			setSyncRunning(true);
+			renderSyncProgress(1, 0, '');
+			try {
+				await fetch("http://" + host + "/sync?dry=1", { method: "POST" });
+			} catch (e) {
+				syncDryActive = false;
+				setSyncRunning(false);
+				toaster.error(i18next.t('toast.error') + ': ' + e.message);
+				return;
+			}
+			if (syncPollTimer) clearInterval(syncPollTimer);
+			syncPollTimer = setInterval(pollSync, 1500);
+		}
+
+		/* fetch and display the dry-run report (what a real sync would download/delete) */
+		async function showDryReport() {
+			const rep = document.getElementById('syncDryReport');
+			try {
+				const r = await fetch("http://" + host + "/syncreport");
+				rep.textContent = r.ok ? (await r.text()) : i18next.t('sync.run.dryEmpty');
+			} catch (e) {
+				rep.textContent = i18next.t('sync.run.dryEmpty');
+			}
+			rep.classList.remove('d-none');
 		}
 
 		/* ask the device to stop the running sync */

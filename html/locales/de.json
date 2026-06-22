@@ -545,7 +545,11 @@
 			"desc": "Holt das Manifest und lädt fehlende/geänderte Dateien herunter. Je nach Datenmenge kann das dauern.",
 			"button": "Jetzt synchronisieren",
 			"stop": "Stopp",
-			"gotools": "Zum Sync in den Tools-Tab"
+			"gotools": "Zum Sync in den Tools-Tab",
+			"dryButton": "Testlauf",
+			"dryHint": "Testlauf: zeigt nur an, was der Sync herunterladen und (bei aktiviertem Spiegel-Modus) löschen würde – ohne etwas zu ändern.",
+			"dryDone": "Testlauf abgeschlossen – siehe Bericht unten",
+			"dryEmpty": "(kein Bericht verfügbar)"
 		},
 		"manifest": {
 			"title": "Aufbau des Manifests",

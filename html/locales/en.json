@@ -545,7 +545,11 @@
 			"desc": "Fetches the manifest and downloads missing/changed files. May take a while depending on the amount of data.",
 			"button": "Sync now",
 			"stop": "Stop",
-			"gotools": "Open sync in the Tools tab"
+			"gotools": "Open sync in the Tools tab",
+			"dryButton": "Dry run",
+			"dryHint": "Dry run: shows what the sync would download and (with mirror mode on) delete — without changing anything.",
+			"dryDone": "Dry run complete — see the report below",
+			"dryEmpty": "(no report available)"
 		},
 		"manifest": {
 			"title": "Manifest format",

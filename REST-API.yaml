@@ -665,14 +665,31 @@ paths:
                     description: Percent of files processed.
                   message:
                     type: string
-                    description: Current file (while syncing) or the result/error message.
+                    description: >-
+                      Current file (while syncing) or the result/error message.
+                      The summary includes a deleted count when mirror mode is on,
+                      and a "dry run: ..." prefix after a dry run.
     post:
       tags: [Fork]
       summary: Start an HTTP file sync.
       description: >-
         Starts a background sync that pulls the files listed in the configured
         manifest URL onto the SD card. No-op if a sync is already running. If
-        audio is playing it is paused for the SD-writing phase.
+        audio is playing it is paused for the SD-writing phase. When mirror mode
+        is enabled (sync setting "deleteRemoved"), local files that the manifest
+        no longer lists are deleted after the download pass; hidden/system and
+        firmware-managed files (manifest.json, stats.csv, backup.txt) are kept,
+        and the pass is skipped if the manifest failed to load or was empty.
+        With the query parameter dry=1 it runs a dry run instead: nothing is
+        downloaded or deleted and a report of what a real sync would do is
+        written to the SD card (retrieve it via GET /syncreport).
+      parameters:
+        - name: dry
+          in: query
+          required: false
+          description: If present (e.g. dry=1), run a dry run instead of a real sync.
+          schema:
+            type: integer
       responses:
         "200":
           description: Sync started (or already running).
@@ -680,10 +697,28 @@ paths:
     post:
       tags: [Fork]
       summary: Stop the running file sync.
-      description: Requests a cooperative cancel of the currently running sync.
+      description: Requests a cooperative cancel of the currently running sync (also stops a dry run).
       responses:
         "200":
           description: Stop requested.
+  /syncreport:
+    get:
+      tags: [Fork]
+      summary: Get the last dry-run report.
+      description: >-
+        Returns the plain-text report written by the most recent file-sync dry
+        run (POST /sync?dry=1): "DL new/chg <path>" lines for files a real sync
+        would download and "RM <path>" lines for files mirror mode would delete,
+        followed by a summary line.
+      responses:
+        "200":
+          description: The dry-run report (text/plain).
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          description: No dry-run report exists yet.
   /backupupload:
     get:
       tags: [Fork]
