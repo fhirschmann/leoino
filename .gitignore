@@ -23,3 +23,7 @@ html/js/*.min.min.js
 html/js/swaggerInitializer.min.js
 demo_dist/
 managed_components/
+
+# Lokale Zugangsdaten / persönliche Einstellungen (nie einchecken)
+AGENTS_LOCAL.md
+.espuino_config.json
