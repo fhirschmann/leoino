@@ -220,26 +220,24 @@ void Cmd_Action(const uint16_t mod) {
 
 #ifdef BLUETOOTH_ENABLE
 		case CMD_TOGGLE_BLUETOOTH_SINK_MODE: {
+			// One-touch speaker toggle (bind it to a key): from Normal it enters Bluetooth speaker
+			// mode, and from *either* Bluetooth mode (speaker or headphones) it returns to Normal.
+			System_IndicateOk();
 			if (System_GetOperationModeFromNvs() == OPMODE_NORMAL) {
-				System_IndicateOk();
 				System_SetOperationMode(OPMODE_BLUETOOTH_SINK);
-			} else if (System_GetOperationModeFromNvs() == OPMODE_BLUETOOTH_SINK) {
-				System_IndicateOk();
-				System_SetOperationMode(OPMODE_NORMAL);
 			} else {
-				System_IndicateError();
+				System_SetOperationMode(OPMODE_NORMAL);
 			}
 			break;
 		}
 		case CMD_TOGGLE_BLUETOOTH_SOURCE_MODE: {
+			// One-touch headphone toggle (bind it to a key): from Normal it enters Bluetooth
+			// headphone mode, and from *either* Bluetooth mode it returns to Normal.
+			System_IndicateOk();
 			if (System_GetOperationModeFromNvs() == OPMODE_NORMAL) {
-				System_IndicateOk();
 				System_SetOperationMode(OPMODE_BLUETOOTH_SOURCE);
-			} else if (System_GetOperationModeFromNvs() == OPMODE_BLUETOOTH_SOURCE) {
-				System_IndicateOk();
-				System_SetOperationMode(OPMODE_NORMAL);
 			} else {
-				System_IndicateError();
+				System_SetOperationMode(OPMODE_NORMAL);
 			}
 			break;
 		}

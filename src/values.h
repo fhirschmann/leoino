@@ -54,8 +54,8 @@
 #define CMD_DIMM_LEDS_NIGHTMODE			 120 // Changes LED-brightness
 #define CMD_TOGGLE_CONTROL_LEDS			 121 // Toggles the status control-LEDs on/off (e.g. to mute them at night)
 #define CMD_TOGGLE_WIFI_STATUS			 130 // Toggles WiFi-status
-#define CMD_TOGGLE_BLUETOOTH_SINK_MODE	 140 // Toggles Normal/Bluetooth sink Mode
-#define CMD_TOGGLE_BLUETOOTH_SOURCE_MODE 141 // Toggles Normal/Bluetooth source Mode
+#define CMD_TOGGLE_BLUETOOTH_SINK_MODE	 140 // Normal -> Bluetooth sink (speaker); returns to Normal from either Bluetooth mode
+#define CMD_TOGGLE_BLUETOOTH_SOURCE_MODE 141 // Normal -> Bluetooth source (headphones); returns to Normal from either Bluetooth mode
 #define CMD_TOGGLE_MODE					 142 // Toggles Normal => Bluetooth sink => Bluetooth source => Normal Mode
 #define CMD_ENTER_BLUETOOTH_SINK_MODE	 143 // Switches to Bluetooth sink mode (speaker), regardless of current mode
 #define CMD_ENTER_BLUETOOTH_SOURCE_MODE	 144 // Switches to Bluetooth source mode (headphones), regardless of current mode
