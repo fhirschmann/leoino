@@ -280,6 +280,31 @@ void Cmd_Action(const uint16_t mod) {
 		}
 #endif
 
+#ifdef AIRPLAY_ENABLE
+		case CMD_TOGGLE_AIRPLAY_MODE: {
+			if (System_GetOperationModeFromNvs() == OPMODE_NORMAL) {
+				System_IndicateOk();
+				System_SetOperationMode(OPMODE_AIRPLAY);
+			} else if (System_GetOperationModeFromNvs() == OPMODE_AIRPLAY) {
+				System_IndicateOk();
+				System_SetOperationMode(OPMODE_NORMAL);
+			} else {
+				System_IndicateError();
+			}
+			break;
+		}
+		case CMD_ENTER_AIRPLAY_MODE: {
+			// Switches to AirPlay receiver mode from any mode; switches back to normal mode if already active
+			System_IndicateOk();
+			if (System_GetOperationModeFromNvs() != OPMODE_AIRPLAY) {
+				System_SetOperationMode(OPMODE_AIRPLAY);
+			} else {
+				System_SetOperationMode(OPMODE_NORMAL);
+			}
+			break;
+		}
+#endif
+
 #ifdef FTP_ENABLE
 		case CMD_ENABLE_FTP_SERVER: {
 			if (millis() <= 30000) { // Only allow to enable FTP within the first 30s after start (to prevent children it mess it up)

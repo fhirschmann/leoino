@@ -3,6 +3,7 @@
 
 #include "Web.h"
 
+#include "Airplay.h"
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "AudioPlayer.h"
@@ -1384,6 +1385,23 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			Webdav_DisableServer();
 		}
 		Web_SendWebsocketData(0, WebsocketCodeType::WebdavStatus); // broadcast new status to all clients
+#ifdef AIRPLAY_ENABLE
+	} else if (doc["airplay"].is<JsonObject>()) {
+		// Persist the advertised AirPlay receiver name. Entering/leaving AirPlay mode itself goes
+		// through the dedicated /mode endpoint (System_SetOperationMode reboots), like the BT modes.
+		JsonObject ap = doc["airplay"];
+		if (ap["name"].is<const char *>()) {
+			gPrefsSettings.putString("airplayName", ap["name"].as<const char *>());
+		}
+	} else if (doc["airplayStatus"].is<JsonObject>()) {
+		uint8_t _start = doc["airplayStatus"]["start"].as<uint8_t>();
+		if (_start == 1) {
+			Airplay_Enable(); // switch into AirPlay mode (reboots)
+		} else {
+			Airplay_Disable(); // back to normal mode (reboots)
+		}
+		Web_SendWebsocketData(0, WebsocketCodeType::AirplayStatus); // broadcast new status to all clients
+#endif
 	}
 	if (doc["mqtt"].is<JsonObject>()) {
 		uint8_t _mqttEnable = doc["mqtt"]["enable"].as<uint8_t>();
@@ -1830,6 +1848,11 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 	} else if (code == WebsocketCodeType::WebdavStatus) {
 		JsonObject entry = object["webdavStatus"].to<JsonObject>();
 		entry["running"] = Webdav_IsServerRunning();
+	} else if (code == WebsocketCodeType::AirplayStatus) {
+		JsonObject entry = object["airplayStatus"].to<JsonObject>();
+		entry["active"] = Airplay_IsActive();
+		entry["running"] = Airplay_IsRunning();
+		entry["nowPlaying"] = Airplay_GetNowPlaying();
 	};
 
 	if (doc.overflowed()) {
@@ -1865,6 +1888,7 @@ void onWebsocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsE
 		// Send initial operation mode and RSSI to newly connected client
 		Web_SendWebsocketData(client->id(), WebsocketCodeType::OperationMode);
 		Web_SendWebsocketData(client->id(), WebsocketCodeType::FtpStatus);
+		Web_SendWebsocketData(client->id(), WebsocketCodeType::AirplayStatus);
 		// client->printf("Hello Client %u :)", client->id());
 		// client->ping();
 	} else if (type == WS_EVT_DISCONNECT) {

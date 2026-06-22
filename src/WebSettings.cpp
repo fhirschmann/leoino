@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "settings.h"
 
+#include "Airplay.h"
 #include "ArduinoJson.h"
 #include "AsyncJson.h"
 #include "AudioPlayer.h"
@@ -387,6 +388,15 @@ void settingsToJSON(JsonObject obj, const String section) {
 		wdObj["port"].set(webdavPort);
 		wdObj["maxUserLength"].set(webdavUserLength - 1);
 		wdObj["maxPwdLength"].set(webdavPasswordLength - 1);
+	}
+#endif
+#ifdef AIRPLAY_ENABLE
+	if ((section == "") || (section == "airplay")) {
+		JsonObject apObj = obj["airplay"].to<JsonObject>();
+		apObj["name"] = gPrefsSettings.getString("airplayName", "");
+		apObj["active"] = Airplay_IsActive(); // device is currently in AirPlay operation mode
+		apObj["running"] = Airplay_IsRunning(); // an AirPlay client is streaming right now
+		apObj["nowPlaying"] = Airplay_GetNowPlaying();
 	}
 #endif
 	// HTTP file sync

@@ -3,6 +3,7 @@
 
 #include "System.h"
 
+#include "Airplay.h"
 #include "Audio.h"
 #include "AudioPlayer.h"
 #include "Battery.h"
@@ -217,7 +218,8 @@ void System_SetOperationMode(uint8_t opMode) {
 }
 
 bool System_IsWebControlAllowed(void) {
-	return (System_OperationMode != OPMODE_BLUETOOTH_SINK); // && System_OperationMode != OPMODE_BLUETOOTH_SOURCE
+	// Player controls make no sense while the device is a pure audio receiver (BT sink / AirPlay).
+	return (System_OperationMode != OPMODE_BLUETOOTH_SINK && System_OperationMode != OPMODE_AIRPLAY); // && System_OperationMode != OPMODE_BLUETOOTH_SOURCE
 }
 
 uint8_t System_GetOperationMode(void) {
@@ -289,6 +291,7 @@ void System_PreparePowerDown(void) {
 	Mqtt_Exit();
 	Led_Exit();
 	Bluetooth_Exit();
+	Airplay_Exit();
 
 	if (gPrefsSettings.getBool("recoverVolBoot", false)) {
 		gPrefsSettings.putUInt("previousVolume", AudioPlayer_GetCurrentVolume());

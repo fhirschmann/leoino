@@ -285,11 +285,12 @@ paths:
                   mode:
                     type: integer
                     description: >-
-                      Operation mode: 0 = Normal, 1 = Bluetooth Sink, 2 = Bluetooth Source
+                      Operation mode: 0 = Normal, 1 = Bluetooth Sink, 2 = Bluetooth Source, 3 = AirPlay receiver
                     enum:
                       - 0
                       - 1
                       - 2
+                      - 3
     post:
       summary: Set operation mode.
       description: >-
@@ -307,11 +308,12 @@ paths:
                 mode:
                   type: integer
                   description: >-
-                    Operation mode: 0 = Normal, 1 = Bluetooth Sink, 2 = Bluetooth Source
+                    Operation mode: 0 = Normal, 1 = Bluetooth Sink, 2 = Bluetooth Source, 3 = AirPlay receiver
                   enum:
                     - 0
                     - 1
                     - 2
+                    - 3
               required:
                 - mode
       responses:
@@ -374,6 +376,12 @@ paths:
                 bluetooth:
                   type: object
                   # Include all Bluetooth settings properties here
+                airplay:
+                  type: object
+                  # AirPlay 1 (RAOP) receiver. "name" = advertised device name (string).
+                  # Read-only status fields: "active" (in AirPlay mode), "running" (a client is
+                  # streaming), "nowPlaying" (current "Artist - Title"). Entering/leaving AirPlay
+                  # mode itself is done via POST /mode (mode 3); it reboots the device.
               required:
                 - general
       responses:

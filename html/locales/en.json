@@ -1,927 +1,939 @@
 {
-	"submit": "Submit",
-	"restart": "Restart",
-	"reset": "Reset",
-	"execute": "Execute",
-	"title": "ESPuino",
-	"shutdown": "Shutdown",
-	"log": "Log",
-	"logdownload": "Download",
-	"logout": "Logout",
-	"info": "Information",
-	"delete": "Delete",
-	"cancel": "Cancel",
-	"refresh": "Refresh",
-	"ok": "OK",
-	"showhide": "Show/Hide",
-	"infos": "Information",
-	"darkmode": "Dark Mode",
-	"themeCyberpunk": "Cyberpunk",
-	"themeWaldhaus": "Forest",
-	"themeWolkchen": "Marshmallow",
-	"themePixel": "Pixel hero",
-	"restartinfo": "ESPuino is being restarted...<br>Page reloads automatically after restart finished.",
-	"shutdowninfo": "ESPuino is now switched off...<br>Page reloads automatically when the ESPuino is switched on again.",
-	"toast": {
-		"rfidDetect": "RFID tag {{rfidId}} detected.",
-		"batteryLow": "Battery low: {{level}} % remaining",
-		"success": "Action performed successfully.",
-		"conlost": "Connection to ESPuino broken! Please reload website.",
-		"dropout": "slow stream, dropouts are possible.",
-		"saved": "Settings saved."
-	},
-	"nav": {
-		"updateAvailable": "Update available",
-		"clickToUpdate": "click to install",
-		"control": "Control",
-		"rfid": "Files",
-		"wifi": "WiFi",
-		"mqtt": "MQTT",
-		"ftp": "FTP",
-		"webdav": "WebDAV",
-		"sync": "Sync",
-		"bluetooth": "Bluetooth",
-		"general": "General",
-		"settings": "Settings",
-		"buttons": "Buttons",
-		"tools": "Tools",
-		"help": "Help",
-		"rfidcards": "RFID",
-		"leds": "LEDs",
-		"oled": "OLED",
-		"power": "Power",
-		"security": "Security"
-	},
-	"settingsex": {
-		"title": "Advanced settings",
-		"led": {
-			"title": "LED settings",
-			"numindicator": "Number of indicator LEDs",
-			"numcontrol": "Number of control LEDs",
-			"controlled": "Control-LED",
-			"controlledsenabled": "Control LEDs enabled",
-			"controlfunc": {
-				"static": "Static color",
-				"keylock": "Key lock",
-				"repeat": "Repeat mode",
-				"bluetooth": "Bluetooth",
-				"battery": "Battery level",
-				"off": "Off"
-			},
-			"numidledots": "Number of LEDs in idle state",
-			"idlecolor": "Color of the idle dots",
-			"idleanimation": "Idle animation",
-			"idleanim": {
-				"standard": "Standard",
-				"cyberpunk": "Cyberpunk (Data Drop)"
-			},
-			"progcolorstart": "Start color of progress bar",
-			"progcolorend": "End color of progress bar",
-			"offsetpause": "Center pause LEDs",
-			"hueatmo": "Hue-Atmolight",
-			"satatmo": "Saturation-Atmolight",
-			"dimmablestates": "Dimmable steps",
-			"reverserotation": "Reverse direction of rotation",
-			"offset": "Offset start LED"
-		},
-		"oled": {
-			"title": "OLED display",
-			"enable": "Enable OLED display",
-			"enablehint": "When disabled the panel is powered off (e.g. for night-time).",
-			"startanim": "Startup animation",
-			"anim": {
-				"none": "None (go straight to idle)",
-				"boot": "Boot terminal",
-				"login": "Login sequence",
-				"full": "Full (boot + login)"
-			},
-			"idleline1": "Idle text line 1",
-			"idleline2": "Idle text line 2",
-			"showfields": "Show while playing",
-			"showbattery": "Show battery level",
-			"showtime": "Show playback time",
-			"showwifi": "Show WiFi status",
-			"showvolume": "Show volume overlay",
-			"flip": "Rotate display by 180°"
-		},
-		"buttons": {
-			"title": "Button assignments",
-			"short": "short press",
-			"long": "long press",
-			"noaction": "--",
-			"button0": "Next-Button (Btn0)",
-			"button1": "Prev-Button (Btn1)",
-			"button2": "Play/Pause-Button (Btn2)",
-			"button3": "Encoder-Button (Btn3)",
-			"button4": "Btn4-Button",
-			"button5": "Btn5-Button",
-			"button6": "Btn6-Button"
-		},
-		"multibuttons": {
-			"title": "Multi-Button Assignments",
-			"01": "0+1 (Next + Prev)",
-			"02": "0+2 (Next + Play/Pause)",
-			"03": "0+3 (Next + Encoder)",
-			"04": "0+4 (Next + Btn4)",
-			"05": "0+5 (Next + Btn5)",
-			"06": "0+6 (Next + Btn6)",
-			"12": "1+2 (Prev + Play/Pause)",
-			"13": "1+3 (Prev + Encoder)",
-			"14": "1+4 (Prev + Btn4)",
-			"15": "1+5 (Prev + Btn5)",
-			"16": "1+6 (Prev + Btn6)",
-			"23": "2+3 (Play/Pause + Encoder)",
-			"24": "2+4 (Play/Pause + Btn4)",
-			"25": "2+5 (Play/Pause + Btn5)",
-			"26": "2+6 (Play/Pause + Btn6)",
-			"34": "3+4 (Encoder + Btn4)",
-			"35": "3+5 (Encoder + Btn5)",
-			"36": "3+6 (Encoder + Btn6)",
-			"45": "4+5 (Btn4 + Btn5)",
-			"46": "4+6 (Btn4 + Btn6)",
-			"56": "5+6 (Btn5 + Btn6)"
-		},
-		"rotary": {
-			"title": "Rotary encoder",
-			"reverse": "Reverse direction of rotation"
-		},
-		"autosaveHint": "Changes are saved automatically",
-		"rfid": {
-			"modTitle": "Learn modification card",
-			"modDesc": "Pick a modification action, then lay the card. Music cards are learned directly in the file browser (right-click → Learn RFID).",
-			"learnBtn": "Learn card",
-			"learnedTitle": "Learned cards",
-			"empty": "No cards learned yet."
-		}
-	},
-	"security": {
-		"title": "Device password",
-		"password": {
-			"title": "Password",
-			"placeholder": "Leave empty to disable protection",
-			"desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV).",
-			"show": "Show/hide password"
-		},
-		"cookie": {
-			"title": "Stay logged in",
-			"unlimited": "Stay logged in indefinitely",
-			"days": "Stay logged in for (days)",
-			"desc": "How long you stay logged in to the web interface after signing in. Browsers usually cap cookies at ~400 days."
-		}
-	},
-	"wifi": {
-		"title": "WiFi-configuration",
-		"networks": "Networks",
-		"savedNetworks": "Saved Networks",
-		"ssid": {
-			"title": "WiFi-name (SSID)",
-			"placeholder": "SSID",
-			"validation": "Enter WiFi's SSID"
-		},
-		"password": {
-			"title": "Password",
-			"placeholder": "Password",
-			"validation": "Enter the WiFi's password"
-		},
-		"hostname": {
-			"title": "ESPuino's name (hostname)",
-			"placeholder": "espuino",
-			"validation": "Enter a valid hostname"
-		},
-		"static": {
-			"addr": "Static IP-Address",
-			"enabled": "Static IP-Configuration",
-			"gateway": "Gateway for static IP-Configuration",
-			"subnet": "Subnet-mask for static IP-Configuration",
-			"dns1": "DNS 1 for static IP-Configuration",
-			"dns2": "DNS 2 for static IP-Configuration"
-		},
-		"scan": {
-			"enabled": "Start with strongest WiFi"
-		},
-		"delete": {
-			"title": "Delete WiFi",
-			"prompt": "Delete saved WiFi \"{{ssid}}\"?"
-		},
-		"restartPrompt": "Ready to go?"
-	},
-	"control": {
-		"title": "Control",
-		"first": "First",
-		"prev": "Previous",
-		"playpause": "Play / Pause",
-		"forward": "Next",
-		"last": "Last",
-		"volume": "Volume",
-		"voldown": "Volume Down",
-		"volup": "Volume Up",
-		"current": "Current track",
-		"command": "Execute Modification",
-		"locked": "Locked",
-		"unlocked": "Unlocked",
-		"btMode": "Bluetooth",
-		"btNormal": "Normal",
-		"btSpeaker": "Speaker",
-		"btHeadphones": "Headphones",
-		"nightOn": "Night On",
-		"nightOff": "Night Off",
-		"ftpOn": "FTP On",
-		"ftpOff": "FTP Off",
-		"webdavOn": "WebDAV On",
-		"webdavOff": "WebDAV Off",
-		"repeatOff": "Off",
-		"repeatPlaylist": "Playlist",
-		"repeatTrack": "Track",
-		"repeatBoth": "Both",
-		"sleepOff": "Sleep Off",
-		"sleepEOT": "After Track",
-		"sleepEOP": "After Playlist",
-		"sleepDisable": "Disable Timer",
-		"trackinfo": {
-			"title": "Track info",
-			"none": "Nothing is playing right now.",
-			"artist": "Artist",
-			"album": "Album",
-			"path": "File",
-			"size": "Size",
-			"track": "Track",
-			"playmode": "Play mode",
-			"position": "Position",
-			"rfid": "RFID card",
-			"type": "Type",
-			"webstream": "Webradio",
-			"songTitle": "Title",
-			"codec": "Codec",
-			"samplerate": "Sample rate",
-			"bitrate": "Bitrate",
-			"mono": "Mono",
-			"stereo": "Stereo"
-		},
-		"a11y": {
-			"repeat": "Repeat mode",
-			"sleep": "Sleep timer",
-			"night": "Night mode",
-			"ftp": "FTP server",
-			"webdav": "WebDAV server",
-			"bluetooth": "Bluetooth mode",
-			"lock": "Lock controls"
-		}
-	},
-	"files": {
-		"title": "Files",
-		"loading": "Please wait...",
-		"clean": {
-			"title": "Clean SD card",
-			"prompt": "Removes macOS metadata from the SD card (.DS_Store, ._* files, Spotlight and trash folders). Music files are left untouched. Continue?",
-			"button": "Clean SD card (remove macOS metadata)",
-			"confirm": "Clean",
-			"running": "Cleaning SD card…",
-			"done": "Cleanup finished: removed {{count}} entries"
-		},
-		"storage": {
-			"title": "Storage",
-			"info": "{{free}} GB free of {{total}} GB ({{percent}} % used)"
-		},
-		"context": {
-			"newFolder": "New Folder",
-			"play": "Play",
-			"refresh": "Refresh",
-			"delete": "Delete",
-			"rename": "Rename",
-			"download": "Download",
-			"eq": "EQ profile",
-			"eqRemove": "No EQ (remove)",
-			"rfid": "Assign RFID",
-			"rfidManage": "RFID card",
-			"rfidLearnNew": "Learn another card",
-			"rfidNoCard": "Place an RFID card first",
-			"rfidRemove": "Remove RFID assignment"
-		},
-		"files": {
-			"title": "Files",
-			"desc": "Upload one or more files"
-		},
-		"directory": {
-			"title": "Directory",
-			"desc": "Upload directory with all files and subdirectories"
-		},
-		"search": {
-			"placeholder": "Search files..."
-		},
-		"upload": {
-			"title": "Upload",
-			"desc": "Start Upload",
-			"selectFolder": "Please select the upload location!",
-			"selectFile": "Please select files or folders to upload!",
-			"success": "Upload successful ({{elapsed}}, {{speed}} KB/s)",
-			"error": "Upload error",
-			"timeCalc": "Remaining time is being calculated...",
-			"minutes_one": "minute",
-			"minutes_other": "minutes",
-			"seconds": "seconds",
-			"fewSec": "few",
-			"progress": "{{percent}}% ({{speed}} KB/s), {{remaining.value}} {{remaining.unit}} remaining..."
-		},
-		"rfid": {
-			"title": "RFID Assignments",
-			"idNumber": "RFID-number (12 digits) or <a href=\"https://forum.espuino.de/t/virtual-rfid-cards\" target=\"_blank\">virtual</a>",
-			"music": "Music",
-			"modification": "Modification",
-			"fileurl": {
-				"title": "File, directory or URL (^ and # aren't allowed as chars)",
-				"placeholder": "e.g. /mp3/Audiobook/Yakari/Yakari_and_Friends.mp3"
-			},
-			"resume": {
-				"info": "Resume at track {{track}} ({{pos}} s)",
-				"reset": "Restart from the beginning"
-			},
-			"modeChanged": "Mode changed: {{mode}}",
-			"playmode": {
-				"title": "Playmode",
-				"placeholder": "Select mode",
-				"mode": {
-					"1": "Single track",
-					"2": "Single track (loop)",
-					"12": "Single track of a directory (random). Followed by sleep.",
-					"3": "Audiobook",
-					"16": "Audiobook with subdirectories (recursive)",
-					"4": "Audiobook (loop)",
-					"5": "All tracks of a directory (sorted)",
-					"15": "All tracks of a directory + subdirectories (sorted, recursive)",
-					"6": "All tracks of a directory (random)",
-					"17": "All tracks of a directory + subdirectories (random, recursive)",
-					"7": "All tracks of a directory (sorted, loop)",
-					"9": "All tracks of a directory (random, loop)",
-					"13": "All tracks of a random subdirectory (sorted)",
-					"14": "All tracks of a random subdirectory (random)",
-					"8": "Webradio",
-					"11": "List (files from SD and/or webstreams) from local .m3u-File"
-				},
-				"error": "Invalid playmode"
-			},
-			"mod": {
-				"title": "Modification",
-				"placeholder": "Select a modification",
-				"cmd": {
-					"100": "Keylock",
-					"101": "Sleep after 15 minutes",
-					"102": "Sleep after 30 minutes",
-					"103": "Sleep after 1 hour",
-					"104": "Sleep after 2 hours",
-					"105": "Sleep after end of track",
-					"106": "Sleep after end of playlist",
-					"107": "Sleep after end of five tracks",
-					"110": "Loop playlist",
-					"111": "Loop track",
-					"120": "Dimm LEDs (nightmode)",
-					"121": "Toggle control LEDs",
-					"130": "Toggle WiFi",
-					"140": "Toggle Bluetooth Speaker",
-					"141": "Toggle Bluetooth Headphones",
-					"142": "Toggle Mode (Normal => BT-Speaker => Bluetooth Headphone)",
-					"143": "Start as Bluetooth speaker",
-					"144": "Start in Bluetooth headphone mode",
-					"150": "Enable FTP",
-					"151": "Announce IP-Address",
-					"152": "Announce current time",
-					"153": "Toggle Ambient Light",
-					"154": "Cycle equalizer profile",
-					"156": "Toggle OLED display",
-					"186": "Update firmware (GitHub)",
-					"0": "Remove assignment",
-					"170": "Toggle Play/Pause",
-					"171": "Previous track",
-					"172": "Next track",
-					"173": "First track",
-					"174": "Last track",
-					"175": "Initial volume",
-					"176": "Volume up",
-					"177": "Volume down",
-					"178": "Show battery voltage",
-					"179": "Sleep immediately",
-					"180": "Seek forwards (n seconds)",
-					"181": "Seek backwards (n seconds)",
-					"182": "Stop",
-					"183": "Restart",
-					"184": "Jump to next folder",
-					"185": "Jump to previous folder",
-					"199": "Display task load (console)",
-					"241": "Play virtual RFID-card 01",
-					"242": "Play virtual RFID-card 02",
-					"243": "Play virtual RFID-card 03",
-					"244": "Play virtual RFID-card 04",
-					"245": "Play virtual RFID-card 05",
-					"246": "Play virtual RFID-card 06",
-					"247": "Play virtual RFID-card 07",
-					"248": "Play virtual RFID-card 08",
-					"249": "Play virtual RFID-card 09",
-					"250": "Play virtual RFID-card 10"
-				}
-			},
-			"learn": {
-				"waiting": "Now place the RFID card on the reader…",
-				"done": "Card {{rfidId}} assigned",
-				"timeout": "Learning cancelled (no card was placed)",
-				"modalTitle": "Learn RFID card",
-				"virtualLabel": "Or assign a virtual card (e.g. to trigger via MQTT/command only):",
-				"virtualAssign": "Assign",
-				"virtualOption": "Virtual card {{n}}",
-				"virtualUsed": "in use"
-			}
-		}
-	},
-	"mqtt": {
-		"title": "MQTT-settings",
-		"enable": "Enable MQTT",
-		"clientId": {
-			"title": "MQTT-ClientId",
-			"placeholder": "e.g. ESPuino-<MAC>",
-			"validation": ""
-		},
-		"server": {
-			"title": "MQTT-server",
-			"placeholder": "e.g. 192.168.2.89",
-			"validation": ""
-		},
-		"baseTopic": {
-			"title": "Base topic (optional)",
-			"placeholder": "e.g. home/espuino",
-			"validation": ""
-		},
-		"deviceId": {
-			"title": "Device Id",
-			"placeholder": "e.g. ESPuino-<MAC>",
-			"validation": ""
-		},
-		"topicsPreview": "Full topics (preview)",
-		"restartNote": "Note: MQTT settings only take effect after restarting the device.",
-		"restartPrompt": "MQTT settings were saved. Restart now to apply changes?",
-		"topics": {
-			"preview": "Full topics (preview)"
-		},
-		"user": {
-			"title": "MQTT-username (optional)",
-			"placeholder": "username",
-			"validation": ""
-		},
-		"pwd": {
-			"title": "MQTT-password (optional)",
-			"placeholder": "password",
-			"validation": ""
-		},
-		"port": {
-			"title": "MQTT-port",
-			"placeholder": "e.g. 1883",
-			"validation": ""
-		}
-	},
-	"ftp": {
-		"title": "FTP-settings",
-		"authHint": "FTP accepts any username - only the password matters. The password is the shared device password (\"Security\" tab). An empty password means access without a login.",
-		"enable": "Start FTP automatically on boot",
-		"user": {
-			"title": "FTP-Username",
-			"placeholder": "username"
-		},
-		"pwd": {
-			"title": "FTP-password",
-			"placeholder": "password",
-			"show": "Show/hide password",
-			"securityHint": "The FTP password is set on the \"Security\" tab (shared device password)."
-		},
-		"start": {
-			"title": "Start FTP-server",
-			"desc": "Enables FTP-server until device is restarted.",
-			"button": "Start FTP-server",
-			"stopButton": "Stop FTP server"
-		}
-	},
-	"webdav": {
-		"title": "WebDAV settings",
-		"desc": "Mounts the SD card as a network drive so you can copy audio files onto it straight from your PC/Mac (connect to it as a WebDAV server in Finder/Explorer).",
-		"enable": "Start WebDAV automatically on boot",
-		"user": {
-			"title": "WebDAV username",
-			"placeholder": "username"
-		},
-		"pwd": {
-			"title": "WebDAV password",
-			"placeholder": "password",
-			"show": "Show/hide password"
-		},
-		"auth": {
-			"hint": "WebDAV accepts any username - only the password matters. The password is the shared device password (\"Security\" tab). An empty password means access without a login."
-		},
-		"start": {
-			"title": "Start WebDAV server",
-			"desc": "Enables the WebDAV server until the device is restarted.",
-			"button": "Start WebDAV server",
-			"stopButton": "Stop WebDAV server"
-		}
-	},
-	"sync": {
-		"title": "File synchronization",
-		"intro": "Downloads files from a web server (e.g. nginx) onto the SD card. The ESPuino fetches a <b>JSON manifest</b> from the URL below and downloads every file listed in it that is missing locally or has a different size. It is <b>additive only</b> – local files are never deleted. Syncing only runs while nothing is being played from the SD card.",
-		"url": {
-			"title": "Manifest URL",
-			"placeholder": "https://server/audio/manifest.json"
-		},
-		"user": {
-			"title": "Username (optional)",
-			"placeholder": "leave empty if no login"
-		},
-		"pwd": {
-			"title": "Password (optional)",
-			"placeholder": "Password",
-			"show": "Show/hide password"
-		},
-		"pwd.hint": "Username and password are sent to the server via HTTP Basic Auth (e.g. nginx auth_basic).",
-		"abortBtn": "Abort sync on button press",
-		"abortBtn.hint": "A running sync is aborted as soon as a button is pressed (or a command is triggered).",
-		"run": {
-			"title": "Sync now",
-			"desc": "Fetches the manifest and downloads missing/changed files. May take a while depending on the amount of data.",
-			"button": "Sync now",
-			"stop": "Stop",
-			"gotools": "Open sync in the Tools tab"
-		},
-		"manifest": {
-			"title": "Manifest format",
-			"desc": "The manifest is a JSON file listing all files to sync. Place it on the web server (the URL above points to it):",
-			"fields": "<b>path</b>: path relative to the manifest's directory – used both as the download URL (manifest directory + path) and as the target path on the SD card. <b>size</b>: file size in bytes – used to detect whether the local file is up to date.",
-			"nginx": "nginx example: put the audio files and <code>manifest.json</code> into a directory served via a <code>location</code> block; for a login add <code>auth_basic</code> + <code>auth_basic_user_file</code>."
-		},
-		"status": {
-			"syncing": "Syncing… {{percent}}%",
-			"done": "Synchronization complete",
-			"failed": "Synchronization failed",
-			"stopped": "Synchronization stopped"
-		},
-		"rfid": {
-			"title": "RFID card sync",
-			"desc": "Syncs RFID card assignments with a central server (manifest.php) and/or other ESPuinos (P2P). On conflict the most recently changed assignment wins.",
-			"url": "Server URL (manifest.php)",
-			"urlPlaceholder": "http://server/espuino/manifest.php",
-			"peers": "Other ESPuinos (peers)",
-			"peersPlaceholder": "192.168.1.34, 192.168.1.50",
-			"peersHint": "On learn the card is pushed to each peer. Each peer has an IP/hostname + web password.",
-			"onLearn": "Sync automatically on learn",
-			"runTitle": "Full RFID sync",
-			"runDesc": "Pulls all cards from the server, merges them with the local ones (newest wins) and pushes them to the server and peers.",
-			"runBtn": "Sync now",
-			"started": "RFID sync started…",
-			"phpHint": "Server script (dynamic, generates the manifest + RFID sync):",
-			"peerKeyPlaceholder": "web password of the other ESPuinos",
-			"addPeer": "Add",
-			"peerHostPlaceholder": "IP or hostname",
-			"peerHostRequired": "Please enter an IP/hostname",
-			"noPeers": "No peers yet."
-		},
-		"backup": {
-			"title": "Auto-backup to server",
-			"desc": "Uploads a full configuration backup (settings, RFID assignments, EQ rules and listening statistics) to a server – the same backup the export button produces, so it can be restored via import. Passwords are never included. Uses the username/password from the file-sync section above.",
-			"url": "Backup URL (backup.php)",
-			"urlPlaceholder": "http://server/espuino/backup.php",
-			"auto": "Back up automatically once a day",
-			"autoHint": "Once a day (after the clock is set and WiFi is up) the backup is uploaded to the server in the background.",
-			"run": "Back up now",
-			"started": "Backup upload started…",
-			"done": "Backup uploaded",
-			"failed": "Backup upload failed"
-		}
-	},
-	"playlist": {
-		"button": "Create playlist (.m3u)",
-		"title": "Create playlist",
-		"browse": "Pick files",
-		"tracks": "Playlist",
-		"addFolder": "Add all tracks in this folder",
-		"urlPlaceholder": "Webradio URL (http://…)",
-		"addUrl": "Add",
-		"name": "File name",
-		"namePlaceholder": "e.g. Favourites",
-		"save": "Save",
-		"saved": "Playlist saved: {{path}}",
-		"noName": "Please enter a file name",
-		"empty": "The playlist is empty"
-	},
-	"bt": {
-		"sink": {
-			"title": "ESPuino as Bluetooth speaker",
-			"desc": "ESPuino is started as a Bluetooth speaker.",
-			"button": "Start as Bluetooth speaker",
-			"stopButton": "Stop Bluetooth speaker",
-			"indicator": "Bluetooth Speaker Mode"
-		},
-		"source": {
-			"configtitle": "Bluetooth headphone settings",
-			"title": "Connect with Bluetooth headphone",
-			"desc": "The device connects to the specified Bluetooth headset.",
-			"button": "Start in headphone mode",
-			"stopButton": "Stop headphone mode",
-			"indicator": "Bluetooth Headphone Mode"
-		},
-		"scan": {
-			"title": "Scan for devices",
-			"button": "Scan",
-			"connect": "Connect",
-			"save": "Save Device",
-			"inProgress": "Scanning for devices...",
-			"noDevices": "No Bluetooth devices found",
-			"notAllowed": "Bluetooth device scan not allowed in current mode. Please switch to Bluetooth headphone mode first."
-		},
-		"device": {
-			"title": "Bluetooth device (headphone)",
-			"placeholder": "e.g. My POGS Wireless Headphone"
-		},
-		"pincode": {
-			"title": "Pairing PIN-Code",
-			"placeholder": "e.g. 0000"
-		},
-		"switchmode": {
-			"title": "Bluetooth Mode Active",
-			"prompt": "Control via website is restricted in Bluetooth mode. Would you like to switch back to WiFi mode and restart?",
-			"button": "Switch to WiFi Mode"
-		}
-	},
-	"general": {
-		"language": "Language",
-		"volume": {
-			"title": "Volume",
-			"restart": "After restart",
-			"speakerMax": "Max. volume (speaker)",
-			"headphoneMax": "Max. volume (headphones)"
-		},
-		"equalizer": {
-			"title": "Equalizer",
-			"profile": {
-				"title": "Profile",
-				"flat": "Flat (neutral)",
-				"music": "Music (fuller bass)",
-				"speech": "Audiobook / Speech",
-				"voiceBoost": "Deep voices (max. clarity)",
-				"custom": "Custom",
-				"none": "No EQ set"
-			},
-			"gainLowPass": "Lows (in dB)",
-			"gainBandPass": "Mids (in dB)",
-			"gainHighPass": "Highs (in dB)",
-			"info": "According to the library (ESP32-audioI2S), the frequencies are 500 Hz LowShelf, 3000 Hz PeakEQ and 6000 Hz HighShelf. The \"Audiobook / Speech\" and \"Deep voices\" profiles cut the bass and lift mids/highs so deep narrator voices stay intelligible."
-		},
-		"rfid": {
-			"title": "RFID Reader",
-			"behaviorTitle": "RFID behaviour",
-			"readerType": {
-				"title": "Reader Type",
-				"auto": "Auto-detect",
-				"mfrc522_spi": "MFRC522 (SPI)",
-				"mfrc522_i2c": "MFRC522 (I2C)",
-				"pn5180": "PN5180"
-			},
-			"description": "Select the type of RFID reader connected to your ESPuino. Auto-detect will try to determine the connected reader type automatically.",
-			"pn5180Lpcd": "Enable PN5180 LPCD",
-			"pn5180LpcdExp": "Enables Low Power Card Detection for PN5180 RFID reader. Only possible if solder jumpers are set correctly.",
-			"slix2Password": {
-				"title": "SLIX2 Password",
-				"description": "8-digit password in hexadecimal format (e.g. 01020304) for reading SLIX2 tags."
-			},
-			"mfrc522Gain": "MFRC522 Gain",
-			"mfrc522GainExp": "Sets the sensitivity of the MFRC522 RFID reader. Possible values are 0 (lowest sensitivity) to 7 (highest sensitivity). Default is 7."
-		},
-		"options": {
-			"title": "Options",
-			"playMono": "Mono Playback",
-			"playMonoExp": "If two speakers are installed, stereo can be played. More information <a href='https://forum.espuino.de/t/stereo-ausgabe/341' target='_blank'>here</a>.",
-			"savePlayPosShutdown": "Remember playback position at shutdown",
-			"savePlayPosShutdownExp": "When the box is switched off, the playback position for audio books is saved. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>SAVE_PLAYPOS_BEFORE_SHUTDOWN</code>.",
-			"savePlayPosRfidChange": "Remember playback position at RFID tag change",
-			"savePlayPosRfidChangeExp": "When switching to a new RFID tag, the playback position is saved for audio books. Does not affect modification tags. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>SAVE_PLAYPOS_WHEN_RFID_CHANGE</code>.",
-			"savePlayPosPeriodic": "Checkpoint audiobook position periodically",
-			"savePlayPosPeriodicExp": "While an audio book plays, the position is saved to flash every ~30 s. This way an unexpected power loss (dead battery, hard power-off) only loses the last few seconds instead of falling back to the start of the track. Fork feature.",
-			"restartFreshHrs": "Restart audiobook after (hrs)",
-			"restartFreshHrsExp": "If an audiobook has not been played for more than the given number of hours, it starts over from the beginning the next time the card is placed, instead of resuming the saved position. Handy for kids who, after a day's break, no longer remember where they were. 0 = off (always resume). Default: 24. Requires a valid clock (NTP/RTC). Fork feature.",
-			"minResumeSec": "Don't resume if pulled within (sec.)",
-			"minResumeSecExp": "If the card is removed within the first few seconds of an audiobook, the resume point is reset to the very beginning instead of saving the couple of seconds played. So a card that was only briefly sampled starts cleanly from the start next time rather than a few seconds in. Only affects the very first track of position-saving audiobook modes, so real mid-book progress is never discarded. 0 = off. Default: 20. Fork feature.",
-			"seekStep": "Smart seek step (sec.)",
-			"seekStepExp": "Jump distance in seconds for the \"smart forward/backward\" commands (CMD_SMART_FORWARDS/BACKWARDS). On an audiobook that is a single long file these buttons seek within the file; on a playlist of several files they change tracks instead. Several quick presses are coalesced into one jump (a single re-buffer instead of many). Default: 300 (5 min). Fork feature.",
-			"pauseIfRfidRemoved": "Pause when RFID tag is removed",
-			"pauseIfRfidRemovedExp": "Playback is paused when the RFID tag is removed. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PAUSE_IF_RFID_REMOVED</code>.",
-			"stopIfRfidRemoved": "Stop instead of pause on removal",
-			"stopIfRfidRemovedExp": "When enabled (only together with “Pause when RFID tag is removed”): removing the tag fully stops playback instead of just pausing, so the LEDs return to the idle animation. For audiobooks the exact position is saved the moment the tag is removed, so re-applying it continues right where you left off; other content starts over.",
-			"dontAcceptRfidTwice": "Don't accept the same RFID twice",
-			"dontAcceptRfidTwiceExp": "RFID tags are not accepted twice in a row. Cannot be used together with <em>Pause when RFID tag is removed</em>.",
-			"playLastRfidOnReboot": "Play last RFID tag on restart",
-			"playLastRfidOnRebootExp": "Play last RFID tag on restart. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PLAY_LAST_RFID_ON_REBOOT</code>.",
-			"pauseOnMinVolume": "Pause at minimum volume",
-			"pauseOnMinVolumeExp": "Playback is paused when the volume reaches the minimum level. More information <a href='https://forum.espuino.de/t/lautstaerke-0-pause/1631' target='_blank'>here</a>",
-			"recoverVolBoot": "Use last volume at restart",
-			"recoverVolBootExp": "After a restart, the speaker remembers which volume was last used and automatically adjusts it again.",
-			"volumeCurve": "Finer gradations at low volume",
-			"volumeCurveExp": "Use of logarithmic volume calculation. Can help if the gradations in the lower volume range are too coarse.",
-			"playStartupSound": "Play startup sound",
-			"playStartupSoundExp": "Play the ready sound (the MP3 below) once on cold start. Disable for a silent boot.",
-			"readypath": "Path to ready MP3 (cold start)",
-			"noSleepWhenPowered": "No standby while on power",
-			"noSleepWhenPoweredExp": "When enabled, the device will not go into standby due to inactivity while it is on external power. Since there is no charge/USB sense, being 'on power' is estimated from the battery voltage (charge voltage sits above the resting voltage) — see threshold. The manual sleep timer is unaffected.",
-			"noSleepWhenPoweredWarn": "Note: if the device stays powered and never sleeps, the scarce internal heap fragments over many hours and the web interface gets progressively slower to load. Remedy: reboot occasionally, or leave this option off so standby (= a cold boot on wake-up) defragments the heap.",
-			"poweredVoltage": "'On power' threshold (V)",
-			"poweredVoltageExp": "At or above this battery voltage the device is considered 'on power'. For LiFePO4, ~3.5 V is a good starting point (charge voltage ~3.6 V, full resting ~3.3-3.4 V)."
-		},
-		"neopixel": {
-			"title": "Neopixel (brightness)",
-			"restart": "After restart",
-			"nightmode": "For nightmode",
-			"atmomode": "For Atmolight-mode"
-		},
-		"sleep": {
-			"title": "Deep Sleep",
-			"inactivity": "After n minutes inactivity"
-		},
-		"battery": {
-			"title": "Battery",
-			"desc": "Show voltage-status via Neopixel",
-			"lowWarning": "Show warning below this threshold (in volt)",
-			"lowCritical": "Lowest voltage (in volt), that is indicated by one LED",
-			"criticalShutoff": "Below this voltage (in volt), ESPuino turns off",
-			"high": "Voltage (in volt), that is indicated by all LEDs",
-			"measureInterval": "Interval between measurements (in minutes)"
-		},
-		"playlist": {
-			"title": "Playlist",
-			"sortMode": "Sorting mode for playlist and file browser",
-			"strcmp": "Standard sorting",
-			"strnatcmp": "Natural: case-sensitive",
-			"strnatcasecmp": "Natural: case-insensitive",
-			"recDepth": "Maximum recursion depth at generation of recursive playlists"
-		},
-		"branding": {
-			"title": "Branding",
-			"brand": "Brand name",
-			"brandPlaceholder": "e.g. My Player",
-			"hint": "Leave empty for the default. Replaces \"Leo Industries\" in the header and footer."
-		}
-	},
-	"tools": {
-		"eqrules": {
-			"title": "EQ rules (per file/folder)",
-			"desc": "Overview of the per-path equalizer profiles. View and delete them here.",
-			"empty": "No EQ rules set.",
-			"full": "EQ rule storage is full — delete some existing rules before adding new ones.",
-			"savefailed": "Could not save the EQ rule."
-		},
-		"backup": {
-			"title": "Backup",
-			"desc": "Exports or imports all settings and RFID assignments as a JSON file.",
-			"export": {
-				"title": "Export",
-				"includeWifi": "Include passwords (WiFi, sync, peers)",
-				"button": "Download backup"
-			},
-			"import": {
-				"title": "Import",
-				"desc": "Select and import a backup file. Some settings (e.g. MQTT) require a restart afterwards.",
-				"button": "Import",
-				"invalid": "Not a valid backup file",
-				"partial": "Import finished with {{count}} errors",
-				"done": "Import finished"
-			}
-		},
-		"nvs": {
-			"title": "Saved RFID assignments",
-			"desc": "The RFID assignments are not stored on the SD card but on the internal, non-volative storage (NVS) of the ESPuino.",
-			"list": {
-				"title": "List of all stored RFID assignments"
-			},
-			"erase": {
-				"title": "Erase all RFID assignments",
-				"desc": "Via importer new entries will only be inserted but old ones won't be erased. Only in case an old assignment to the same entry already exists, it will be overwritten. With this function all existing RFID assignments will be erased.<br>Further <a href=\"https://forum.espuino.de/t/die-backupfunktion-des-espuino/508\" target=\"_blank\">information</a> (in German).",
-				"button": "Delete all assignments",
-				"prompt": "Erase all saved RFID assignments?"
-			},
-			"delete": {
-				"title": "Erase RFID assignment",
-				"prompt": "Remove assignment \"{{rfid}}\"?"
-			},
-			"import": {
-				"title": "Import",
-				"desc": "A backup file can be uploaded here in order to import RFID assignments."
-			},
-			"export": {
-				"title": "Export",
-				"desc": "A backup file can be downloaded here in order to export the RFID assignments."
-			}
-		},
-		"fwupdate": {
-			"title": "Firmware-Update",
-			"desc": "Firmware can be updated right here.",
-			"manual": "Or upload a firmware.bin manually:",
-			"github": {
-				"desc": "The device downloads the latest firmware straight from GitHub (HTTPS) and installs it itself.",
-				"apply": "Update from GitHub",
-				"confirm": "Download and install the latest firmware from GitHub? The device will restart afterwards.",
-				"checking": "Checking version…",
-				"uptodate": "Already up to date – no update needed.",
-				"flashing": "Downloading & installing…",
-				"started": "Device is installing the firmware and will restart – the page will reload shortly…",
-				"error": "Update failed (see console/log)."
-			}
-		},
-		"nav": {
-			"command": "Command",
-			"sync": "Sync",
-			"nvs": "NVS",
-			"backup": "Backup",
-			"fwupdate": "Firmware"
-		}
-	},
-	"help": {
-		"forum": {
-			"title": "Forum",
-			"desc": "Having problems or aim to discuss about ESPuino?<br /> Join us at <a href=\"https://forum.espuino.de\" target=\"_blank\">ESPuino-Forum</a>! Especially there's a lot of (german) <a href=\"https://forum.espuino.de/c/dokumentation/anleitungen/10\" target=\"_blank\">documentation</a> online!"
-		},
-		"swagger": {
-			"title": "Swagger",
-			"desc": "Documentation of the REST API: <a href=\"swagger.html\" target=\"_blank\">Swagger</a>."
-		}
-	},
-	"datetime": {
-		"day": "day",
-		"days": "days",
-		"hour": "hour",
-		"hours": "hours",
-		"minute": "minute",
-		"minutes": "minutes",
-		"second": "second",
-		"seconds": "seconds"
-	},
-	"systeminfo": {
-		"lblSoftware": "Software",
-		"lblBuild": "Build",
-		"lblGit": "Git revision",
-		"lblEnv": "Arduino / ESP-IDF",
-		"lblChip": "Chip",
-		"lblCpu": "CPU clock",
-		"lblReader": "RFID reader firmware",
-		"lblHeap": "Free heap",
-		"lblHeapBlock": "Largest free block",
-		"lblPsram": "Free PSRAM",
-		"lblIp": "IP address",
-		"lblMac": "MAC address",
-		"lblRssi": "WiFi signal",
-		"lblSince": "In service since",
-		"lblPlayTotal": "Total playtime",
-		"lblPlaySince": "Playtime since start",
-		"lblSd": "SD card",
-		"lblVoltage": "Battery voltage",
-		"lblCharge": "Charge level",
-		"lblHall": "Hall sensor",
-		"lblRtc": "RTC (real-time clock)",
-		"title": "Information",
-		"softwareversion": "ESPuino {{softwareversion}}",
-		"gitversion": "ESPuino {{gitversion}}",
-		"arduinoversion": "Arduino Version: {{arduinoversion}} (ESP-IDF {{idfversion}})",
-		"hardware": "Hardware: {{hwmodel}}, Revision {{hwrevision}}, CPU: {{hwfreq}} MHZ",
-		"freeheap": "Free heap: {{freeheap}} Bytes",
-		"sdcard": "SD card: {{free}} GB free of {{total}} GB",
-		"largestfreeblock": "Largest free heap-block: {{largestfreeblock}} Bytes",
-		"freepsram": "Free PS-RAM: {{freepsram}} Bytes",
-		"currentip": "Current IP-Address: {{currentip}}",
-		"macAddress": "MAC-Address: {{macAddress}}",
-		"rssi": "WiFi signal strength: {{rssi}} dBm",
-		"audiotimetotal": "Total audio playtime since {{firststart}}: {{audiotimetotal}}",
-		"audiotimesincestart": "Playtime since last start: {{audiotimesincestart}}",
-		"currvoltage": "Current battery voltage: {{currvoltage}} V",
-		"chargelevel": "Current charge level: {{chargelevel}} %",
-		"hallsensor": "HallEffectSensor NullFieldValue: {{hsnullfieldvalue}}, actual: {{hsactual}}, diff:{{hsdiff}}, LastWaitFor_State:{{hslastwaitforstate}} (waited:{{hswaited}} ms)",
-		"lblPlayToday": "Listened today",
-		"lblPlayYesterday": "Listened yesterday",
-		"lblPlay7d": "Last 7 days",
-		"lblPlay30d": "Last 30 days",
-		"lblTopCard": "Most played",
-		"chartTitle": "Last 30 days",
-		"exportCsv": "CSV"
-	},
-	"homekit": {
-		"title": "Apple HomeKit",
-		"intro": "Add this ESPuino to the Apple Home app to control playback, volume and the button-lock with Siri and automations. Pairs over your existing WiFi — no extra hardware needed.",
-		"enable": "Enable HomeKit",
-		"enablehint": "When disabled, HomeSpan does not start at boot — this saves boot time if you don't use HomeKit.",
-		"enablereboot": "Setting saved. Restart the ESPuino now to apply it?",
-		"paired": "Paired",
-		"notpaired": "Not paired yet",
-		"setupcode": "Setup code",
-		"howto": "In the Home app tap + → Add Accessory → More options… → ESPuino, then scan the QR code (or enter the code manually).",
-		"namefollowshint": "The device and remote names follow the device name from the General settings automatically. After you rename the device, the new name only applies to new pairings — the Home app keeps the name you assigned when pairing. To update it, rename the accessory inside the Home app, or reset the pairing here and add the ESPuino again.",
-		"devicename": "Device name",
-		"tvname": "TV / remote name",
-		"tvnamehint": "(shown on the Control-Center remote)",
-		"savenames": "Save names",
-		"restartnote": "Takes effect after a restart of the ESPuino.",
-		"regen": "Regenerate code",
-		"reset": "Reset pairing",
-		"actionsnote": "“Regenerate code” creates a new pairing code + QR (the old one stops working; already-paired homes keep working). “Reset pairing” removes all paired controllers so the player can be added to a different Home.",
-		"confirmreset": "Remove all HomeKit pairings from this ESPuino?",
-		"confirmregen": "Generate a new pairing code? The current code and QR will stop working for new pairings.",
-		"namessaved": "Names saved. Restart the ESPuino now to apply them?"
-	}
+  "submit": "Submit",
+  "restart": "Restart",
+  "reset": "Reset",
+  "execute": "Execute",
+  "title": "ESPuino",
+  "shutdown": "Shutdown",
+  "log": "Log",
+  "logdownload": "Download",
+  "logout": "Logout",
+  "info": "Information",
+  "delete": "Delete",
+  "cancel": "Cancel",
+  "refresh": "Refresh",
+  "ok": "OK",
+  "showhide": "Show/Hide",
+  "infos": "Information",
+  "darkmode": "Dark Mode",
+  "themeCyberpunk": "Cyberpunk",
+  "themeWaldhaus": "Forest",
+  "themeWolkchen": "Marshmallow",
+  "themePixel": "Pixel hero",
+  "restartinfo": "ESPuino is being restarted...<br>Page reloads automatically after restart finished.",
+  "shutdowninfo": "ESPuino is now switched off...<br>Page reloads automatically when the ESPuino is switched on again.",
+  "toast": {
+    "rfidDetect": "RFID tag {{rfidId}} detected.",
+    "batteryLow": "Battery low: {{level}} % remaining",
+    "success": "Action performed successfully.",
+    "conlost": "Connection to ESPuino broken! Please reload website.",
+    "dropout": "slow stream, dropouts are possible.",
+    "saved": "Settings saved."
+  },
+  "nav": {
+    "updateAvailable": "Update available",
+    "clickToUpdate": "click to install",
+    "control": "Control",
+    "rfid": "Files",
+    "wifi": "WiFi",
+    "mqtt": "MQTT",
+    "ftp": "FTP",
+    "webdav": "WebDAV",
+    "sync": "Sync",
+    "bluetooth": "Bluetooth",
+    "general": "General",
+    "settings": "Settings",
+    "buttons": "Buttons",
+    "tools": "Tools",
+    "help": "Help",
+    "rfidcards": "RFID",
+    "leds": "LEDs",
+    "oled": "OLED",
+    "power": "Power",
+    "security": "Security"
+  },
+  "settingsex": {
+    "title": "Advanced settings",
+    "led": {
+      "title": "LED settings",
+      "numindicator": "Number of indicator LEDs",
+      "numcontrol": "Number of control LEDs",
+      "controlled": "Control-LED",
+      "controlledsenabled": "Control LEDs enabled",
+      "controlfunc": {
+        "static": "Static color",
+        "keylock": "Key lock",
+        "repeat": "Repeat mode",
+        "bluetooth": "Bluetooth",
+        "battery": "Battery level",
+        "off": "Off"
+      },
+      "numidledots": "Number of LEDs in idle state",
+      "idlecolor": "Color of the idle dots",
+      "idleanimation": "Idle animation",
+      "idleanim": {
+        "standard": "Standard",
+        "cyberpunk": "Cyberpunk (Data Drop)"
+      },
+      "progcolorstart": "Start color of progress bar",
+      "progcolorend": "End color of progress bar",
+      "offsetpause": "Center pause LEDs",
+      "hueatmo": "Hue-Atmolight",
+      "satatmo": "Saturation-Atmolight",
+      "dimmablestates": "Dimmable steps",
+      "reverserotation": "Reverse direction of rotation",
+      "offset": "Offset start LED"
+    },
+    "oled": {
+      "title": "OLED display",
+      "enable": "Enable OLED display",
+      "enablehint": "When disabled the panel is powered off (e.g. for night-time).",
+      "startanim": "Startup animation",
+      "anim": {
+        "none": "None (go straight to idle)",
+        "boot": "Boot terminal",
+        "login": "Login sequence",
+        "full": "Full (boot + login)"
+      },
+      "idleline1": "Idle text line 1",
+      "idleline2": "Idle text line 2",
+      "showfields": "Show while playing",
+      "showbattery": "Show battery level",
+      "showtime": "Show playback time",
+      "showwifi": "Show WiFi status",
+      "showvolume": "Show volume overlay",
+      "flip": "Rotate display by 180°"
+    },
+    "buttons": {
+      "title": "Button assignments",
+      "short": "short press",
+      "long": "long press",
+      "noaction": "--",
+      "button0": "Next-Button (Btn0)",
+      "button1": "Prev-Button (Btn1)",
+      "button2": "Play/Pause-Button (Btn2)",
+      "button3": "Encoder-Button (Btn3)",
+      "button4": "Btn4-Button",
+      "button5": "Btn5-Button",
+      "button6": "Btn6-Button"
+    },
+    "multibuttons": {
+      "title": "Multi-Button Assignments",
+      "01": "0+1 (Next + Prev)",
+      "02": "0+2 (Next + Play/Pause)",
+      "03": "0+3 (Next + Encoder)",
+      "04": "0+4 (Next + Btn4)",
+      "05": "0+5 (Next + Btn5)",
+      "06": "0+6 (Next + Btn6)",
+      "12": "1+2 (Prev + Play/Pause)",
+      "13": "1+3 (Prev + Encoder)",
+      "14": "1+4 (Prev + Btn4)",
+      "15": "1+5 (Prev + Btn5)",
+      "16": "1+6 (Prev + Btn6)",
+      "23": "2+3 (Play/Pause + Encoder)",
+      "24": "2+4 (Play/Pause + Btn4)",
+      "25": "2+5 (Play/Pause + Btn5)",
+      "26": "2+6 (Play/Pause + Btn6)",
+      "34": "3+4 (Encoder + Btn4)",
+      "35": "3+5 (Encoder + Btn5)",
+      "36": "3+6 (Encoder + Btn6)",
+      "45": "4+5 (Btn4 + Btn5)",
+      "46": "4+6 (Btn4 + Btn6)",
+      "56": "5+6 (Btn5 + Btn6)"
+    },
+    "rotary": {
+      "title": "Rotary encoder",
+      "reverse": "Reverse direction of rotation"
+    },
+    "autosaveHint": "Changes are saved automatically",
+    "rfid": {
+      "modTitle": "Learn modification card",
+      "modDesc": "Pick a modification action, then lay the card. Music cards are learned directly in the file browser (right-click → Learn RFID).",
+      "learnBtn": "Learn card",
+      "learnedTitle": "Learned cards",
+      "empty": "No cards learned yet."
+    }
+  },
+  "security": {
+    "title": "Device password",
+    "password": {
+      "title": "Password",
+      "placeholder": "Leave empty to disable protection",
+      "desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV).",
+      "show": "Show/hide password"
+    },
+    "cookie": {
+      "title": "Stay logged in",
+      "unlimited": "Stay logged in indefinitely",
+      "days": "Stay logged in for (days)",
+      "desc": "How long you stay logged in to the web interface after signing in. Browsers usually cap cookies at ~400 days."
+    }
+  },
+  "wifi": {
+    "title": "WiFi-configuration",
+    "networks": "Networks",
+    "savedNetworks": "Saved Networks",
+    "ssid": {
+      "title": "WiFi-name (SSID)",
+      "placeholder": "SSID",
+      "validation": "Enter WiFi's SSID"
+    },
+    "password": {
+      "title": "Password",
+      "placeholder": "Password",
+      "validation": "Enter the WiFi's password"
+    },
+    "hostname": {
+      "title": "ESPuino's name (hostname)",
+      "placeholder": "espuino",
+      "validation": "Enter a valid hostname"
+    },
+    "static": {
+      "addr": "Static IP-Address",
+      "enabled": "Static IP-Configuration",
+      "gateway": "Gateway for static IP-Configuration",
+      "subnet": "Subnet-mask for static IP-Configuration",
+      "dns1": "DNS 1 for static IP-Configuration",
+      "dns2": "DNS 2 for static IP-Configuration"
+    },
+    "scan": {
+      "enabled": "Start with strongest WiFi"
+    },
+    "delete": {
+      "title": "Delete WiFi",
+      "prompt": "Delete saved WiFi \"{{ssid}}\"?"
+    },
+    "restartPrompt": "Ready to go?"
+  },
+  "control": {
+    "title": "Control",
+    "first": "First",
+    "prev": "Previous",
+    "playpause": "Play / Pause",
+    "forward": "Next",
+    "last": "Last",
+    "volume": "Volume",
+    "voldown": "Volume Down",
+    "volup": "Volume Up",
+    "current": "Current track",
+    "command": "Execute Modification",
+    "locked": "Locked",
+    "unlocked": "Unlocked",
+    "btMode": "Bluetooth",
+    "btNormal": "Normal",
+    "btSpeaker": "Speaker",
+    "btHeadphones": "Headphones",
+    "nightOn": "Night On",
+    "nightOff": "Night Off",
+    "ftpOn": "FTP On",
+    "ftpOff": "FTP Off",
+    "webdavOn": "WebDAV On",
+    "webdavOff": "WebDAV Off",
+    "repeatOff": "Off",
+    "repeatPlaylist": "Playlist",
+    "repeatTrack": "Track",
+    "repeatBoth": "Both",
+    "sleepOff": "Sleep Off",
+    "sleepEOT": "After Track",
+    "sleepEOP": "After Playlist",
+    "sleepDisable": "Disable Timer",
+    "trackinfo": {
+      "title": "Track info",
+      "none": "Nothing is playing right now.",
+      "artist": "Artist",
+      "album": "Album",
+      "path": "File",
+      "size": "Size",
+      "track": "Track",
+      "playmode": "Play mode",
+      "position": "Position",
+      "rfid": "RFID card",
+      "type": "Type",
+      "webstream": "Webradio",
+      "songTitle": "Title",
+      "codec": "Codec",
+      "samplerate": "Sample rate",
+      "bitrate": "Bitrate",
+      "mono": "Mono",
+      "stereo": "Stereo"
+    },
+    "a11y": {
+      "repeat": "Repeat mode",
+      "sleep": "Sleep timer",
+      "night": "Night mode",
+      "ftp": "FTP server",
+      "webdav": "WebDAV server",
+      "bluetooth": "Bluetooth mode",
+      "lock": "Lock controls"
+    }
+  },
+  "files": {
+    "title": "Files",
+    "loading": "Please wait...",
+    "clean": {
+      "title": "Clean SD card",
+      "prompt": "Removes macOS metadata from the SD card (.DS_Store, ._* files, Spotlight and trash folders). Music files are left untouched. Continue?",
+      "button": "Clean SD card (remove macOS metadata)",
+      "confirm": "Clean",
+      "running": "Cleaning SD card…",
+      "done": "Cleanup finished: removed {{count}} entries"
+    },
+    "storage": {
+      "title": "Storage",
+      "info": "{{free}} GB free of {{total}} GB ({{percent}} % used)"
+    },
+    "context": {
+      "newFolder": "New Folder",
+      "play": "Play",
+      "refresh": "Refresh",
+      "delete": "Delete",
+      "rename": "Rename",
+      "download": "Download",
+      "eq": "EQ profile",
+      "eqRemove": "No EQ (remove)",
+      "rfid": "Assign RFID",
+      "rfidManage": "RFID card",
+      "rfidLearnNew": "Learn another card",
+      "rfidNoCard": "Place an RFID card first",
+      "rfidRemove": "Remove RFID assignment"
+    },
+    "files": {
+      "title": "Files",
+      "desc": "Upload one or more files"
+    },
+    "directory": {
+      "title": "Directory",
+      "desc": "Upload directory with all files and subdirectories"
+    },
+    "search": {
+      "placeholder": "Search files..."
+    },
+    "upload": {
+      "title": "Upload",
+      "desc": "Start Upload",
+      "selectFolder": "Please select the upload location!",
+      "selectFile": "Please select files or folders to upload!",
+      "success": "Upload successful ({{elapsed}}, {{speed}} KB/s)",
+      "error": "Upload error",
+      "timeCalc": "Remaining time is being calculated...",
+      "minutes_one": "minute",
+      "minutes_other": "minutes",
+      "seconds": "seconds",
+      "fewSec": "few",
+      "progress": "{{percent}}% ({{speed}} KB/s), {{remaining.value}} {{remaining.unit}} remaining..."
+    },
+    "rfid": {
+      "title": "RFID Assignments",
+      "idNumber": "RFID-number (12 digits) or <a href=\"https://forum.espuino.de/t/virtual-rfid-cards\" target=\"_blank\">virtual</a>",
+      "music": "Music",
+      "modification": "Modification",
+      "fileurl": {
+        "title": "File, directory or URL (^ and # aren't allowed as chars)",
+        "placeholder": "e.g. /mp3/Audiobook/Yakari/Yakari_and_Friends.mp3"
+      },
+      "resume": {
+        "info": "Resume at track {{track}} ({{pos}} s)",
+        "reset": "Restart from the beginning"
+      },
+      "modeChanged": "Mode changed: {{mode}}",
+      "playmode": {
+        "title": "Playmode",
+        "placeholder": "Select mode",
+        "mode": {
+          "1": "Single track",
+          "2": "Single track (loop)",
+          "12": "Single track of a directory (random). Followed by sleep.",
+          "3": "Audiobook",
+          "16": "Audiobook with subdirectories (recursive)",
+          "4": "Audiobook (loop)",
+          "5": "All tracks of a directory (sorted)",
+          "15": "All tracks of a directory + subdirectories (sorted, recursive)",
+          "6": "All tracks of a directory (random)",
+          "17": "All tracks of a directory + subdirectories (random, recursive)",
+          "7": "All tracks of a directory (sorted, loop)",
+          "9": "All tracks of a directory (random, loop)",
+          "13": "All tracks of a random subdirectory (sorted)",
+          "14": "All tracks of a random subdirectory (random)",
+          "8": "Webradio",
+          "11": "List (files from SD and/or webstreams) from local .m3u-File"
+        },
+        "error": "Invalid playmode"
+      },
+      "mod": {
+        "title": "Modification",
+        "placeholder": "Select a modification",
+        "cmd": {
+          "100": "Keylock",
+          "101": "Sleep after 15 minutes",
+          "102": "Sleep after 30 minutes",
+          "103": "Sleep after 1 hour",
+          "104": "Sleep after 2 hours",
+          "105": "Sleep after end of track",
+          "106": "Sleep after end of playlist",
+          "107": "Sleep after end of five tracks",
+          "110": "Loop playlist",
+          "111": "Loop track",
+          "120": "Dimm LEDs (nightmode)",
+          "121": "Toggle control LEDs",
+          "130": "Toggle WiFi",
+          "140": "Toggle Bluetooth Speaker",
+          "141": "Toggle Bluetooth Headphones",
+          "142": "Toggle Mode (Normal => BT-Speaker => Bluetooth Headphone)",
+          "143": "Start as Bluetooth speaker",
+          "144": "Start in Bluetooth headphone mode",
+          "150": "Enable FTP",
+          "151": "Announce IP-Address",
+          "152": "Announce current time",
+          "153": "Toggle Ambient Light",
+          "154": "Cycle equalizer profile",
+          "156": "Toggle OLED display",
+          "186": "Update firmware (GitHub)",
+          "0": "Remove assignment",
+          "170": "Toggle Play/Pause",
+          "171": "Previous track",
+          "172": "Next track",
+          "173": "First track",
+          "174": "Last track",
+          "175": "Initial volume",
+          "176": "Volume up",
+          "177": "Volume down",
+          "178": "Show battery voltage",
+          "179": "Sleep immediately",
+          "180": "Seek forwards (n seconds)",
+          "181": "Seek backwards (n seconds)",
+          "182": "Stop",
+          "183": "Restart",
+          "184": "Jump to next folder",
+          "185": "Jump to previous folder",
+          "199": "Display task load (console)",
+          "241": "Play virtual RFID-card 01",
+          "242": "Play virtual RFID-card 02",
+          "243": "Play virtual RFID-card 03",
+          "244": "Play virtual RFID-card 04",
+          "245": "Play virtual RFID-card 05",
+          "246": "Play virtual RFID-card 06",
+          "247": "Play virtual RFID-card 07",
+          "248": "Play virtual RFID-card 08",
+          "249": "Play virtual RFID-card 09",
+          "250": "Play virtual RFID-card 10"
+        }
+      },
+      "learn": {
+        "waiting": "Now place the RFID card on the reader…",
+        "done": "Card {{rfidId}} assigned",
+        "timeout": "Learning cancelled (no card was placed)",
+        "modalTitle": "Learn RFID card",
+        "virtualLabel": "Or assign a virtual card (e.g. to trigger via MQTT/command only):",
+        "virtualAssign": "Assign",
+        "virtualOption": "Virtual card {{n}}",
+        "virtualUsed": "in use"
+      }
+    }
+  },
+  "mqtt": {
+    "title": "MQTT-settings",
+    "enable": "Enable MQTT",
+    "clientId": {
+      "title": "MQTT-ClientId",
+      "placeholder": "e.g. ESPuino-<MAC>",
+      "validation": ""
+    },
+    "server": {
+      "title": "MQTT-server",
+      "placeholder": "e.g. 192.168.2.89",
+      "validation": ""
+    },
+    "baseTopic": {
+      "title": "Base topic (optional)",
+      "placeholder": "e.g. home/espuino",
+      "validation": ""
+    },
+    "deviceId": {
+      "title": "Device Id",
+      "placeholder": "e.g. ESPuino-<MAC>",
+      "validation": ""
+    },
+    "topicsPreview": "Full topics (preview)",
+    "restartNote": "Note: MQTT settings only take effect after restarting the device.",
+    "restartPrompt": "MQTT settings were saved. Restart now to apply changes?",
+    "topics": {
+      "preview": "Full topics (preview)"
+    },
+    "user": {
+      "title": "MQTT-username (optional)",
+      "placeholder": "username",
+      "validation": ""
+    },
+    "pwd": {
+      "title": "MQTT-password (optional)",
+      "placeholder": "password",
+      "validation": ""
+    },
+    "port": {
+      "title": "MQTT-port",
+      "placeholder": "e.g. 1883",
+      "validation": ""
+    }
+  },
+  "ftp": {
+    "title": "FTP-settings",
+    "authHint": "FTP accepts any username - only the password matters. The password is the shared device password (\"Security\" tab). An empty password means access without a login.",
+    "enable": "Start FTP automatically on boot",
+    "user": {
+      "title": "FTP-Username",
+      "placeholder": "username"
+    },
+    "pwd": {
+      "title": "FTP-password",
+      "placeholder": "password",
+      "show": "Show/hide password",
+      "securityHint": "The FTP password is set on the \"Security\" tab (shared device password)."
+    },
+    "start": {
+      "title": "Start FTP-server",
+      "desc": "Enables FTP-server until device is restarted.",
+      "button": "Start FTP-server",
+      "stopButton": "Stop FTP server"
+    }
+  },
+  "webdav": {
+    "title": "WebDAV settings",
+    "desc": "Mounts the SD card as a network drive so you can copy audio files onto it straight from your PC/Mac (connect to it as a WebDAV server in Finder/Explorer).",
+    "enable": "Start WebDAV automatically on boot",
+    "user": {
+      "title": "WebDAV username",
+      "placeholder": "username"
+    },
+    "pwd": {
+      "title": "WebDAV password",
+      "placeholder": "password",
+      "show": "Show/hide password"
+    },
+    "auth": {
+      "hint": "WebDAV accepts any username - only the password matters. The password is the shared device password (\"Security\" tab). An empty password means access without a login."
+    },
+    "start": {
+      "title": "Start WebDAV server",
+      "desc": "Enables the WebDAV server until the device is restarted.",
+      "button": "Start WebDAV server",
+      "stopButton": "Stop WebDAV server"
+    }
+  },
+  "sync": {
+    "title": "File synchronization",
+    "intro": "Downloads files from a web server (e.g. nginx) onto the SD card. The ESPuino fetches a <b>JSON manifest</b> from the URL below and downloads every file listed in it that is missing locally or has a different size. It is <b>additive only</b> – local files are never deleted. Syncing only runs while nothing is being played from the SD card.",
+    "url": {
+      "title": "Manifest URL",
+      "placeholder": "https://server/audio/manifest.json"
+    },
+    "user": {
+      "title": "Username (optional)",
+      "placeholder": "leave empty if no login"
+    },
+    "pwd": {
+      "title": "Password (optional)",
+      "placeholder": "Password",
+      "show": "Show/hide password"
+    },
+    "pwd.hint": "Username and password are sent to the server via HTTP Basic Auth (e.g. nginx auth_basic).",
+    "abortBtn": "Abort sync on button press",
+    "abortBtn.hint": "A running sync is aborted as soon as a button is pressed (or a command is triggered).",
+    "run": {
+      "title": "Sync now",
+      "desc": "Fetches the manifest and downloads missing/changed files. May take a while depending on the amount of data.",
+      "button": "Sync now",
+      "stop": "Stop",
+      "gotools": "Open sync in the Tools tab"
+    },
+    "manifest": {
+      "title": "Manifest format",
+      "desc": "The manifest is a JSON file listing all files to sync. Place it on the web server (the URL above points to it):",
+      "fields": "<b>path</b>: path relative to the manifest's directory – used both as the download URL (manifest directory + path) and as the target path on the SD card. <b>size</b>: file size in bytes – used to detect whether the local file is up to date.",
+      "nginx": "nginx example: put the audio files and <code>manifest.json</code> into a directory served via a <code>location</code> block; for a login add <code>auth_basic</code> + <code>auth_basic_user_file</code>."
+    },
+    "status": {
+      "syncing": "Syncing… {{percent}}%",
+      "done": "Synchronization complete",
+      "failed": "Synchronization failed",
+      "stopped": "Synchronization stopped"
+    },
+    "rfid": {
+      "title": "RFID card sync",
+      "desc": "Syncs RFID card assignments with a central server (manifest.php) and/or other ESPuinos (P2P). On conflict the most recently changed assignment wins.",
+      "url": "Server URL (manifest.php)",
+      "urlPlaceholder": "http://server/espuino/manifest.php",
+      "peers": "Other ESPuinos (peers)",
+      "peersPlaceholder": "192.168.1.34, 192.168.1.50",
+      "peersHint": "On learn the card is pushed to each peer. Each peer has an IP/hostname + web password.",
+      "onLearn": "Sync automatically on learn",
+      "runTitle": "Full RFID sync",
+      "runDesc": "Pulls all cards from the server, merges them with the local ones (newest wins) and pushes them to the server and peers.",
+      "runBtn": "Sync now",
+      "started": "RFID sync started…",
+      "phpHint": "Server script (dynamic, generates the manifest + RFID sync):",
+      "peerKeyPlaceholder": "web password of the other ESPuinos",
+      "addPeer": "Add",
+      "peerHostPlaceholder": "IP or hostname",
+      "peerHostRequired": "Please enter an IP/hostname",
+      "noPeers": "No peers yet."
+    },
+    "backup": {
+      "title": "Auto-backup to server",
+      "desc": "Uploads a full configuration backup (settings, RFID assignments, EQ rules and listening statistics) to a server – the same backup the export button produces, so it can be restored via import. Passwords are never included. Uses the username/password from the file-sync section above.",
+      "url": "Backup URL (backup.php)",
+      "urlPlaceholder": "http://server/espuino/backup.php",
+      "auto": "Back up automatically once a day",
+      "autoHint": "Once a day (after the clock is set and WiFi is up) the backup is uploaded to the server in the background.",
+      "run": "Back up now",
+      "started": "Backup upload started…",
+      "done": "Backup uploaded",
+      "failed": "Backup upload failed"
+    }
+  },
+  "playlist": {
+    "button": "Create playlist (.m3u)",
+    "title": "Create playlist",
+    "browse": "Pick files",
+    "tracks": "Playlist",
+    "addFolder": "Add all tracks in this folder",
+    "urlPlaceholder": "Webradio URL (http://…)",
+    "addUrl": "Add",
+    "name": "File name",
+    "namePlaceholder": "e.g. Favourites",
+    "save": "Save",
+    "saved": "Playlist saved: {{path}}",
+    "noName": "Please enter a file name",
+    "empty": "The playlist is empty"
+  },
+  "bt": {
+    "sink": {
+      "title": "ESPuino as Bluetooth speaker",
+      "desc": "ESPuino is started as a Bluetooth speaker.",
+      "button": "Start as Bluetooth speaker",
+      "stopButton": "Stop Bluetooth speaker",
+      "indicator": "Bluetooth Speaker Mode"
+    },
+    "source": {
+      "configtitle": "Bluetooth headphone settings",
+      "title": "Connect with Bluetooth headphone",
+      "desc": "The device connects to the specified Bluetooth headset.",
+      "button": "Start in headphone mode",
+      "stopButton": "Stop headphone mode",
+      "indicator": "Bluetooth Headphone Mode"
+    },
+    "scan": {
+      "title": "Scan for devices",
+      "button": "Scan",
+      "connect": "Connect",
+      "save": "Save Device",
+      "inProgress": "Scanning for devices...",
+      "noDevices": "No Bluetooth devices found",
+      "notAllowed": "Bluetooth device scan not allowed in current mode. Please switch to Bluetooth headphone mode first."
+    },
+    "device": {
+      "title": "Bluetooth device (headphone)",
+      "placeholder": "e.g. My POGS Wireless Headphone"
+    },
+    "pincode": {
+      "title": "Pairing PIN-Code",
+      "placeholder": "e.g. 0000"
+    },
+    "switchmode": {
+      "title": "Bluetooth Mode Active",
+      "prompt": "Control via website is restricted in Bluetooth mode. Would you like to switch back to WiFi mode and restart?",
+      "button": "Switch to WiFi Mode"
+    }
+  },
+  "airplay": {
+    "title": "ESPuino as AirPlay speaker",
+    "desc": "ESPuino is started as an AirPlay (RAOP) speaker and can be selected from the AirPlay menu of your iPhone, iPad or Mac.",
+    "name": {
+      "title": "AirPlay device name",
+      "placeholder": "e.g. ESPuino (defaults to the hostname)"
+    },
+    "button": "Start as AirPlay speaker",
+    "stopButton": "Stop AirPlay speaker",
+    "streaming": "Streaming…",
+    "indicator": "AirPlay Mode"
+  },
+  "general": {
+    "language": "Language",
+    "volume": {
+      "title": "Volume",
+      "restart": "After restart",
+      "speakerMax": "Max. volume (speaker)",
+      "headphoneMax": "Max. volume (headphones)"
+    },
+    "equalizer": {
+      "title": "Equalizer",
+      "profile": {
+        "title": "Profile",
+        "flat": "Flat (neutral)",
+        "music": "Music (fuller bass)",
+        "speech": "Audiobook / Speech",
+        "voiceBoost": "Deep voices (max. clarity)",
+        "custom": "Custom",
+        "none": "No EQ set"
+      },
+      "gainLowPass": "Lows (in dB)",
+      "gainBandPass": "Mids (in dB)",
+      "gainHighPass": "Highs (in dB)",
+      "info": "According to the library (ESP32-audioI2S), the frequencies are 500 Hz LowShelf, 3000 Hz PeakEQ and 6000 Hz HighShelf. The \"Audiobook / Speech\" and \"Deep voices\" profiles cut the bass and lift mids/highs so deep narrator voices stay intelligible."
+    },
+    "rfid": {
+      "title": "RFID Reader",
+      "behaviorTitle": "RFID behaviour",
+      "readerType": {
+        "title": "Reader Type",
+        "auto": "Auto-detect",
+        "mfrc522_spi": "MFRC522 (SPI)",
+        "mfrc522_i2c": "MFRC522 (I2C)",
+        "pn5180": "PN5180"
+      },
+      "description": "Select the type of RFID reader connected to your ESPuino. Auto-detect will try to determine the connected reader type automatically.",
+      "pn5180Lpcd": "Enable PN5180 LPCD",
+      "pn5180LpcdExp": "Enables Low Power Card Detection for PN5180 RFID reader. Only possible if solder jumpers are set correctly.",
+      "slix2Password": {
+        "title": "SLIX2 Password",
+        "description": "8-digit password in hexadecimal format (e.g. 01020304) for reading SLIX2 tags."
+      },
+      "mfrc522Gain": "MFRC522 Gain",
+      "mfrc522GainExp": "Sets the sensitivity of the MFRC522 RFID reader. Possible values are 0 (lowest sensitivity) to 7 (highest sensitivity). Default is 7."
+    },
+    "options": {
+      "title": "Options",
+      "playMono": "Mono Playback",
+      "playMonoExp": "If two speakers are installed, stereo can be played. More information <a href='https://forum.espuino.de/t/stereo-ausgabe/341' target='_blank'>here</a>.",
+      "savePlayPosShutdown": "Remember playback position at shutdown",
+      "savePlayPosShutdownExp": "When the box is switched off, the playback position for audio books is saved. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>SAVE_PLAYPOS_BEFORE_SHUTDOWN</code>.",
+      "savePlayPosRfidChange": "Remember playback position at RFID tag change",
+      "savePlayPosRfidChangeExp": "When switching to a new RFID tag, the playback position is saved for audio books. Does not affect modification tags. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>SAVE_PLAYPOS_WHEN_RFID_CHANGE</code>.",
+      "savePlayPosPeriodic": "Checkpoint audiobook position periodically",
+      "savePlayPosPeriodicExp": "While an audio book plays, the position is saved to flash every ~30 s. This way an unexpected power loss (dead battery, hard power-off) only loses the last few seconds instead of falling back to the start of the track. Fork feature.",
+      "restartFreshHrs": "Restart audiobook after (hrs)",
+      "restartFreshHrsExp": "If an audiobook has not been played for more than the given number of hours, it starts over from the beginning the next time the card is placed, instead of resuming the saved position. Handy for kids who, after a day's break, no longer remember where they were. 0 = off (always resume). Default: 24. Requires a valid clock (NTP/RTC). Fork feature.",
+      "minResumeSec": "Don't resume if pulled within (sec.)",
+      "minResumeSecExp": "If the card is removed within the first few seconds of an audiobook, the resume point is reset to the very beginning instead of saving the couple of seconds played. So a card that was only briefly sampled starts cleanly from the start next time rather than a few seconds in. Only affects the very first track of position-saving audiobook modes, so real mid-book progress is never discarded. 0 = off. Default: 20. Fork feature.",
+      "seekStep": "Smart seek step (sec.)",
+      "seekStepExp": "Jump distance in seconds for the \"smart forward/backward\" commands (CMD_SMART_FORWARDS/BACKWARDS). On an audiobook that is a single long file these buttons seek within the file; on a playlist of several files they change tracks instead. Several quick presses are coalesced into one jump (a single re-buffer instead of many). Default: 300 (5 min). Fork feature.",
+      "pauseIfRfidRemoved": "Pause when RFID tag is removed",
+      "pauseIfRfidRemovedExp": "Playback is paused when the RFID tag is removed. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PAUSE_IF_RFID_REMOVED</code>.",
+      "stopIfRfidRemoved": "Stop instead of pause on removal",
+      "stopIfRfidRemovedExp": "When enabled (only together with “Pause when RFID tag is removed”): removing the tag fully stops playback instead of just pausing, so the LEDs return to the idle animation. For audiobooks the exact position is saved the moment the tag is removed, so re-applying it continues right where you left off; other content starts over.",
+      "dontAcceptRfidTwice": "Don't accept the same RFID twice",
+      "dontAcceptRfidTwiceExp": "RFID tags are not accepted twice in a row. Cannot be used together with <em>Pause when RFID tag is removed</em>.",
+      "playLastRfidOnReboot": "Play last RFID tag on restart",
+      "playLastRfidOnRebootExp": "Play last RFID tag on restart. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PLAY_LAST_RFID_ON_REBOOT</code>.",
+      "pauseOnMinVolume": "Pause at minimum volume",
+      "pauseOnMinVolumeExp": "Playback is paused when the volume reaches the minimum level. More information <a href='https://forum.espuino.de/t/lautstaerke-0-pause/1631' target='_blank'>here</a>",
+      "recoverVolBoot": "Use last volume at restart",
+      "recoverVolBootExp": "After a restart, the speaker remembers which volume was last used and automatically adjusts it again.",
+      "volumeCurve": "Finer gradations at low volume",
+      "volumeCurveExp": "Use of logarithmic volume calculation. Can help if the gradations in the lower volume range are too coarse.",
+      "playStartupSound": "Play startup sound",
+      "playStartupSoundExp": "Play the ready sound (the MP3 below) once on cold start. Disable for a silent boot.",
+      "readypath": "Path to ready MP3 (cold start)",
+      "noSleepWhenPowered": "No standby while on power",
+      "noSleepWhenPoweredExp": "When enabled, the device will not go into standby due to inactivity while it is on external power. Since there is no charge/USB sense, being 'on power' is estimated from the battery voltage (charge voltage sits above the resting voltage) — see threshold. The manual sleep timer is unaffected.",
+      "noSleepWhenPoweredWarn": "Note: if the device stays powered and never sleeps, the scarce internal heap fragments over many hours and the web interface gets progressively slower to load. Remedy: reboot occasionally, or leave this option off so standby (= a cold boot on wake-up) defragments the heap.",
+      "poweredVoltage": "'On power' threshold (V)",
+      "poweredVoltageExp": "At or above this battery voltage the device is considered 'on power'. For LiFePO4, ~3.5 V is a good starting point (charge voltage ~3.6 V, full resting ~3.3-3.4 V)."
+    },
+    "neopixel": {
+      "title": "Neopixel (brightness)",
+      "restart": "After restart",
+      "nightmode": "For nightmode",
+      "atmomode": "For Atmolight-mode"
+    },
+    "sleep": {
+      "title": "Deep Sleep",
+      "inactivity": "After n minutes inactivity"
+    },
+    "battery": {
+      "title": "Battery",
+      "desc": "Show voltage-status via Neopixel",
+      "lowWarning": "Show warning below this threshold (in volt)",
+      "lowCritical": "Lowest voltage (in volt), that is indicated by one LED",
+      "criticalShutoff": "Below this voltage (in volt), ESPuino turns off",
+      "high": "Voltage (in volt), that is indicated by all LEDs",
+      "measureInterval": "Interval between measurements (in minutes)"
+    },
+    "playlist": {
+      "title": "Playlist",
+      "sortMode": "Sorting mode for playlist and file browser",
+      "strcmp": "Standard sorting",
+      "strnatcmp": "Natural: case-sensitive",
+      "strnatcasecmp": "Natural: case-insensitive",
+      "recDepth": "Maximum recursion depth at generation of recursive playlists"
+    },
+    "branding": {
+      "title": "Branding",
+      "brand": "Brand name",
+      "brandPlaceholder": "e.g. My Player",
+      "hint": "Leave empty for the default. Replaces \"Leo Industries\" in the header and footer."
+    }
+  },
+  "tools": {
+    "eqrules": {
+      "title": "EQ rules (per file/folder)",
+      "desc": "Overview of the per-path equalizer profiles. View and delete them here.",
+      "empty": "No EQ rules set.",
+      "full": "EQ rule storage is full — delete some existing rules before adding new ones.",
+      "savefailed": "Could not save the EQ rule."
+    },
+    "backup": {
+      "title": "Backup",
+      "desc": "Exports or imports all settings and RFID assignments as a JSON file.",
+      "export": {
+        "title": "Export",
+        "includeWifi": "Include passwords (WiFi, sync, peers)",
+        "button": "Download backup"
+      },
+      "import": {
+        "title": "Import",
+        "desc": "Select and import a backup file. Some settings (e.g. MQTT) require a restart afterwards.",
+        "button": "Import",
+        "invalid": "Not a valid backup file",
+        "partial": "Import finished with {{count}} errors",
+        "done": "Import finished"
+      }
+    },
+    "nvs": {
+      "title": "Saved RFID assignments",
+      "desc": "The RFID assignments are not stored on the SD card but on the internal, non-volative storage (NVS) of the ESPuino.",
+      "list": {
+        "title": "List of all stored RFID assignments"
+      },
+      "erase": {
+        "title": "Erase all RFID assignments",
+        "desc": "Via importer new entries will only be inserted but old ones won't be erased. Only in case an old assignment to the same entry already exists, it will be overwritten. With this function all existing RFID assignments will be erased.<br>Further <a href=\"https://forum.espuino.de/t/die-backupfunktion-des-espuino/508\" target=\"_blank\">information</a> (in German).",
+        "button": "Delete all assignments",
+        "prompt": "Erase all saved RFID assignments?"
+      },
+      "delete": {
+        "title": "Erase RFID assignment",
+        "prompt": "Remove assignment \"{{rfid}}\"?"
+      },
+      "import": {
+        "title": "Import",
+        "desc": "A backup file can be uploaded here in order to import RFID assignments."
+      },
+      "export": {
+        "title": "Export",
+        "desc": "A backup file can be downloaded here in order to export the RFID assignments."
+      }
+    },
+    "fwupdate": {
+      "title": "Firmware-Update",
+      "desc": "Firmware can be updated right here.",
+      "manual": "Or upload a firmware.bin manually:",
+      "github": {
+        "desc": "The device downloads the latest firmware straight from GitHub (HTTPS) and installs it itself.",
+        "apply": "Update from GitHub",
+        "confirm": "Download and install the latest firmware from GitHub? The device will restart afterwards.",
+        "checking": "Checking version…",
+        "uptodate": "Already up to date – no update needed.",
+        "flashing": "Downloading & installing…",
+        "started": "Device is installing the firmware and will restart – the page will reload shortly…",
+        "error": "Update failed (see console/log)."
+      }
+    },
+    "nav": {
+      "command": "Command",
+      "sync": "Sync",
+      "nvs": "NVS",
+      "backup": "Backup",
+      "fwupdate": "Firmware"
+    }
+  },
+  "help": {
+    "forum": {
+      "title": "Forum",
+      "desc": "Having problems or aim to discuss about ESPuino?<br /> Join us at <a href=\"https://forum.espuino.de\" target=\"_blank\">ESPuino-Forum</a>! Especially there's a lot of (german) <a href=\"https://forum.espuino.de/c/dokumentation/anleitungen/10\" target=\"_blank\">documentation</a> online!"
+    },
+    "swagger": {
+      "title": "Swagger",
+      "desc": "Documentation of the REST API: <a href=\"swagger.html\" target=\"_blank\">Swagger</a>."
+    }
+  },
+  "datetime": {
+    "day": "day",
+    "days": "days",
+    "hour": "hour",
+    "hours": "hours",
+    "minute": "minute",
+    "minutes": "minutes",
+    "second": "second",
+    "seconds": "seconds"
+  },
+  "systeminfo": {
+    "lblSoftware": "Software",
+    "lblBuild": "Build",
+    "lblGit": "Git revision",
+    "lblEnv": "Arduino / ESP-IDF",
+    "lblChip": "Chip",
+    "lblCpu": "CPU clock",
+    "lblReader": "RFID reader firmware",
+    "lblHeap": "Free heap",
+    "lblHeapBlock": "Largest free block",
+    "lblPsram": "Free PSRAM",
+    "lblIp": "IP address",
+    "lblMac": "MAC address",
+    "lblRssi": "WiFi signal",
+    "lblSince": "In service since",
+    "lblPlayTotal": "Total playtime",
+    "lblPlaySince": "Playtime since start",
+    "lblSd": "SD card",
+    "lblVoltage": "Battery voltage",
+    "lblCharge": "Charge level",
+    "lblHall": "Hall sensor",
+    "lblRtc": "RTC (real-time clock)",
+    "title": "Information",
+    "softwareversion": "ESPuino {{softwareversion}}",
+    "gitversion": "ESPuino {{gitversion}}",
+    "arduinoversion": "Arduino Version: {{arduinoversion}} (ESP-IDF {{idfversion}})",
+    "hardware": "Hardware: {{hwmodel}}, Revision {{hwrevision}}, CPU: {{hwfreq}} MHZ",
+    "freeheap": "Free heap: {{freeheap}} Bytes",
+    "sdcard": "SD card: {{free}} GB free of {{total}} GB",
+    "largestfreeblock": "Largest free heap-block: {{largestfreeblock}} Bytes",
+    "freepsram": "Free PS-RAM: {{freepsram}} Bytes",
+    "currentip": "Current IP-Address: {{currentip}}",
+    "macAddress": "MAC-Address: {{macAddress}}",
+    "rssi": "WiFi signal strength: {{rssi}} dBm",
+    "audiotimetotal": "Total audio playtime since {{firststart}}: {{audiotimetotal}}",
+    "audiotimesincestart": "Playtime since last start: {{audiotimesincestart}}",
+    "currvoltage": "Current battery voltage: {{currvoltage}} V",
+    "chargelevel": "Current charge level: {{chargelevel}} %",
+    "hallsensor": "HallEffectSensor NullFieldValue: {{hsnullfieldvalue}}, actual: {{hsactual}}, diff:{{hsdiff}}, LastWaitFor_State:{{hslastwaitforstate}} (waited:{{hswaited}} ms)",
+    "lblPlayToday": "Listened today",
+    "lblPlayYesterday": "Listened yesterday",
+    "lblPlay7d": "Last 7 days",
+    "lblPlay30d": "Last 30 days",
+    "lblTopCard": "Most played",
+    "chartTitle": "Last 30 days",
+    "exportCsv": "CSV"
+  },
+  "homekit": {
+    "title": "Apple HomeKit",
+    "intro": "Add this ESPuino to the Apple Home app to control playback, volume and the button-lock with Siri and automations. Pairs over your existing WiFi — no extra hardware needed.",
+    "enable": "Enable HomeKit",
+    "enablehint": "When disabled, HomeSpan does not start at boot — this saves boot time if you don't use HomeKit.",
+    "enablereboot": "Setting saved. Restart the ESPuino now to apply it?",
+    "paired": "Paired",
+    "notpaired": "Not paired yet",
+    "setupcode": "Setup code",
+    "howto": "In the Home app tap + → Add Accessory → More options… → ESPuino, then scan the QR code (or enter the code manually).",
+    "namefollowshint": "The device and remote names follow the device name from the General settings automatically. After you rename the device, the new name only applies to new pairings — the Home app keeps the name you assigned when pairing. To update it, rename the accessory inside the Home app, or reset the pairing here and add the ESPuino again.",
+    "devicename": "Device name",
+    "tvname": "TV / remote name",
+    "tvnamehint": "(shown on the Control-Center remote)",
+    "savenames": "Save names",
+    "restartnote": "Takes effect after a restart of the ESPuino.",
+    "regen": "Regenerate code",
+    "reset": "Reset pairing",
+    "actionsnote": "“Regenerate code” creates a new pairing code + QR (the old one stops working; already-paired homes keep working). “Reset pairing” removes all paired controllers so the player can be added to a different Home.",
+    "confirmreset": "Remove all HomeKit pairings from this ESPuino?",
+    "confirmregen": "Generate a new pairing code? The current code and QR will stop working for new pairings.",
+    "namessaved": "Names saved. Restart the ESPuino now to apply them?"
+  }
 }

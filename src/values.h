@@ -4,6 +4,7 @@
 #define OPMODE_NORMAL			0 // Normal mode
 #define OPMODE_BLUETOOTH_SINK	1 // Bluetooth sink mode. Player acts as bluetooth speaker. Webinterface stays reachable, but player controls are disabled. Music from SD and webstreams can't be played.
 #define OPMODE_BLUETOOTH_SOURCE 2 // Bluetooth source mode. Player sends audio to bluetooth speaker/headset. Webinterface stays fully usable.
+#define OPMODE_AIRPLAY			3 // AirPlay receiver mode. Player acts as an AirPlay 1 (RAOP) speaker over WiFi. Webinterface stays reachable, but player controls are disabled. Music from SD and webstreams can't be played.
 
 // Track-Control
 #define NO_ACTION	   0 // Dummy to unset track-control-command
@@ -59,6 +60,8 @@
 #define CMD_TOGGLE_MODE					 142 // Toggles Normal => Bluetooth sink => Bluetooth source => Normal Mode
 #define CMD_ENTER_BLUETOOTH_SINK_MODE	 143 // Switches to Bluetooth sink mode (speaker), regardless of current mode
 #define CMD_ENTER_BLUETOOTH_SOURCE_MODE	 144 // Switches to Bluetooth source mode (headphones), regardless of current mode
+#define CMD_TOGGLE_AIRPLAY_MODE			 145 // Toggles Normal/AirPlay receiver Mode
+#define CMD_ENTER_AIRPLAY_MODE			 146 // Switches to AirPlay receiver mode (WiFi speaker), regardless of current mode
 #define CMD_ENABLE_FTP_SERVER			 150 // Enables FTP-server
 #define CMD_TELL_IP_ADDRESS				 151 // Command: ESPuino announces its IP-address via speech
 #define CMD_TELL_CURRENT_TIME			 152 // Command: ESPuino announces current time via speech

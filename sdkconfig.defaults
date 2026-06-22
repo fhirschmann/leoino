@@ -282,6 +282,16 @@ CONFIG_MBEDTLS_SSL_PROTO_DTLS=y
 #
 CONFIG_MBEDTLS_CAMELLIA_C=y
 # end of Symmetric Ciphers
+
+#
+# AirPlay 1 (RAOP) uses the well-known AirPort RSA key to unwrap the session AES key
+# (PKCS#1 v2.1 / OAEP decrypt) and to sign the Apple-Challenge (PKCS#1 v1.5). These are
+# normally enabled by the TLS/cert-bundle defaults; pin them so the AirPlay handshake links.
+#
+CONFIG_MBEDTLS_RSA_C=y
+CONFIG_MBEDTLS_PKCS1_V15=y
+CONFIG_MBEDTLS_PKCS1_V21=y
+CONFIG_MBEDTLS_PEM_PARSE_C=y
 # end of mbedTLS
 
 #

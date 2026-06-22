@@ -53,6 +53,7 @@
 	//#define PLAY_LAST_RFID_AFTER_REBOOT   // When restarting ESPuino, the last RFID that was active before, is recalled and played
 	#define USEROTARY_ENABLE                // If rotary-encoder is used (don't forget to review WAKEUP_BUTTON if you disable this feature!)
 	#define BLUETOOTH_ENABLE                // If enabled and bluetooth-mode is active, you can stream to your ESPuino or to a headset via bluetooth (a2dp-sink & a2dp-source). Note: This feature consumes a lot of resources and the available flash/ram might not be sufficient.
+	#define AIRPLAY_ENABLE                  // If enabled and AirPlay-mode is active, your ESPuino shows up as an AirPlay 1 (RAOP) speaker over WiFi (iPhone/iPad/Mac). Mutually exclusive with the bluetooth modes (single DAC + WiFi/BT coexistence is fragile). Needs PSRAM.
 	//#define IR_CONTROL_ENABLE             // Enables remote control (https://forum.espuino.de/t/neues-feature-fernsteuerung-per-infrarot-fernbedienung/265)
 	//#define PAUSE_WHEN_RFID_REMOVED       // Playback starts when card is applied and pauses automatically, when card is removed (https://forum.espuino.de/t/neues-feature-pausieren-wenn-rfid-karte-entfernt-wurde/541)
 	//#define DONT_ACCEPT_SAME_RFID_TWICE   // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
@@ -219,6 +220,7 @@
 
 	// Bluetooth
 	constexpr const char nameBluetoothSinkDevice[] = "ESPuino";        // Name of your ESPuino as Bluetooth-device
+	constexpr const char nameAirplayDevice[] = "ESPuino";             // Fallback AirPlay receiver name (used if the web-UI "airplayName" is empty and no hostname is set)
 
 	// Where to store the backup-file for NVS-records
 	constexpr const char backupFile[] = "/backup.txt"; // File is written every time a (new) RFID-assignment via GUI is done
@@ -313,6 +315,7 @@
 		constexpr const char topicFirmwareUpdate[] = "firmware_update"; // Cmnd: trigger GitHub OTA (ON/1/update/check); State: idle/updating/up_to_date/failed
 		constexpr const char topicRfidSync[] = "rfid_sync"; // Cmnd: trigger a full bidirectional RFID-tag sync (ON/1/sync)
 		constexpr const char topicWebdav[] = "webdav"; // Cmnd/State: start/stop the WebDAV server (ON/OFF/1/0)
+		constexpr const char topicAirplay[] = "airplay"; // Cmnd: enter/leave AirPlay receiver mode (ON/1 -> AirPlay, OFF/0 -> normal; reboots). State: ON while streaming, OFF otherwise
 		constexpr const char topicBackup[] = "backup"; // Cmnd: upload the full config backup to the sync server (ON/1/backup); State: idle/running/done/failed
 
 		// Topics (state only)

@@ -131,7 +131,8 @@
 			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
 			sync: { url: "", username: "", password: "", abortOnButton: true, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
 			mqtt: { enable: false, clientID: "espuino-demo", deviceId: "espuino-demo", baseTopic: "espuino", server: "", username: "", password: "", port: 1883 },
-			bluetooth: { deviceName: "ESPuino", pinCode: "" }
+			bluetooth: { deviceName: "ESPuino", pinCode: "" },
+			airplay: { name: "ESPuino", active: false, running: false, nowPlaying: "" }
 		};
 	}
 
@@ -425,6 +426,7 @@
 			self._emit({ battery: { level: 78, voltage: 3.94 } });
 			self._emit({ ftpStatus: { running: false } });
 			self._emit({ webdavStatus: { running: false } });
+			self._emit({ airplayStatus: { active: false, running: false, nowPlaying: "" } });
 		}, 120);
 	}
 	MockWebSocket.prototype._emit = function (obj) {

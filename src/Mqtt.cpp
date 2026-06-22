@@ -3,6 +3,7 @@
 
 #include "Mqtt.h"
 
+#include "Airplay.h"
 #include "AudioPlayer.h"
 #include "Backup.h"
 #include "Led.h"
@@ -368,6 +369,10 @@ static void Mqtt_PublishHassDiscovery(void) {
 	const String webdavCmd = Mqtt_GetCommandTopic(topicWebdav);
 	mqttHassPublish("switch", "webdav", "\"name\":\"WebDAV server\",\"icon\":\"mdi:folder-network\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + webdavCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicWebdav)) + "\"");
 	#endif
+	#ifdef AIRPLAY_ENABLE
+	const String airplayCmd = Mqtt_GetCommandTopic(topicAirplay);
+	mqttHassPublish("switch", "airplay", "\"name\":\"AirPlay\",\"icon\":\"mdi:apple-airplay\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + airplayCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicAirplay)) + "\"");
+	#endif
 
 	// select
 	const String eqCmd = Mqtt_GetCommandTopic(topicEqualizer);
@@ -452,6 +457,11 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicWebdav), qos);
 	#endif
 
+	#ifdef AIRPLAY_ENABLE
+			// Enter/leave AirPlay receiver mode
+			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicAirplay), qos);
+	#endif
+
 			// Home Assistant MQTT discovery (entities auto-register under one device)
 			Mqtt_PublishHassDiscovery();
 
@@ -483,6 +493,9 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			publishMqtt(topicBackup, Backup_GetStatusText(), false);
 	#ifdef WEBDAV_ENABLE
 			publishMqtt(topicWebdav, Webdav_IsServerRunning() ? "ON" : "OFF", false);
+	#endif
+	#ifdef AIRPLAY_ENABLE
+			publishMqtt(topicAirplay, Airplay_IsRunning() ? "ON" : "OFF", false);
 	#endif
 
 			char revBuf[16];
@@ -796,6 +809,18 @@ void Mqtt_ClientCallback(const char *topic_buf, uint32_t topic_length, const cha
 				Webdav_DisableServer();
 			}
 			publishMqtt(topicWebdav, Webdav_IsServerRunning() ? "ON" : "OFF", false);
+		}
+	#endif
+
+	#ifdef AIRPLAY_ENABLE
+		// Enter/leave AirPlay receiver mode? (note: switching the operation mode reboots the device)
+		else if (reduced_topic_str == topicAirplay) {
+			if (payload_str == "ON" || payload_str == "1") {
+				Airplay_Enable();
+			} else if (payload_str == "OFF" || payload_str == "0") {
+				Airplay_Disable();
+			}
+			publishMqtt(topicAirplay, Airplay_IsRunning() ? "ON" : "OFF", false);
 		}
 	#endif
 

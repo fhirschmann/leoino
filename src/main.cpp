@@ -4,6 +4,7 @@
 
 #include "main.h"
 
+#include "Airplay.h"
 #include "AudioPlayer.h"
 #include "Backup.h"
 #include "Battery.h"
@@ -103,7 +104,7 @@ void recoverBootCountFromNvs(void) {
 // Get last RFID-tag applied from NVS
 void recoverLastRfidPlayedFromNvs(bool force) {
 	if (recoverLastRfid || force) {
-		if (System_GetOperationMode() == OPMODE_BLUETOOTH_SINK) { // Don't recover if BT-mode is desired
+		if (System_GetOperationMode() == OPMODE_BLUETOOTH_SINK || System_GetOperationMode() == OPMODE_AIRPLAY) { // Don't recover if BT-sink or AirPlay receiver mode is desired
 			recoverLastRfid = false;
 			return;
 		}
@@ -196,6 +197,7 @@ void setup() {
 	RotaryEncoder_Init();
 	Bluetooth_Init();
 	Wlan_Init();
+	Airplay_Init(); // after Wlan_Init: AirPlay needs WiFi; claims I2S when in AirPlay mode
 	Mqtt_Init();
 
 	if (OPMODE_NORMAL == System_GetOperationMode()) {
@@ -251,6 +253,9 @@ void loop() {
 	} else if (OPMODE_BLUETOOTH_SOURCE == System_GetOperationMode()) {
 		// bluetooth headset mode
 		Bluetooth_Cyclic();
+	} else if (OPMODE_AIRPLAY == System_GetOperationMode()) {
+		// AirPlay receiver mode (starts the RAOP receiver once WiFi is up)
+		Airplay_Cyclic();
 	}
 	RotaryEncoder_Cyclic();
 	Ftp_Cyclic();

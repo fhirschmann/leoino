@@ -3785,6 +3785,27 @@
 					</div>
 				</div>
 			</div>
+			<div class="container" id="airplayStart">
+				<div class="mb-3 col-md-12">
+					<hr>
+					<legend data-i18n="airplay.title"></legend>
+					<div data-i18n="airplay.desc"></div>
+					<form action="#airplayStart" method="POST" onsubmit="airplaySettings(); return false">
+						<div class="mb-3 mt-3">
+							<label class="form-label" for="airplayName" data-i18n="[prepend]airplay.name.title">:</label>
+							<input type="text" class="form-control" id="airplayName" maxlength="63" data-i18n="[placeholder]airplay.name.placeholder" name="airplayName" value="">
+						</div>
+						<div class="text-center">
+							<button type="submit" class="btn btn-outline-primary" data-i18n="submit"></button>
+						</div>
+					</form>
+					<div id="airplayNowPlaying" class="text-center mt-2 text-secondary small"></div>
+					<div class="text-center mt-3">
+						<button type="button" class="btn btn-primary" id="airplayModeBtn" onclick="setOperationMode(3)"
+							data-i18n="airplay.button"></button>
+					</div>
+				</div>
+			</div>
 		</div>
 			</div>
 		</div>
@@ -5162,9 +5183,11 @@
 		function updateOperationModeIndicator(opmode) {
 			const btStartSource = document.getElementById('btStartSource');
 			const btStartSink = document.getElementById('btStartSink');
+			const airplayStart = document.getElementById('airplayStart');
 
 			updateModeButton('btSinkModeBtn', opmode === 1, 'bt.sink.button', 'bt.sink.stopButton', 1);
 			updateModeButton('btSourceModeBtn', opmode === 2, 'bt.source.button', 'bt.source.stopButton', 2);
+			updateModeButton('airplayModeBtn', opmode === 3, 'airplay.button', 'airplay.stopButton', 3);
 
 			// OPMODE_NORMAL = 0, OPMODE_BLUETOOTH_SINK = 1, OPMODE_BLUETOOTH_SOURCE = 2
 			if (opmode === 0) {
@@ -5179,6 +5202,20 @@
 				// Bluetooth Source - highlight source panel
 				btStartSink.classList.remove('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
 				btStartSource.classList.add('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
+			} else if (opmode === 3) {
+				// AirPlay - clear the bluetooth panels (the AirPlay panel is highlighted below)
+				btStartSource.classList.remove('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
+				btStartSink.classList.remove('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
+			}
+
+			if (airplayStart) {
+				const apActive = opmode === 3;
+				airplayStart.classList.toggle('border', apActive);
+				airplayStart.classList.toggle('border-primary', apActive);
+				airplayStart.classList.toggle('border-3', apActive);
+				airplayStart.classList.toggle('rounded', apActive);
+				airplayStart.classList.toggle('p-3', apActive);
+				airplayStart.classList.toggle('bg-body-secondary', apActive);
 			}
 
 			const btTab = document.getElementById('nav-bt-tab');
@@ -5298,6 +5335,9 @@
 				}
 				if ("webdavStatus" in socketMsg) {
 					updateWebdavButton(socketMsg.webdavStatus.running);
+				}
+				if ("airplayStatus" in socketMsg) {
+					updateAirplayStatus(socketMsg.airplayStatus);
 				}
 				if ("battery" in socketMsg) {
 					updateBatteryIndicator(socketMsg.battery);
@@ -5754,6 +5794,20 @@
 				// make BT commands visible in button command selects
 				document.querySelectorAll('[id*=cmdselect_], #modId').forEach(select => {
 					select.querySelectorAll('option[value="140"], option[value="141"], option[value="142"], option[value="143"], option[value="144"]').forEach(option => {
+						option.style.display = '';
+					});
+				});
+			}
+			// airplay
+			let apSettings = settings.airplay;
+			if (apSettings) {
+				if (apSettings.name !== undefined) {
+					document.getElementById('airplayName').value = apSettings.name;
+				}
+				updateAirplayStatus({ running: apSettings.running, nowPlaying: apSettings.nowPlaying });
+				// make AirPlay mode commands visible in button command selects
+				document.querySelectorAll('[id*=cmdselect_], #modId').forEach(select => {
+					select.querySelectorAll('option[value="145"], option[value="146"]').forEach(option => {
 						option.style.display = '';
 					});
 				});
@@ -6820,6 +6874,23 @@
 				}
 			};
 			await postSettings(myObj);
+		}
+
+		async function airplaySettings() {
+			await postSettings({ "airplay": { name: document.getElementById('airplayName').value } });
+		}
+
+		function updateAirplayStatus(st) {
+			if (!st) return;
+			const el = document.getElementById('airplayNowPlaying');
+			if (!el) return;
+			if (st.running && st.nowPlaying) {
+				el.textContent = '▶ ' + st.nowPlaying;
+			} else if (st.running) {
+				el.textContent = i18next.t('airplay.streaming', 'Streaming…');
+			} else {
+				el.textContent = '';
+			}
 		}
 
 		function removeTrSlash(str) {
