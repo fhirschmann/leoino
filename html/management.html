@@ -2719,22 +2719,6 @@
 									tabindex="0"><i class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
-								<label for="restartFreshDays" data-i18n="general.options.restartFreshDays"></label>
-								<input type="number" class="form-control" id="restartFreshDays" name="restartFreshDays"
-									min="0" max="365" step="1" style="max-width:7em">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
-									data-i18n="[data-bs-content]general.options.restartFreshDaysExp" tabindex="0"><i
-										class="fas fa-circle-question"></i></a>
-							</div>
-							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
-								<label for="minResumeSec" data-i18n="general.options.minResumeSec"></label>
-								<input type="number" class="form-control" id="minResumeSec" name="minResumeSec"
-									min="0" max="3600" step="1" style="max-width:7em">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
-									data-i18n="[data-bs-content]general.options.minResumeSecExp" tabindex="0"><i
-										class="fas fa-circle-question"></i></a>
-							</div>
-							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<label for="seekStep" data-i18n="general.options.seekStep"></label>
 								<input type="number" class="form-control" id="seekStep" name="seekStep"
 									min="5" max="3600" step="5" style="max-width:7em">
@@ -3026,6 +3010,16 @@
 						<input class="form-check-input" type="checkbox" role="switch" id="playLastRfidOnReboot" name="playLastRfidOnReboot" value="false">
 						<label class="form-check-label" for="playLastRfidOnReboot" data-i18n="general.options.playLastRfidOnReboot"></label>
 						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.playLastRfidOnRebootExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+					</div>
+					<div class="d-flex gap-2 align-items-center mb-2">
+						<label class="mb-0" for="restartFreshDays" data-i18n="general.options.restartFreshDays"></label>
+						<input type="number" class="form-control" id="restartFreshDays" name="restartFreshDays" min="0" max="365" step="1" style="max-width:7em">
+						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.restartFreshDaysExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+					</div>
+					<div class="d-flex gap-2 align-items-center mb-2">
+						<label class="mb-0" for="minResumeSec" data-i18n="general.options.minResumeSec"></label>
+						<input type="number" class="form-control" id="minResumeSec" name="minResumeSec" min="0" max="3600" step="1" style="max-width:7em">
+						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.minResumeSecExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 				</fieldset>
 				<fieldset>
