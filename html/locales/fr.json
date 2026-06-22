@@ -749,7 +749,7 @@
 			"title": "Branding",
 			"brand": "Nom de marque",
 			"brandPlaceholder": "p.ex. Mon lecteur",
-			"hint": "Laisser vide pour la valeur par défaut. Remplace « Leo Industries » dans l'en-tête et le pied de page."
+			"hint": "Laisser vide pour la valeur par défaut. Remplace « ESPuino » dans l'en-tête et le pied de page."
 		}
 	},
 	"tools": {

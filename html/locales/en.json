@@ -760,7 +760,7 @@
 			"title": "Branding",
 			"brand": "Brand name",
 			"brandPlaceholder": "e.g. My Player",
-			"hint": "Leave empty for the default. Replaces \"Leo Industries\" in the header and footer."
+			"hint": "Leave empty for the default. Replaces \"ESPuino\" in the header and footer."
 		}
 	},
 	"tools": {
