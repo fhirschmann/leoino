@@ -3605,6 +3605,11 @@
 						<label class="form-check-label" for="syncAbortBtn" data-i18n="sync.abortBtn"></label>
 					</div>
 					<small class="text-muted" data-i18n="sync.abortBtn.hint"></small>
+					<div class="form-check form-switch mt-3">
+						<input class="form-check-input" type="checkbox" role="switch" id="syncDelete" name="syncDelete" value="false">
+						<label class="form-check-label" for="syncDelete" data-i18n="sync.delete"></label>
+					</div>
+					<small class="text-muted text-warning" data-i18n="sync.deleteHint"></small>
 					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="syncSaveBtn" onclick="syncSettings()" data-i18n="submit"></button>
 						<button type="button" class="btn btn-primary ms-2" onclick="jumpToSyncRun()"
@@ -5704,6 +5709,9 @@
 				if (syncSettingsData.abortOnButton !== undefined) {
 					document.getElementById("syncAbortBtn").checked = syncSettingsData.abortOnButton;
 				}
+				if (syncSettingsData.deleteRemoved !== undefined) {
+					document.getElementById("syncDelete").checked = syncSettingsData.deleteRemoved;
+				}
 				document.getElementById("rfidSyncUrl").value = syncSettingsData.rfidUrl || "";
 				setPeersFromStored(syncSettingsData.rfidPeers || "");
 				if (syncSettingsData.rfidLearn !== undefined) {
@@ -6352,6 +6360,7 @@
 					username: document.getElementById('syncUser').value,
 					password: document.getElementById('syncPwd').value,
 					abortOnButton: document.getElementById('syncAbortBtn').checked,
+					deleteRemoved: document.getElementById('syncDelete').checked,
 					rfidUrl: document.getElementById('rfidSyncUrl').value,
 					rfidPeers: JSON.stringify(window.rfidPeers || []),
 					rfidLearn: document.getElementById('rfidSyncLearn').checked,

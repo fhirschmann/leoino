@@ -1340,6 +1340,8 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		gPrefsSettings.putString("syncUser", syncObj["username"] | "");
 		gPrefsSettings.putString("syncPwd", syncObj["password"] | "");
 		gPrefsSettings.putBool("syncAbortBtn", syncObj["abortOnButton"] | true);
+		// mirror mode: delete local files that the manifest no longer lists (opt-in, off by default)
+		gPrefsSettings.putBool("syncDelete", syncObj["deleteRemoved"] | false);
 		// RFID-tag sync (server endpoint + peer list + push-on-learn)
 		if (syncObj["rfidUrl"].is<const char *>()) {
 			gPrefsSettings.putString("rfidSyncUrl", syncObj["rfidUrl"] | "");

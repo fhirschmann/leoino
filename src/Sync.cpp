@@ -16,6 +16,7 @@
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFiClient.h>
+#include <algorithm>
 #include <memory>
 
 // Abort a single file download if no data arrives for this long (connection still
@@ -150,6 +151,105 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 	return complete;
 }
 
+// Set of 64-bit path hashes used only by the optional mirror-delete pass: it records every
+// path the manifest listed so the later sweep can tell wanted files apart from orphans.
+// Stored in PSRAM (8 bytes/entry) so even a large manifest (1000+ files) never touches the
+// scarce internal heap. A 64-bit FNV-1a hash makes a collision astronomically unlikely, and
+// the only effect a collision could have is sparing one orphan from deletion — it can never
+// cause a wanted file to be deleted.
+class SyncPathSet {
+public:
+	~SyncPathSet() {
+		free(mData);
+	}
+	bool add(uint64_t hash) {
+		if (mCount == mCapacity) {
+			const size_t newCap = mCapacity ? (mCapacity * 2) : 256;
+			uint64_t *grown = (uint64_t *) ps_realloc(mData, newCap * sizeof(uint64_t));
+			if (!grown) {
+				return false; // out of memory -> caller skips the mirror pass so nothing is wrongly deleted
+			}
+			mData = grown;
+			mCapacity = newCap;
+		}
+		mData[mCount++] = hash;
+		return true;
+	}
+	void finalize() {
+		std::sort(mData, mData + mCount); // sort once so contains() can binary-search
+	}
+	bool contains(uint64_t hash) const {
+		return std::binary_search(mData, mData + mCount, hash);
+	}
+	size_t size() const {
+		return mCount;
+	}
+
+private:
+	uint64_t *mData = nullptr;
+	size_t mCount = 0;
+	size_t mCapacity = 0;
+};
+
+// Case-insensitive (FAT is) FNV-1a hash of a full SD path. The exact same normalization must
+// be used when recording manifest paths and when scanning local files, or they won't match.
+static uint64_t syncHashPath(const String &path) {
+	uint64_t hash = 1469598103934665603ULL; // FNV-1a offset basis
+	for (size_t i = 0; i < path.length(); i++) {
+		char c = path.charAt(i);
+		if (c >= 'A' && c <= 'Z') {
+			c += 'a' - 'A'; // lowercase ASCII; multibyte bytes (umlauts) pass through unchanged on both sides
+		}
+		hash ^= (uint8_t) c;
+		hash *= 1099511628211ULL; // FNV-1a prime
+	}
+	return hash;
+}
+
+// Files/directories the mirror-delete pass must never touch: everything hidden (a leading
+// dot — covers /.html, /.cache, the sync/backup temp files and macOS junk), the FAT system
+// folder, and the firmware-managed root files that aren't part of the synced media library.
+static bool syncIsProtected(const String &fullPath, const String &name) {
+	if (name.length() == 0 || name.charAt(0) == '.') {
+		return true;
+	}
+	if (name.equalsIgnoreCase("System Volume Information")) {
+		return true;
+	}
+	return (fullPath == "/manifest.json") || (fullPath == "/stats.csv") || (fullPath == backupFile);
+}
+
+// Recursively deletes every file under `dir` whose path the manifest did NOT list, then prunes
+// the directories this empties. `keep` must be the COMPLETE set of manifest paths — the caller
+// only runs this when the manifest parsed fully — otherwise wanted files would be deleted.
+static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted) {
+	File entry = dir.openNextFile();
+	while (entry) {
+		if (gSyncCancel) { // user pressed stop -> leave the rest of the card untouched
+			entry.close();
+			break;
+		}
+		const String path = entry.path();
+		const String name = entry.name();
+		const bool isDir = entry.isDirectory();
+		if (syncIsProtected(path, name)) {
+			entry.close();
+		} else if (isDir) {
+			syncMirrorDir(entry, keep, deleted);
+			entry.close();
+			gFSystem.rmdir(path); // only succeeds once the directory has been emptied
+		} else {
+			entry.close();
+			if (!keep.contains(syncHashPath(path)) && gFSystem.remove(path)) {
+				deleted++;
+				Log_Printf(LOGLEVEL_INFO, "Sync: deleted %s", path.c_str());
+			}
+		}
+		entry = dir.openNextFile();
+		vTaskDelay(pdMS_TO_TICKS(1)); // yield between entries (matches the download loop)
+	}
+}
+
 static void syncTask(void *parameter) {
 	gSyncProgress = 0;
 	gSyncMsg.set("");
@@ -168,6 +268,13 @@ static void syncTask(void *parameter) {
 	}
 	String user, pass;
 	Net_GetSyncCreds(user, pass);
+
+	// Mirror mode (opt-in, off by default): after pulling the manifest's files, delete local
+	// files the manifest didn't list. We collect every listed path into keepSet during the
+	// download pass; if it can't be built completely the mirror pass is skipped (see below).
+	const bool mirror = gPrefsSettings.getBool("syncDelete", false);
+	SyncPathSet keepSet;
+	bool keepSetOk = true;
 
 	// fetch + parse the manifest. The JSON is streamed straight from the network into
 	// the parser (deserializeJson over the WiFiClient stream) instead of first buffering
@@ -282,6 +389,12 @@ static void syncTask(void *parameter) {
 		if ((path.length() > 0) && !unsafePath) {
 			const String localPath = "/" + path;
 
+			// remember every listed path so the optional mirror pass keeps it (regardless of
+			// whether it gets downloaded now or already exists locally)
+			if (mirror && !keepSet.add(syncHashPath(localPath))) {
+				keepSetOk = false;
+			}
+
 			// additive diff: skip if a local file of the same size already exists
 			bool needDownload = true;
 			if ((size >= 0) && gFSystem.exists(localPath)) {
@@ -320,6 +433,25 @@ static void syncTask(void *parameter) {
 	manifest.close();
 	gFSystem.remove(manifestTmp);
 
+	// Optional mirror pass: delete local files the manifest didn't list. Strictly opt-in
+	// (off by default) and only when we have a complete manifest to compare against — if the
+	// user cancelled, the keep-set couldn't be fully built (OOM), or the manifest had no files,
+	// we skip it so a failed/empty manifest can never wipe the card. Runs while the other tasks
+	// are still paused so the SD isn't accessed concurrently.
+	size_t deleted = 0;
+	if (mirror && !cancelled && keepSetOk && (keepSet.size() > 0)) {
+		keepSet.finalize();
+		gSyncMsg.set("removing files not in manifest");
+		File root = gFSystem.open("/");
+		if (root && root.isDirectory()) {
+			syncMirrorDir(root, keepSet, deleted);
+			root.close();
+		}
+		if (gSyncCancel) { // stopped during the sweep
+			cancelled = true;
+		}
+	}
+
 	System_PauseTasksDuringUpload(false);
 
 	// Resume playback only if we paused it and the user didn't already take over by
@@ -328,7 +460,11 @@ static void syncTask(void *parameter) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
 	}
 
-	gSyncMsg.setf("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) processed);
+	if (mirror) {
+		gSyncMsg.setf("%u downloaded, %u deleted, %u failed, %u total", (unsigned) downloaded, (unsigned) deleted, (unsigned) failed, (unsigned) processed);
+	} else {
+		gSyncMsg.setf("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) processed);
+	}
 	char summary[StatusMessage::Capacity];
 	Sync_CopyMessage(summary, sizeof(summary));
 	Log_Printf(LOGLEVEL_NOTICE, "Sync %s: %s", cancelled ? "stopped" : "finished", summary);

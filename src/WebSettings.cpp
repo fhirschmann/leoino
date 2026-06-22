@@ -396,6 +396,7 @@ void settingsToJSON(JsonObject obj, const String section) {
 		syncObj["username"] = gPrefsSettings.getString("syncUser", "");
 		syncObj["password"] = gPrefsSettings.getString("syncPwd", "");
 		syncObj["abortOnButton"] = gPrefsSettings.getBool("syncAbortBtn", true);
+		syncObj["deleteRemoved"] = gPrefsSettings.getBool("syncDelete", false);
 		syncObj["rfidUrl"] = gPrefsSettings.getString("rfidSyncUrl", "");
 		syncObj["rfidPeers"] = gPrefsSettings.getString("rfidPeers", "");
 		syncObj["rfidPeerKey"] = gPrefsSettings.getString("rfidPeerKey", "");

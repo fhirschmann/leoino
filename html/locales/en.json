@@ -521,7 +521,7 @@
 	},
 	"sync": {
 		"title": "File synchronization",
-		"intro": "Downloads files from a web server (e.g. nginx) onto the SD card. The ESPuino fetches a <b>JSON manifest</b> from the URL below and downloads every file listed in it that is missing locally or has a different size. It is <b>additive only</b> – local files are never deleted. Syncing only runs while nothing is being played from the SD card.",
+		"intro": "Downloads files from a web server (e.g. nginx) onto the SD card. The ESPuino fetches a <b>JSON manifest</b> from the URL below and downloads every file listed in it that is missing locally or has a different size. By default it is <b>additive</b> – local files are kept; the option further down can also delete local files the manifest no longer lists (mirror mode). Syncing only runs while nothing is being played from the SD card.",
 		"url": {
 			"title": "Manifest URL",
 			"placeholder": "https://server/audio/manifest.json"
@@ -538,6 +538,8 @@
 		"pwd.hint": "Username and password are sent to the server via HTTP Basic Auth (e.g. nginx auth_basic).",
 		"abortBtn": "Abort sync on button press",
 		"abortBtn.hint": "A running sync is aborted as soon as a button is pressed (or a command is triggered).",
+		"delete": "Delete local files that are not in the manifest",
+		"deleteHint": "Caution – mirror mode: after downloading, local files missing from the manifest are deleted. System and config files (hidden files, manifest.json, stats.csv, backup.txt) are kept. Only runs when the manifest loaded completely.",
 		"run": {
 			"title": "Sync now",
 			"desc": "Fetches the manifest and downloads missing/changed files. May take a while depending on the amount of data.",

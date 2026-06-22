@@ -521,7 +521,7 @@
 	},
 	"sync": {
 		"title": "Datei-Synchronisation",
-		"intro": "Lädt Dateien von einem Webserver (z.B. nginx) auf die SD-Karte. Der ESPuino holt ein <b>JSON-Manifest</b> von der angegebenen URL und lädt alle darin gelisteten Dateien, die lokal fehlen oder eine andere Größe haben. Es wird <b>nur hinzugefügt</b> – lokale Dateien werden nie gelöscht. Die Synchronisation läuft nur, wenn gerade nichts von der SD-Karte abgespielt wird.",
+		"intro": "Lädt Dateien von einem Webserver (z.B. nginx) auf die SD-Karte. Der ESPuino holt ein <b>JSON-Manifest</b> von der angegebenen URL und lädt alle darin gelisteten Dateien, die lokal fehlen oder eine andere Größe haben. Standardmäßig wird <b>nur hinzugefügt</b> – lokale Dateien bleiben erhalten; mit der Option weiter unten lassen sich lokale Dateien, die das Manifest nicht (mehr) auflistet, auch löschen (Spiegel-Modus). Die Synchronisation läuft nur, wenn gerade nichts von der SD-Karte abgespielt wird.",
 		"url": {
 			"title": "Manifest-URL",
 			"placeholder": "https://server/audio/manifest.json"
@@ -538,6 +538,8 @@
 		"pwd.hint": "Benutzername und Passwort werden per HTTP Basic Auth an den Server gesendet (z.B. nginx auth_basic).",
 		"abortBtn": "Synchronisation bei Tastendruck abbrechen",
 		"abortBtn.hint": "Ein laufender Sync wird abgebrochen, sobald eine Taste gedrückt wird (oder ein Kommando ausgelöst wird).",
+		"delete": "Lokale Dateien löschen, die nicht im Manifest stehen",
+		"deleteHint": "Vorsicht – Spiegel-Modus: Nach dem Download werden lokale Dateien gelöscht, die im Manifest fehlen. System- und Konfigurationsdateien (versteckte Dateien, manifest.json, stats.csv, backup.txt) bleiben erhalten. Läuft nur, wenn das Manifest vollständig geladen wurde.",
 		"run": {
 			"title": "Jetzt synchronisieren",
 			"desc": "Holt das Manifest und lädt fehlende/geänderte Dateien herunter. Je nach Datenmenge kann das dauern.",

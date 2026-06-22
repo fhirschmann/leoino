@@ -514,7 +514,7 @@
 	},
 	"sync": {
 		"title": "Synchronisation de fichiers",
-		"intro": "Télécharge des fichiers depuis un serveur web (p.ex. nginx) vers la carte SD. L'ESPuino récupère un <b>manifeste JSON</b> à l'URL ci-dessous et télécharge tous les fichiers listés qui manquent localement ou ont une taille différente. C'est <b>uniquement additif</b> – aucun fichier local n'est supprimé. La synchronisation ne s'exécute que lorsqu'aucune lecture n'est en cours depuis la carte SD.",
+		"intro": "Télécharge des fichiers depuis un serveur web (p.ex. nginx) vers la carte SD. L'ESPuino récupère un <b>manifeste JSON</b> à l'URL ci-dessous et télécharge tous les fichiers listés qui manquent localement ou ont une taille différente. Par défaut c'est <b>additif</b> – les fichiers locaux sont conservés ; l'option plus bas permet aussi de supprimer les fichiers locaux que le manifeste ne liste plus (mode miroir). La synchronisation ne s'exécute que lorsqu'aucune lecture n'est en cours depuis la carte SD.",
 		"url": {
 			"title": "URL du manifeste",
 			"placeholder": "https://server/audio/manifest.json"
@@ -531,6 +531,8 @@
 		"pwd.hint": "Le nom d'utilisateur et le mot de passe sont envoyés au serveur via HTTP Basic Auth (p.ex. nginx auth_basic).",
 		"abortBtn": "Annuler la synchro sur appui d'un bouton",
 		"abortBtn.hint": "Une synchro en cours est annulée dès qu'un bouton est pressé (ou qu'une commande est déclenchée).",
+		"delete": "Supprimer les fichiers locaux absents du manifeste",
+		"deleteHint": "Attention – mode miroir : après le téléchargement, les fichiers locaux absents du manifeste sont supprimés. Les fichiers système et de configuration (fichiers cachés, manifest.json, stats.csv, backup.txt) sont conservés. Ne s'exécute que si le manifeste a été chargé entièrement.",
 		"run": {
 			"title": "Synchroniser maintenant",
 			"desc": "Récupère le manifeste et télécharge les fichiers manquants/modifiés. Peut prendre du temps selon le volume de données.",
