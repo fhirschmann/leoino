@@ -2719,11 +2719,11 @@
 									tabindex="0"><i class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
-								<label for="restartFreshHrs" data-i18n="general.options.restartFreshHrs"></label>
-								<input type="number" class="form-control" id="restartFreshHrs" name="restartFreshHrs"
-									min="0" max="8760" step="1" style="max-width:7em">
+								<label for="restartFreshDays" data-i18n="general.options.restartFreshDays"></label>
+								<input type="number" class="form-control" id="restartFreshDays" name="restartFreshDays"
+									min="0" max="365" step="1" style="max-width:7em">
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
-									data-i18n="[data-bs-content]general.options.restartFreshHrsExp" tabindex="0"><i
+									data-i18n="[data-bs-content]general.options.restartFreshDaysExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
@@ -5514,7 +5514,7 @@
 				$('#savePlayPosRfidChange').prop('checked', genSettings.savePosRfidChge);
 				$('#savePlayPosPeriodic').prop('checked', genSettings.savePosPeriodic);
 				if (genSettings.restartFreshHrs !== undefined) {
-					$('#restartFreshHrs').val(genSettings.restartFreshHrs);
+					$('#restartFreshDays').val(Math.round(genSettings.restartFreshHrs / 24));
 				}
 				if (genSettings.minResumeSec !== undefined) {
 					$('#minResumeSec').val(genSettings.minResumeSec);
@@ -6189,7 +6189,7 @@
 					savePosShutdown: $('#savePlayPosShutdown').prop('checked'),
 					savePosRfidChge: $('#savePlayPosRfidChange').prop('checked'),
 					savePosPeriodic: $('#savePlayPosPeriodic').prop('checked'),
-					restartFreshHrs: Number($('#restartFreshHrs').val()),
+					restartFreshHrs: Number($('#restartFreshDays').val()) * 24,
 					minResumeSec: Number($('#minResumeSec').val()),
 					seekStep: Number($('#seekStep').val()),
 					playLastRfidOnReboot: $('#playLastRfidOnReboot').prop('checked'),
