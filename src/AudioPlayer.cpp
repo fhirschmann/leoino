@@ -497,6 +497,33 @@ static uint32_t lastPlayingTimestamp = 0;
 static constexpr uint32_t SAVE_POS_CHECKPOINT_INTERVAL_MS = 30000;
 static uint32_t lastPosCheckpointMs = 0;
 
+// An audiobook resumed mid-file plays from byte 0 for a brief moment until the decoder knows the
+// bitrate and can seek to the saved position; audio->getAudioCurrentTime() reads a transient near-0
+// value during that window. Persisting it then would clobber real progress with a near-start value
+// (and minResumeSec would round it down to 0), so a card pulled right after re-applying would lose
+// the whole book. Suppress position-saves until the resume seek has actually landed (or, as a safety
+// net, until a timeout elapses) so NVS keeps the correct resume point in the meantime.
+static bool gResumeSeekPending = false; // a cold-start resume seek is still settling
+static uint32_t gResumeTargetSec = 0; // file-time (s) the decoder is seeking to
+static uint32_t gResumeSeekStartedMs = 0; // millis() the resume began (safety-timeout anchor)
+static constexpr uint32_t RESUME_SEEK_SETTLE_TIMEOUT_MS = 10000;
+
+// True when it's safe to persist the audiobook play-position. While a resume seek is still settling
+// the reported time is bogus, so callers should skip the save (NVS keeps the correct resume point).
+// Self-clears once the decoder has caught up to the target or the safety timeout elapses.
+static bool AudioPlayer_ResumePositionSettled(void) {
+	if (!gResumeSeekPending) {
+		return true;
+	}
+	const bool caughtUp = audio && audio->isRunning() && (audio->getAudioCurrentTime() + 1 >= gResumeTargetSec);
+	const bool timedOut = (millis() - gResumeSeekStartedMs) >= RESUME_SEEK_SETTLE_TIMEOUT_MS;
+	if (caughtUp || timedOut) {
+		gResumeSeekPending = false;
+		return true;
+	}
+	return false;
+}
+
 void AudioPlayer_Cyclic(void) {
 	if (AudioPlayer_UploadActive) {
 		return;
@@ -512,7 +539,7 @@ void AudioPlayer_Cyclic(void) {
 		// periodic audiobook play-position checkpoint (see note above). saveLastPlayPosition
 		// is only set for the position-saving audiobook modes, so this is a no-op otherwise.
 		if (gSavePosPeriodic && gPlayProperties.saveLastPlayPosition && gPlayProperties.playlist != nullptr && audio && audio->isRunning()) {
-			if (millis() - lastPosCheckpointMs >= SAVE_POS_CHECKPOINT_INTERVAL_MS) {
+			if (millis() - lastPosCheckpointMs >= SAVE_POS_CHECKPOINT_INTERVAL_MS && AudioPlayer_ResumePositionSettled()) {
 				lastPosCheckpointMs = millis();
 				AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
 			}
@@ -879,7 +906,7 @@ void AudioPlayer_Loop() {
 				// a running TTS announcement is skipped (its ~0 s position would clobber the book's slot).
 				// getAudioCurrentTime() must be read before stopSong() resets it. A pull within the first
 				// few seconds is reset to the very start by AudioPlayer_NvsRfidWriteWrapper (minResumeSec).
-				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.currentSpeechActive && audio && audio->isRunning()) {
+				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.currentSpeechActive && audio && audio->isRunning() && AudioPlayer_ResumePositionSettled()) {
 					Log_Printf(LOGLEVEL_INFO, trackPausedAtPos, audio->getAudioCurrentTime(), audio->getAudioFileDuration());
 					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
 				}
@@ -913,7 +940,7 @@ void AudioPlayer_Loop() {
 				// Don't persist while a TTS-announcement (IP/time) is running: the audio-object is
 				// then decoding the speech, so getAudioCurrentTime() would write the announcement's
 				// position (~0s) into the audiobook's NVS-slot and resume the book from the start.
-				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.pausePlay && !gPlayProperties.currentSpeechActive) {
+				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.pausePlay && !gPlayProperties.currentSpeechActive && AudioPlayer_ResumePositionSettled()) {
 					Log_Printf(LOGLEVEL_INFO, trackPausedAtPos, audio->getAudioCurrentTime(), audio->getAudioFileDuration());
 					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
 				}
@@ -1138,6 +1165,7 @@ void AudioPlayer_Loop() {
 				return;
 			} else {
 				int32_t fileStartTime = -1;
+				gResumeSeekPending = false; // cleared by default; re-armed below only for an actual mid-file resume
 				if (gPlayProperties.startAtFilePos > 0) {
 					fileStartTime = gPlayProperties.startAtFilePos;
 					if (RESUME_FADEIN_DURATION_MS > 0) {
@@ -1146,6 +1174,12 @@ void AudioPlayer_Loop() {
 						fileStartTime = (fileStartTime > (int32_t) RESUME_FADEIN_REWIND_S) ? (fileStartTime - (int32_t) RESUME_FADEIN_REWIND_S) : 1;
 						resumeFadeWanted = true;
 					}
+					// Arm the resume-settle guard: until the decoder reaches this file-time, suppress
+					// position-saves so a card pulled during the pre-seek window can't persist a near-0
+					// position and lose the book's progress (see AudioPlayer_ResumePositionSettled).
+					gResumeSeekPending = true;
+					gResumeTargetSec = (uint32_t) fileStartTime;
+					gResumeSeekStartedMs = millis();
 					Log_Printf(LOGLEVEL_NOTICE, trackStartatPos, fileStartTime);
 					gPlayProperties.startAtFilePos = 0;
 				}
