@@ -450,6 +450,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 	if ((section == "") || (section == "ir")) {
 		JsonObject irObj = obj["ir"].to<JsonObject>();
 		irObj["enabled"] = true;
+		irObj["longPressMs"] = IrReceiver_GetLongPressMs();
 		JsonArray mapArr = irObj["map"].to<JsonArray>();
 		IrMapping mappings[IR_MAX_MAPPINGS];
 		uint8_t count = IrReceiver_GetMappings(mappings, IR_MAX_MAPPINGS);
@@ -457,6 +458,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 			JsonObject e = mapArr.add<JsonObject>();
 			e["code"] = mappings[i].code;
 			e["cmd"] = mappings[i].cmd;
+			e["longCmd"] = mappings[i].longCmd;
 		}
 	}
 #endif

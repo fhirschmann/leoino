@@ -58,6 +58,9 @@
 		"title": "Infrared remote control",
 		"intro": "Teach the buttons of your remote and assign each one a command. Click “Learn”, then press the button on the remote — the received code is filled in automatically. Don't forget to save.",
 		"command": "Command",
+		"longCommand": "Long press",
+		"longPressLabel": "Long-press threshold",
+		"longPressHint": "How long a button must be held to trigger the long-press action (200–5000 ms). Buttons without a long action still react instantly.",
 		"code": "IR code",
 		"learn": "Learn",
 		"learnPrompt": "Press a button on the remote now…",
@@ -68,6 +71,7 @@
 		"timeout": "No IR signal received — learning cancelled.",
 		"duplicate": "The same code is mapped more than once; the first match wins.",
 		"cmd": {
+			"none": "— (none)",
 			"playpause": "Play / Pause",
 			"next": "Next track",
 			"prev": "Previous track",

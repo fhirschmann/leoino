@@ -58,6 +58,9 @@
 		"title": "Télécommande infrarouge",
 		"intro": "Apprenez les touches de votre télécommande et associez à chacune une commande. Cliquez sur « Apprendre », puis appuyez sur la touche de la télécommande — le code reçu est rempli automatiquement. N'oubliez pas d'enregistrer.",
 		"command": "Commande",
+		"longCommand": "Appui long",
+		"longPressLabel": "Seuil d’appui long",
+		"longPressHint": "Durée pendant laquelle une touche doit être maintenue pour déclencher l’action d’appui long (200–5000 ms). Les touches sans action longue réagissent toujours immédiatement.",
 		"code": "Code IR",
 		"learn": "Apprendre",
 		"learnPrompt": "Appuyez maintenant sur une touche de la télécommande…",
@@ -68,6 +71,7 @@
 		"timeout": "Aucun signal IR reçu — apprentissage annulé.",
 		"duplicate": "Le même code est associé plusieurs fois ; la première correspondance l'emporte.",
 		"cmd": {
+			"none": "— (aucune)",
 			"playpause": "Lecture / Pause",
 			"next": "Piste suivante",
 			"prev": "Piste précédente",

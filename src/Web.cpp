@@ -1620,7 +1620,13 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			IrReceiver_SetLearnMode(strcmp(irObj["learn"].as<const char *>(), "start") == 0);
 			return WebsocketCodeType::Ok;
 		}
-		// Persist a new IR-code -> command mapping table.
+		bool irHandled = false;
+		// Long-press threshold in ms (clamped to a sane range on read by the IR receiver).
+		if (!irObj["longPressMs"].isNull()) {
+			gPrefsSettings.putUInt("irLongMs", irObj["longPressMs"].as<uint32_t>());
+			irHandled = true;
+		}
+		// Persist a new IR-code -> command mapping table (short + optional long action per button).
 		if (irObj["map"].is<JsonArray>()) {
 			IrMapping mappings[IR_MAX_MAPPINGS];
 			uint8_t count = 0;
@@ -1630,16 +1636,20 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 				}
 				mappings[count].code = entry["code"].as<uint16_t>();
 				mappings[count].cmd = entry["cmd"].as<uint8_t>();
+				mappings[count].longCmd = entry["longCmd"].as<uint8_t>(); // absent -> 0 (no long action)
 				count++;
 			}
 			if (count > 0) {
-				if (gPrefsSettings.putBytes("irMap", mappings, (size_t) count * sizeof(IrMapping)) == 0) {
+				if (gPrefsSettings.putBytes("irMap2", mappings, (size_t) count * sizeof(IrMapping)) == 0) {
 					Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "ir");
 					return WebsocketCodeType::Error;
 				}
 			} else {
-				gPrefsSettings.remove("irMap"); // empty table -> fall back to the compiled defaults
+				gPrefsSettings.remove("irMap2"); // empty table -> fall back to the compiled defaults
 			}
+			irHandled = true;
+		}
+		if (irHandled) {
 			IrReceiver_ReloadMappings();
 			return WebsocketCodeType::Ok;
 		}

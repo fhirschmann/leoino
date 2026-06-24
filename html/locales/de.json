@@ -58,6 +58,9 @@
 		"title": "Infrarot-Fernbedienung",
 		"intro": "Lerne die Tasten deiner Fernbedienung an und ordne jeder ein Kommando zu. Klicke auf „Anlernen“ und drücke dann die Taste auf der Fernbedienung – der empfangene Code wird automatisch eingetragen. Nicht vergessen zu speichern.",
 		"command": "Kommando",
+		"longCommand": "Lang drücken",
+		"longPressLabel": "Schwelle für langes Drücken",
+		"longPressHint": "Wie lange eine Taste gehalten werden muss, um die Lang-Aktion auszulösen (200–5000 ms). Tasten ohne Lang-Aktion reagieren weiterhin sofort.",
 		"code": "IR-Code",
 		"learn": "Anlernen",
 		"learnPrompt": "Drücke jetzt eine Taste auf der Fernbedienung…",
@@ -68,6 +71,7 @@
 		"timeout": "Kein IR-Signal empfangen – Anlernen abgebrochen.",
 		"duplicate": "Derselbe Code ist mehrfach zugeordnet; der erste Treffer gewinnt.",
 		"cmd": {
+			"none": "— (keine)",
 			"playpause": "Wiedergabe / Pause",
 			"next": "Nächster Titel",
 			"prev": "Vorheriger Titel",

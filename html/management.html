@@ -3063,11 +3063,20 @@
 				<fieldset id="irConfig">
 					<legend class="w-auto" data-i18n="ir.title"></legend>
 					<p class="small text-secondary" data-i18n="ir.intro"></p>
+					<div class="mb-3" style="max-width: 24rem;">
+						<label class="form-label" for="irLongPressMs" data-i18n="ir.longPressLabel"></label>
+						<div class="input-group">
+							<input type="number" class="form-control" id="irLongPressMs" min="200" max="5000" step="50" value="600">
+							<span class="input-group-text">ms</span>
+						</div>
+						<div class="form-text" data-i18n="ir.longPressHint"></div>
+					</div>
 					<div class="table-responsive">
 						<table class="table table-sm align-middle mb-2" id="irMappingTable">
 							<thead>
 								<tr>
 									<th data-i18n="ir.command"></th>
+									<th data-i18n="ir.longCommand"></th>
 									<th data-i18n="ir.code"></th>
 									<th class="text-end"></th>
 								</tr>
@@ -5683,6 +5692,7 @@
 			let irSettings = settings.ir;
 			if (irSettings) {
 				document.getElementById('settings-ir-subtab').setAttribute('data-visible', true);
+				if (irSettings.longPressMs) { document.getElementById('irLongPressMs').value = irSettings.longPressMs; }
 				buildIrTable(irSettings.map || []);
 			}
 			// playlist
@@ -7915,23 +7925,32 @@
 		}
 
 		// Build the command <select> for a row, marking `cmd` as selected.
-		function irBuildCommandSelect(cmd) {
+		function irBuildCommandSelect(cmd, includeNone) {
 			var sel = document.createElement('select');
-			sel.className = 'form-select form-select-sm ir-cmd';
+			sel.className = 'form-select form-select-sm ' + (includeNone ? 'ir-longcmd' : 'ir-cmd');
+			var num = (cmd === null || cmd === undefined) ? (includeNone ? 0 : null) : Number(cmd);
 			var known = false;
+			if (includeNone) {
+				var none = document.createElement('option');
+				none.value = 0;
+				none.setAttribute('data-i18n', 'ir.cmd.none');
+				none.textContent = i18next.t('ir.cmd.none');
+				if (num === 0) { none.selected = true; known = true; }
+				sel.appendChild(none);
+			}
 			IR_COMMANDS.forEach(function (c) {
 				var opt = document.createElement('option');
 				opt.value = c.cmd;
 				opt.setAttribute('data-i18n', c.key);
 				opt.textContent = i18next.t(c.key);
-				if (Number(cmd) === c.cmd) { opt.selected = true; known = true; }
+				if (num === c.cmd) { opt.selected = true; known = true; }
 				sel.appendChild(opt);
 			});
 			// Preserve an unknown/legacy command value so saving doesn't silently drop it.
-			if (!known && cmd !== null && cmd !== undefined) {
+			if (!known && num !== null && num !== 0) {
 				var keep = document.createElement('option');
-				keep.value = cmd;
-				keep.textContent = 'CMD ' + cmd;
+				keep.value = num;
+				keep.textContent = 'CMD ' + num;
 				keep.selected = true;
 				sel.insertBefore(keep, sel.firstChild);
 			}
@@ -7939,12 +7958,16 @@
 		}
 
 		// Create one mapping row (<tr>) for the given code (number|null) and command.
-		function irMakeRow(code, cmd) {
+		function irMakeRow(code, cmd, longCmd) {
 			var tr = document.createElement('tr');
 
 			var tdCmd = document.createElement('td');
-			tdCmd.appendChild(irBuildCommandSelect(cmd));
+			tdCmd.appendChild(irBuildCommandSelect(cmd, false));
 			tr.appendChild(tdCmd);
+
+			var tdLong = document.createElement('td');
+			tdLong.appendChild(irBuildCommandSelect(longCmd, true));
+			tr.appendChild(tdLong);
 
 			var tdCode = document.createElement('td');
 			var codeSpan = document.createElement('span');
@@ -7995,7 +8018,7 @@
 			if (!body) { return; }
 			body.innerHTML = '';
 			(map || []).forEach(function (m) {
-				body.appendChild(irMakeRow(m.code, m.cmd));
+				body.appendChild(irMakeRow(m.code, m.cmd, m.longCmd));
 			});
 			irUpdateEmptyHint();
 		}
@@ -8004,7 +8027,7 @@
 		function addIrRow() {
 			var body = document.getElementById('irMappingBody');
 			if (!body) { return; }
-			var row = irMakeRow(null, IR_COMMANDS[0].cmd);
+			var row = irMakeRow(null, IR_COMMANDS[0].cmd, 0);
 			body.appendChild(row);
 			irUpdateEmptyHint();
 			var codeSpan = row.querySelector('.ir-code');
@@ -8049,10 +8072,11 @@
 				var code = Number(codeStr);
 				if (seen[code]) { dup = true; }
 				seen[code] = true;
-				map.push({ code: code, cmd: Number(tr.querySelector('.ir-cmd').value) });
+				map.push({ code: code, cmd: Number(tr.querySelector('.ir-cmd').value), longCmd: Number(tr.querySelector('.ir-longcmd').value) });
 			});
 			if (dup) { toaster.warning(i18next.t('ir.duplicate')); }
-			await postSettings({ ir: { map: map } });
+			var longMs = Number(document.getElementById('irLongPressMs').value) || 600;
+			await postSettings({ ir: { map: map, longPressMs: longMs } });
 		}
 
 		var rfidScanCallback = null;

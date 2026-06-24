@@ -132,8 +132,9 @@
 			sync: { url: "", username: "", password: "", abortOnButton: true, deleteRemoved: false, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
 			mqtt: { enable: false, clientID: "espuino-demo", deviceId: "espuino-demo", baseTopic: "espuino", server: "", username: "", password: "", port: 1883 },
 			bluetooth: { deviceName: "ESPuino", pinCode: "" },
-			// IR remote: presence of this section reveals the web-UI tab; map = code->command pairs.
-			ir: { enabled: true, map: [{ code: 12, cmd: 170 }, { code: 90, cmd: 176 }, { code: 24, cmd: 177 }] }
+			// IR remote: presence of this section reveals the web-UI tab; map = code->command pairs
+			// (cmd = short press, longCmd = long press / hold, 0 = none). longPressMs = hold threshold.
+			ir: { enabled: true, longPressMs: 600, map: [{ code: 12, cmd: 170, longCmd: 182 }, { code: 90, cmd: 176, longCmd: 0 }, { code: 24, cmd: 177, longCmd: 0 }] }
 		};
 	}
 
