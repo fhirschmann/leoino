@@ -28,7 +28,8 @@
 		"success": "Aktion erfolgreich ausgeführt.",
 		"conlost": "Die Verbindung zum ESPuino ist unterbrochen! Bitte Seite neu laden.",
 		"dropout": "Langsamer Stream, Aussetzer möglich.",
-		"saved": "Einstellungen gespeichert."
+		"saved": "Einstellungen gespeichert.",
+		"error": "Fehler"
 	},
 	"nav": {
 		"updateAvailable": "Update verfügbar",

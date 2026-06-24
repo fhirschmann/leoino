@@ -28,7 +28,8 @@
 		"success": "Action performed successfully.",
 		"conlost": "Connection to ESPuino broken! Please reload website.",
 		"dropout": "slow stream, dropouts are possible.",
-		"saved": "Settings saved."
+		"saved": "Settings saved.",
+		"error": "Error"
 	},
 	"nav": {
 		"updateAvailable": "Update available",

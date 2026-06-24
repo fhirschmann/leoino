@@ -5570,7 +5570,11 @@
 				$('#savePlayPosRfidChange').prop('checked', genSettings.savePosRfidChge);
 				$('#savePlayPosPeriodic').prop('checked', genSettings.savePosPeriodic);
 				if (genSettings.restartFreshHrs !== undefined) {
-					$('#restartFreshDays').val(Math.round(genSettings.restartFreshHrs / 24));
+					// firmware stores hours; the UI edits whole days. Never round a non-zero gap down to 0
+					// (which the field treats as OFF) - that would silently disable the feature on save for
+					// any legacy sub-24h value. 0 stays 0 (off); anything >0 shows at least 1 day.
+					const hrs = genSettings.restartFreshHrs;
+					$('#restartFreshDays').val(hrs > 0 ? Math.max(1, Math.round(hrs / 24)) : 0);
 				}
 				if (genSettings.minResumeSec !== undefined) {
 					$('#minResumeSec').val(genSettings.minResumeSec);

@@ -28,7 +28,8 @@
 		"success": "Action effectuée avec succès.",
 		"conlost": "Connexion à l'ESPuino perdue! Veuillez recharger la page.",
 		"dropout": "flux lent, des interruptions sont possibles.",
-		"saved": "Paramètres enregistrés."
+		"saved": "Paramètres enregistrés.",
+		"error": "Erreur"
 	},
 	"nav": {
 		"updateAvailable": "Mise à jour disponible",
