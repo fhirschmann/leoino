@@ -247,11 +247,9 @@ void handleDeleteRFIDRequest(AsyncWebServerRequest *request) {
 			// stop playback, tag to delete is in use
 			Cmd_Action(CMD_STOP);
 		}
-		RfidSync_Lock();
-		const bool removed = gPrefsRfid.remove(tagId.c_str());
-		RfidSync_Unlock();
+		// OnDelete removes the tag and writes its deletion tombstone atomically (single lock), then propagates.
+		const bool removed = RfidSync_OnDelete(tagId.c_str());
 		if (removed) {
-			RfidSync_OnDelete(tagId.c_str()); // record tombstone + propagate the deletion to server/peers (takes the lock itself)
 			Playstats_ClearCardPlays(tagId.c_str()); // drop the card's play counter too
 			Playstats_ClearCardSeen(tagId.c_str()); // and its last-seen timestamp
 			Log_Printf(LOGLEVEL_INFO, "/rfid (DELETE): tag %s removed successfuly", tagId.c_str());

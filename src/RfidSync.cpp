@@ -424,14 +424,20 @@ void RfidSync_OnLearn(const char *tagId) {
 
 // Record a local deletion (tombstone) synchronously, then hand the HTTP propagation to the push task
 // so the web DELETE handler returns immediately instead of blocking on offline peers.
-void RfidSync_OnDelete(const char *tagId) {
+bool RfidSync_OnDelete(const char *tagId) {
 	uint32_t ts = rfidNowEpoch();
+	// Remove the tag AND stamp its deletion tombstone under a single lock acquisition. Doing the remove in
+	// the web handler and the tombstone here (two separate locks) left a window where a concurrent full-sync
+	// observed the tag as locally gone with no tombstone yet and resurrected it from the server.
 	RfidSync_Lock();
-	RfidSync_SetDeleteTimestamp(tagId, ts);
-	gPrefsRfidTs.remove(tagId); // the assignment is gone
+	const bool removed = gPrefsRfid.remove(tagId);
+	if (removed) {
+		gPrefsRfidTs.remove(tagId); // the assignment is gone
+		RfidSync_SetDeleteTimestamp(tagId, ts);
+	}
 	RfidSync_Unlock();
-	if (!gPrefsSettings.getBool("rfidSyncLearn", true) || ts == 0) {
-		return; // pushed on the next full sync (also heals ts==0)
+	if (!removed || !gPrefsSettings.getBool("rfidSyncLearn", true) || ts == 0) {
+		return removed; // pushed on the next full sync (also heals ts==0)
 	}
 	RfidPushItem item;
 	snprintf(item.id, sizeof(item.id), "%s", tagId);
@@ -439,6 +445,7 @@ void RfidSync_OnDelete(const char *tagId) {
 	if (!gRfidPushQueue || xQueueSend(gRfidPushQueue, &item, 0) != pdTRUE) {
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: push queue full, delete %s will propagate on the next full sync", tagId);
 	}
+	return removed;
 }
 
 // Read an entry's mode from the server wire format (modId takes precedence over playMode).
@@ -489,54 +496,58 @@ static void rfidFullSyncTask(void *param) {
 		String syncUser, syncPwd;
 		Net_GetSyncCreds(syncUser, syncPwd);
 		Net_SetupHttp(http, syncUser, syncPwd);
-		String payload;
+		SpiRamAllocator allocator;
+		JsonDocument doc(&allocator);
+		bool docOk = false;
 		int code = -1;
 		if (http.begin(*client, serverUrl)) {
 			code = http.GET();
 			if (code == 200) {
-				payload = http.getString();
+				// Stream the body straight into the PSRAM-backed doc instead of buffering the whole response
+				// in a String first: the tag list can grow large and an intermediate String would fragment/
+				// exhaust the tight internal heap.
+				docOk = (deserializeJson(doc, http.getStream()) == DeserializationError::Ok);
 			}
 		}
 		http.end();
 		if (code != 200) {
-			serverOk = false; // couldn't reach/parse the server -> don't report this sync as "done"
+			serverOk = false; // couldn't reach the server -> don't report this sync as "done"
+		} else if (!docOk) {
+			serverOk = false; // got a 200 but the body didn't parse
 		}
 
-		if (payload.length() > 0) {
-			SpiRamAllocator allocator;
-			JsonDocument doc(&allocator);
-			if (deserializeJson(doc, payload) == DeserializationError::Ok) {
-				JsonArray tags = doc["rfid"].is<JsonArray>() ? doc["rfid"].as<JsonArray>() : doc.as<JsonArray>();
-				RfidSync_Lock(); // serialize the merge RMW against the async /rfid web handlers
-				for (JsonObject t : tags) {
-					String id = t["id"].as<String>();
-					if (id.length() == 0) {
-						continue;
-					}
-					uint32_t inTs = t["timestamp"].as<uint32_t>();
-					uint32_t localNewest = rfidLocalNewest(id.c_str());
-					const bool localExists = gPrefsRfid.isKey(id.c_str());
-					if (t["deleted"].as<bool>()) {
-						// incoming tombstone: drop the local tag if the deletion is newer
-						if (inTs > localNewest) {
-							if (localExists) {
-								gPrefsRfid.remove(id.c_str());
-							}
-							gPrefsRfidTs.remove(id.c_str());
-							RfidSync_SetDeleteTimestamp(id.c_str(), inTs);
-							merged++;
+		if (docOk) {
+			JsonArray tags = doc["rfid"].is<JsonArray>() ? doc["rfid"].as<JsonArray>() : doc.as<JsonArray>();
+			RfidSync_Lock(); // serialize the merge RMW against the async /rfid web handlers
+			for (JsonObject t : tags) {
+				String id = t["id"].as<String>();
+				if (id.length() == 0) {
+					continue;
+				}
+				uint32_t inTs = t["timestamp"].as<uint32_t>();
+				uint32_t localNewest = rfidLocalNewest(id.c_str());
+				const bool localExists = gPrefsRfid.isKey(id.c_str());
+				if (t["deleted"].as<bool>()) {
+					// incoming tombstone: drop the local tag if the deletion is newer
+					if (inTs > localNewest) {
+						if (localExists) {
+							gPrefsRfid.remove(id.c_str());
 						}
-					} else if (!localExists || inTs > localNewest) {
-						// incoming assignment wins (also overrides an older local deletion)
-						rfidWriteTag(id, t["fileOrUrl"].as<String>(), rfidModeFromJson(t), inTs);
-						gPrefsRfidDel.remove(id.c_str());
+						gPrefsRfidTs.remove(id.c_str());
+						RfidSync_SetDeleteTimestamp(id.c_str(), inTs);
 						merged++;
 					}
+				} else if (inTs > localNewest || (!localExists && localNewest == 0)) {
+					// Incoming assignment wins only if it is strictly newer than everything we know locally
+					// (assignment OR deletion tombstone); a never-seen tag (no local record at all) is pulled too.
+					// Do NOT resurrect on `!localExists` alone -- that ignored a fresh delete tombstone and let a
+					// still-present server copy undo a local deletion on the next sync.
+					rfidWriteTag(id, t["fileOrUrl"].as<String>(), rfidModeFromJson(t), inTs);
+					gPrefsRfidDel.remove(id.c_str());
+					merged++;
 				}
-				RfidSync_Unlock();
-			} else {
-				serverOk = false; // got a body but it didn't parse
 			}
+			RfidSync_Unlock();
 		}
 	}
 

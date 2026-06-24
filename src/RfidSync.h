@@ -28,8 +28,9 @@ void RfidSync_SetDeleteTimestamp(const char *tagId, uint32_t ts);
 
 // Push a single just-learned tag to the server + peers (fire-and-forget). No-op if disabled.
 void RfidSync_OnLearn(const char *tagId);
-// Record + propagate a local deletion (tombstone) to the server + peers. No-op if disabled.
-void RfidSync_OnDelete(const char *tagId);
+// Remove a local tag + record its deletion tombstone (atomically) and propagate it to the server + peers.
+// Returns true if the tag existed and was removed. Propagation is a no-op if sync is disabled.
+bool RfidSync_OnDelete(const char *tagId);
 
 // Start a full bidirectional sync in the background (no-op if one is already running).
 void RfidSync_TriggerFull(void);
