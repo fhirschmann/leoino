@@ -19,6 +19,10 @@ extern TwoWire i2cBusTwo;
 static RTC_DS3231 rtc;
 static bool rtcAvailable = false;
 
+// Reject timestamps before 2024-01-01T00:00:00Z as implausible (e.g. a browser
+// with a wildly wrong clock, or an unset value)
+static constexpr time_t rtcMinPlausibleEpoch = 1704067200;
+
 // How often the (NTP-disciplined) system time is written back to the RTC
 static constexpr uint32_t rtcResyncInterval = 3600UL * 1000UL; // 1h
 // How often the current time is published via MQTT
@@ -72,6 +76,23 @@ void Rtc_SetFromSystemTime(void) {
 	rtc.adjust(DateTime((uint32_t) time(nullptr)));
 	I2cBusTwo_Unlock();
 	Log_Println("RTC> DS3231 disciplined from system time", LOGLEVEL_NOTICE);
+}
+
+bool Rtc_SetTime(time_t utcEpoch) {
+	if (utcEpoch < rtcMinPlausibleEpoch) {
+		return false;
+	}
+	// set the system clock first so the time is correct even without an RTC
+	struct timeval tv = {.tv_sec = utcEpoch, .tv_usec = 0};
+	settimeofday(&tv, nullptr);
+	// then persist it into the battery-backed RTC so it survives a power loss
+	if (rtcAvailable) {
+		I2cBusTwo_Lock();
+		rtc.adjust(DateTime((uint32_t) utcEpoch));
+		I2cBusTwo_Unlock();
+	}
+	Log_Printf(LOGLEVEL_NOTICE, "RTC> system time set from browser: %lu UTC", (unsigned long) utcEpoch);
+	return true;
 }
 
 bool Rtc_IsAvailable(void) {
@@ -135,6 +156,11 @@ void Rtc_Init(void) {
 void Rtc_Cyclic(void) {
 }
 void Rtc_SetFromSystemTime(void) {
+}
+
+bool Rtc_SetTime(time_t utcEpoch) {
+	(void) utcEpoch;
+	return false;
 }
 
 bool Rtc_IsAvailable(void) {

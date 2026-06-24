@@ -224,9 +224,24 @@
 					wifi: { ip: "192.168.1.34", macAddress: "A0:B1:C2:D3:E4:F5", rssi: -58 },
 					audio: { firstStart: Math.floor(Date.now() / 1000) - 5184000, playtimeTotal: 486000, playtimeSinceStart: 5400, playToday: 3600, playYesterday: 7200, play7d: 32400, play30d: 129600 },
 					sdcard: { size: 30437, free: 21347 }, // MB, like the device (the UI divides by 1024 -> GB)
-					battery: { currVoltage: 3.94, chargeLevel: 78 }
+					battery: { currVoltage: 3.94, chargeLevel: 78 },
+					// battery-backed RTC (DS3231): drives the RTC card in the Tools tab
+					rtc: (function () {
+						var epoch = Math.floor(Date.now() / 1000) + 4; // pretend the device clock runs 4 s ahead of the browser
+						var local = new Date((epoch + 7200) * 1000); // CEST (+2 h), formatted like the device returns it
+						var p = function (n) { return String(n).padStart(2, "0"); };
+						return {
+							available: true,
+							lostPower: false,
+							temperature: 27.5,
+							epoch: epoch,
+							time: local.getUTCFullYear() + "-" + p(local.getUTCMonth() + 1) + "-" + p(local.getUTCDate())
+								+ " " + p(local.getUTCHours()) + ":" + p(local.getUTCMinutes()) + ":" + p(local.getUTCSeconds())
+						};
+					})()
 				};
 				if (qs.get("section") === "sdcard") { return jsonResp({ sdcard: info.sdcard }); }
+				if (qs.get("section") === "rtc") { return jsonResp({ rtc: info.rtc }); }
 				return jsonResp(info);
 			}
 			if (p === "/topcards") {
@@ -291,7 +306,7 @@
 		}
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
-		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|sdclean|sdformat|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
+		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|sdclean|sdformat|rtc|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
 			return jsonResp({ status: "ok", demo: true });
 		}
 		return null;

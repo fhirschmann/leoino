@@ -3919,6 +3919,37 @@
 						data-bs-target="#formatSdModal" data-i18n="tools.format.button"></button>
 				</div>
 			</div>
+			<!-- battery-backed RTC (DS3231): only revealed when /info reports an available RTC -->
+			<div class="container mt-4 d-none" id="rtcTool">
+				<legend data-i18n="tools.rtc.title"></legend>
+				<p class="mb-3" data-i18n="[html]tools.rtc.desc"></p>
+				<table class="table table-sm table-borderless cp-info-table mb-3">
+					<tbody>
+						<tr>
+							<th scope="row" data-i18n="tools.rtc.lblTime"></th>
+							<td>
+								<span id="rtcLiveTime" class="fw-bold">–</span>
+								<span id="rtcLostPower" class="badge bg-warning text-dark ms-2 d-none"
+									data-i18n="tools.rtc.lostPower"></span>
+							</td>
+						</tr>
+						<tr>
+							<th scope="row" data-i18n="tools.rtc.lblTemp"></th>
+							<td id="rtcTemp">–</td>
+						</tr>
+						<tr>
+							<th scope="row" data-i18n="tools.rtc.lblDrift"></th>
+							<td id="rtcDrift">–</td>
+						</tr>
+					</tbody>
+				</table>
+				<div class="text-center">
+					<button type="button" class="btn btn-primary" onclick="rtcResync()"
+						data-i18n="tools.rtc.resyncBtn"></button>
+					<button type="button" class="btn btn-secondary ms-2" onclick="rtcSetFromBrowser()"
+						data-i18n="tools.rtc.setBrowserBtn"></button>
+				</div>
+			</div>
 			</div>
 			<div class="tab-pane fade" id="tools-sync" role="tabpanel" aria-labelledby="tools-sync-subtab">
 			<div class="container" id="syncRunSection">
@@ -6197,6 +6228,7 @@
 		function onToolsTabOpened() {
 			console.log("tools tab opened!");
 			rebuildRFIDList();
+			refreshRtc();
 		}
 		const config = {
 			attributes: true
@@ -7480,6 +7512,81 @@
 				toaster.error(i18next.t("tools.format.error"));
 			}
 		}
+
+		/* ---- battery-backed RTC (DS3231) management ---- */
+		let rtcSeed = null; // { epoch, perf, tzOffset, hasEpoch } captured at the last /info fetch
+		let rtcTickCounter = 0;
+
+		function rtcFormatDrift(sec) {
+			const sign = sec > 0 ? '+' : (sec < 0 ? '−' : '±');
+			const a = Math.abs(sec);
+			if (a < 60) return sign + a + ' s';
+			return sign + Math.floor(a / 60) + ' min ' + (a % 60) + ' s';
+		}
+
+		// Render the live clock from the seed + elapsed time, so it ticks every second
+		// without polling the device (which would hammer the shared I2C bus).
+		function rtcRenderLiveTime() {
+			const card = document.getElementById('rtcTool');
+			const el = document.getElementById('rtcLiveTime');
+			if (!card || !el || card.classList.contains('d-none') || !rtcSeed || !rtcSeed.hasEpoch) return;
+			const elapsed = (performance.now() - rtcSeed.perf) / 1000;
+			const d = new Date((rtcSeed.epoch + rtcSeed.tzOffset + elapsed) * 1000);
+			const p = n => String(n).padStart(2, '0');
+			el.textContent = d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate())
+				+ ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds());
+		}
+
+		async function refreshRtc() {
+			const card = document.getElementById('rtcTool');
+			if (!card) return;
+			let info;
+			try { info = await apiGet("/info?section=rtc"); } catch (e) { return; }
+			const rtc = info && info.rtc;
+			if (!rtc || !rtc.available) { card.classList.add('d-none'); rtcSeed = null; return; }
+			card.classList.remove('d-none');
+			// Derive the device's UTC offset from its formatted local time vs. the raw epoch,
+			// so the live clock can be rendered locally without a timezone library.
+			let tzOffset = 0;
+			const hasEpoch = (rtc.epoch !== undefined);
+			if (rtc.time && hasEpoch) {
+				const localAsUtc = Date.parse(rtc.time.replace(' ', 'T') + 'Z') / 1000;
+				if (!isNaN(localAsUtc)) tzOffset = localAsUtc - rtc.epoch;
+			}
+			rtcSeed = { epoch: hasEpoch ? rtc.epoch : 0, perf: performance.now(), tzOffset: tzOffset, hasEpoch: hasEpoch };
+			document.getElementById('rtcLiveTime').textContent = rtc.time || '–';
+			document.getElementById('rtcTemp').textContent = (rtc.temperature !== undefined) ? rtc.temperature.toFixed(1) + ' °C' : '–';
+			document.getElementById('rtcLostPower').classList.toggle('d-none', !rtc.lostPower);
+			document.getElementById('rtcDrift').textContent = hasEpoch ? rtcFormatDrift(rtc.epoch - Math.floor(Date.now() / 1000)) : '–';
+			rtcRenderLiveTime();
+		}
+
+		// Write the (NTP-disciplined) system time into the RTC
+		async function rtcResync() {
+			const r = await fetch("http://" + host + "/rtc/resync", { method: "POST" });
+			if (r.ok) { toaster.success(i18next.t("tools.rtc.resyncDone")); refreshRtc(); }
+			else { toaster.error(i18next.t("tools.rtc.resyncError")); }
+		}
+
+		// Set the device clock from the browser's time (for offline devices without NTP)
+		async function rtcSetFromBrowser() {
+			const r = await fetch("http://" + host + "/rtc/settime", {
+				method: "POST",
+				headers: { "Content-Type": "application/x-www-form-urlencoded" },
+				body: "epoch=" + Math.floor(Date.now() / 1000)
+			});
+			if (r.ok) { toaster.success(i18next.t("tools.rtc.setBrowserDone")); refreshRtc(); }
+			else { toaster.error(i18next.t("tools.rtc.setBrowserError")); }
+		}
+
+		// Tick the live clock once a second while the card is visible; re-fetch from the
+		// device every 15 s to refresh temperature/drift and keep the seed accurate.
+		setInterval(function () {
+			const card = document.getElementById('rtcTool');
+			if (!card || card.classList.contains('d-none') || card.offsetParent === null) return;
+			rtcTickCounter++;
+			if (rtcTickCounter % 15 === 0) { refreshRtc(); } else { rtcRenderLiveTime(); }
+		}, 1000);
 
 		/* ---- .m3u playlist builder (modal) ---- */
 		let plCwd = "/";

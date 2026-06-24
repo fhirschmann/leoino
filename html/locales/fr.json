@@ -877,6 +877,20 @@
 			"done": "Carte SD formatée",
 			"error": "Échec du formatage"
 		},
+		"rtc": {
+			"title": "Horloge temps réel (RTC)",
+			"desc": "Horloge DS3231 sauvegardée par pile sur le bus I²C. Elle conserve l'heure même sans WiFi/NTP. Ici tu peux synchroniser la RTC avec l'heure système ou — pour les appareils sans Internet — régler l'heure depuis ton navigateur.",
+			"lblTime": "Heure",
+			"lblTemp": "Température interne",
+			"lblDrift": "Écart avec le navigateur",
+			"lostPower": "Perte d'alimentation",
+			"resyncBtn": "Synchroniser",
+			"setBrowserBtn": "Régler depuis le navigateur",
+			"resyncDone": "RTC synchronisée avec l'heure système",
+			"resyncError": "Échec de la synchronisation",
+			"setBrowserDone": "Heure réglée depuis le navigateur",
+			"setBrowserError": "Impossible de régler l'heure"
+		},
 		"fwupdate": {
 			"title": "Mise à jour du micrologiciel",
 			"desc": "La mise à jour du micrologiciel peut être effectuée ici.",

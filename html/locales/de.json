@@ -888,6 +888,20 @@
 			"done": "SD-Karte formatiert",
 			"error": "Formatierung fehlgeschlagen"
 		},
+		"rtc": {
+			"title": "Echtzeituhr (RTC)",
+			"desc": "Batteriegepufferte DS3231-Uhr am I²C-Bus. Sie hält die Uhrzeit auch ohne WLAN/NTP. Hier kannst du die RTC mit der Systemzeit abgleichen oder – für Geräte ohne Internet – die Uhrzeit aus deinem Browser übernehmen.",
+			"lblTime": "Uhrzeit",
+			"lblTemp": "Innentemperatur",
+			"lblDrift": "Abweichung zum Browser",
+			"lostPower": "Spannung verloren",
+			"resyncBtn": "Jetzt abgleichen",
+			"setBrowserBtn": "Zeit aus Browser übernehmen",
+			"resyncDone": "RTC mit der Systemzeit abgeglichen",
+			"resyncError": "Abgleich fehlgeschlagen",
+			"setBrowserDone": "Uhrzeit aus dem Browser übernommen",
+			"setBrowserError": "Zeit konnte nicht gesetzt werden"
+		},
 		"fwupdate": {
 			"title": "Firmware-Update",
 			"desc": "Hier kann ein Firmware-Update durchgeführt werden.",

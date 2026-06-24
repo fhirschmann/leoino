@@ -57,7 +57,7 @@
 	//#define PAUSE_WHEN_RFID_REMOVED       // Playback starts when card is applied and pauses automatically, when card is removed (https://forum.espuino.de/t/neues-feature-pausieren-wenn-rfid-karte-entfernt-wurde/541)
 	//#define DONT_ACCEPT_SAME_RFID_TWICE   // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
 	//#define HALLEFFECT_SENSOR_ENABLE      // Support for hallsensor. For fine-tuning please adjust HallEffectSensor.h Please note: only user-support provided (https://forum.espuino.de/t/magnetische-hockey-tags/1449/35)
-	//#define RTC_ENABLE                    // Battery-backed real-time-clock (DS3231) on i2cBusTwo. Keeps the time correct without WiFi/NTP. RTC stores UTC; timezone is applied on top.
+	#define RTC_ENABLE                      // Battery-backed real-time-clock (DS3231) on i2cBusTwo. Keeps the time correct without WiFi/NTP. RTC stores UTC; timezone is applied on top.
 
 	//################## resume fade-in (audiobook) #############################
 	// When continuing an audiobook from a saved position, opening the file + decoding the

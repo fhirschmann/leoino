@@ -888,6 +888,20 @@
 			"done": "SD card formatted",
 			"error": "Format failed"
 		},
+		"rtc": {
+			"title": "Real-time clock (RTC)",
+			"desc": "Battery-backed DS3231 clock on the I²C bus. It keeps the time even without WiFi/NTP. Here you can sync the RTC to the system time, or — for devices with no internet — set the time from your browser.",
+			"lblTime": "Time",
+			"lblTemp": "Internal temperature",
+			"lblDrift": "Drift vs. browser",
+			"lostPower": "Lost power",
+			"resyncBtn": "Sync now",
+			"setBrowserBtn": "Set time from browser",
+			"resyncDone": "RTC synced to system time",
+			"resyncError": "Sync failed",
+			"setBrowserDone": "Time set from the browser",
+			"setBrowserError": "Could not set the time"
+		},
 		"fwupdate": {
 			"title": "Firmware-Update",
 			"desc": "Firmware can be updated right here.",

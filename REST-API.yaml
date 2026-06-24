@@ -894,6 +894,42 @@ paths:
             image/svg+xml:
               schema:
                 type: string
+  /rtc/resync:
+    post:
+      tags: [Fork]
+      summary: Write the system time into the battery-backed RTC.
+      description: >-
+        Persists the current (NTP-disciplined) system time into the DS3231 so it
+        survives a power loss. Only available when an RTC is present (RTC_ENABLE).
+      responses:
+        "200":
+          description: RTC updated.
+        "409":
+          description: No RTC present.
+  /rtc/settime:
+    post:
+      tags: [Fork]
+      summary: Set the clock from a supplied UTC time.
+      description: >-
+        Sets the system clock (and the RTC, if present) from a UTC unix-time.
+        Intended for offline devices without WiFi/NTP, e.g. setting the time from
+        the browser. Only available when RTC_ENABLE is set.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                epoch:
+                  type: integer
+                  description: UTC unix-time in seconds (must be >= 2024-01-01).
+              required: [epoch]
+      responses:
+        "200":
+          description: Clock set.
+        "400":
+          description: Missing or implausible timestamp.
   /backupupload:
     get:
       tags: [Fork]

@@ -1162,6 +1162,31 @@ void webserverStart(void) {
 		});
 #endif
 
+#ifdef RTC_ENABLE
+		// Battery-backed RTC (DS3231): write the current (NTP-disciplined) system time into the RTC
+		wServer.on("/rtc/resync", HTTP_POST, [](AsyncWebServerRequest *request) {
+			if (!Rtc_IsAvailable()) {
+				request->send(409); // no RTC present
+				return;
+			}
+			Rtc_SetFromSystemTime();
+			request->send(200);
+		});
+		// Set the clock from the browser's time (UTC unix-time) — for offline devices without WiFi/NTP
+		wServer.on("/rtc/settime", HTTP_POST, [](AsyncWebServerRequest *request) {
+			if (!request->hasParam("epoch", true)) {
+				request->send(400);
+				return;
+			}
+			const time_t epoch = (time_t) strtoul(request->getParam("epoch", true)->value().c_str(), nullptr, 10);
+			if (!Rtc_SetTime(epoch)) {
+				request->send(400); // implausible timestamp
+				return;
+			}
+			request->send(200);
+		});
+#endif
+
 		wServer.onNotFound(notFound);
 
 		// allow cors for local debug (https://github.com/me-no-dev/ESPAsyncWebServer/issues/1080)
@@ -1810,6 +1835,8 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 			char timeStringBuff[32];
 			strftime(timeStringBuff, sizeof(timeStringBuff), "%Y-%m-%d %H:%M:%S", &timeinfo);
 			rtcObj["time"] = String(timeStringBuff);
+			// raw UTC unix-time so the web UI can tick a live clock locally and show the drift vs. the browser
+			rtcObj["epoch"] = (uint32_t) time(nullptr);
 		}
 		const float temp = Rtc_GetTemperature();
 		if (!isnan(temp)) {
