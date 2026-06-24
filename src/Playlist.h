@@ -41,13 +41,20 @@ using Playlist = std::vector<char *, PSRAMAllocator<char *>>;
 
 // Allocate Playlist in PSRAM if available
 inline Playlist *allocatePlaylist() {
+	// Allocate raw storage from PSRAM (preferred) or the internal heap, then construct in place. Both paths
+	// use a malloc-family allocation so freePlaylist() can always pair the explicit ~Playlist() with free();
+	// pairing operator new with free() would be undefined behaviour.
+	void *mem = nullptr;
 	if (psramFound()) {
-		void *mem = ps_malloc(sizeof(Playlist));
-		if (mem) {
-			return new (mem) Playlist();
-		}
+		mem = ps_malloc(sizeof(Playlist));
 	}
-	return new Playlist();
+	if (mem == nullptr) {
+		mem = malloc(sizeof(Playlist)); // PSRAM absent or exhausted -> fall back to the internal heap
+	}
+	if (mem == nullptr) {
+		return nullptr;
+	}
+	return new (mem) Playlist();
 }
 
 // Release previously allocated memory
