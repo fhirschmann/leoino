@@ -719,6 +719,181 @@ paths:
                 type: string
         "404":
           description: No dry-run report exists yet.
+        "409":
+          description: A sync is still running; the report is not ready yet.
+  /currenttrack:
+    get:
+      tags: [Fork]
+      summary: Get details about the currently playing track.
+      description: >-
+        ID3 title/artist/album, file path + size, play mode, track x/y,
+        position/duration, codec/bitrate/samplerate/channels and the RFID tag
+        that started the playlist. Computed on demand (kept out of the websocket).
+      responses:
+        "200":
+          description: Now-playing details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active: { type: boolean }
+                  title: { type: string }
+                  artist: { type: string }
+                  album: { type: string }
+                  playMode: { type: integer }
+                  isWebstream: { type: boolean }
+                  rfidTag: { type: string }
+                  elapsed: { type: integer }
+                  duration: { type: integer }
+                  bitRate: { type: integer }
+                  sampleRate: { type: integer }
+                  channels: { type: integer }
+                  codec: { type: string }
+                  trackNumber: { type: integer }
+                  totalTracks: { type: integer }
+                  path: { type: string }
+                  size: { type: integer }
+  /playstats:
+    get:
+      tags: [Fork]
+      summary: Get the listening-statistics ring buffer.
+      description: Daily listening seconds (for backup/restore and the 30-day chart).
+      responses:
+        "200":
+          description: The ring buffer.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastDay: { type: integer, description: Days since epoch of the newest slot. }
+                  days:
+                    type: array
+                    items: { type: integer }
+    post:
+      tags: [Fork]
+      summary: Restore the listening-statistics ring buffer.
+      description: Restores the ring buffer from a previously fetched backup.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lastDay: { type: integer }
+                days:
+                  type: array
+                  items: { type: integer }
+      responses:
+        "200":
+          description: Restored.
+  /topcards:
+    get:
+      tags: [Fork]
+      summary: Get the most-played RFID cards.
+      description: Top 10 cards by play count, with their assigned file/URL and play mode.
+      responses:
+        "200":
+          description: Ranked list of cards.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string }
+                    count: { type: integer }
+                    fileOrUrl: { type: string }
+                    mode: { type: integer }
+  /rfidsync:
+    get:
+      tags: [Fork]
+      summary: Get RFID-tag sync status.
+      description: Poll the progress/result of the bidirectional RFID-tag sync (server + peers).
+      responses:
+        "200":
+          description: Current RFID-sync state.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: integer
+                    description: "0=idle, 1=running, 2=done, 3=failed"
+                  message:
+                    type: string
+                    description: Result or error message.
+    post:
+      tags: [Fork]
+      summary: Trigger a full bidirectional RFID-tag sync.
+      description: >-
+        Pulls the server's tag list and merges it (newest-wins by timestamp), then
+        pushes every local tag to the server and to all configured peers. No-op if
+        a sync is already running.
+      responses:
+        "200":
+          description: Sync started (or already running).
+  /homekit:
+    get:
+      tags: [Fork]
+      summary: Get HomeKit status + configurable names.
+      description: HomeKit on/off state, pairing status, setup code and the device/TV names.
+      responses:
+        "200":
+          description: HomeKit status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled: { type: boolean }
+                  active: { type: boolean }
+                  paired: { type: boolean }
+                  code: { type: string }
+                  deviceName: { type: string }
+                  tvName: { type: string }
+  /homekit/enable:
+    post:
+      tags: [Fork]
+      summary: Enable or disable HomeKit (applied on next reboot).
+      parameters:
+        - name: enabled
+          in: query
+          required: true
+          description: "true to enable, anything else to disable."
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Stored.
+  /homekit/reset:
+    post:
+      tags: [Fork]
+      summary: Remove all HomeKit pairings.
+      responses:
+        "200":
+          description: Pairings removed.
+  /homekit/regencode:
+    post:
+      tags: [Fork]
+      summary: Generate a fresh random HomeKit pairing code.
+      responses:
+        "200":
+          description: New code generated.
+  /homekit/qr.svg:
+    get:
+      tags: [Fork]
+      summary: Get the HomeKit pairing QR code as an SVG.
+      responses:
+        "200":
+          description: Pairing QR code.
+          content:
+            image/svg+xml:
+              schema:
+                type: string
   /backupupload:
     get:
       tags: [Fork]
