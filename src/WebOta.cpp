@@ -139,11 +139,21 @@ const char *Web_GetGithubOtaStatusText(void) {
 // Shared by the web endpoint, the CMD_FIRMWARE_UPDATE command and the MQTT firmware_update topic.
 void Web_TriggerGithubOta(void) {
 #ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
-	if (gGithubOtaStatus != 1) {
+	// Atomically claim idle->running (reachable from the web + MQTT tasks) so a plain check-then-set
+	// can't double-start the OTA flasher; mirrors the Sync/Backup triggers.
+	static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+	portENTER_CRITICAL(&mux);
+	const bool claim = (gGithubOtaStatus != 1);
+	if (claim) {
 		gGithubOtaStatus = 1;
+	}
+	portEXIT_CRITICAL(&mux);
+	if (claim) {
 		gGithubOtaProgress = 0;
 		gGithubOtaMsg.set("");
-		xTaskCreatePinnedToCore(githubOtaTask, "githubOta", 16384, NULL, 1, NULL, 1);
+		if (xTaskCreatePinnedToCore(githubOtaTask, "githubOta", 16384, NULL, 1, NULL, 1) != pdPASS) {
+			gGithubOtaStatus = 3; // couldn't spawn -> release the slot as failed
+		}
 	}
 #else
 	Log_Println(otaNotSupported, LOGLEVEL_ERROR);
