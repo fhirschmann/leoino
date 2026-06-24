@@ -5,6 +5,7 @@
 
 #include "Log.h"
 #include "Mqtt.h"
+#include "System.h" // I2cBusTwo_Lock/Unlock: serialize DS3231 access against the OLED frame + RC522-I2C task
 #include "Wlan.h"
 
 #ifdef RTC_ENABLE
@@ -67,7 +68,9 @@ void Rtc_SetFromSystemTime(void) {
 		return;
 	}
 	// store UTC in the RTC (DateTime(uint32_t) interprets the value as unix-time)
+	I2cBusTwo_Lock();
 	rtc.adjust(DateTime((uint32_t) time(nullptr)));
+	I2cBusTwo_Unlock();
 	Log_Println("RTC> DS3231 disciplined from system time", LOGLEVEL_NOTICE);
 }
 
@@ -76,14 +79,23 @@ bool Rtc_IsAvailable(void) {
 }
 
 bool Rtc_LostPower(void) {
-	return rtcAvailable && rtc.lostPower();
+	if (!rtcAvailable) {
+		return false;
+	}
+	I2cBusTwo_Lock();
+	const bool lost = rtc.lostPower();
+	I2cBusTwo_Unlock();
+	return lost;
 }
 
 float Rtc_GetTemperature(void) {
 	if (!rtcAvailable) {
 		return NAN;
 	}
-	return rtc.getTemperature();
+	I2cBusTwo_Lock();
+	const float temp = rtc.getTemperature();
+	I2cBusTwo_Unlock();
+	return temp;
 }
 
 void Rtc_Cyclic(void) {

@@ -60,8 +60,28 @@ void System_Init_Rfid_Prefs(void) {
 	gPrefsRfid.begin(prefsRfidNamespace);
 }
 
+// Mutex serializing all access to the shared secondary I2C bus (i2cBusTwo); see System.h.
+static SemaphoreHandle_t s_i2cBusTwoMutex = NULL;
+
+void I2cBusTwo_Lock(void) {
+	if (s_i2cBusTwoMutex != NULL) {
+		xSemaphoreTakeRecursive(s_i2cBusTwoMutex, portMAX_DELAY);
+	}
+}
+
+void I2cBusTwo_Unlock(void) {
+	if (s_i2cBusTwoMutex != NULL) {
+		xSemaphoreGiveRecursive(s_i2cBusTwoMutex);
+	}
+}
+
 void System_Init(void) {
 	srand(esp_random());
+
+	// Create the i2cBusTwo mutex up front (single-threaded here, before any I2C task is started).
+	if (s_i2cBusTwoMutex == NULL) {
+		s_i2cBusTwoMutex = xSemaphoreCreateRecursiveMutex();
+	}
 
 	gPrefsSettings.begin(prefsSettingsNamespace);
 

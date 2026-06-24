@@ -4,6 +4,7 @@
 #include "Port.h"
 
 #include "Log.h"
+#include "System.h" // I2cBusTwo_Lock/Unlock: serialize the port-expander against the OLED frame + RC522-I2C task
 
 #include <Wire.h>
 
@@ -124,6 +125,7 @@ void Port_Write(const uint8_t _channel, const bool _newState, const bool _initGp
 			uint8_t oldPortBitmask = Port_ExpanderPortsOutputChannelStatus[portOffset];
 			uint8_t newPortBitmask;
 
+			I2cBusTwo_Lock();
 			i2cBusTwo.beginTransmission(expanderI2cAddress);
 			i2cBusTwo.write(0x02); // Pointer to output configuration-register
 			if (_newState) {
@@ -136,6 +138,7 @@ void Port_Write(const uint8_t _channel, const bool _newState, const bool _initGp
 			i2cBusTwo.write(Port_ExpanderPortsOutputChannelStatus[0]);
 			i2cBusTwo.write(Port_ExpanderPortsOutputChannelStatus[1]);
 			i2cBusTwo.endTransmission();
+			I2cBusTwo_Unlock();
 			break;
 		}
 #endif
@@ -176,6 +179,7 @@ void Port_WriteInitMaskForOutputChannels(void) {
 	uint8_t OutputBitMaskInOutAsPerPort[portsToWrite] = {portBaseValueBitMask, portBaseValueBitMask}; // 255 => all channels set to input; [0]: port0, [1]: port1
 
 	// init status cache with values from HW
+	I2cBusTwo_Lock();
 	i2cBusTwo.beginTransmission(expanderI2cAddress);
 	i2cBusTwo.write(0x02); // Pointer to first output-register
 	i2cBusTwo.endTransmission(false);
@@ -222,6 +226,7 @@ void Port_WriteInitMaskForOutputChannels(void) {
 		i2cBusTwo.write(Port_ExpanderPortsOutputChannelStatus, static_cast<size_t>(portsToWrite));
 		i2cBusTwo.endTransmission();
 	}
+	I2cBusTwo_Unlock();
 }
 
 // Some channels are configured as output before shutdown in order to avoid unwanted interrupts while ESP32 sleeps
@@ -266,6 +271,7 @@ void Port_MakeSomeChannelsOutputForShutdown(void) {
 
 	// Only change port-config if necessary (at least bitmask changed from base-default for one port)
 	if ((OutputBitMaskInOutAsPerPort[0] != portBaseValueBitMask) || (OutputBitMaskInOutAsPerPort[1] != portBaseValueBitMask)) {
+		I2cBusTwo_Lock();
 		i2cBusTwo.beginTransmission(expanderI2cAddress);
 		i2cBusTwo.write(0x06); // Pointer to configuration of input/output
 		for (uint8_t i = 0; i < portsToWrite; i++) {
@@ -279,6 +285,7 @@ void Port_MakeSomeChannelsOutputForShutdown(void) {
 		i2cBusTwo.write(OutputBitMaskLowHighAsPerPort[0]); // port0
 		i2cBusTwo.write(OutputBitMaskLowHighAsPerPort[1]); // port1
 		i2cBusTwo.endTransmission();
+		I2cBusTwo_Unlock();
 	}
 }
 
@@ -298,12 +305,14 @@ void Port_ExpanderHandler(void) {
 	}
 	#endif
 
+	I2cBusTwo_Lock();
 	i2cBusTwo.beginTransmission(expanderI2cAddress);
 	i2cBusTwo.write(0x00); // Pointer to input-register...
 	uint8_t error = i2cBusTwo.endTransmission(false);
 	if (error != 0) {
 		Log_Printf(LOGLEVEL_ERROR, "Error in endTransmission(): %d", error);
 		i2cBusTwo.endTransmission(true);
+		I2cBusTwo_Unlock();
 
 	#ifdef PE_INTERRUPT_PIN_ENABLE
 		Port_AllowReadFromPortExpander = true;
@@ -340,6 +349,7 @@ void Port_ExpanderHandler(void) {
 
 		inputPrev = inputCurr;
 	}
+	I2cBusTwo_Unlock();
 
 	#ifdef PE_INTERRUPT_PIN_ENABLE
 	// input is stable; go back to interrupt mode
@@ -352,6 +362,7 @@ void Port_ExpanderHandler(void) {
 // Make sure ports are read finally at shutdown in order to clear any active IRQs that could cause re-wakeup immediately
 void Port_Exit(void) {
 	Port_MakeSomeChannelsOutputForShutdown();
+	I2cBusTwo_Lock();
 	i2cBusTwo.beginTransmission(expanderI2cAddress);
 	i2cBusTwo.write(0x00); // Pointer to input-registers...
 	i2cBusTwo.endTransmission();
@@ -362,13 +373,17 @@ void Port_Exit(void) {
 			Port_ExpanderPortsInputChannelStatus[i] = i2cBusTwo.read();
 		}
 	}
+	I2cBusTwo_Unlock();
 }
 
 // Tests if port-expander can be detected at address configured
 void Port_Test(void) {
+	I2cBusTwo_Lock();
 	i2cBusTwo.beginTransmission(expanderI2cAddress);
 	i2cBusTwo.write(0x02);
-	if (!i2cBusTwo.endTransmission()) {
+	const bool found = !i2cBusTwo.endTransmission();
+	I2cBusTwo_Unlock();
+	if (found) {
 		Log_Println(portExpanderFound, LOGLEVEL_NOTICE);
 	} else {
 		Log_Println(portExpanderNotFound, LOGLEVEL_ERROR);

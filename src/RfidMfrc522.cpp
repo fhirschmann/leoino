@@ -99,18 +99,29 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 			Rfid_LastRfidCheckTimestamp = millis();
 			// Reset the loop if no new card is present on the sensor/reader. This saves the entire process when idle.
 
-			if (!reader.PICC_IsNewCardPresent()) {
+			// Each reader access is serialized on the shared i2cBusTwo (RC522-I2C variant) so it can't
+			// interleave with the OLED frame transfer on the main loop and desync the panel. The lock
+			// is taken per call, never across the vTaskDelay in the card-removal poll below.
+			I2cBusTwo_Lock();
+			const bool newCard = reader.PICC_IsNewCardPresent();
+			I2cBusTwo_Unlock();
+			if (!newCard) {
 				continue;
 			}
 
 			// Select one of the cards
-			if (!reader.PICC_ReadCardSerial()) {
+			I2cBusTwo_Lock();
+			const bool readOk = reader.PICC_ReadCardSerial();
+			I2cBusTwo_Unlock();
+			if (!readOk) {
 				continue;
 			}
 
 			if (!gPlayProperties.pauseIfRfidRemoved) {
+				I2cBusTwo_Lock();
 				reader.PICC_HaltA();
 				reader.PCD_StopCrypto1();
+				I2cBusTwo_Unlock();
 			}
 
 			Rfid_HandleCardDetected(reader.uid.uidByte, lastValidcardId, NULL);
@@ -124,6 +135,8 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 						vTaskDelay(portTICK_PERIOD_MS * 20);
 					}
 					control = 0;
+					// poll burst under one lock (no vTaskDelay inside this loop), released before the next wait
+					I2cBusTwo_Lock();
 					for (uint8_t i = 0u; i < 3; i++) {
 						if (!reader.PICC_IsNewCardPresent()) {
 							if (reader.PICC_ReadCardSerial()) {
@@ -136,6 +149,7 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 						}
 						control += 0x4;
 					}
+					I2cBusTwo_Unlock();
 
 					if (control == 13 || control == 14) {
 						// card is still there
@@ -149,8 +163,10 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 					AudioPlayer_SetTrackControl(gPlayProperties.stopIfRfidRemoved ? STOP : PAUSEPLAY);
 					Log_Println(rfidTagReapplied, LOGLEVEL_NOTICE);
 				}
+				I2cBusTwo_Lock();
 				reader.PICC_HaltA();
 				reader.PCD_StopCrypto1();
+				I2cBusTwo_Unlock();
 			}
 		}
 	}

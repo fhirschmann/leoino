@@ -78,16 +78,23 @@ void Battery_InitInner() {
 }
 
 void Battery_CyclicInner() {
+	// All MAX17055 access goes through i2cBusTwo, shared with the OLED frame transfer (main loop) and
+	// the RC522-I2C reader (its own task); serialize it so a battery read can't desync the OLED.
+	I2cBusTwo_Lock();
 	// It is recommended to save the learned capacity parameters every time bit 6 of the Cycles register toggles
 	uint16_t sensorCycles = sensor.getCycles();
 	// sensorCycles = 0xFFFF likely means read error
-	if (sensor.getPresent() && sensorCycles != 0xFFFF && uint16_t(cycles + 0x0040) <= sensorCycles) {
+	const bool storeParams = sensor.getPresent() && sensorCycles != 0xFFFF && uint16_t(cycles + 0x0040) <= sensorCycles;
+	I2cBusTwo_Unlock();
+	if (storeParams) {
 		Log_Println("Battery Cycle passed 64%, store MAX17055 learned parameters", LOGLEVEL_DEBUG);
 		uint16_t rComp0;
 		uint16_t tempCo;
 		uint16_t fullCapRep;
 		uint16_t fullCapNom;
+		I2cBusTwo_Lock();
 		sensor.getLearnedParameters(rComp0, tempCo, fullCapRep, sensorCycles, fullCapNom);
+		I2cBusTwo_Unlock();
 		gPrefsSettings.putUShort("rComp0", rComp0);
 		gPrefsSettings.putUShort("tempCo", tempCo);
 		gPrefsSettings.putUShort("fullCapRep", fullCapRep);
@@ -98,7 +105,10 @@ void Battery_CyclicInner() {
 }
 
 float Battery_GetVoltage(void) {
-	return sensor.getInstantaneousVoltage();
+	I2cBusTwo_Lock();
+	const float v = sensor.getInstantaneousVoltage();
+	I2cBusTwo_Unlock();
+	return v;
 }
 
 void Battery_PublishMQTT() {
@@ -115,40 +125,46 @@ void Battery_PublishMQTT() {
 }
 
 void Battery_LogStatus(void) {
+	// Battery_GetVoltage/EstimateLevel take the i2c lock themselves (recursive); read the remaining
+	// registers under the lock so the whole status read is serialized against the OLED/RC522.
 	Log_Printf(LOGLEVEL_INFO, currentVoltageMsg, Battery_GetVoltage());
 	Log_Printf(LOGLEVEL_INFO, currentChargeMsg, Battery_EstimateLevel() * 100);
-	Log_Printf(LOGLEVEL_INFO, batteryCurrentMsg, sensor.getAverageCurrent());
-	Log_Printf(LOGLEVEL_INFO, batteryTempMsg, sensor.getTemperature());
-
-	// pretty useless because of low resolution
-	// Log_Printf(LOGLEVEL_INFO, "Max current to battery since last check: %.4f mA", sensor.getMaxCurrent());
-	// Log_Printf(LOGLEVEL_INFO, "Min current to battery since last check: %.4f mA", sensor.getMinCurrent());
-	// sensor.resetMaxMinCurrent();
-
-	Log_Printf(LOGLEVEL_INFO, batteryCyclesMsg, sensor.getCycles() / 100.0);
+	I2cBusTwo_Lock();
+	const float avgCurrent = sensor.getAverageCurrent();
+	const float temp = sensor.getTemperature();
+	const float cyclesVal = sensor.getCycles() / 100.0;
+	I2cBusTwo_Unlock();
+	Log_Printf(LOGLEVEL_INFO, batteryCurrentMsg, avgCurrent);
+	Log_Printf(LOGLEVEL_INFO, batteryTempMsg, temp);
+	Log_Printf(LOGLEVEL_INFO, batteryCyclesMsg, cyclesVal);
 }
 
 float Battery_EstimateLevel(void) {
-	return sensor.getSOC() / 100;
+	I2cBusTwo_Lock();
+	const float soc = sensor.getSOC();
+	I2cBusTwo_Unlock();
+	return soc / 100;
 }
 
 bool Battery_IsLow(void) {
+	I2cBusTwo_Lock();
 	float soc = sensor.getSOC();
 	if (soc > 100.0) {
 		Log_Println("Battery percentage reading invalid, try again.", LOGLEVEL_DEBUG);
 		soc = sensor.getSOC();
 	}
-
+	I2cBusTwo_Unlock();
 	return soc < batteryLow;
 }
 
 bool Battery_IsCritical(void) {
+	I2cBusTwo_Lock();
 	float soc = sensor.getSOC();
 	if (soc > 100.0) {
 		Log_Println("Battery percentage reading invalid, try again.", LOGLEVEL_DEBUG);
 		soc = sensor.getSOC();
 	}
-
+	I2cBusTwo_Unlock();
 	return soc < batteryCritical;
 }
 #endif

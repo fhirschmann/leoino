@@ -52,6 +52,11 @@ static void Display_LoadConfig(void) {
     s_cfgIdleLine2[sizeof(s_cfgIdleLine2) - 1] = '\0';
 }
 
+// Set by the byte callback when an I2C transfer NACKs/fails (e.g. a bus glitch or a transfer that
+// got interrupted). Display_Cyclic re-initialises the panel when this trips, so a one-off desync
+// self-heals instead of leaving the OLED black until the next reboot.
+static bool s_i2cSendError = false;
+
 static uint8_t Display_I2cByteCb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
     switch (msg) {
         case U8X8_MSG_BYTE_INIT:
@@ -64,7 +69,9 @@ static uint8_t Display_I2cByteCb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, voi
             i2cBusTwo.beginTransmission(u8x8_GetI2CAddress(u8x8) >> 1);
             break;
         case U8X8_MSG_BYTE_END_TRANSFER:
-            i2cBusTwo.endTransmission();
+            if (i2cBusTwo.endTransmission() != 0) {
+                s_i2cSendError = true;
+            }
             break;
         default:
             return 0;
@@ -324,10 +331,54 @@ static void Display_DrawTitle(const char *rawTitle, uint8_t y1, uint8_t y2, uint
 
 void Display_Exit(void) {
     if (!s_displayOk) return;
+    I2cBusTwo_Lock();
     s_u8g2.clearBuffer();
     s_u8g2.sendBuffer();
     s_u8g2.setPowerSave(1); // display off, low power — avoids SDA glitch as power rail drops
+    I2cBusTwo_Unlock();
     s_displayOk = false;
+}
+
+// Probe the panel and bring it up. All I2C is done under the bus lock so it can't interleave with
+// the RC522-I2C reader task / port-expander. settleDelay adds the cold-boot power-rail settle wait;
+// the cyclic retry path passes false (the rail is long stable and a NACK probe is cheap).
+static bool Display_HwInit(bool settleDelay) {
+    if (settleDelay) {
+        // Allow the peripheral power rail time to stabilise after a power cycle.
+        // 20 ms is too short when the rail starts from zero (cold boot / deepsleep).
+        delay(200);
+    }
+    I2cBusTwo_Lock();
+    i2cBusTwo.beginTransmission(oledI2cAddress);
+    const bool present = (i2cBusTwo.endTransmission() == 0);
+    if (!present) {
+        I2cBusTwo_Unlock();
+        s_displayOk = false;
+        return false;
+    }
+    s_u8g2.getU8x8()->byte_cb = Display_I2cByteCb;
+    s_u8g2.setI2CAddress(oledI2cAddress << 1);
+    s_u8g2.initDisplay();
+    s_u8g2.setFlipMode(s_cfgFlip ? 1 : 0); // 180° rotation when the panel is mounted upside-down
+    s_u8g2.setPowerSave(0);
+    s_u8g2.clearBuffer();
+    s_i2cSendError = false;
+    s_u8g2.sendBuffer();
+    I2cBusTwo_Unlock();
+    s_displayOk = !s_i2cSendError;
+    return s_displayOk;
+}
+
+// Push the current framebuffer to the panel under the bus lock. If the transfer NACKs (a glitch or
+// an interrupted transaction), flag the panel for re-init on the next cycle instead of going black.
+static void Display_Send(void) {
+    I2cBusTwo_Lock();
+    s_i2cSendError = false;
+    s_u8g2.sendBuffer();
+    I2cBusTwo_Unlock();
+    if (s_i2cSendError) {
+        s_displayOk = false;
+    }
 }
 
 void Display_Init(void) {
@@ -336,23 +387,11 @@ void Display_Init(void) {
         Log_Println("OLED: disabled via web settings", LOGLEVEL_NOTICE);
         return;
     }
-    // Allow the peripheral power rail time to stabilise after a power cycle.
-    // 20 ms is too short when the rail starts from zero (cold boot / deepsleep).
-    delay(200);
-    i2cBusTwo.beginTransmission(oledI2cAddress);
-    if (i2cBusTwo.endTransmission() != 0) {
-        Log_Println("OLED: display not found on I2C bus", LOGLEVEL_ERROR);
-        return;
+    if (Display_HwInit(true)) {
+        Log_Println("OLED: display initialised", LOGLEVEL_INFO);
+    } else {
+        Log_Println("OLED: display not found on I2C bus (will retry)", LOGLEVEL_ERROR);
     }
-    s_u8g2.getU8x8()->byte_cb = Display_I2cByteCb;
-    s_u8g2.setI2CAddress(oledI2cAddress << 1);
-    s_u8g2.initDisplay();
-    s_u8g2.setFlipMode(s_cfgFlip ? 1 : 0); // 180° rotation when the panel is mounted upside-down
-    s_u8g2.setPowerSave(0);
-    s_u8g2.clearBuffer();
-    s_u8g2.sendBuffer();
-    s_displayOk = true;
-    Log_Println("OLED: display initialised", LOGLEVEL_INFO);
 }
 
 // Re-read the OLED settings from NVS and apply them without a reboot. Handles the
@@ -406,10 +445,21 @@ bool Display_IsEnabled(void) {
 
 
 void Display_Cyclic(void) {
-    if (!s_displayOk) return;
+    uint32_t now = millis();
+
+    // Recover from a failed init (a transient I2C NACK at boot used to leave the panel black until
+    // the next reboot) or from a runtime desync flagged by Display_Send: re-probe + re-init
+    // periodically (without the cold-boot settle delay — a NACK probe is cheap).
+    if (!s_displayOk) {
+        static uint32_t s_lastInitTry = 0;
+        if (s_cfgEnabled && (now - s_lastInitTry >= 1000u)) {
+            s_lastInitTry = now;
+            Display_HwInit(false);
+        }
+        return;
+    }
 
     static uint32_t s_lastUpdate = 0;
-    uint32_t now = millis();
     if (now - s_lastUpdate < 100u) return;
     s_lastUpdate = now;
 
@@ -449,7 +499,7 @@ void Display_Cyclic(void) {
         snprintf(numBuf, sizeof(numBuf), "%d", vol);
         s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(numBuf)) / 2), 57, numBuf);
 
-        s_u8g2.sendBuffer();
+        Display_Send();
         return;
     }
 
@@ -527,7 +577,7 @@ void Display_Cyclic(void) {
             s_u8g2.drawStr(0, 56, cursorOn ? "READY_" : "READY ");
         }
 
-        s_u8g2.sendBuffer();
+        Display_Send();
         return;
     }
     s_lastPlayMode = gPlayProperties.playMode;
@@ -571,7 +621,7 @@ void Display_Cyclic(void) {
         s_u8g2.drawStr(static_cast<int>(128 - s_u8g2.getStrWidth(wifiStr)), 60, wifiStr);
     }
 
-    s_u8g2.sendBuffer();
+    Display_Send();
 }
 
 #endif // OLED_ENABLE
