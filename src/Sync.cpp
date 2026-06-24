@@ -17,6 +17,7 @@
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 #include <algorithm>
+#include <climits>
 #include <memory>
 
 // Abort a single file download if no data arrives for this long (connection still
@@ -234,7 +235,14 @@ static bool syncIsProtected(const String &fullPath, const String &name) {
 // nothing and instead appends each would-be-deleted path to `report`. `keep` must be the COMPLETE
 // set of manifest paths — the caller only runs this when the manifest parsed fully — otherwise
 // wanted files would be deleted.
-static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted, bool dryRun, File *report) {
+static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted, bool dryRun, File *report, uint8_t depth = 0) {
+	// Bound the recursion: the sync task has a 16 kB stack and each frame holds a File + two
+	// Strings, so a pathologically deep tree could otherwise overflow it. Real media trees are
+	// shallow (artist/album/track), so 20 levels is far beyond anything legitimate.
+	if (depth >= 20) {
+		Log_Printf(LOGLEVEL_ERROR, "Sync: mirror sweep too deep, skipping %s", dir.path());
+		return;
+	}
 	File entry = dir.openNextFile();
 	while (entry) {
 		if (gSyncCancel) { // user pressed stop -> leave the rest of the card untouched
@@ -247,7 +255,7 @@ static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted, bo
 		if (syncIsProtected(path, name)) {
 			entry.close();
 		} else if (isDir) {
-			syncMirrorDir(entry, keep, deleted, dryRun, report);
+			syncMirrorDir(entry, keep, deleted, dryRun, report, depth + 1);
 			entry.close();
 			if (!dryRun) {
 				gFSystem.rmdir(path); // only succeeds once the directory has been emptied
@@ -269,6 +277,39 @@ static void syncMirrorDir(File dir, const SyncPathSet &keep, size_t &deleted, bo
 		entry = dir.openNextFile();
 		vTaskDelay(pdMS_TO_TICKS(1)); // yield between entries (matches the download loop)
 	}
+}
+
+// Downloads the manifest to a temp file on SD. Returns the number of body bytes written (>= 0) on
+// success, or a negative HTTPClient error code if the transfer dropped mid-stream (so a truncated
+// manifest is never silently trusted). On a setup failure (connect/HTTP/SD) it sets the failure
+// message itself and returns INT_MIN. Being a normal function, every return path unwinds the
+// stack, so the WiFiClient/HTTPClient are freed — the task body used vTaskDelete() and leaked them.
+static int syncFetchManifest(const String &url, const String &user, const String &pass, const char *tmpPath) {
+	std::unique_ptr<WiFiClient> client = Net_MakeClient(url);
+	HTTPClient http;
+	Net_SetupHttp(http, user, pass);
+	if (!http.begin(*client, url)) {
+		syncFail("manifest connection failed");
+		return INT_MIN;
+	}
+	const int code = http.GET();
+	if (code != 200) {
+		char msg[64];
+		snprintf(msg, sizeof(msg), "manifest HTTP %d", code);
+		syncFail(msg);
+		http.end();
+		return INT_MIN;
+	}
+	File mf = gFSystem.open(tmpPath, "w", true);
+	if (!mf) {
+		syncFail("manifest: cannot buffer to SD");
+		http.end();
+		return INT_MIN;
+	}
+	const int written = http.writeToStream(&mf); // decodes chunked transfer-encoding, minimal RAM
+	mf.close();
+	http.end();
+	return written; // >= 0 on a complete transfer, < 0 (e.g. CONNECTION_LOST) if it dropped mid-stream
 }
 
 static void syncTask(void *parameter) {
@@ -323,34 +364,25 @@ static void syncTask(void *parameter) {
 	// parse that reads the raw socket. writeToStream() decodes the chunking for us;
 	// streaming the entries back off SD keeps only one file object in RAM at a time.
 	const char *manifestTmp = "/.sync_manifest.json";
-	{
-		std::unique_ptr<WiFiClient> client = Net_MakeClient(manifestUrl);
-		HTTPClient http;
-		Net_SetupHttp(http, user, pass);
-		if (!http.begin(*client, manifestUrl)) {
-			syncFail("manifest connection failed");
-			vTaskDelete(NULL);
-			return;
+	const int manifestWritten = syncFetchManifest(manifestUrl, user, pass, manifestTmp);
+	if (manifestWritten == INT_MIN) {
+		// setup failure (connect/HTTP/SD); syncFetchManifest already set the failure message
+		if (dryReport) {
+			dryReport.close();
 		}
-		const int code = http.GET();
-		if (code != 200) {
-			char msg[64];
-			snprintf(msg, sizeof(msg), "manifest HTTP %d", code);
-			syncFail(msg);
-			http.end();
-			vTaskDelete(NULL);
-			return;
+		vTaskDelete(NULL);
+		return;
+	}
+	if (manifestWritten < 0) {
+		// the transfer dropped mid-stream -> the on-SD manifest is truncated. Never trust a partial
+		// manifest: trusting it would, in mirror mode, delete every file listed past the cut-off.
+		syncFail("manifest download incomplete");
+		if (dryReport) {
+			dryReport.close();
 		}
-		File mf = gFSystem.open(manifestTmp, "w", true);
-		if (!mf) {
-			syncFail("manifest: cannot buffer to SD");
-			http.end();
-			vTaskDelete(NULL);
-			return;
-		}
-		http.writeToStream(&mf); // decodes chunked transfer-encoding, minimal RAM
-		mf.close();
-		http.end();
+		gFSystem.remove(manifestTmp);
+		vTaskDelete(NULL);
+		return;
 	}
 
 	// Re-open the buffered manifest and seek to the start of the "files" array; from
@@ -358,6 +390,9 @@ static void syncTask(void *parameter) {
 	File manifest = gFSystem.open(manifestTmp, "r");
 	if (!manifest) {
 		syncFail("manifest: reopen failed");
+		if (dryReport) {
+			dryReport.close();
+		}
 		gFSystem.remove(manifestTmp);
 		vTaskDelete(NULL);
 		return;
@@ -366,6 +401,9 @@ static void syncTask(void *parameter) {
 	if (!manifest.find("\"files\"") || !manifest.find('[')) {
 		syncFail("manifest has no \"files\" array");
 		manifest.close();
+		if (dryReport) {
+			dryReport.close();
+		}
 		gFSystem.remove(manifestTmp);
 		vTaskDelete(NULL);
 		return;
@@ -472,6 +510,26 @@ static void syncTask(void *parameter) {
 		more = manifest.findUntil(",", "]"); // step to the next entry, or stop at ']'
 	}
 
+	// Verify the buffered manifest actually ends cleanly: the last non-whitespace byte must be the
+	// array/object terminator (']' or '}'). A truncated download that slipped past the writeToStream
+	// check (e.g. a server that closed the socket after a valid-looking prefix) would otherwise be
+	// indistinguishable from a clean end-of-array and could trigger a mirror-delete of the tail.
+	bool endsClean = false;
+	{
+		size_t scan = manifest.size();
+		while (scan > 0) {
+			manifest.seek(scan - 1);
+			const char c = (char) manifest.read();
+			if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+				scan--;
+				continue;
+			}
+			endsClean = (c == ']' || c == '}');
+			break;
+		}
+	}
+	const bool manifestComplete = !cancelled && endsClean;
+
 	manifest.close();
 	gFSystem.remove(manifestTmp);
 
@@ -481,7 +539,7 @@ static void syncTask(void *parameter) {
 	// we skip it so a failed/empty manifest can never wipe the card. Runs while the other tasks
 	// are still paused so the SD isn't accessed concurrently.
 	size_t deleted = 0;
-	if (mirror && !cancelled && keepSetOk && (keepSet.size() > 0)) {
+	if (mirror && !cancelled && manifestComplete && keepSetOk && (keepSet.size() > 0)) {
 		keepSet.finalize();
 		gSyncMsg.set(dryRun ? "scanning for files to delete" : "removing files not in manifest");
 		File root = gFSystem.open("/");
