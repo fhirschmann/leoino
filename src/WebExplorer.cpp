@@ -480,10 +480,15 @@ static void Web_CleanDirectory(File dir, uint32_t &deletedCount) {
 // Handles the request to remove macOS metadata junk from the SD card
 void handleCleanSdRequest(AsyncWebServerRequest *request) {
 	uint32_t deletedCount = 0;
+	// The full-tree sweep is heavy SD I/O; pause the RFID/LED/audio tasks for its duration so the
+	// audio task doesn't fight for the SD bus (dropouts) and an RFID tap can't start playback in the
+	// middle of the clean. (This handler still runs on the async task; the pause is the key fix.)
+	System_PauseTasksDuringUpload(true);
 	File root = gFSystem.open("/");
 	if (root && root.isDirectory()) {
 		Web_CleanDirectory(root, deletedCount);
 	}
+	System_PauseTasksDuringUpload(false);
 	Log_Printf(LOGLEVEL_NOTICE, "SD cleanup: removed %lu entries", (unsigned long) deletedCount);
 	AsyncJsonResponse *response = new AsyncJsonResponse(false);
 	response->getRoot()["deleted"] = deletedCount;

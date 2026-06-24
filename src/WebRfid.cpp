@@ -166,6 +166,8 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 	// than what we have, record the tombstone, and do NOT re-push (avoids sync loops).
 	if (jsonObj["deleted"].is<bool>() && jsonObj["deleted"].as<bool>()) {
 		uint32_t inTs = jsonObj["timestamp"].is<uint32_t>() ? jsonObj["timestamp"].as<uint32_t>() : 0;
+		// serialize the compare-then-write against a concurrent full-sync merge (cross-core RMW)
+		RfidSync_Lock();
 		uint32_t localAssign = RfidSync_GetTagTimestamp(tagId.c_str());
 		uint32_t localDel = RfidSync_GetDeleteTimestamp(tagId.c_str());
 		uint32_t localNewest = (localAssign > localDel) ? localAssign : localDel;
@@ -175,7 +177,10 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 			}
 			RfidSync_SetTagTimestamp(tagId.c_str(), 0);
 			RfidSync_SetDeleteTimestamp(tagId.c_str(), inTs);
+			RfidSync_Unlock();
 			Web_DumpNvsToSd("rfidTags", backupFile);
+		} else {
+			RfidSync_Unlock();
 		}
 		request->send(200, "text/plain; charset=utf-8", "ok");
 		return;
@@ -198,20 +203,25 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 	}
 	char rfidString[275];
 	snprintf(rfidString, sizeof(rfidString) / sizeof(rfidString[0]), "%s%s%s0%s%u%s0", stringDelimiter, _fileOrUrlAscii, stringDelimiter, stringDelimiter, _playModeOrModId, stringDelimiter);
+	// serialize the write + timestamp against a concurrent full-sync merge (cross-core RMW)
+	RfidSync_Lock();
 	gPrefsRfid.putString(tagId.c_str(), rfidString);
-
 	String s = gPrefsRfid.getString(tagId.c_str(), "-1");
-	if (s.compareTo(rfidString)) {
+	const bool saveOk = (s.compareTo(rfidString) == 0);
+	if (saveOk) {
+		// Record the sync timestamp: use an incoming "timestamp" if provided (a peer push preserves
+		// the origin timestamp), else stamp now. This endpoint is the peer-push target, so it must
+		// NOT re-push (no RfidSync_OnLearn here) to avoid sync loops between devices.
+		if (jsonObj["timestamp"].is<uint32_t>() && jsonObj["timestamp"].as<uint32_t>() > 0) {
+			RfidSync_SetTagTimestamp(tagId.c_str(), jsonObj["timestamp"].as<uint32_t>());
+		} else {
+			RfidSync_NoteLocalChange(tagId.c_str());
+		}
+	}
+	RfidSync_Unlock();
+	if (!saveOk) {
 		request->send(500, "text/plain; charset=utf-8", "/rfid (POST): cannot save assignment to NVS");
 		return;
-	}
-	// Record the sync timestamp: use an incoming "timestamp" if provided (a peer push preserves the
-	// origin timestamp), else stamp now. This endpoint is the peer-push target, so it must NOT
-	// re-push (no RfidSync_OnLearn here) to avoid sync loops between devices.
-	if (jsonObj["timestamp"].is<uint32_t>() && jsonObj["timestamp"].as<uint32_t>() > 0) {
-		RfidSync_SetTagTimestamp(tagId.c_str(), jsonObj["timestamp"].as<uint32_t>());
-	} else {
-		RfidSync_NoteLocalChange(tagId.c_str());
 	}
 	Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 	// return the new/modified RFID assignment
@@ -237,18 +247,21 @@ void handleDeleteRFIDRequest(AsyncWebServerRequest *request) {
 			// stop playback, tag to delete is in use
 			Cmd_Action(CMD_STOP);
 		}
-		if (gPrefsRfid.remove(tagId.c_str())) {
-			RfidSync_OnDelete(tagId.c_str()); // record tombstone + propagate the deletion to server/peers
+		RfidSync_Lock();
+		const bool removed = gPrefsRfid.remove(tagId.c_str());
+		RfidSync_Unlock();
+		if (removed) {
+			RfidSync_OnDelete(tagId.c_str()); // record tombstone + propagate the deletion to server/peers (takes the lock itself)
 			Playstats_ClearCardPlays(tagId.c_str()); // drop the card's play counter too
 			Playstats_ClearCardSeen(tagId.c_str()); // and its last-seen timestamp
-			Log_Printf(LOGLEVEL_INFO, "/rfid (DELETE): tag %s removed successfuly", tagId);
+			Log_Printf(LOGLEVEL_INFO, "/rfid (DELETE): tag %s removed successfuly", tagId.c_str());
 			request->send(200, "text/plain; charset=utf-8", tagId + " removed successfuly");
 		} else {
 			Log_Println("/rfid (DELETE):error removing tag from NVS", LOGLEVEL_ERROR);
 			request->send(500, "text/plain; charset=utf-8", "error removing tag from NVS");
 		}
 	} else {
-		Log_Printf(LOGLEVEL_DEBUG, "/rfid (DELETE): tag %s not exists", tagId);
+		Log_Printf(LOGLEVEL_DEBUG, "/rfid (DELETE): tag %s not exists", tagId.c_str());
 		request->send(404, "text/plain; charset=utf-8", "error removing tag from NVS: Tag not exists");
 	}
 }

@@ -71,6 +71,12 @@ void AudioPlayer_Exit(void);
 void AudioPlayer_SetSavePosPeriodic(bool enabled);
 void AudioPlayer_SetSeekStep(uint16_t seconds); // step (in seconds) for CMD_SMART_FORWARDS/BACKWARDS in-file seeking
 uint16_t AudioPlayer_GetSeekStep(void);
+
+// Serialize access to gPlayProperties.playlist between the audio task (free/reassign) and the web
+// readers (/currenttrack, /cover). Hold only around the read of size()/at(); copy the path out
+// (into a String) before releasing, and never hold across SD/network I/O.
+void AudioPlayer_LockPlaylist(void);
+void AudioPlayer_UnlockPlaylist(void);
 void AudioPlayer_Cyclic(void);
 void AudioPlayer_Loop(void);
 uint8_t AudioPlayer_GetRepeatMode(void);

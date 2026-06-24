@@ -345,9 +345,28 @@ uint16_t AudioPlayer_GetSeekStep(void) {
 	return gSeekStep;
 }
 
+// Guards the lifetime of gPlayProperties.playlist across cores: the audio task frees + reassigns it
+// when a new playlist arrives, while the web task (/currenttrack, /cover) reads playlist->at()/size().
+// Without this a web read could dereference a just-freed vector/string (use-after-free). The audio
+// task's own reads need no lock (same task as the free). Held only briefly - never across SD/network.
+static SemaphoreHandle_t gPlaylistMutex = NULL;
+void AudioPlayer_LockPlaylist(void) {
+	if (gPlaylistMutex) {
+		xSemaphoreTake(gPlaylistMutex, portMAX_DELAY);
+	}
+}
+void AudioPlayer_UnlockPlaylist(void) {
+	if (gPlaylistMutex) {
+		xSemaphoreGive(gPlaylistMutex);
+	}
+}
+
 void AudioPlayer_Init(void) {
 	// create audio object
 	audio = new AudioCustom();
+
+	// guards the playlist pointer between the audio task and the web readers (created before the web server starts)
+	gPlaylistMutex = xSemaphoreCreateMutex();
 
 	// load playtime total from NVS
 	playTimeSecTotal = gPrefsSettings.getULong("playTimeTotal", 0);
@@ -426,7 +445,7 @@ void AudioPlayer_Init(void) {
 	gPlayProperties.playlist = allocatePlaylist();
 	gPlayProperties.SavePlayPosRfidChange = gPrefsSettings.getBool("savePosRfidChge", false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 	gSavePosPeriodic = gPrefsSettings.getBool("savePosPeriodic", true); // periodic audiobook play-position checkpoint
-	gSeekStep = gPrefsSettings.getUInt("seekStep", seekStepDefault); // step for smart forward/backward in-file seeking
+	AudioPlayer_SetSeekStep(gPrefsSettings.getUInt("seekStep", seekStepDefault)); // step for smart forward/backward (routes through the 0 -> default guard)
 	gPlayProperties.pauseOnMinVolume = gPrefsSettings.getBool("pauseOnMinVol", false); // PAUSE_ON_MIN_VOLUME
 #ifdef PAUSE_WHEN_RFID_REMOVED
 	gPlayProperties.pauseIfRfidRemoved = gPrefsSettings.getBool("pauseRfidRem", true);
@@ -823,9 +842,11 @@ void AudioPlayer_Loop() {
 			newPlayListAvailable = false;
 			audio->stopSong();
 
-			// destroy the old playlist and assign the new one
+			// destroy the old playlist and assign the new one (locked: a web reader may be mid-read)
+			AudioPlayer_LockPlaylist();
 			freePlaylist(gPlayProperties.playlist);
 			gPlayProperties.playlist = newPlayList;
+			AudioPlayer_UnlockPlaylist();
 			Log_Printf(LOGLEVEL_NOTICE, newPlaylistReceived, gPlayProperties.playlist->size());
 			Log_Printf(LOGLEVEL_DEBUG, "Free heap: %u", ESP.getFreeHeap());
 			playbackTimeoutStart = millis();
@@ -876,7 +897,13 @@ void AudioPlayer_Loop() {
 		if (trackCommand == SMARTFORWARD || trackCommand == SMARTBACKWARD) {
 			const bool forward = (trackCommand == SMARTFORWARD);
 			const uint16_t step = AudioPlayer_GetSeekStep();
-			const bool singleLongFile = (gPlayProperties.playlist != nullptr) && (gPlayProperties.playlist->size() == 1) && (gPlayProperties.audioFileDuration > step);
+			// A single-file playlist (audiobook) always smart-seeks in-file - even before the decoder
+			// has reported the duration (audioFileDuration is 0 for the first ~second after a card tap
+			// or resume). The coalesced seek below clamps to the end when the duration is known and
+			// otherwise does a relative setTimeOffset, so seeking with an unknown duration is safe.
+			// The old "audioFileDuration > step" guard turned an early forward press into a NEXTTRACK,
+			// which on a one-file playlist became "last track active" -> an error beep instead of a seek.
+			const bool singleLongFile = (gPlayProperties.playlist != nullptr) && (gPlayProperties.playlist->size() == 1);
 			if (singleLongFile) {
 				AudioPlayer_ResumeIfPaused(); // resume before seeking (mirrors the next/previous-track behavior)
 				gPlayProperties.smartSeekPendingSec += forward ? (int32_t) step : -(int32_t) step;
@@ -1238,6 +1265,9 @@ void AudioPlayer_Loop() {
 				target = 0;
 			} else if (target > maxTarget) {
 				target = maxTarget;
+			}
+			if (target > 65535) {
+				target = 65535; // setAudioPlayTime() takes a uint16_t (seconds); clamp so an >18h file can't wrap to a backward jump
 			}
 			ok = audio->setAudioPlayTime((uint16_t) target);
 		} else {

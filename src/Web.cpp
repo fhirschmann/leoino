@@ -787,6 +787,12 @@ void webserverStart(void) {
 		});
 		// the report written by the last dry run (plain text); fetched after a dry run finishes
 		wServer.on("/syncreport", HTTP_GET, [](AsyncWebServerRequest *request) {
+			// Don't serve the report while a sync is running: the sync task (core 1) is still writing
+			// (and may truncate-reopen) the file, so a concurrent stream would return a partial report.
+			if (Sync_GetStatus() == 1) {
+				request->send(409, "text/plain; charset=utf-8", "sync still running");
+				return;
+			}
 			const char *path = Sync_GetDryReportPath();
 			if (gFSystem.exists(path)) {
 				request->send(gFSystem, path, "text/plain; charset=utf-8");
@@ -898,7 +904,9 @@ void webserverStart(void) {
 			request->send(200, "text/plain; charset=utf-8", "ok");
 		});
 		wServer.on("/rfidsync", HTTP_GET, [](AsyncWebServerRequest *request) {
-			Web_SendStatusJson(request, RfidSync_GetStatus(), -1, RfidSync_GetMessage());
+			char msg[96];
+			RfidSync_CopyMessage(msg, sizeof(msg));
+			Web_SendStatusJson(request, RfidSync_GetStatus(), -1, msg);
 		});
 
 		// Detailed info about the currently playing track (for the Control-tab info dialog):
@@ -922,13 +930,26 @@ void webserverStart(void) {
 			o["channels"] = AudioPlayer_GetChannels();
 			o["codec"] = AudioPlayer_GetCodecName();
 			if (active) {
-				o["trackNumber"] = gPlayProperties.currentTrackNumber + 1;
-				o["totalTracks"] = gPlayProperties.playlist->size();
-				const char *path = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
-				if (path) {
-					o["path"] = path;
-					if (!gPlayProperties.isWebstream && path[0] == '/') {
-						File f = gFSystem.open(path);
+				// The audio task (core 1) can free + reassign the playlist while we read it here on the
+				// web task (core 0). Take the playlist lock, copy the path out into a String, then
+				// release before any SD I/O (open()) so we never dereference a freed vector/string.
+				String trackPath;
+				bool havePath = false;
+				AudioPlayer_LockPlaylist();
+				if (gPlayProperties.playlist && (gPlayProperties.currentTrackNumber < gPlayProperties.playlist->size())) {
+					o["trackNumber"] = gPlayProperties.currentTrackNumber + 1;
+					o["totalTracks"] = gPlayProperties.playlist->size();
+					const char *path = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
+					if (path) {
+						trackPath = path;
+						havePath = true;
+					}
+				}
+				AudioPlayer_UnlockPlaylist();
+				if (havePath) {
+					o["path"] = trackPath; // String -> copied into the document
+					if (!gPlayProperties.isWebstream && trackPath.length() > 0 && trackPath[0] == '/') {
+						File f = gFSystem.open(trackPath);
 						if (f) {
 							o["size"].set((uint64_t) f.size());
 							f.close();
@@ -1181,6 +1202,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 		if (!generalObj["seekStep"].isNull()) { // step (s) for smart forward/backward in-file seeking
 			uint16_t seekStep = generalObj["seekStep"].as<uint16_t>();
+			if (seekStep == 0) {
+				seekStep = seekStepDefault; // 0 would silently disable smart-seek; the UI enforces a min but REST/MQTT might send 0
+			}
 			gPrefsSettings.putUInt("seekStep", seekStep);
 			AudioPlayer_SetSeekStep(seekStep); // apply without reboot
 		}
@@ -2188,9 +2212,15 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 				Log_Println("no cover image for webstream", LOGLEVEL_NOTICE);
 				request->send(200, "image/svg+xml", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><svg width=\"2304\" height=\"1792\" viewBox=\"0 0 2304 1792\" transform=\"scale (0.6)\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M784 1372l16-241-16-523q-1-10-7.5-17t-16.5-7q-9 0-16 7t-7 17l-14 523 14 241q1 10 7.5 16.5t15.5 6.5q22 0 24-23zm296-29l11-211-12-586q0-16-13-24-8-5-16-5t-16 5q-13 8-13 24l-1 6-10 579q0 1 11 236v1q0 10 6 17 9 11 23 11 11 0 20-9 9-7 9-20zm-1045-340l20 128-20 126q-2 9-9 9t-9-9l-17-126 17-128q2-9 9-9t9 9zm86-79l26 207-26 203q-2 9-10 9-9 0-9-10l-23-202 23-207q0-9 9-9 8 0 10 9zm280 453zm-188-491l25 245-25 237q0 11-11 11-10 0-12-11l-21-237 21-245q2-12 12-12 11 0 11 12zm94-7l23 252-23 244q-2 13-14 13-13 0-13-13l-21-244 21-252q0-13 13-13 12 0 14 13zm94 18l21 234-21 246q-2 16-16 16-6 0-10.5-4.5t-4.5-11.5l-20-246 20-234q0-6 4.5-10.5t10.5-4.5q14 0 16 15zm383 475zm-289-621l21 380-21 246q0 7-5 12.5t-12 5.5q-16 0-18-18l-18-246 18-380q2-18 18-18 7 0 12 5.5t5 12.5zm94-86l19 468-19 244q0 8-5.5 13.5t-13.5 5.5q-18 0-20-19l-16-244 16-468q2-19 20-19 8 0 13.5 5.5t5.5 13.5zm98-40l18 506-18 242q-2 21-22 21-19 0-21-21l-16-242 16-506q0-9 6.5-15.5t14.5-6.5q9 0 15 6.5t7 15.5zm392 742zm-198-746l15 510-15 239q0 10-7.5 17.5t-17.5 7.5-17-7-8-18l-14-239 14-510q0-11 7.5-18t17.5-7 17.5 7 7.5 18zm99 19l14 492-14 236q0 11-8 19t-19 8-19-8-9-19l-12-236 12-492q1-12 9-20t19-8 18.5 8 8.5 20zm212 492l-14 231q0 13-9 22t-22 9-22-9-10-22l-6-114-6-117 12-636v-3q2-15 12-24 9-7 20-7 8 0 15 5 14 8 16 26zm1112-19q0 117-83 199.5t-200 82.5h-786q-13-2-22-11t-9-22v-899q0-23 28-33 85-34 181-34 195 0 338 131.5t160 323.5q53-22 110-22 117 0 200 83t83 201z\"/></svg>");
 			} else {
-				// no embedded cover -> try a folder cover image (cover.jpg / folder.jpg / ...) next to the track
+				// no embedded cover -> try a folder cover image (cover.jpg / folder.jpg / ...) next to the track.
+				// Copy the track path out under the playlist lock (the audio task may free it on core 1).
+				String track;
+				AudioPlayer_LockPlaylist();
 				if (gPlayProperties.playlist && (gPlayProperties.playMode != NO_PLAYLIST) && (gPlayProperties.currentTrackNumber < gPlayProperties.playlist->size())) {
-					String track = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
+					track = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
+				}
+				AudioPlayer_UnlockPlaylist();
+				if (track.length() > 0) {
 					int slash = track.lastIndexOf('/');
 					if (slash >= 0) {
 						const String dir = track.substring(0, slash);
@@ -2214,10 +2244,20 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 			}
 		return;
 	}
-	if (gPlayProperties.currentTrackNumber >= gPlayProperties.playlist->size()) {
+	// copy the path out under the playlist lock so the audio task (core 1) can't free it while the
+	// rest of this handler uses it across SD I/O below (use-after-free otherwise)
+	String coverFileName;
+	AudioPlayer_LockPlaylist();
+	if (gPlayProperties.playlist && (gPlayProperties.currentTrackNumber < gPlayProperties.playlist->size())) {
+		const char *p = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
+		if (p) {
+			coverFileName = p;
+		}
+	}
+	AudioPlayer_UnlockPlaylist();
+	if (coverFileName.length() == 0) {
 		return;
 	}
-	const char *coverFileName = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
 	String decodedCover = "/.cache";
 	decodedCover.concat(coverFileName);
 

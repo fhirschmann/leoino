@@ -582,15 +582,23 @@ static void syncTask(void *parameter) {
 }
 
 static void syncStart(bool dryRun) {
+	// Atomically claim the idle->running transition: this is reachable from the web, Cmd and MQTT
+	// tasks (different cores), so a plain check-then-set could double-start the task.
+	static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+	portENTER_CRITICAL(&mux);
 	if (gSyncStatus == 1) {
+		portEXIT_CRITICAL(&mux);
 		return; // already running
 	}
+	gSyncStatus = 1;
+	portEXIT_CRITICAL(&mux);
 	gSyncDryRun = dryRun;
 	gSyncCancel = false;
-	gSyncStatus = 1;
 	gSyncProgress = 0;
 	gSyncMsg.set("");
-	xTaskCreatePinnedToCore(syncTask, "httpSync", 16384, NULL, 1, NULL, 1);
+	if (xTaskCreatePinnedToCore(syncTask, "httpSync", 16384, NULL, 1, NULL, 1) != pdPASS) {
+		gSyncStatus = 3; // couldn't spawn -> release the slot as failed
+	}
 }
 
 void Sync_Trigger(void) {

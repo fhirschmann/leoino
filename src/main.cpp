@@ -159,6 +159,7 @@ void setup() {
 	// Init audio before power on to avoid speaker noise
 	AudioPlayer_Init();
 	Backup_Init(); // daily auto-backup of the full config to the sync server
+	RfidSync_Init(); // open the RFID-sync NVS namespaces + mutex/push-task once, single-threaded (avoids the lazy-init race)
 
 	// All checks that could send us to sleep are done, power up fully
 	Power_PeripheralOn();

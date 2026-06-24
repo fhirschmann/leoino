@@ -340,11 +340,29 @@ void System_DeepSleepManager(void) {
 }
 
 void System_PauseTasksDuringUpload(bool pause) {
+	// Ref-counted: several background operations (HTTP sync, GitHub OTA, file upload) can overlap,
+	// and each brackets its SD/flash work with this. Without counting, whichever finished first
+	// would resume RFID/LED/audio while another op was still mid-write - re-enabling the SD bus and
+	// letting an RFID tap start playback in the middle of an upload. Only the 0<->1 transition
+	// actually pauses/resumes. The counter is touched from multiple tasks/cores, so guard it.
+	static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+	static int depth = 0;
+	bool doPause = false;
+	bool doResume = false;
+	portENTER_CRITICAL(&mux);
 	if (pause) {
+		doPause = (depth == 0);
+		depth++;
+	} else if (depth > 0) {
+		depth--;
+		doResume = (depth == 0);
+	}
+	portEXIT_CRITICAL(&mux);
+	if (doPause) {
 		AudioPlayer_NotifyUploadStart();
 		Rfid_TaskPause();
 		Led_TaskPause();
-	} else {
+	} else if (doResume) {
 		Led_TaskResume();
 		Rfid_TaskResume();
 		AudioPlayer_NotifyUploadEnd();

@@ -275,12 +275,20 @@ static void backupTask(void *parameter) {
 }
 
 void Backup_Trigger(void) {
+	// Atomically claim idle->running: reachable from the web/MQTT tasks and the daily cyclic check
+	// (different cores), so a plain check-then-set could double-start the backup over the same file.
+	static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+	portENTER_CRITICAL(&mux);
 	if (gBackupStatus == 1) {
+		portEXIT_CRITICAL(&mux);
 		return; // already running
 	}
 	gBackupStatus = 1;
+	portEXIT_CRITICAL(&mux);
 	gBackupMsg.set("");
-	xTaskCreatePinnedToCore(backupTask, "backup", 16384, NULL, 1, NULL, 1);
+	if (xTaskCreatePinnedToCore(backupTask, "backup", 16384, NULL, 1, NULL, 1) != pdPASS) {
+		gBackupStatus = 3; // couldn't spawn -> release the slot as failed
+	}
 }
 
 void Backup_Cyclic(void) {

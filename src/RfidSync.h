@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 // RFID-tag syncing across a central PHP server and other ESPuinos (peer-to-peer), at the same time.
@@ -34,4 +35,10 @@ void RfidSync_OnDelete(const char *tagId);
 void RfidSync_TriggerFull(void);
 
 uint8_t RfidSync_GetStatus(void); // 0 idle, 1 running, 2 done, 3 failed
-const char *RfidSync_GetMessage(void);
+// Copy the current status message into a caller buffer under a spinlock (cross-core safe).
+void RfidSync_CopyMessage(char *dst, size_t dstLen);
+
+// Serialize an RFID-NVS read-modify-write against the background sync task. Hold across each
+// logical RMW unit in the web tag handlers; never hold across an HTTP/network call.
+void RfidSync_Lock(void);
+void RfidSync_Unlock(void);
