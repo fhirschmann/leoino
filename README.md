@@ -26,6 +26,47 @@
 
 ---
 
+# // HIGHLIGHTS
+
+The fork-specific features that stand out most against stock ESPuino. The complete,
+commit-by-commit list lives further down under
+**[Differences to upstream](#-differences-to-upstream)**.
+
+- 🎨 **Cyberpunk web interface, four switchable themes** — management + access-point pages
+  fully rebuilt in neon; pick between **Cyberpunk** and three kid-friendly looks
+  (**Waldhaus**, **Wölkchen**, **Pixelheld**), remembered per browser.
+- ⚡ **Fully offline & installable** — all libs and fonts vendored and served gzipped from
+  flash, so the UI loads fast and works without internet (incl. AP mode); installable as a PWA.
+- ▶️ **Try it with no hardware** — a [live browser demo](https://fhirschmann.github.io/leoino/)
+  of the real management page on GitHub Pages, auto-deployed on every push.
+- 📺 **OLED display** — optional 128×64 SH1106/SSD1306 screen: boot splash, idle screen with
+  IP, scrolling now-playing title with a battery/time/WiFi status bar and volume bar; fully
+  web-configurable (startup animation, idle header text, which fields show, 180° flip).
+- 🔒 **Password protection** — one shared password for the web UI, FTP *and* WebDAV (also
+  usable as an `X-API-Key`), with a session cookie and brute-force lockout.
+- 🔄 **HTTP file sync** — pull audio onto the SD card from a manifest, with opt-in **mirror
+  mode** and a **dry-run** preview.
+- 🆔 **RFID-tag syncing** — keep card→content assignments in sync across a central server *and*
+  other ESPuinos (newest-wins, deletions propagate, offline catch-up).
+- 📇 **Learn cards from the file browser** — right-click a file/folder → pick a play mode →
+  scan; plus 10 virtual cards triggerable by button or MQTT.
+- 🎚️ **Equalizer presets** — Flat / Music / Audiobook-Speech / Deep-voices / Custom on a
+  3-band tone control, assignable per file or folder.
+- 📖 **Audiobook resume hardening** — ~30 s checkpointing, smart in-file seek, fade-in on
+  resume, restart-after-N-days and don't-resume-if-barely-started.
+- 🎵 **Now-playing metadata & stats** — ID3 title/artist/album + cover art, plus per-day
+  listening statistics with a 30-day chart and CSV export.
+- 💾 **Backup & restore** — export/import all settings + RFID + EQ rules + stats as one JSON,
+  with optional automatic daily upload to a server.
+- 🏠 **Home Assistant & 🍎 Apple HomeKit** — full MQTT auto-discovery and HomeKit/Siri pairing
+  straight into the Home app.
+- 📡 **Infrared remote with learn dialog** — teach every button of any IR remote straight from
+  the IR settings tab; each button carries a short tap *and* a long-press action (configurable
+  threshold), bound to the full command set and carried through backup/restore.
+- 📟 **More hardware** — battery-backed RTC (DS3231), a 6th button and state-driven control LEDs.
+
+---
+
 # // HARDWARE
 
 The physical build — a 3D-printed enclosure housing an ESP32, a PN5180 RFID reader, speaker and
@@ -246,6 +287,14 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 **Configurable branding** — re-brand the header and footer from one **Brand name** field; empty keeps the default ([`fd57fcb`](../../commit/fd57fcb)):
 
 <div align="center"><img src="docs/img/feat-branding.png" width="760" alt="Configurable header/footer branding"></div>
+
+**Infrared remote** — teach each remote button an action and assign an optional long-press action, right in a dedicated **IR** settings sub-tab ([`d764ff3`](../../commit/d764ff3)):
+
+<div align="center"><img src="docs/img/feat-ir-remote.png" width="860" alt="Infrared-remote settings sub-tab — per-button command + long-press assignment with a Learn flow"></div>
+
+**RTC management** — a Tools-tab card for the battery-backed DS3231: live clock, internal temperature, lost-power warning and browser drift, with *Sync now* and *Set time from browser*:
+
+<div align="center"><img src="docs/img/feat-rtc.png" width="760" alt="RTC card in the Tools tab — live clock, temperature, drift and sync/set-from-browser buttons"></div>
 
 ### RFID & audio
 
