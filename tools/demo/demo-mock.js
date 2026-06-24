@@ -121,7 +121,7 @@
 			general: {
 				initVolume: 3, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10,
 				playMono: false, savePosShutdown: false, savePosRfidChge: false,
-				savePosPeriodic: true, restartFreshHrs: 24, minResumeSec: 20, seekStep: 300, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
+				savePosPeriodic: true, restartFreshHrs: 24, minResumeSec: 20, seekStep: 300, sleepFadeSec: 30, dailyLimitMin: 90, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
 				stopIfRfidRemoved: false,
 				dontAcceptRfidTwice: false, rfidReaderType: 0, pn5180Lpcd: false, slix2Password: "",
 				mfrc522Gain: 7, pauseOnMinVol: false, recoverVolBoot: false, volumeCurve: 0,
@@ -246,7 +246,7 @@
 					hardware: { model: "ESP32", revision: 3, freq: 240, readerFirmware: "" },
 					memory: { freeHeap: 142336, largestFreeBlock: 110592, freePSRam: 3801088 },
 					wifi: { ip: "192.168.1.34", macAddress: "A0:B1:C2:D3:E4:F5", rssi: -58 },
-					audio: { firstStart: Math.floor(Date.now() / 1000) - 5184000, playtimeTotal: 486000, playtimeSinceStart: 5400, playToday: 3600, playYesterday: 7200, play7d: 32400, play30d: 129600 },
+					audio: { firstStart: Math.floor(Date.now() / 1000) - 5184000, playtimeTotal: 486000, playtimeSinceStart: 5400, playToday: 3600, playYesterday: 7200, play7d: 32400, play30d: 129600, dailyLimitMin: 90 },
 					sdcard: { size: 30437, free: 21347 }, // MB, like the device (the UI divides by 1024 -> GB)
 					battery: { currVoltage: 3.94, chargeLevel: 78 },
 					// battery-backed RTC (DS3231): drives the RTC card in the Tools tab
@@ -278,7 +278,9 @@
 			if (p === "/savedSSIDs") { return jsonResp(["Heimnetz", "Gartenlaube"]); }
 			if (p === "/activeSSID") { return jsonResp({ active: "Heimnetz" }); }
 			if (p === "/eqrules") { return jsonResp([]); }
-			if (p === "/homekit") { return jsonResp({ enabled: false, paired: false, code: "", deviceName: "ESPuino", tvName: "ESPuino TV" }); }
+			// HomeKit: enabled so the tab shows in the demo. The setup code is a placeholder
+			// (the QR is the bundled demo-homekit-qr.svg, swapped in by build_demo.py).
+			if (p === "/homekit") { return jsonResp({ enabled: true, active: true, paired: false, code: "031-45-154", deviceName: "Leo Industries AT-1", tvName: "AT-1 TV" }); }
 			// password status: the device never echoes the password back (write-only field)
 			if (p === "/security") { return jsonResp({ enabled: false, cookieDays: 90 }); }
 			if (p === "/bluetoothresults") { return jsonResp([]); }

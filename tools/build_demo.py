@@ -34,7 +34,7 @@ COPY_ITEMS = [
 ]
 
 # Extra demo-only assets.
-DEMO_ASSETS = ["demo-mock.js", "demo-cover.svg", "demo.css"]
+DEMO_ASSETS = ["demo-mock.js", "demo-cover.svg", "demo-homekit-qr.svg", "demo.css"]
 
 
 def transform_html(src: str) -> str:
@@ -58,6 +58,9 @@ def transform_html(src: str) -> str:
 
     # 3) cover image -> bundled demo SVG (avoids http/mixed-content + 404)
     out = out.replace('"http://" + host + "/cover?"', '"demo-cover.svg?"')
+
+    # 3b) HomeKit pairing QR -> bundled placeholder SVG (same http/mixed-content + 404 reason)
+    out = out.replace('"http://" + host + "/homekit/qr.svg?ts=" + Date.now()', '"demo-homekit-qr.svg?ts=" + Date.now()')
 
     # 4) inject the mock loader as the very first <head> child, plus demo CSS
     head_inject = (

@@ -102,6 +102,10 @@ uint32_t AudioPlayer_LastPlaytimeStatsTimestamp = 0u;
 // rewound audiobook-resume; 0 = no fade active. Output starts muted and is ramped up so the
 // brief cold-start glitch is masked and lands on the rewound (already-heard) audio.
 uint32_t AudioPlayer_ResumeFadeStartMs = 0u;
+// Sleep-timer fade-out (web setting "sleepFadeSec"): true while the output gain is currently
+// being ramped down ahead of the running sleep timer, so we know to restore full volume once
+// when the timer is cancelled/extended mid-fade.
+static bool AudioPlayer_SleepFadeApplied = false;
 Playlist *newPlayList = nullptr;
 bool newPlayListAvailable = false;
 
@@ -355,6 +359,56 @@ uint16_t AudioPlayer_GetSeekStep(void) {
 	return gSeekStep;
 }
 
+// Fade-out span (in seconds) before the sleep timer expires. Cached from the "sleepFadeSec" web
+// setting so the audio loop doesn't hit NVS each iteration. 0 = feature off (hard stop as before).
+static uint16_t gSleepFadeSec = 0;
+
+void AudioPlayer_SetSleepFadeSec(uint16_t seconds) {
+	gSleepFadeSec = seconds;
+}
+
+uint16_t AudioPlayer_GetSleepFadeSec(void) {
+	return gSleepFadeSec;
+}
+
+// Daily listening-time limit (screentime) in minutes. Cached from the "dailyLimitMin" web setting
+// so the per-second audio tick doesn't hit NVS. 0 = feature off.
+static uint16_t gDailyLimitMin = 0;
+
+void AudioPlayer_SetDailyLimitMin(uint16_t minutes) {
+	gDailyLimitMin = minutes;
+}
+
+uint16_t AudioPlayer_GetDailyLimitMin(void) {
+	return gDailyLimitMin;
+}
+
+// true once today's accumulated listening time has reached the configured daily limit. Enforced
+// only while the system clock is valid: Playstats_GetToday() returns 0 with an unknown date, so
+// playback is never blocked without a trustworthy day.
+bool AudioPlayer_DailyLimitReached(void) {
+	return (gDailyLimitMin > 0) && (Playstats_GetToday() >= (uint32_t) gDailyLimitMin * 60u);
+}
+
+#ifdef MQTT_ENABLE
+// Publish the screentime state to MQTT, but only on change so we don't spam the broker: today's
+// listened minutes (whole-minute granularity) and whether the daily limit has been reached.
+void AudioPlayer_PublishListeningStatsMqtt(void) {
+	static int32_t lastMin = -1;
+	static int8_t lastReached = -1;
+	const uint32_t todayMin = Playstats_GetToday() / 60u;
+	if ((int32_t) todayMin != lastMin) {
+		lastMin = (int32_t) todayMin;
+		publishMqtt(topicListenedToday, todayMin, false);
+	}
+	const bool reached = AudioPlayer_DailyLimitReached();
+	if ((int8_t) reached != lastReached) {
+		lastReached = (int8_t) reached;
+		publishMqtt(topicDailyLimitReached, reached ? "ON" : "OFF", false);
+	}
+}
+#endif
+
 // Guards the lifetime of gPlayProperties.playlist across cores: the audio task frees + reassigns it
 // when a new playlist arrives, while the web task (/currenttrack, /cover) reads playlist->at()/size().
 // Without this a web read could dereference a just-freed vector/string (use-after-free). The audio
@@ -458,6 +512,8 @@ void AudioPlayer_Init(void) {
 	gPlayProperties.SavePlayPosRfidChange = gPrefsSettings.getBool("savePosRfidChge", false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 	gSavePosPeriodic = gPrefsSettings.getBool("savePosPeriodic", true); // periodic audiobook play-position checkpoint
 	AudioPlayer_SetSeekStep(gPrefsSettings.getUInt("seekStep", seekStepDefault)); // step for smart forward/backward (routes through the 0 -> default guard)
+	AudioPlayer_SetSleepFadeSec(gPrefsSettings.getUInt("sleepFadeSec", 0)); // fade out over the last N s before the sleep timer expires (0 = off)
+	AudioPlayer_SetDailyLimitMin(gPrefsSettings.getUInt("dailyLimitMin", 0)); // daily listening-time limit in minutes (0 = off)
 	gPlayProperties.pauseOnMinVolume = gPrefsSettings.getBool("pauseOnMinVol", false); // PAUSE_ON_MIN_VOLUME
 #ifdef PAUSE_WHEN_RFID_REMOVED
 	gPlayProperties.pauseIfRfidRemoved = gPrefsSettings.getBool("pauseRfidRem", true);
@@ -566,6 +622,18 @@ void AudioPlayer_Cyclic(void) {
 		lastPlayingTimestamp = millis();
 		playTimeSecSinceStart += 1;
 		Playstats_AddSecond(); // accumulate per-day listening-time statistics
+
+		// Daily listening-time limit (screentime): once today's accumulated time reaches the
+		// configured limit, stop playback. Re-starting is refused in AudioPlayer_SetPlaylist
+		// until the next calendar day. Only enforced while the clock is valid (see
+		// AudioPlayer_DailyLimitReached), so a device without a trustworthy date never locks out.
+		if (AudioPlayer_DailyLimitReached()) {
+			Log_Println("Daily listening limit reached - stopping playback", LOGLEVEL_NOTICE);
+			AudioPlayer_SetTrackControl(STOP);
+		}
+#ifdef MQTT_ENABLE
+		AudioPlayer_PublishListeningStatsMqtt();
+#endif
 
 		// periodic audiobook play-position checkpoint (see note above). saveLastPlayPosition
 		// is only set for the position-saving audiobook modes, so this is a no-op otherwise.
@@ -804,6 +872,27 @@ void AudioPlayer_Loop() {
 		} else {
 			audio->setVolume((uint8_t) ((uint32_t) target * elapsed / RESUME_FADEIN_DURATION_MS));
 		}
+	}
+
+	// Sleep-timer fade-out: during the last gSleepFadeSec seconds before a running (timed) sleep
+	// timer expires, ramp the output gain from the user's volume down towards 0 so playback fades
+	// out gently instead of being cut off. Only the audio-lib gain is touched (not
+	// AudioPlayer_CurrentVolume), so cancelling/extending the timer restores the real volume.
+	if (gSleepFadeSec > 0 && System_GetSleepTimerTimeStamp() > 0) {
+		const uint32_t remaining = System_GetSleepTimerRemainingSeconds();
+		if (remaining <= gSleepFadeSec) {
+			const uint8_t target = AudioPlayer_GetCurrentVolume();
+			audio->setVolume((uint8_t) ((uint32_t) target * remaining / gSleepFadeSec));
+			AudioPlayer_SleepFadeApplied = true;
+		} else if (AudioPlayer_SleepFadeApplied) {
+			// timer was extended back out of the fade window -> restore full volume once
+			audio->setVolume(AudioPlayer_GetCurrentVolume());
+			AudioPlayer_SleepFadeApplied = false;
+		}
+	} else if (AudioPlayer_SleepFadeApplied) {
+		// timer disarmed (or feature switched off) mid-fade -> restore full volume once
+		audio->setVolume(AudioPlayer_GetCurrentVolume());
+		AudioPlayer_SleepFadeApplied = false;
 	}
 
 	// Update playtime stats every 250 ms
@@ -1635,6 +1724,16 @@ void AudioPlayer_PlayReadyMsg(void) {
 // Receives de-serialized RFID-data (from NVS) and dispatches playlists for the given
 // playmode to the track-queue.
 void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPos, const uint32_t _playMode, const uint16_t _trackLastPlayed) {
+	// Daily listening-time limit (screentime): refuse to start a new playlist once today's limit
+	// is reached. Enforced only while the clock is valid (see AudioPlayer_DailyLimitReached), so
+	// a device without a trustworthy date never locks out. Checked first, before the running book
+	// is paused/position-saved below, so a blocked tap leaves the current playback untouched.
+	if (AudioPlayer_DailyLimitReached()) {
+		Log_Println("Daily listening limit reached - not starting playback", LOGLEVEL_NOTICE);
+		System_IndicateError();
+		return;
+	}
+
 	// Make sure last playposition for audiobook is saved when new RFID-tag is applied
 	if (gPlayProperties.SavePlayPosRfidChange && !gPlayProperties.pausePlay && (gPlayProperties.playMode == AUDIOBOOK || gPlayProperties.playMode == AUDIOBOOK_LOOP || gPlayProperties.playMode == AUDIOBOOK_RECURSIVE)) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);

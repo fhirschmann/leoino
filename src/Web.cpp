@@ -1235,6 +1235,16 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			gPrefsSettings.putUInt("seekStep", seekStep);
 			AudioPlayer_SetSeekStep(seekStep); // apply without reboot
 		}
+		if (!generalObj["sleepFadeSec"].isNull()) { // fade out over the last N s before the sleep timer expires (0 = off)
+			uint16_t sleepFadeSec = generalObj["sleepFadeSec"].as<uint16_t>();
+			gPrefsSettings.putUInt("sleepFadeSec", sleepFadeSec);
+			AudioPlayer_SetSleepFadeSec(sleepFadeSec); // apply without reboot
+		}
+		if (!generalObj["dailyLimitMin"].isNull()) { // daily listening-time limit in minutes (0 = off)
+			uint16_t dailyLimitMin = generalObj["dailyLimitMin"].as<uint16_t>();
+			gPrefsSettings.putUInt("dailyLimitMin", dailyLimitMin);
+			AudioPlayer_SetDailyLimitMin(dailyLimitMin); // apply without reboot
+		}
 		success = success && (gPrefsSettings.putBool("playStartupSnd", generalObj["playStartupSnd"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("playLastOnBoot", generalObj["playLastRfidOnReboot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseRfidRem", generalObj["pauseIfRfidRemoved"].as<bool>()) != 0);
@@ -1795,6 +1805,7 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		audioObj["playYesterday"] = Playstats_GetYesterday();
 		audioObj["play7d"] = Playstats_GetLastDays(7);
 		audioObj["play30d"] = Playstats_GetLastDays(30);
+		audioObj["dailyLimitMin"] = AudioPlayer_GetDailyLimitMin(); // daily listening-time limit (min, 0 = off)
 	}
 	// sd card
 	if ((section == "") || (section == "sdcard")) {

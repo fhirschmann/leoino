@@ -326,6 +326,8 @@
 		constexpr const char topicPlaymode[] = "playmode";  // State: numeric playmode
 		constexpr const char topicWiFiRssi[] = "wifi_rssi"; // State: WiFi signal strength (dBm)
 		constexpr const char topicSRevision[] = "software_revision"; // State: software revision string
+		constexpr const char topicListenedToday[] = "listened_today"; // State: minutes listened today (screentime)
+		constexpr const char topicDailyLimitReached[] = "daily_limit_reached"; // State: ON/OFF, daily listening-time limit reached
 		#ifdef RTC_ENABLE
 		constexpr const char topicRtc[] = "rtc"; // State: current date/time from the system clock (kept by the DS3231 RTC), e.g. "2026-06-16 14:32:05"
 		#endif

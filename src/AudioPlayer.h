@@ -71,6 +71,11 @@ void AudioPlayer_Exit(void);
 void AudioPlayer_SetSavePosPeriodic(bool enabled);
 void AudioPlayer_SetSeekStep(uint16_t seconds); // step (in seconds) for CMD_SMART_FORWARDS/BACKWARDS in-file seeking
 uint16_t AudioPlayer_GetSeekStep(void);
+void AudioPlayer_SetSleepFadeSec(uint16_t seconds); // fade-out span (s) before the sleep timer expires (0 = off)
+uint16_t AudioPlayer_GetSleepFadeSec(void);
+void AudioPlayer_SetDailyLimitMin(uint16_t minutes); // daily listening-time limit in minutes (0 = off)
+uint16_t AudioPlayer_GetDailyLimitMin(void);
+bool AudioPlayer_DailyLimitReached(void); // true once today's listening time has reached the daily limit
 void AudioPlayer_SetVolumeCurve(uint8_t curveType); // cache the volume-curve selection used by the audio-task hot path
 
 // Serialize access to gPlayProperties.playlist between the audio task (free/reassign) and the web

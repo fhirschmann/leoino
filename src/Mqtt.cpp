@@ -349,6 +349,8 @@ static void Mqtt_PublishHassDiscovery(void) {
 	mqttHassPublish("sensor", "wifi", "\"name\":\"WiFi signal\",\"device_class\":\"signal_strength\",\"unit_of_measurement\":\"dBm\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicWiFiRssi)) + "\"");
 	mqttHassPublish("sensor", "firmware", "\"name\":\"Firmware update\",\"icon\":\"mdi:package-up\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicFirmwareUpdate)) + "\"");
 	mqttHassPublish("sensor", "swrev", "\"name\":\"Software revision\",\"icon\":\"mdi:tag\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicSRevision)) + "\"");
+	mqttHassPublish("sensor", "listened_today", "\"name\":\"Listened today\",\"icon\":\"mdi:timer-sand\",\"unit_of_measurement\":\"min\",\"state_class\":\"total_increasing\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicListenedToday)) + "\"");
+	mqttHassPublish("binary_sensor", "daily_limit_reached", "\"name\":\"Daily limit reached\",\"icon\":\"mdi:timer-lock\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicDailyLimitReached)) + "\"");
 
 	// numbers
 	const String loudCmd = Mqtt_GetCommandTopic(topicLoudness);
