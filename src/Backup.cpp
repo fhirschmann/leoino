@@ -170,7 +170,17 @@ static bool backupWriteToSd(const char *destFile) {
 	file.print("]}");
 
 	file.print("}");
+	// Detect a failed/partial write (SD full, sector error, card pulled): every print/serializeJson
+	// above goes through the File's Print interface, which latches a sticky write-error flag. Without
+	// this check the function returned true on a truncated file, which then got uploaded and even
+	// suppressed the daily retry — a silently corrupt backup that only surfaces on a failed restore.
+	const bool writeOk = (file.getWriteError() == 0);
 	file.close();
+	if (!writeOk) {
+		backupFail("SD write error while building backup");
+		gFSystem.remove(destFile); // don't keep a truncated backup around
+		return false;
+	}
 	return true;
 }
 
@@ -231,6 +241,7 @@ static void backupTask(void *parameter) {
 	Net_SetupHttp(http, user, pass, 20000); // larger read timeout for the (slow) upload
 	if (!http.begin(*client, url)) {
 		file.close();
+		client.reset(); // vTaskDelete() never returns, so unwind the (TLS) client ourselves to avoid a leak
 		backupFail("bad URL");
 		vTaskDelete(NULL);
 		return;
