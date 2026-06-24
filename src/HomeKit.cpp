@@ -11,6 +11,7 @@
 	#include "Led.h"
 	#include "Log.h"
 	#include "System.h"
+	#include "Wlan.h"
 	#include "values.h"
 
 	#include <HomeSpan.h>
@@ -398,6 +399,31 @@ void HomeKit_Cyclic(void) {
 	// animation and the main loop is already running.
 	static bool initialized = false;
 	if (!initialized) {
+		// Defer HomeSpan's bring-up until WiFi -- and with it ESPuino's own mDNS
+		// announce -- has settled. Starting HomeSpan fires its HAP mDNS probe and
+		// TLS setup; when that races ESPuino's mDNS announce during boot the internal
+		// heap briefly hits ~0 and the mDNS task aborts() (OOM, in create_answer ->
+		// the log path can't even allocate its lock). Holding HomeKit back a few
+		// seconds keeps the two heavy startup allocations apart. An absolute fallback
+		// still brings HomeKit up if WiFi never connects (HomeSpan handles that case).
+		const uint32_t now = millis();
+		static uint32_t wifiUpSince = 0;
+		static uint32_t firstCyclic = 0;
+		if (firstCyclic == 0) {
+			firstCyclic = now;
+		}
+		if (Wlan_IsConnected()) {
+			if (wifiUpSince == 0) {
+				wifiUpSince = now;
+			}
+		} else {
+			wifiUpSince = 0;
+		}
+		const bool wifiSettled = (wifiUpSince != 0) && (now - wifiUpSince) > 4000u;
+		const bool fallback = (now - firstCyclic) > 20000u;
+		if (!wifiSettled && !fallback) {
+			return;
+		}
 		initialized = true;
 		if (HomeKit_IsEnabled()) {
 			HomeKit_Init();
