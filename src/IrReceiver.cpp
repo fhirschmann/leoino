@@ -30,55 +30,6 @@ static constexpr uint32_t IR_LEARN_TIMEOUT = 30000; // ms; matches the web-UI le
 
 static const char *irMapKey = "irMap";
 
-// Default layout, used to seed the table on first boot (or after an NVS wipe) so an untouched device
-// keeps the classic remote behaviour. Codes come from the board's RC_* defines (settings-*.h).
-static void seedDefaultMappings() {
-	sMapCount = 0;
-	auto add = [](uint16_t code, uint8_t cmd) {
-		if (sMapCount < IR_MAX_MAPPINGS) {
-			sMap[sMapCount].code = code;
-			sMap[sMapCount].cmd = cmd;
-			sMapCount++;
-		}
-	};
-	#ifdef RC_PLAY
-	add(RC_PLAY, CMD_PLAYPAUSE);
-	#endif
-	#ifdef RC_PAUSE
-	add(RC_PAUSE, CMD_PLAYPAUSE);
-	#endif
-	#ifdef RC_NEXT
-	add(RC_NEXT, CMD_NEXTTRACK);
-	#endif
-	#ifdef RC_PREVIOUS
-	add(RC_PREVIOUS, CMD_PREVTRACK);
-	#endif
-	#ifdef RC_FIRST
-	add(RC_FIRST, CMD_FIRSTTRACK);
-	#endif
-	#ifdef RC_LAST
-	add(RC_LAST, CMD_LASTTRACK);
-	#endif
-	#ifdef RC_VOL_UP
-	add(RC_VOL_UP, CMD_VOLUMEUP);
-	#endif
-	#ifdef RC_VOL_DOWN
-	add(RC_VOL_DOWN, CMD_VOLUMEDOWN);
-	#endif
-	#ifdef RC_MUTE
-	add(RC_MUTE, CMD_MUTE);
-	#endif
-	#ifdef RC_SHUTDOWN
-	add(RC_SHUTDOWN, CMD_SLEEPMODE);
-	#endif
-	#ifdef RC_BLUETOOTH
-	add(RC_BLUETOOTH, CMD_TOGGLE_BLUETOOTH_SINK_MODE);
-	#endif
-	#ifdef RC_FTP
-	add(RC_FTP, CMD_ENABLE_FTP_SERVER);
-	#endif
-}
-
 static void loadMappings() {
 	size_t blobLen = gPrefsSettings.getBytesLength(irMapKey);
 	if ((blobLen >= sizeof(IrMapping)) && ((blobLen % sizeof(IrMapping)) == 0)) {
@@ -89,8 +40,11 @@ static void loadMappings() {
 		gPrefsSettings.getBytes(irMapKey, sMap, (size_t) count * sizeof(IrMapping));
 		sMapCount = count;
 	} else {
-		// nothing (valid) stored yet -> fall back to the compiled-in default layout
-		seedDefaultMappings();
+		// No (valid) mapping stored yet -> start EMPTY: by default the remote does nothing at all.
+		// The user assigns every button explicitly in the web UI. This deliberately drops the old
+		// compiled-in RC_* layout so the upstream sample-remote codes can't accidentally match a
+		// real remote and trigger unwanted actions (e.g. shutdown / Bluetooth toggle).
+		sMapCount = 0;
 	}
 }
 #endif
