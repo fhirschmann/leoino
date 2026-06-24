@@ -140,10 +140,23 @@ void Battery_LogStatus(void) {
 }
 
 float Battery_EstimateLevel(void) {
+	// Throttle the fuel-gauge read: this is called from the LED draw and OLED-frame paths many times per
+	// second purely for display, and each call takes the shared i2cBusTwo lock (contended with the OLED
+	// frame transfer and the RC522-I2C reader). The SOC moves over minutes, so a short cache keeps the
+	// visuals fresh while removing that bus contention. Safety checks (Battery_IsLow/IsCritical) still
+	// read the gauge directly and are unaffected.
+	static uint32_t lastReadMs = 0;
+	static float cachedLevel = -1.0F;
+	const uint32_t nowMs = millis();
+	if (cachedLevel >= 0.0F && (nowMs - lastReadMs) < 2000) {
+		return cachedLevel;
+	}
 	I2cBusTwo_Lock();
 	const float soc = sensor.getSOC();
 	I2cBusTwo_Unlock();
-	return soc / 100;
+	cachedLevel = soc / 100;
+	lastReadMs = nowMs;
+	return cachedLevel;
 }
 
 bool Battery_IsLow(void) {

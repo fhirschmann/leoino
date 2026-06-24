@@ -71,6 +71,7 @@ void AudioPlayer_Exit(void);
 void AudioPlayer_SetSavePosPeriodic(bool enabled);
 void AudioPlayer_SetSeekStep(uint16_t seconds); // step (in seconds) for CMD_SMART_FORWARDS/BACKWARDS in-file seeking
 uint16_t AudioPlayer_GetSeekStep(void);
+void AudioPlayer_SetVolumeCurve(uint8_t curveType); // cache the volume-curve selection used by the audio-task hot path
 
 // Serialize access to gPlayProperties.playlist between the audio task (free/reassign) and the web
 // readers (/currenttrack, /cover). Hold only around the read of size()/at(); copy the path out

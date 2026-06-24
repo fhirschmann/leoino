@@ -622,6 +622,15 @@ void RfidSync_Cyclic(void) {
 	if (gCatchupDone) {
 		return;
 	}
+	// Runs from the main loop (~150x/s). Until catch-up fires, the check below calls rfidSyncConfigured(),
+	// which does two NVS getString lookups — throttle to ~1 Hz so an online-but-unconfigured device doesn't
+	// spin those NVS reads on every loop iteration. 1 s latency on the one-shot catch-up is irrelevant.
+	static uint32_t lastCheckMs = 0;
+	const uint32_t nowMs = millis();
+	if (lastCheckMs != 0 && (nowMs - lastCheckMs) < 1000) {
+		return;
+	}
+	lastCheckMs = nowMs;
 	if (!Wlan_IsConnected() || rfidNowEpoch() == 0 || !rfidSyncConfigured()) {
 		return;
 	}

@@ -268,12 +268,16 @@ void loop() {
 #endif
 	Rfid_PreferenceLookupHandler();
 
-	bool playLastRfidAfterReboot;
+	// Read once and cache: this runs on every loop() iteration (~150x/s) but the setting only matters
+	// during the post-boot recovery window. An NVS lookup every loop forever was pure waste.
+	static int8_t playLastRfidAfterReboot = -1;
+	if (playLastRfidAfterReboot < 0) {
 #ifdef PLAY_LAST_RFID_AFTER_REBOOT
-	playLastRfidAfterReboot = gPrefsSettings.getBool("playLastOnBoot", true);
+		playLastRfidAfterReboot = gPrefsSettings.getBool("playLastOnBoot", true) ? 1 : 0;
 #else
-	playLastRfidAfterReboot = gPrefsSettings.getBool("playLastOnBoot", false);
+		playLastRfidAfterReboot = gPrefsSettings.getBool("playLastOnBoot", false) ? 1 : 0;
 #endif
+	}
 
 	if (playLastRfidAfterReboot) {
 		recoverBootCountFromNvs();

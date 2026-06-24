@@ -21,7 +21,7 @@ String tagIdToJsonStr(const char *key, const bool nameOnly);
 // Serialize the device settings into obj. An empty section emits everything; otherwise just that
 // section (e.g. "sync"). Defined in WebSettings.cpp, reused by Backup.cpp to build the settings
 // section and by Web.cpp's websocket dispatcher.
-void settingsToJSON(JsonObject obj, const String section);
+void settingsToJSON(JsonObject obj, const String &section);
 
 // Settings / equalizer-rule / operation-mode endpoints (registered as routes in
 // Web.cpp::webserverStart, implemented in WebSettings.cpp).

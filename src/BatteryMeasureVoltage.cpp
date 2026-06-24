@@ -86,6 +86,16 @@ void Battery_LogStatus(void) {
 }
 
 float Battery_EstimateLevel(void) {
+	// Throttle the underlying 20-sample ADC read: this is called from the LED draw and OLED-frame paths
+	// many times per second purely for display, while the battery level moves over minutes. A short cache
+	// keeps the visuals fresh enough yet spares thousands of analogRead() calls per second. Safety-critical
+	// checks (Battery_IsLow/IsCritical) read the voltage directly and are unaffected.
+	static uint32_t lastReadMs = 0;
+	static float cachedLevel = -1.0F;
+	const uint32_t nowMs = millis();
+	if (cachedLevel >= 0.0F && (nowMs - lastReadMs) < 2000) {
+		return cachedLevel;
+	}
 	float currentVoltage = Battery_GetVoltage();
 	float vDiffIndicatorRange = voltageIndicatorHigh - voltageIndicatorLow;
 	float vDiffCurrent = currentVoltage - voltageIndicatorLow;

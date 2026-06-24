@@ -296,8 +296,18 @@ void Audio_InfoCallback(Audio::msg_t m) {
 	}
 }
 
+// Cached volume-curve selection. Audio_GetVolume() is called from the audio decode task on every
+// gain-ramp tick (i.e. continuously during playback); reading it from NVS each time was a needless
+// flash-namespace lookup in the hottest audio path. Seeded in AudioPlayer_Init() and refreshed by
+// AudioPlayer_SetVolumeCurve() when the web setting changes. Single byte => atomic across cores.
+static uint8_t gVolumeCurveType = 0;
+
+void AudioPlayer_SetVolumeCurve(uint8_t curveType) {
+	gVolumeCurveType = (curveType < VOL_LUT_CURVES) ? curveType : VOL_CURVE_PERCEPTUAL;
+}
+
 float Audio_GetVolume(float t) {
-	uint8_t curve_type = gPrefsSettings.getUChar("volumeCurve", 0);
+	uint8_t curve_type = gVolumeCurveType;
 
 	// 1. Safety Checks
 	if (curve_type >= VOL_LUT_CURVES) {
@@ -374,6 +384,8 @@ void AudioPlayer_Init(void) {
 
 	uint8_t playListSortModeValue = gPrefsSettings.getUChar("PLSortMode", EnumUtils::underlying_value(AudioPlayer_PlaylistSortMode));
 	AudioPlayer_PlaylistSortMode = EnumUtils::to_enum<playlistSortMode>(playListSortModeValue);
+
+	AudioPlayer_SetVolumeCurve(gPrefsSettings.getUChar("volumeCurve", 0)); // cache for the audio-task hot path
 
 	uint32_t nvsInitialVolume;
 	if (!gPrefsSettings.getBool("recoverVolBoot", false)) {
@@ -702,8 +714,9 @@ static void Audio_SetMeta(char *dest, size_t destSize, const char *line) {
 // Set maxVolume depending on headphone-adjustment is enabled and headphone is/is not connected
 // Enable/disable PA/HP-amps initially
 void AudioPlayer_SetupVolumeAndAmps(void) {
-	gPlayProperties.currentPlayMono = gPrefsSettings.getBool("playMono", false);
-	gPlayProperties.newPlayMono = gPrefsSettings.getBool("playMono", false);
+	const bool playMono = gPrefsSettings.getBool("playMono", false);
+	gPlayProperties.currentPlayMono = playMono;
+	gPlayProperties.newPlayMono = playMono;
 
 #ifndef HEADPHONE_ADJUST_ENABLE
 	AudioPlayer_MaxVolume = AudioPlayer_MaxVolumeSpeaker;

@@ -1216,6 +1216,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("pauseOnMinVol", generalObj["pauseOnMinVol"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("recoverVolBoot", generalObj["recoverVolBoot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUChar("volumeCurve", generalObj["volumeCurve"].as<uint8_t>()) != 0);
+		AudioPlayer_SetVolumeCurve(generalObj["volumeCurve"].as<uint8_t>()); // refresh the audio-task cache without a reboot
 		if (generalObj["noSleepWhenPowered"].is<bool>()) {
 			gPrefsSettings.putBool("noSleepPwr", generalObj["noSleepWhenPowered"].as<bool>());
 		}

@@ -160,6 +160,10 @@ void RfidPn5180_Task(void *parameter) {
 		vTaskDelay(50);
 	}
 
+	// Fixed for this task's lifetime (changing it reconfigures the reader, which needs a reboot), so read
+	// it once here instead of doing an NVS getBool on every ~10 ms loop iteration.
+	const bool lpcdEnabled = Rfid_Pn5180LpcdEnabled();
+
 	for (;;) {
 		if (rfidTaskResetRequested) {
 			memset(lastValidcardId, 0, sizeof(lastValidcardId));
@@ -175,7 +179,7 @@ void RfidPn5180_Task(void *parameter) {
 			stateMachine = RFID_PN5180_NFC14443_STATE_RESET;
 		}
 		vTaskDelay(portTICK_PERIOD_MS * 10u);
-		if (Rfid_Pn5180LpcdEnabled() && Rfid_GetLpcdShutdownStatus()) {
+		if (lpcdEnabled && Rfid_GetLpcdShutdownStatus()) {
 			Rfid_EnableLpcd();
 			Rfid_SetLpcdShutdownStatus(false); // give feedback that execution is complete
 			while (true) {

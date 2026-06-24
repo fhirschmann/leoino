@@ -37,7 +37,7 @@
 // the websocket dispatcher JSONToSettings (which handlePostSettings, still in Web.cpp, calls).
 
 // process settings to JSON object
-void settingsToJSON(JsonObject obj, const String section) {
+void settingsToJSON(JsonObject obj, const String &section) {
 	if ((section == "") || (section == "current")) {
 		// current values
 		JsonObject curObj = obj["current"].to<JsonObject>();
