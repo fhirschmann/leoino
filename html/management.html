@@ -8143,20 +8143,20 @@
 			return '0x' + Number(code).toString(16).toUpperCase();
 		}
 
-		// Build the command <select> for a row, marking `cmd` as selected.
-		function irBuildCommandSelect(cmd, includeNone) {
+		// Build the command <select> for a row, marking `cmd` as selected. Both the short- and
+		// long-press selects offer "— (None)" (value 0 = CMD_NOTHING) so an already-assigned
+		// command can be cleared back to no action.
+		function irBuildCommandSelect(cmd, isLong) {
 			var sel = document.createElement('select');
-			sel.className = 'form-select form-select-sm ' + (includeNone ? 'ir-longcmd' : 'ir-cmd');
-			var num = (cmd === null || cmd === undefined) ? (includeNone ? 0 : null) : Number(cmd);
+			sel.className = 'form-select form-select-sm ' + (isLong ? 'ir-longcmd' : 'ir-cmd');
+			var num = (cmd === null || cmd === undefined) ? 0 : Number(cmd);
 			var known = false;
-			if (includeNone) {
-				var none = document.createElement('option');
-				none.value = 0;
-				none.setAttribute('data-i18n', 'ir.cmd.none');
-				none.textContent = i18next.t('ir.cmd.none');
-				if (num === 0) { none.selected = true; known = true; }
-				sel.appendChild(none);
-			}
+			var none = document.createElement('option');
+			none.value = 0;
+			none.setAttribute('data-i18n', 'ir.cmd.none');
+			none.textContent = i18next.t('ir.cmd.none');
+			if (num === 0) { none.selected = true; known = true; }
+			sel.appendChild(none);
 			IR_COMMANDS.forEach(function (c) {
 				var opt = document.createElement('option');
 				opt.value = c.cmd;

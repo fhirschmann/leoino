@@ -50,6 +50,12 @@ static void Cmd_StartSleepTimer(uint8_t minutes) {
 }
 
 void Cmd_Action(const uint16_t mod) {
+	// CMD_NOTHING (0) is the "no action assigned" sentinel - e.g. an unassigned button or an IR
+	// short/long press set to "- (None)". Treat it as a genuine no-op instead of falling through
+	// to the unknown-command error indication in the default case below.
+	if (mod == CMD_NOTHING) {
+		return;
+	}
 	if (System_AreControlsLocked() && (mod != CMD_LOCK_BUTTONS_MOD)) {
 		return;
 	}
