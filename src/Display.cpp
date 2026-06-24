@@ -454,7 +454,10 @@ void Display_Cyclic(void) {
         static uint32_t s_lastInitTry = 0;
         if (s_cfgEnabled && (now - s_lastInitTry >= 1000u)) {
             s_lastInitTry = now;
-            Display_HwInit(false);
+            if (Display_HwInit(false)) {
+                // logs once: s_displayOk is now true, so this branch isn't re-entered
+                Log_Println("OLED: came up on retry (was not found / had desynced)", LOGLEVEL_NOTICE);
+            }
         }
         return;
     }
