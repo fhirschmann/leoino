@@ -77,6 +77,44 @@ void SdCard_Exit(void) {
 #endif
 }
 
+#ifdef SD_MMC_1BIT_MODE
+// The Arduino SDMMCFS keeps its sdmmc_card_t* protected. esp_vfs_fat_sdcard_format() needs that
+// handle, so a no-data-member subclass exposes it without patching the core (layout-compatible).
+namespace {
+struct SdMmcCardAccessor : public fs::SDMMCFS {
+	sdmmc_card_t *card() const {
+		return _card;
+	}
+};
+} // namespace
+#endif
+
+// Reformats the mounted SD card with a fresh FAT filesystem. ERASES ALL DATA. The card stays
+// mounted afterwards, so no reboot is needed. Only supported in SD_MMC mode.
+bool SdCard_Format(void) {
+#if defined(NO_SDCARD)
+	Log_Println("SD format: no SD card configured", LOGLEVEL_ERROR);
+	return false;
+#elif defined(SD_MMC_1BIT_MODE)
+	sdmmc_card_t *card = static_cast<SdMmcCardAccessor &>(SD_MMC).card();
+	if (card == nullptr) {
+		Log_Println("SD format: no card handle available", LOGLEVEL_ERROR);
+		return false;
+	}
+	Log_Println("SD format: reformatting card -- all data will be erased..", LOGLEVEL_NOTICE);
+	const esp_err_t err = esp_vfs_fat_sdcard_format("/sdcard", card);
+	if (err != ESP_OK) {
+		Log_Printf(LOGLEVEL_ERROR, "SD format: failed (%s)", esp_err_to_name(err));
+		return false;
+	}
+	Log_Println("SD format: done", LOGLEVEL_NOTICE);
+	return true;
+#else
+	Log_Println("SD format: only supported in SD_MMC mode", LOGLEVEL_ERROR);
+	return false;
+#endif
+}
+
 sdcard_type_t SdCard_GetType(void) {
 	sdcard_type_t cardType;
 #ifdef SD_MMC_1BIT_MODE

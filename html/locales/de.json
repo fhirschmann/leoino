@@ -878,6 +878,16 @@
 				"desc": "Hier kann eine Backup-Datei heruntergeladen werden, um RFID-Zuweisungen zu exportieren."
 			}
 		},
+		"format": {
+			"title": "SD-Karte formatieren",
+			"desc": "Legt ein frisches FAT-Dateisystem auf der SD-Karte an. <strong>Das löscht unwiderruflich alles</strong> — sämtliche Musik, Playlists und Cover. Die Karte bleibt danach eingebunden.",
+			"button": "SD-Karte formatieren",
+			"prompt": "SD-Karte wirklich formatieren? Alle Dateien (Musik, Playlists, Cover) werden unwiderruflich gelöscht. Das kann nicht rückgängig gemacht werden.",
+			"confirm": "Jetzt formatieren",
+			"running": "SD-Karte wird formatiert…",
+			"done": "SD-Karte formatiert",
+			"error": "Formatierung fehlgeschlagen"
+		},
 		"fwupdate": {
 			"title": "Firmware-Update",
 			"desc": "Hier kann ein Firmware-Update durchgeführt werden.",

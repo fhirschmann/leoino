@@ -496,6 +496,26 @@ void handleCleanSdRequest(AsyncWebServerRequest *request) {
 	request->send(response);
 }
 
+// Handles the request to format (reset) the SD card. ERASES ALL DATA on the card.
+void handleFormatSdRequest(AsyncWebServerRequest *request) {
+	// Stop playback and pause the RFID/LED/audio tasks: recreating the filesystem is an exclusive
+	// SD operation, so nothing else may touch the bus while it runs.
+	Cmd_Action(CMD_STOP);
+	System_PauseTasksDuringUpload(true);
+	const bool ok = SdCard_Format();
+	System_PauseTasksDuringUpload(false);
+	if (!ok) {
+		Log_Println("SD format: web request failed", LOGLEVEL_ERROR);
+		request->send(500, "text/plain", "SD format failed");
+		return;
+	}
+	Log_Println("SD format: card reformatted via web request", LOGLEVEL_NOTICE);
+	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	response->getRoot()["success"] = true;
+	response->setLength();
+	request->send(response);
+}
+
 // Handles download request of a file
 // requires a GET parameter path to the file
 void explorerHandleDownloadRequest(AsyncWebServerRequest *request) {

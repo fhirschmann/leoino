@@ -2256,6 +2256,25 @@
 			</div>
 		</div>
 	</div>
+	<!-- Modal dialog for SD card format (ERASES ALL DATA) -->
+	<div class="modal fade" data-bs-backdrop="static" id="formatSdModal" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" data-i18n="tools.format.title"></h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<label data-i18n="tools.format.prompt"></label>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="cancel"></button>
+					<a class="btn btn-danger btn-ok" data-i18n="tools.format.confirm"
+						href="javascript:formatSd();"></a>
+				</div>
+			</div>
+		</div>
+	</div>
 	<!-- Modal dialog: build an .m3u playlist from SD files / folders / webradio URLs -->
 	<div class="modal fade" data-bs-backdrop="static" id="playlistModal" role="dialog">
 		<div class="modal-dialog modal-xl" role="document">
@@ -3890,6 +3909,14 @@
 				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" onclick="executeCommand()"
 						data-i18n="execute"></button>
+				</div>
+			</div>
+			<div class="container mt-4" id="formatSdTool">
+				<legend data-i18n="tools.format.title"></legend>
+				<p class="mb-3" data-i18n="[html]tools.format.desc"></p>
+				<div class="text-center">
+					<button type="button" class="btn btn-danger" data-bs-toggle="modal"
+						data-bs-target="#formatSdModal" data-i18n="tools.format.button"></button>
 				</div>
 			</div>
 			</div>
@@ -7436,6 +7463,21 @@
 				refreshSdCapacity();
 			} else {
 				toaster.error(response.statusText);
+			}
+		}
+
+		async function formatSd() {
+			$('#formatSdModal').modal('hide');
+			toaster.info(i18next.t("tools.format.running"));
+			const response = await fetch("http://" + host + "/sdformat", {
+				method: "POST"
+			});
+			if (response.ok) {
+				toaster.success(i18next.t("tools.format.done"));
+				buildFileSystemTree("/");
+				refreshSdCapacity();
+			} else {
+				toaster.error(i18next.t("tools.format.error"));
 			}
 		}
 

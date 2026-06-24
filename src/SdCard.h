@@ -21,6 +21,7 @@ enum class SearchDirection {
 
 void SdCard_Init(void);
 void SdCard_Exit(void);
+bool SdCard_Format(void);
 sdcard_type_t SdCard_GetType(void);
 uint64_t SdCard_GetSize();
 uint64_t SdCard_GetFreeSize();

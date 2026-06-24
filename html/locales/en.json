@@ -878,6 +878,16 @@
 				"desc": "A backup file can be downloaded here in order to export the RFID assignments."
 			}
 		},
+		"format": {
+			"title": "Format SD card",
+			"desc": "Creates a fresh FAT filesystem on the SD card. <strong>This permanently erases everything</strong> — all music, playlists and covers. The card stays mounted afterwards.",
+			"button": "Format SD card",
+			"prompt": "Really format the SD card? All files (music, playlists, covers) will be permanently deleted. This cannot be undone.",
+			"confirm": "Format now",
+			"running": "Formatting SD card…",
+			"done": "SD card formatted",
+			"error": "Format failed"
+		},
 		"fwupdate": {
 			"title": "Firmware-Update",
 			"desc": "Firmware can be updated right here.",

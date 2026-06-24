@@ -867,6 +867,16 @@
 				"desc": "Un fichier de sauvegarde peut être téléchargé ici afin d'exporter les affectations RFID."
 			}
 		},
+		"format": {
+			"title": "Formater la carte SD",
+			"desc": "Crée un nouveau système de fichiers FAT sur la carte SD. <strong>Cela efface définitivement tout</strong> — musique, listes de lecture et pochettes. La carte reste montée ensuite.",
+			"button": "Formater la carte SD",
+			"prompt": "Formater vraiment la carte SD ? Tous les fichiers (musique, listes de lecture, pochettes) seront définitivement supprimés. Cette action est irréversible.",
+			"confirm": "Formater maintenant",
+			"running": "Formatage de la carte SD…",
+			"done": "Carte SD formatée",
+			"error": "Échec du formatage"
+		},
 		"fwupdate": {
 			"title": "Mise à jour du micrologiciel",
 			"desc": "La mise à jour du micrologiciel peut être effectuée ici.",

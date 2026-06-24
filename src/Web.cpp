@@ -1082,6 +1082,8 @@ void webserverStart(void) {
 
 		wServer.on("/sdclean", HTTP_POST, handleCleanSdRequest);
 
+		wServer.on("/sdformat", HTTP_POST, handleFormatSdRequest);
+
 		wServer.on("/exploreraudio", HTTP_POST, explorerHandleAudioRequest);
 
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/playlist", handleCreatePlaylistRequest));

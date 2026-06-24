@@ -291,7 +291,7 @@
 		}
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
-		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
+		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|sdclean|sdformat|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
 			return jsonResp({ status: "ok", demo: true });
 		}
 		return null;
