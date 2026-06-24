@@ -235,6 +235,13 @@ static bool syncIsProtected(const String &fullPath, const String &name) {
 	return (fullPath == "/manifest.json") || (fullPath == "/stats.csv") || (fullPath == backupFile);
 }
 
+// /System is fully excluded from sync: besides being kept by syncIsProtected() (no mirror-delete),
+// the download pass also ignores any manifest entry that targets /System or anything inside it, so
+// the device's own system files are never overwritten by what the manifest server happens to list.
+static bool syncIsExcludedFromPull(const String &localPath) {
+	return localPath.equalsIgnoreCase("/System") || ((localPath.length() >= 8) && localPath.substring(0, 8).equalsIgnoreCase("/System/"));
+}
+
 // Recursively handles every file under `dir` whose path the manifest did NOT list. In a real run
 // it deletes them and prunes the directories this empties; in a dry run (`dryRun`) it changes
 // nothing and instead appends each would-be-deleted path to `report`. `keep` must be the COMPLETE
@@ -466,41 +473,47 @@ static void syncTask(void *parameter) {
 		}
 		if ((path.length() > 0) && !unsafePath) {
 			const String localPath = "/" + path;
-
-			// remember every listed path so the optional mirror pass keeps it (regardless of
-			// whether it gets downloaded now or already exists locally)
-			if (mirror && !keepSet.add(syncHashPath(localPath))) {
-				keepSetOk = false;
-			}
-
-			// additive diff: skip if a local file of the same size already exists
-			const bool localExists = gFSystem.exists(localPath);
-			bool needDownload = true;
-			if ((size >= 0) && localExists) {
-				File existing = gFSystem.open(localPath, "r");
-				if (existing) {
-					if ((long) existing.size() == size) {
-						needDownload = false;
-					}
-					existing.close();
-				}
-			}
-
-			if (needDownload) {
+			if (syncIsExcludedFromPull(localPath)) {
+				// /System is off-limits to sync entirely (pull + mirror): never download into it.
 				if (dryRun) {
-					// record only what a real run would fetch (new = missing locally, chg = size differs)
-					downloaded++;
-					dryReport.printf("DL %s %s\n", localExists ? "chg" : "new", localPath.c_str());
-				} else {
-					// expose the file currently being downloaded so the web UI can show it
-					gSyncMsg.set(path.c_str());
-					const String fileUrl = baseUrl + Url_EncodePath(path);
-					if (syncDownloadFile(fileUrl, user, pass, localPath)) {
+					dryReport.printf("SK   %s\n", localPath.c_str());
+				}
+			} else {
+				// remember every listed path so the optional mirror pass keeps it (regardless of
+				// whether it gets downloaded now or already exists locally)
+				if (mirror && !keepSet.add(syncHashPath(localPath))) {
+					keepSetOk = false;
+				}
+
+				// additive diff: skip if a local file of the same size already exists
+				const bool localExists = gFSystem.exists(localPath);
+				bool needDownload = true;
+				if ((size >= 0) && localExists) {
+					File existing = gFSystem.open(localPath, "r");
+					if (existing) {
+						if ((long) existing.size() == size) {
+							needDownload = false;
+						}
+						existing.close();
+					}
+				}
+
+				if (needDownload) {
+					if (dryRun) {
+						// record only what a real run would fetch (new = missing locally, chg = size differs)
 						downloaded++;
-						Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+						dryReport.printf("DL %s %s\n", localExists ? "chg" : "new", localPath.c_str());
 					} else {
-						failed++;
-						Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+						// expose the file currently being downloaded so the web UI can show it
+						gSyncMsg.set(path.c_str());
+						const String fileUrl = baseUrl + Url_EncodePath(path);
+						if (syncDownloadFile(fileUrl, user, pass, localPath)) {
+							downloaded++;
+							Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+						} else {
+							failed++;
+							Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+						}
 					}
 				}
 			}
