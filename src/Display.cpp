@@ -82,11 +82,15 @@ static uint8_t Display_I2cByteCb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, voi
 static U8G2_SH1106_128X64_NONAME_F_HW_I2C s_u8g2(U8G2_R0, U8X8_PIN_NONE);
 static bool s_displayOk = false;
 
-// Bounded boot re-init: if the power-on probe NACKs (rail not settled yet) we retry a handful of
-// times in Display_Cyclic, then give up FOREVER. Deliberately bounded: an unbounded re-init loop on
-// a flaky panel hammered the SH1106 into a wedged state that only a physical power-cycle cleared.
-static uint8_t s_initAttempts = 0;
-static constexpr uint8_t kMaxInitAttempts = 15; // ~15 s of 1 Hz retries, then stop
+// Re-init recovery. The OLED has no reset line (U8X8_PIN_NONE), so the only way to bring a panel that
+// lost power (hot-unplug/replug), boot-probed too early, or got confused back to life is to re-run
+// initDisplay() over I2C. We do that, but SAFELY so we never repeat the wedge:
+//   - only after SUSTAINED frame failures (a one-off NACK on a working panel must never trigger it),
+//   - rate-limited (never a per-frame storm),
+//   - initDisplay() only runs once the address probe ACKs (a missing panel is just a cheap probe).
+static uint16_t s_consecSendErrors = 0; // consecutive frame NACKs; reset by any good frame
+static constexpr uint16_t kSendErrorsBeforeLost = 20; // ~2 s of solid NACKs => treat the panel as lost
+static constexpr uint32_t kReinitIntervalMs = 3000; // at most one (re)init attempt per 3 s
 
 // -------- title scroll state --------
 static char s_lastRawTitle[256] = "";
@@ -372,6 +376,9 @@ static bool Display_HwInit(bool settleDelay) {
     s_u8g2.sendBuffer();
     I2cBusTwo_Unlock();
     s_displayOk = !s_i2cSendError;
+    if (s_displayOk) {
+        s_consecSendErrors = 0; // clean slate once the panel is up
+    }
     return s_displayOk;
 }
 
@@ -383,8 +390,20 @@ static bool Display_HwInit(bool settleDelay) {
 // clear it). Re-init only ever happens for the boot-probe case, bounded, in Display_Cyclic.
 static void Display_Send(void) {
     I2cBusTwo_Lock();
+    s_i2cSendError = false;
     s_u8g2.sendBuffer();
     I2cBusTwo_Unlock();
+    // A one-off NACK is harmless — the full framebuffer is resent next cycle, so the pixels
+    // self-correct; do NOT re-init here. Only count SUSTAINED failures (panel unplugged / lost power)
+    // so Display_Cyclic can re-init once it comes back. A good frame clears the counter, so a working
+    // (even slightly flaky) panel is never re-initialised — that per-NACK re-init was the wedge storm.
+    if (s_i2cSendError) {
+        if (s_consecSendErrors < 0xFFFF) {
+            s_consecSendErrors++;
+        }
+    } else {
+        s_consecSendErrors = 0;
+    }
 }
 
 void Display_Init(void) {
@@ -393,7 +412,7 @@ void Display_Init(void) {
         Log_Println("OLED: disabled via web settings", LOGLEVEL_NOTICE);
         return;
     }
-    s_initAttempts = 0; // fresh retry budget for this (boot or web-toggle) bring-up
+    s_consecSendErrors = 0;
     if (Display_HwInit(true)) {
         Log_Println("OLED: display initialised", LOGLEVEL_INFO);
     } else {
@@ -457,19 +476,29 @@ void Display_Cyclic(void) {
     // Recover from a failed init (a transient I2C NACK at boot used to leave the panel black until
     // the next reboot) or from a runtime desync flagged by Display_Send: re-probe + re-init
     // periodically (without the cold-boot settle delay — a NACK probe is cheap).
+    // (Re)bring-up path: the panel isn't up — boot probe missed, or it was lost/replugged (see the
+    // sustained-failure check below). Retry initDisplay, RATE-LIMITED so it can never become a storm.
+    // HwInit only sends init commands once the address probe ACKs, so on a missing panel this is just
+    // a cheap probe every few seconds; on a freshly replugged (power-cycled, clean) panel it comes
+    // straight back. It never runs against a working panel, so it can't re-wedge the SH1106.
     if (!s_displayOk) {
-        // Bounded boot retry only: if the power-on probe NACKed (rail not settled), try a handful of
-        // times then give up FOREVER. No unbounded re-init loop and no re-arm from runtime send
-        // errors - that storm wedged the panel. After the budget is spent the panel is left alone.
         static uint32_t s_lastInitTry = 0;
-        if (s_cfgEnabled && (s_initAttempts < kMaxInitAttempts) && (now - s_lastInitTry >= 1000u)) {
+        if (s_cfgEnabled && (now - s_lastInitTry >= kReinitIntervalMs)) {
             s_lastInitTry = now;
-            s_initAttempts++;
             if (Display_HwInit(false)) {
-                // logs once: s_displayOk is now true, so this branch isn't re-entered
-                Log_Println("OLED: came up on retry after a boot probe miss", LOGLEVEL_NOTICE);
+                Log_Println("OLED: (re)initialised (boot miss or panel reconnected)", LOGLEVEL_NOTICE);
             }
         }
+        return;
+    }
+
+    // Panel was up but has been solidly NACKing for ~2 s (unplugged / lost power): drop it to the
+    // bring-up path above so it re-inits once it responds again. The threshold means a one-off frame
+    // glitch on a working panel never trips this (that distinction is what avoids the re-init storm).
+    if (s_consecSendErrors >= kSendErrorsBeforeLost) {
+        Log_Println("OLED: panel stopped responding — will re-init when it returns", LOGLEVEL_NOTICE);
+        s_displayOk = false;
+        s_consecSendErrors = 0;
         return;
     }
 
