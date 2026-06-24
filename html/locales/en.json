@@ -350,6 +350,7 @@
 			"delete": "Delete",
 			"rename": "Rename",
 			"download": "Download",
+			"editPlaylist": "Edit playlist",
 			"eq": "EQ profile",
 			"eqRemove": "No EQ (remove)",
 			"rfid": "Assign RFID",
@@ -660,6 +661,7 @@
 	"playlist": {
 		"button": "Create playlist (.m3u)",
 		"title": "Create playlist",
+		"editTitle": "Edit playlist",
 		"browse": "Pick files",
 		"tracks": "Playlist",
 		"addFolder": "Add all tracks in this folder",

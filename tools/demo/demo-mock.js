@@ -89,6 +89,22 @@
 		]
 	};
 
+	// Playlist contents: path -> ordered track list, served as #EXTM3U text by
+	// /explorerdownload so the "Edit playlist" builder can reload an existing .m3u.
+	var PLAYLISTS = {
+		"/Playlists/Gute-Nacht.m3u": [
+			"/Märchen/Der Froschkönig.mp3",
+			"/Klassik/Bach - Air.mp3",
+			"/Klassik/Grieg - Morgenstimmung.mp3"
+		],
+		"/Playlists/Auto-Fahrt.m3u": [
+			"/Musik/Sommerwiese.mp3",
+			"/Musik/Regentanz.mp3",
+			"/Musik/Robo-Beats Vol. 1/01 - Bootsequenz.mp3",
+			"/Musik/Robo-Beats Vol. 1/02 - Servomotor.mp3"
+		]
+	};
+
 	// Saved RFID assignments (flat objects like tagIdToJSON()).
 	var RFID = [
 		{ id: "0009094506", fileOrUrl: "/Märchen/Hänsel und Gretel.mp3", playMode: 3, lastPlayPos: 142000, trackLastPlayed: 0 },
@@ -216,6 +232,14 @@
 				path = path.replace(/\/+$/, "") || "/";
 				return jsonResp(FS[path] || []);
 			}
+			// raw file read: the "Edit playlist" builder fetches the .m3u via this route
+			if (p === "/explorerdownload") {
+				var dpath = (qs.get("path") || "").replace(/\/+$/, "");
+				if (PLAYLISTS[dpath]) {
+					return { status: 200, contentType: "text/plain; charset=utf-8",
+						body: "#EXTM3U\n" + PLAYLISTS[dpath].join("\n") + "\n" };
+				}
+			}
 			if (p === "/info") {
 				var info = {
 					software: { version: "demo (web preview)", build: "demo", git: "demo", arduino: "3.x", idf: "5.x" },
@@ -306,7 +330,7 @@
 		}
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
-		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|sdclean|sdformat|rtc|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
+		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|playlist|sdclean|sdformat|rtc|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
 			return jsonResp({ status: "ok", demo: true });
 		}
 		return null;

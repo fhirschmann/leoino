@@ -5121,6 +5121,14 @@
 							icon: "fas fa-tag",
 							submenu: rfidSubmenu
 						};
+						/* Edit playlist (.m3u) — reopen an existing playlist in the builder */
+						if (!node.data.directory && (/\.(m3u|m3u8)$/i).test(node.data.path)) {
+							items.editPlaylist = {
+								label: () => i18next.t("files.context.editPlaylist"),
+								icon: "fas fa-list-ol",
+								action: function (x) { openPlaylistEditor(node.data.path); }
+							};
+						}
 						/* Refresh */
 						items.refresh = {
 							label: () => i18next.t("files.context.refresh"),
@@ -7590,21 +7598,52 @@
 
 		/* ---- .m3u playlist builder (modal) ---- */
 		let plCwd = "/";
+		let plEditOriginalPath = null; // set when editing an existing .m3u, null = brand-new playlist
 		function plJoin(dir, name) { return (dir === "/" ? "" : dir) + "/" + name; }
 		function plIsAudio(name) { return /\.(mp3|ogg|oga|wav|wma|acc|m4a|flac|opus)$/i.test(name); }
 		function plUpdateCount() { $("#plCount").text($("#plTracks > li").length); }
+		function plEnsureSortable() {
+			// ordered, drag-sortable track list (jQuery UI)
+			if (!$("#plTracks").data("ui-sortable")) { $("#plTracks").sortable({ handle: ".pl-grip" }); }
+		}
 
 		function openPlaylistBuilder() {
+			plEditOriginalPath = null;
 			plCwd = "/";
 			$("#plTracks").empty();
 			plUpdateCount();
 			$("#plName").val("");
 			$("#plUrl").val("");
+			$("#playlistModal .modal-title").text(i18next.t("playlist.title"));
 			plRenderBrowser();
-			// ordered, drag-sortable track list (jQuery UI)
-			if (!$("#plTracks").data("ui-sortable")) {
-				$("#plTracks").sortable({ handle: ".pl-grip" });
-			}
+			plEnsureSortable();
+		}
+
+		// Re-open an existing /Playlists/<name>.m3u in the same builder: reload its tracks
+		// (read raw via /explorerdownload), let the user reorder/add/remove, then save back.
+		// Renaming the file in the name field moves it (savePlaylist removes the old one).
+		function openPlaylistEditor(path) {
+			plEditOriginalPath = path;
+			plCwd = "/";
+			$("#plTracks").empty();
+			plUpdateCount();
+			$("#plUrl").val("");
+			$("#plName").val(path.replace(/^.*\//, "").replace(/\.(m3u8?|asx|pls)$/i, ""));
+			$("#playlistModal .modal-title").text(i18next.t("playlist.editTitle"));
+			plRenderBrowser();
+			plEnsureSortable();
+			bootstrap.Modal.getOrCreateInstance(document.getElementById("playlistModal")).show();
+			fetch("http://" + host + "/explorerdownload?path=" + encodeURIComponent(path))
+				.then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+				.then(text => {
+					text.split(/\r?\n/).forEach(function (line) {
+						line = line.trim();
+						if (!line || line.charAt(0) === "#") return; // skip blanks + #EXTM3U/#EXTINF
+						var label = /^https?:\/\//i.test(line) ? line : line.replace(/^.*\//, "");
+						plAddTrack(line, label);
+					});
+				})
+				.catch(e => toaster.error(i18next.t("toast.error") + ": " + e.message));
 		}
 
 		function plRenderBrowser() {
@@ -7678,12 +7717,19 @@
 			const tracks = $("#plTracks > li").map(function () { return $(this).attr("data-path"); }).get();
 			if (!tracks.length) { toaster.error(i18next.t("playlist.empty")); return; }
 			const path = "/Playlists/" + name + ".m3u";
+			const oldPath = plEditOriginalPath; // non-null while editing; rename if the name changed
 			fetch("http://" + host + "/playlist", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ path: path, tracks: tracks })
 			}).then(r => {
 				if (!r.ok) throw new Error("HTTP " + r.status);
+				// edited + renamed -> drop the old file so we don't leave a duplicate behind
+				if (oldPath && oldPath !== path) {
+					return fetch("http://" + host + "/explorer?path=" + encodeURIComponent(oldPath), { method: "DELETE" });
+				}
+			}).then(() => {
+				plEditOriginalPath = null;
 				toaster.info(i18next.t("playlist.saved", { path: path }));
 				const m = bootstrap.Modal.getInstance(document.getElementById("playlistModal"));
 				if (m) m.hide();

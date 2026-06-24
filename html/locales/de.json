@@ -350,6 +350,7 @@
 			"delete": "Löschen",
 			"rename": "Umbenennen",
 			"download": "Herunterladen",
+			"editPlaylist": "Playlist bearbeiten",
 			"eq": "EQ-Profil",
 			"eqRemove": "Kein EQ (entfernen)",
 			"rfid": "RFID anlernen",
@@ -660,6 +661,7 @@
 	"playlist": {
 		"button": "Playlist erstellen (.m3u)",
 		"title": "Playlist erstellen",
+		"editTitle": "Playlist bearbeiten",
 		"browse": "Dateien auswählen",
 		"tracks": "Playlist",
 		"addFolder": "Alle Titel dieses Ordners hinzufügen",

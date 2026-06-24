@@ -343,6 +343,7 @@
 			"delete": "Supprimer",
 			"rename": "Renommer",
 			"download": "Télécharger",
+			"editPlaylist": "Modifier la playlist",
 			"eq": "Profil EQ",
 			"eqRemove": "Pas d'EQ (retirer)",
 			"rfid": "Associer RFID",
@@ -653,6 +654,7 @@
 	"playlist": {
 		"button": "Créer une playlist (.m3u)",
 		"title": "Créer une playlist",
+		"editTitle": "Modifier la playlist",
 		"browse": "Choisir des fichiers",
 		"tracks": "Playlist",
 		"addFolder": "Ajouter tous les titres de ce dossier",
