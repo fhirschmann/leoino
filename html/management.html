@@ -7287,7 +7287,7 @@
 			}
 			let errors = 0;
 			// the firmware applies one settings section per request
-			const sections = ['general', 'equalizer', 'led', 'oled', 'battery', 'playlist', 'buttons', 'rotary', 'ftp', 'mqtt', 'bluetooth', 'sync'];
+			const sections = ['general', 'equalizer', 'led', 'oled', 'battery', 'playlist', 'buttons', 'rotary', 'ir', 'ftp', 'mqtt', 'bluetooth', 'sync'];
 			for (const section of sections) {
 				if (backup.settings && backup.settings[section]) {
 					const response = await fetch("http://" + host + "/settings", {

@@ -131,7 +131,9 @@
 			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
 			sync: { url: "", username: "", password: "", abortOnButton: true, deleteRemoved: false, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
 			mqtt: { enable: false, clientID: "espuino-demo", deviceId: "espuino-demo", baseTopic: "espuino", server: "", username: "", password: "", port: 1883 },
-			bluetooth: { deviceName: "ESPuino", pinCode: "" }
+			bluetooth: { deviceName: "ESPuino", pinCode: "" },
+			// IR remote: presence of this section reveals the web-UI tab; map = code->command pairs.
+			ir: { enabled: true, map: [{ code: 12, cmd: 170 }, { code: 90, cmd: 176 }, { code: 24, cmd: 177 }] }
 		};
 	}
 
