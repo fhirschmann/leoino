@@ -17,12 +17,14 @@ typedef enum class WebsocketCode {
 	BluetoothScanInProgress,
 	BluetoothScanComplete,
 	FtpStatus,
-	WebdavStatus
+	WebdavStatus,
+	IrLearn
 } WebsocketCodeType;
 
 void Web_Cyclic(void);
 void Web_Exit(void);
 void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code);
+void Web_NotifyIrCode(uint16_t code); // broadcast a freshly received IR code to the web UI (learn mode)
 void Web_TriggerGithubOta(void);
 const char *Web_GetGithubOtaStatusText(void);
 // GitHub OTA / passive version-check state (implemented in WebOta.cpp).

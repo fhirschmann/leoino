@@ -2198,6 +2198,26 @@
 			</div>
 		</div>
 	</div>
+	<!-- Modal dialog: wait for an IR remote button press (learn flow). No 'fade' so show/hide are
+	     synchronous; cancelling sends learn:stop so the remote resumes normal operation. -->
+	<div class="modal" data-bs-backdrop="static" id="irScanModal" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" data-i18n="ir.learn"></h5>
+					<button type="button" class="btn-close" aria-label="Close" onclick="stopIrLearn()"></button>
+				</div>
+				<div class="modal-body text-center">
+					<i class="fas fa-satellite-dish fa-3x mb-3" style="opacity:.75"></i>
+					<p class="mb-1" data-i18n="ir.learnPrompt"></p>
+					<div class="spinner-border spinner-border-sm mt-3" role="status" aria-hidden="true"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" onclick="stopIrLearn()" data-i18n="cancel"></button>
+				</div>
+			</div>
+		</div>
+	</div>
 	<!-- Modal dialog for SD card cleanup -->
 	<div class="modal fade" data-bs-backdrop="static" id="cleanSdModal" role="dialog">
 		<div class="modal-dialog" role="document">
@@ -2593,6 +2613,7 @@
 					<a class="nav-item nav-link active" id="settings-general-subtab" data-bs-toggle="tab" data-bs-target="#settings-general" href="#settings-general" role="tab" aria-controls="settings-general" aria-selected="true"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="nav.general"></span></a>
 					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
 					<a class="nav-item nav-link" id="settings-rfid-subtab" data-bs-toggle="tab" data-bs-target="#settings-rfid" href="#settings-rfid" role="tab" aria-controls="settings-rfid"><i class="fas fa-id-card"></i> <span class="d-none d-md-inline" data-i18n="nav.rfidcards"></span></a>
+						<a class="nav-item nav-link" id="settings-ir-subtab" data-visible="false" data-bs-toggle="tab" data-bs-target="#settings-ir" href="#settings-ir" role="tab" aria-controls="settings-ir"><i class="fas fa-satellite-dish"></i> <span class="d-none d-md-inline" data-i18n="nav.ir"></span></a>
 					<a class="nav-item nav-link" id="settings-leds-subtab" data-bs-toggle="tab" data-bs-target="#settings-leds" href="#settings-leds" role="tab" aria-controls="settings-leds"><i class="fas fa-lightbulb"></i> <span class="d-none d-md-inline" data-i18n="nav.leds"></span></a>
 					<a class="nav-item nav-link" id="settings-oled-subtab" data-visible="false" data-bs-toggle="tab" data-bs-target="#settings-oled" href="#settings-oled" role="tab" aria-controls="settings-oled"><i class="fas fa-tv"></i> <span class="d-none d-md-inline" data-i18n="nav.oled"></span></a>
 					<a class="nav-item nav-link" id="settings-power-subtab" data-bs-toggle="tab" data-bs-target="#settings-power" href="#settings-power" role="tab" aria-controls="settings-power"><i class="fas fa-bolt"></i> <span class="d-none d-md-inline" data-i18n="nav.power"></span></a>
@@ -3033,6 +3054,31 @@
 						<div class="col-12 col-md-4 mb-2">
 							<button type="button" class="btn btn-primary w-100" onclick="learnModCard()"><i class="fas fa-id-card"></i> <span data-i18n="settingsex.rfid.learnBtn"></span></button>
 						</div>
+					</div>
+				</fieldset>
+			</div>
+		</div>
+		<div class="tab-pane fade" id="settings-ir" role="tabpanel" aria-labelledby="settings-ir-subtab">
+			<div class="container">
+				<fieldset id="irConfig">
+					<legend class="w-auto" data-i18n="ir.title"></legend>
+					<p class="small text-secondary" data-i18n="ir.intro"></p>
+					<div class="table-responsive">
+						<table class="table table-sm align-middle mb-2" id="irMappingTable">
+							<thead>
+								<tr>
+									<th data-i18n="ir.command"></th>
+									<th data-i18n="ir.code"></th>
+									<th class="text-end"></th>
+								</tr>
+							</thead>
+							<tbody id="irMappingBody"></tbody>
+						</table>
+					</div>
+					<div id="irMappingEmpty" class="small text-secondary mb-2 d-none" data-i18n="ir.empty"></div>
+					<div class="d-flex flex-wrap gap-2 mt-2">
+						<button type="button" class="btn btn-outline-primary" onclick="addIrRow()"><i class="fas fa-plus"></i> <span data-i18n="ir.addButton"></span></button>
+						<button type="button" class="btn btn-primary" onclick="saveIrSettings()"><i class="fas fa-save"></i> <span data-i18n="ir.save"></span></button>
 					</div>
 				</fieldset>
 			</div>
@@ -5265,6 +5311,14 @@
 						rebuildRFIDList();
 					}
 				}
+				if ("irLearn" in socketMsg) {
+					// A button press arrived during an IR learn session -> hand the raw code to the active row.
+					if (irLearnCallback) {
+						var ircb = irLearnCallback;
+						stopIrLearn();
+						ircb(socketMsg.irLearn);
+					}
+				}
 				if ("status" in socketMsg) {
 					if (socketMsg.status == "ok") {
 						flashActionOk();
@@ -5616,6 +5670,12 @@
 				document.getElementById('oled_showWifi').checked = oledSettings.showWifi !== false;
 				document.getElementById('oled_showVolume').checked = oledSettings.showVolume !== false;
 				document.getElementById('oled_flip').checked = oledSettings.flip === true;
+			}
+			// IR remote control (section only present when IR_CONTROL_ENABLE is compiled in)
+			let irSettings = settings.ir;
+			if (irSettings) {
+				document.getElementById('settings-ir-subtab').setAttribute('data-visible', true);
+				buildIrTable(irSettings.map || []);
 			}
 			// playlist
 			let playlistSettings = settings.playlist;
@@ -7785,6 +7845,194 @@
 		// button (the only ways to close it are scanning a card or cancelling). onScanned(id) is
 		// called from the websocket handler when a card is laid. Reused by the explorer "learn"
 		// flow and the modification-card learn button.
+		// ===== IR remote control: learn buttons and map them to commands =====
+		var irLearnCallback = null;
+		var irLearnTimer = null;
+		// Commands offered in the per-row dropdown. cmd = CMD_* value from values.h; key = i18n label.
+		var IR_COMMANDS = [
+			{ cmd: 170, key: 'ir.cmd.playpause' },
+			{ cmd: 172, key: 'ir.cmd.next' },
+			{ cmd: 171, key: 'ir.cmd.prev' },
+			{ cmd: 173, key: 'ir.cmd.first' },
+			{ cmd: 174, key: 'ir.cmd.last' },
+			{ cmd: 176, key: 'ir.cmd.volup' },
+			{ cmd: 177, key: 'ir.cmd.voldown' },
+			{ cmd: 175, key: 'ir.cmd.volinit' },
+			{ cmd: 192, key: 'ir.cmd.mute' },
+			{ cmd: 182, key: 'ir.cmd.stop' },
+			{ cmd: 180, key: 'ir.cmd.seekfwd' },
+			{ cmd: 181, key: 'ir.cmd.seekback' },
+			{ cmd: 190, key: 'ir.cmd.smartfwd' },
+			{ cmd: 191, key: 'ir.cmd.smartback' },
+			{ cmd: 184, key: 'ir.cmd.nextfolder' },
+			{ cmd: 185, key: 'ir.cmd.prevfolder' },
+			{ cmd: 179, key: 'ir.cmd.sleep' },
+			{ cmd: 183, key: 'ir.cmd.restart' },
+			{ cmd: 140, key: 'ir.cmd.btsink' },
+			{ cmd: 141, key: 'ir.cmd.btsource' },
+			{ cmd: 142, key: 'ir.cmd.togglemode' },
+			{ cmd: 150, key: 'ir.cmd.ftp' },
+			{ cmd: 188, key: 'ir.cmd.webdav' },
+			{ cmd: 151, key: 'ir.cmd.tellip' },
+			{ cmd: 152, key: 'ir.cmd.telltime' },
+			{ cmd: 153, key: 'ir.cmd.ambient' },
+			{ cmd: 154, key: 'ir.cmd.equalizer' },
+			{ cmd: 156, key: 'ir.cmd.oled' },
+			{ cmd: 121, key: 'ir.cmd.toggleleds' },
+			{ cmd: 120, key: 'ir.cmd.nightmode' },
+			{ cmd: 130, key: 'ir.cmd.togglewifi' },
+			{ cmd: 178, key: 'ir.cmd.battery' },
+			{ cmd: 187, key: 'ir.cmd.rfidsync' },
+			{ cmd: 189, key: 'ir.cmd.backup' },
+			{ cmd: 186, key: 'ir.cmd.fwupdate' }
+		];
+
+		function irFormatCode(code) {
+			if (code === null || code === undefined || code === '') { return '—'; }
+			return '0x' + Number(code).toString(16).toUpperCase();
+		}
+
+		// Build the command <select> for a row, marking `cmd` as selected.
+		function irBuildCommandSelect(cmd) {
+			var sel = document.createElement('select');
+			sel.className = 'form-select form-select-sm ir-cmd';
+			var known = false;
+			IR_COMMANDS.forEach(function (c) {
+				var opt = document.createElement('option');
+				opt.value = c.cmd;
+				opt.setAttribute('data-i18n', c.key);
+				opt.textContent = i18next.t(c.key);
+				if (Number(cmd) === c.cmd) { opt.selected = true; known = true; }
+				sel.appendChild(opt);
+			});
+			// Preserve an unknown/legacy command value so saving doesn't silently drop it.
+			if (!known && cmd !== null && cmd !== undefined) {
+				var keep = document.createElement('option');
+				keep.value = cmd;
+				keep.textContent = 'CMD ' + cmd;
+				keep.selected = true;
+				sel.insertBefore(keep, sel.firstChild);
+			}
+			return sel;
+		}
+
+		// Create one mapping row (<tr>) for the given code (number|null) and command.
+		function irMakeRow(code, cmd) {
+			var tr = document.createElement('tr');
+
+			var tdCmd = document.createElement('td');
+			tdCmd.appendChild(irBuildCommandSelect(cmd));
+			tr.appendChild(tdCmd);
+
+			var tdCode = document.createElement('td');
+			var codeSpan = document.createElement('span');
+			codeSpan.className = 'ir-code font-monospace';
+			codeSpan.textContent = irFormatCode(code);
+			codeSpan.dataset.code = (code === null || code === undefined) ? '' : code;
+			tdCode.appendChild(codeSpan);
+			tr.appendChild(tdCode);
+
+			var tdAct = document.createElement('td');
+			tdAct.className = 'text-end text-nowrap';
+
+			var learnBtn = document.createElement('button');
+			learnBtn.type = 'button';
+			learnBtn.className = 'btn btn-sm btn-outline-secondary me-1';
+			learnBtn.innerHTML = '<i class="fas fa-satellite-dish"></i> <span></span>';
+			learnBtn.querySelector('span').textContent = i18next.t('ir.learn');
+			learnBtn.onclick = function () {
+				startIrLearn(function (learnedCode) {
+					codeSpan.textContent = irFormatCode(learnedCode);
+					codeSpan.dataset.code = learnedCode;
+				});
+			};
+			tdAct.appendChild(learnBtn);
+
+			var delBtn = document.createElement('button');
+			delBtn.type = 'button';
+			delBtn.className = 'btn btn-sm btn-outline-danger';
+			delBtn.setAttribute('aria-label', i18next.t('ir.delete'));
+			delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+			delBtn.onclick = function () { tr.remove(); irUpdateEmptyHint(); };
+			tdAct.appendChild(delBtn);
+
+			tr.appendChild(tdAct);
+			return tr;
+		}
+
+		function irUpdateEmptyHint() {
+			var body = document.getElementById('irMappingBody');
+			var empty = document.getElementById('irMappingEmpty');
+			if (!body || !empty) { return; }
+			empty.classList.toggle('d-none', body.children.length > 0);
+		}
+
+		// Rebuild the whole mapping table from a [{code,cmd},…] array (called on settings load).
+		function buildIrTable(map) {
+			var body = document.getElementById('irMappingBody');
+			if (!body) { return; }
+			body.innerHTML = '';
+			(map || []).forEach(function (m) {
+				body.appendChild(irMakeRow(m.code, m.cmd));
+			});
+			irUpdateEmptyHint();
+		}
+
+		// Add a fresh row and immediately start learning a button for it.
+		function addIrRow() {
+			var body = document.getElementById('irMappingBody');
+			if (!body) { return; }
+			var row = irMakeRow(null, IR_COMMANDS[0].cmd);
+			body.appendChild(row);
+			irUpdateEmptyHint();
+			var codeSpan = row.querySelector('.ir-code');
+			startIrLearn(function (learnedCode) {
+				codeSpan.textContent = irFormatCode(learnedCode);
+				codeSpan.dataset.code = learnedCode;
+			});
+		}
+
+		function startIrLearn(onCode) {
+			irLearnCallback = onCode;
+			if (socket && socket.readyState === 1) {
+				socket.send('{"ir":{"learn":"start"}}');
+			}
+			$('#irScanModal').modal('show');
+			clearTimeout(irLearnTimer);
+			irLearnTimer = setTimeout(function () {
+				stopIrLearn();
+				toaster.warning(i18next.t('ir.timeout'));
+			}, 30000);
+		}
+
+		function stopIrLearn() {
+			clearTimeout(irLearnTimer);
+			irLearnCallback = null;
+			if (socket && socket.readyState === 1) {
+				socket.send('{"ir":{"learn":"stop"}}');
+			}
+			$('#irScanModal').modal('hide');
+		}
+
+		// Collect the table into {ir:{map:[{code,cmd},…]}} and persist it. Rows without a learned code
+		// are skipped (an unlearned row carries no button to react to).
+		async function saveIrSettings() {
+			var rows = document.querySelectorAll('#irMappingBody tr');
+			var map = [];
+			var seen = {};
+			var dup = false;
+			rows.forEach(function (tr) {
+				var codeStr = tr.querySelector('.ir-code').dataset.code;
+				if (codeStr === '' || codeStr === undefined) { return; }
+				var code = Number(codeStr);
+				if (seen[code]) { dup = true; }
+				seen[code] = true;
+				map.push({ code: code, cmd: Number(tr.querySelector('.ir-cmd').value) });
+			});
+			if (dup) { toaster.warning(i18next.t('ir.duplicate')); }
+			await postSettings({ ir: { map: map } });
+		}
+
 		var rfidScanCallback = null;
 		var rfidScanTimer = null;
 		// There are 10 fixed virtual RFID cards, IDs 900000000001..900000000010 (see values.h).

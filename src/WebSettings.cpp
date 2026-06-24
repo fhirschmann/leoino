@@ -13,6 +13,7 @@
 #include "Ftp.h"
 #include "HallEffectSensor.h"
 #include "HomeKit.h"
+#include "IrReceiver.h"
 #include "Led.h"
 #include "Log.h"
 #include "MemX.h"
@@ -441,6 +442,21 @@ void settingsToJSON(JsonObject obj, const String section) {
 			btObj["pinCode"] = gPrefsSettings.getString("btPinCode", "");
 		} else {
 			btObj["pinCode"] = "";
+		}
+	}
+#endif
+#ifdef IR_CONTROL_ENABLE
+	// IR remote control: presence of this section reveals the web-UI tab; map = learned code->command list
+	if ((section == "") || (section == "ir")) {
+		JsonObject irObj = obj["ir"].to<JsonObject>();
+		irObj["enabled"] = true;
+		JsonArray mapArr = irObj["map"].to<JsonArray>();
+		IrMapping mappings[IR_MAX_MAPPINGS];
+		uint8_t count = IrReceiver_GetMappings(mappings, IR_MAX_MAPPINGS);
+		for (uint8_t i = 0; i < count; i++) {
+			JsonObject e = mapArr.add<JsonObject>();
+			e["code"] = mappings[i].code;
+			e["cmd"] = mappings[i].cmd;
 		}
 	}
 #endif

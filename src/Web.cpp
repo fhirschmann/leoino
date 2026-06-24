@@ -18,6 +18,7 @@
 #include "HTMLbinary.h"
 #include "HallEffectSensor.h"
 #include "HomeKit.h"
+#include "IrReceiver.h"
 #include "JsonPsram.h"
 #include "Led.h"
 #include "Log.h"
@@ -56,6 +57,9 @@ AsyncWebSocket ws("/ws");
 AsyncEventSource events("/events");
 
 static bool webserverStarted = false;
+
+// Last IR command captured in learn mode; carried into the IrLearn websocket payload.
+static uint16_t sLastIrCode = 0;
 
 static void handleTrackProgressRequest(AsyncWebServerRequest *request);
 static void handleGetSavedSSIDs(AsyncWebServerRequest *request);
@@ -1512,6 +1516,39 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		RfidSync_OnLearn(_rfidIdAssinId);
 		Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 		Web_SendWebsocketData(0, WebsocketCodeType::Ok);
+	} else if (doc["ir"].is<JsonObject>()) {
+#ifdef IR_CONTROL_ENABLE
+		JsonObject irObj = doc["ir"];
+		// Transient learn-mode toggle (sent over the websocket, not persisted).
+		if (irObj["learn"].is<const char *>()) {
+			IrReceiver_SetLearnMode(strcmp(irObj["learn"].as<const char *>(), "start") == 0);
+			return WebsocketCodeType::Ok;
+		}
+		// Persist a new IR-code -> command mapping table.
+		if (irObj["map"].is<JsonArray>()) {
+			IrMapping mappings[IR_MAX_MAPPINGS];
+			uint8_t count = 0;
+			for (JsonVariant entry : irObj["map"].as<JsonArray>()) {
+				if (count >= IR_MAX_MAPPINGS) {
+					break;
+				}
+				mappings[count].code = entry["code"].as<uint16_t>();
+				mappings[count].cmd = entry["cmd"].as<uint8_t>();
+				count++;
+			}
+			if (count > 0) {
+				if (gPrefsSettings.putBytes("irMap", mappings, (size_t) count * sizeof(IrMapping)) == 0) {
+					Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "ir");
+					return WebsocketCodeType::Error;
+				}
+			} else {
+				gPrefsSettings.remove("irMap"); // empty table -> fall back to the compiled defaults
+			}
+			IrReceiver_ReloadMappings();
+			return WebsocketCodeType::Ok;
+		}
+#endif
+		return WebsocketCodeType::Error;
 	} else if (doc["ping"].is<JsonObject>()) {
 		if ((millis() - lastPongTimestamp) > 1000u) {
 			// send pong (keep-alive heartbeat), check for excessive calls
@@ -1848,6 +1885,8 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 	} else if (code == WebsocketCodeType::WebdavStatus) {
 		JsonObject entry = object["webdavStatus"].to<JsonObject>();
 		entry["running"] = Webdav_IsServerRunning();
+	} else if (code == WebsocketCodeType::IrLearn) {
+		object["irLearn"] = sLastIrCode;
 	};
 
 	if (doc.overflowed()) {
@@ -1869,6 +1908,12 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 	} else {
 		ws.text(client, jsonBuffer);
 	}
+}
+
+// Broadcast a freshly received IR code to all clients so the learn-UI can show/assign it.
+void Web_NotifyIrCode(uint16_t code) {
+	sLastIrCode = code;
+	Web_SendWebsocketData(0, WebsocketCodeType::IrLearn);
 }
 
 // Processes websocket-requests

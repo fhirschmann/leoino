@@ -406,6 +406,21 @@ void Cmd_Action(const uint16_t mod) {
 			break;
 		}
 
+		case CMD_MUTE: {
+			// Toggle mute: drop the volume to 0 and remember the previous level, restoring it on the
+			// next press. Local audio only (Bluetooth handles its own volume on the sink/source side).
+			static uint8_t lastVolume = 0;
+			if (AudioPlayer_GetCurrentVolume() > 0) {
+				lastVolume = AudioPlayer_GetCurrentVolume();
+				AudioPlayer_SetCurrentVolume(0u);
+				Log_Println("Mute", LOGLEVEL_NOTICE);
+			} else {
+				AudioPlayer_SetCurrentVolume(lastVolume); // Reset to last value if mute is pressed again
+				Log_Println("Unmute", LOGLEVEL_NOTICE);
+			}
+			break;
+		}
+
 		case CMD_MEASUREBATTERY: {
 #ifdef BATTERY_MEASURE_ENABLE
 			Battery_LogStatus();
