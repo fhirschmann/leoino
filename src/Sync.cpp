@@ -227,6 +227,11 @@ static bool syncIsProtected(const String &fullPath, const String &name) {
 	if (name.equalsIgnoreCase("System Volume Information")) {
 		return true;
 	}
+	// Never mirror-delete the system folder or the user's playlists (or anything inside them):
+	// returning true on the top-level directory makes the sweep skip the whole subtree.
+	if (fullPath.equalsIgnoreCase("/System") || fullPath.equalsIgnoreCase("/Playlists")) {
+		return true;
+	}
 	return (fullPath == "/manifest.json") || (fullPath == "/stats.csv") || (fullPath == backupFile);
 }
 

@@ -336,6 +336,7 @@
 			"info": "{{free}} Go libres sur {{total}} Go ({{percent}} % utilisés)"
 		},
 		"context": {
+			"systemProtected": "Dossier système protégé (suppression désactivée)",
 			"newFolder": "Nouveau dossier",
 			"play": "Lire",
 			"refresh": "Actualiser",

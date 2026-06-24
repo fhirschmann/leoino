@@ -1624,6 +1624,25 @@
 			color: var(--cp-cyan);
 		}
 
+		/* Protected system folder: stands out (magenta + bold) and carries a lock badge.
+		   Theme-scoped so it beats jstree's own ".jstree-default(-dark) .jstree-anchor" colour. */
+		.jstree-default .jstree-anchor[data-system],
+		.jstree-default-dark .jstree-anchor[data-system] {
+			color: var(--cp-magenta);
+			font-weight: 700;
+		}
+
+		.jstree-anchor[data-system]::after {
+			display: inline-block;
+			font-family: "Font Awesome 6 Free";
+			font-weight: 900;
+			font-size: .8em;
+			margin-left: .6em;
+			vertical-align: 1px;
+			content: "\f023";
+			color: var(--cp-magenta);
+		}
+
 		.jstree-default,
 		.jstree-default-dark {
 			font-family: "Share Tech Mono", monospace;
@@ -5091,6 +5110,11 @@
 								}
 							}
 						};
+						// Protected system folder: no delete/rename from the Explorer.
+						if (node.data.path === "/System") {
+							delete items.delete;
+							delete items.rename;
+						}
 						return items;
 					}
 				}
@@ -8222,6 +8246,11 @@
 		// Build the jstree anchor attributes (RFID/EQ badge markers) for a node.
 		function explorerNodeAttr(fullPath) {
 			var a = {};
+			if (fullPath === "/System") {
+				// Protected system folder: highlighted + delete disabled (see contextmenu).
+				a["data-system"] = "1";
+				a["title"] = i18next.t("files.context.systemProtected");
+			}
 			if (hasRfidAssignment(fullPath)) {
 				a["data-rfid"] = "1";
 			}

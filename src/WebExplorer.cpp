@@ -557,6 +557,13 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 		param = request->getParam("path");
 		System_UpdateActivityTimer();
 		const char *filePath = param->value().c_str();
+		// Guard the protected system folder: the web Explorer hides its delete action, but block it
+		// here too so a stray/direct API call (or an old client) can never wipe it.
+		if (strcasecmp(filePath, "/System") == 0) {
+			Log_Printf(LOGLEVEL_NOTICE, "DELETE:  refused to delete protected path %s", filePath);
+			request->send(403);
+			return;
+		}
 		if (gFSystem.exists(filePath)) {
 			// stop playback, file to delete might be in use
 			Cmd_Action(CMD_STOP);

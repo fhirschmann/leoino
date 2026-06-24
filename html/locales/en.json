@@ -343,6 +343,7 @@
 			"info": "{{free}} GB free of {{total}} GB ({{percent}} % used)"
 		},
 		"context": {
+			"systemProtected": "Protected system folder (deletion disabled)",
 			"newFolder": "New Folder",
 			"play": "Play",
 			"refresh": "Refresh",

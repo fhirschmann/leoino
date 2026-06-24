@@ -343,6 +343,7 @@
 			"info": "{{free}} GB frei von {{total}} GB ({{percent}} % belegt)"
 		},
 		"context": {
+			"systemProtected": "Geschütztes Systemverzeichnis (Löschen deaktiviert)",
 			"newFolder": "Neuer Ordner",
 			"play": "Abspielen",
 			"refresh": "Aktualisieren",

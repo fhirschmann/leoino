@@ -25,6 +25,7 @@
 	var FS = {
 		"/": [
 			{ name: "ESPUINO-SD", root: "sd" },
+			{ name: "System", dir: true },
 			{ name: "Hörspiele", dir: true },
 			{ name: "Märchen", dir: true },
 			{ name: "Klassik", dir: true },
@@ -80,6 +81,11 @@
 		"/Playlists": [
 			{ name: "Gute-Nacht.m3u" },
 			{ name: "Auto-Fahrt.m3u" }
+		],
+		// Protected system folder: highlighted in the Explorer, delete disabled, never mirror-deleted.
+		"/System": [
+			{ name: "ready.mp3" },
+			{ name: "shutdown.mp3" }
 		]
 	};
 
