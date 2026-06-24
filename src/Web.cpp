@@ -224,6 +224,43 @@ bool Web_DumpNvsToSd(const char *_namespace, const char *_destFile) {
 
 // First request will return 0 results unless you start scan from somewhere else (loop/setup)
 // Do not request more often than 3-5 seconds
+// Minimal JSON string escaper for the hand-concatenated JSON bodies in this file. SSIDs (and other
+// external strings) are attacker-controlled, so an unescaped quote/backslash/control char would
+// otherwise produce invalid JSON (client parse fails) or, in an innerHTML context, enable XSS.
+static String Web_JsonEscape(const String &in) {
+	String out;
+	out.reserve(in.length() + 8);
+	for (size_t i = 0; i < in.length(); i++) {
+		char c = in[i];
+		switch (c) {
+			case '"':
+				out += "\\\"";
+				break;
+			case '\\':
+				out += "\\\\";
+				break;
+			case '\n':
+				out += "\\n";
+				break;
+			case '\r':
+				out += "\\r";
+				break;
+			case '\t':
+				out += "\\t";
+				break;
+			default:
+				if ((uint8_t) c < 0x20) {
+					char u[7];
+					snprintf(u, sizeof(u), "\\u%04x", (uint8_t) c);
+					out += u;
+				} else {
+					out += c;
+				}
+		}
+	}
+	return out;
+}
+
 static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
 	String json = "[";
 	int n = WiFi.scanComplete();
@@ -248,8 +285,8 @@ static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
 				json += ",";
 			}
 			json += "{";
-			json += "\"ssid\":\"" + WiFi.SSID(i) + "\"";
-			json += ",\"bssid\":\"" + WiFi.BSSIDstr(i) + "\"";
+			json += "\"ssid\":\"" + Web_JsonEscape(WiFi.SSID(i)) + "\"";
+			json += ",\"bssid\":\"" + Web_JsonEscape(WiFi.BSSIDstr(i)) + "\"";
 			json += ",\"rssi\":" + String(WiFi.RSSI(i));
 			json += ",\"channel\":" + String(WiFi.channel(i));
 			json += ",\"secure\":" + String(WiFi.encryptionType(i));
@@ -395,6 +432,18 @@ static bool Web_IsAuthenticated(AsyncWebServerRequest *request) {
 	return token.equals(wwwSessionToken);
 }
 
+// Public auth gate for streaming body/upload handlers. The password middleware only wraps the
+// request *handler*; ESPAsyncWebServer invokes the upload/body callback while the body is still
+// streaming in, i.e. BEFORE the middleware chain runs. So /update (OTA), /upload (NVS restore)
+// and POST /explorer (SD write) must enforce auth themselves before touching flash/NVS/SD.
+// Mirrors the middleware: allowed in AP-mode or when no password is configured.
+bool Web_RequestAuthorized(AsyncWebServerRequest *request) {
+	if (WiFi.getMode() == WIFI_AP) {
+		return true;
+	}
+	return Web_IsAuthenticated(request);
+}
+
 static void Web_HandlePostLogin(AsyncWebServerRequest *request, JsonVariant &json) {
 	if (wwwLoginLockedUntil && (millis() < wwwLoginLockedUntil)) {
 		request->send(429);
@@ -530,9 +579,9 @@ void webserverStart(void) {
 			JsonDocument doc;
 			doc["enabled"] = (wwwSessionToken.length() > 0);
 			doc["cookieDays"] = gPrefsSettings.getUInt("wwwCookieDays", WWW_COOKIE_DAYS_DEFAULT);
-			// The whole management page already sits behind this very password (same as the FTP tab,
-			// which also returns its password), so the UI can show + reveal the current value.
-			doc["password"] = gPrefsSettings.getString("wwwPassword", "");
+			// The password is deliberately NOT returned: it is the shared web/FTP/WebDAV credential
+			// and echoing it back turns every authenticated read (or any XSS/CSRF that can fetch
+			// /security) into a plaintext credential leak. The field in the UI is write-only.
 			String out;
 			serializeJson(doc, out);
 			request->send(200, "application/json", out);
@@ -634,6 +683,11 @@ void webserverStart(void) {
 		// NVS-backup-upload
 		wServer.on(
 			"/upload", HTTP_POST, [](AsyncWebServerRequest *request) {
+				// the body handler (handleUpload) runs before the middleware, so re-check auth here
+				if (!Web_RequestAuthorized(request)) {
+					request->send(401);
+					return;
+				}
 				request->send(200);
 			},
 			handleUpload);
@@ -641,6 +695,12 @@ void webserverStart(void) {
 		// OTA-upload
 		wServer.on(
 			"/update", HTTP_POST, [](AsyncWebServerRequest *request) {
+				// the upload handler streams (and flashes) the body before the middleware runs;
+				// guard the completion the same way the body handler guards the actual flash
+				if (!Web_RequestAuthorized(request)) {
+					request->send(401);
+					return;
+				}
 #ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
 				if (Update.hasError()) {
 					request->send(500, "text/plain", Update.errorString());
@@ -656,6 +716,12 @@ void webserverStart(void) {
 				Log_Println(otaNotSupported, LOGLEVEL_NOTICE);
 				return;
 #endif
+				// CRITICAL: the middleware does NOT cover this streaming upload callback, so an
+				// unauthenticated client could otherwise flash arbitrary firmware. Refuse to touch
+				// Update unless the request is authorized (re-checked on every chunk).
+				if (!Web_RequestAuthorized(request)) {
+					return;
+				}
 
 				if (!index) {
 					// pause some tasks to get more free CPU time for the upload
@@ -973,6 +1039,11 @@ void webserverStart(void) {
 			"/explorer", HTTP_POST, [](AsyncWebServerRequest *request) {
 				// clean up buffers
 				request->onDisconnect([]() { destroyDoubleBuffer(); });
+				// the upload handler writes to SD before the middleware runs, so re-check auth here
+				if (!Web_RequestAuthorized(request)) {
+					request->send(401);
+					return;
+				}
 				// we are finished with the upload
 				if (!request->_tempObject) {
 					request->send(200);

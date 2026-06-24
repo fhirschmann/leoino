@@ -3421,6 +3421,10 @@
 								</div>
 								<small class="form-text" data-i18n="security.password.desc"></small>
 							</div>
+							<div class="form-check form-switch mb-3">
+								<input class="form-check-input" type="checkbox" id="securityDisable" name="securityDisable">
+								<label class="form-check-label" for="securityDisable" data-i18n="security.password.disable"></label>
+							</div>
 							<div class="text-center">
 								<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
 							</div>
@@ -7506,9 +7510,12 @@
 			try {
 				const status = await apiGet("/security");
 				document.getElementById('menuLogout').setAttribute('data-visible', status.enabled === true);
-				if (status.password !== undefined) {
-					document.getElementById('wwwPassword').value = status.password;
-				}
+				// the password is write-only: the device no longer echoes it back, so the field stays
+				// empty (empty = keep current). Disabling protection is an explicit opt-in switch.
+				document.getElementById('wwwPassword').value = "";
+				document.getElementById('securityDisable').checked = false;
+				const pwPlaceholder = status.enabled === true ? 'security.password.keep' : 'security.password.placeholder';
+				document.getElementById('wwwPassword').setAttribute('placeholder', i18next.t(pwPlaceholder));
 				if (status.cookieDays !== undefined) {
 					const unlimited = (status.cookieDays === 0);
 					document.getElementById('cookieUnlimited').checked = unlimited;
@@ -7544,14 +7551,25 @@
 		}
 
 		async function securityConfig() {
+			const pw = document.getElementById('wwwPassword').value;
+			const disable = document.getElementById('securityDisable').checked;
+			const payload = {};
+			if (disable) {
+				// explicit opt-in: send an empty password to turn protection off everywhere
+				payload.password = "";
+			} else if (pw.length > 0) {
+				payload.password = pw;
+			} else {
+				// empty field + disable not ticked = nothing to change (don't accidentally clear it)
+				toaster.error(i18next.t('security.password.nochange'));
+				return;
+			}
 			const response = await fetch("http://" + host + "/security", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json"
 				},
-				body: JSON.stringify({
-					password: document.getElementById('wwwPassword').value
-				})
+				body: JSON.stringify(payload)
 			});
 			if (response.ok) {
 				flashActionOk();

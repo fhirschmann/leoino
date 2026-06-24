@@ -231,6 +231,8 @@
 			if (p === "/activeSSID") { return jsonResp({ active: "Heimnetz" }); }
 			if (p === "/eqrules") { return jsonResp([]); }
 			if (p === "/homekit") { return jsonResp({ enabled: false, paired: false, code: "", deviceName: "ESPuino", tvName: "ESPuino TV" }); }
+			// password status: the device never echoes the password back (write-only field)
+			if (p === "/security") { return jsonResp({ enabled: false, cookieDays: 90 }); }
 			if (p === "/bluetoothresults") { return jsonResp([]); }
 			if (p === "/settings") {
 				var section = qs.get("section");
@@ -280,7 +282,7 @@
 		}
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
-		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|homekit|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
+		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
 			return jsonResp({ status: "ok", demo: true });
 		}
 		return null;

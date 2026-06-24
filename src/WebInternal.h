@@ -62,3 +62,8 @@ void Web_DumpSdToNvs(const char *_filename);
 
 // Aborts a running file-upload storage task and waits for it to exit (used by Web_Exit).
 void WebExplorer_AbortUpload(void);
+
+// Auth gate for streaming body/upload handlers (defined in Web.cpp). The password middleware
+// does not cover the upload callback, which runs while the body streams in, so handlers that
+// write flash/NVS/SD must call this themselves before doing anything.
+bool Web_RequestAuthorized(AsyncWebServerRequest *request);

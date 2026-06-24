@@ -118,6 +118,13 @@ void handleUploadError(AsyncWebServerRequest *request, int code) {
 // requires a GET parameter path, as directory path to the file
 void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
 
+	// This upload callback runs while the body streams in, before the password middleware. Refuse
+	// to write anything to SD for an unauthenticated client; the completion handler returns 401.
+	if (!Web_RequestAuthorized(request)) {
+		uploadAborted = true;
+		return;
+	}
+
 	System_UpdateActivityTimer();
 
 	// New File
@@ -698,6 +705,11 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	static File tmpFile;
 	static size_t fileIndex = 0;
 	static char tmpFileName[13];
+	// Runs before the password middleware (body streams in first), so an unauthenticated client
+	// could otherwise inject RFID assignments into NVS. Refuse to buffer or import anything.
+	if (!Web_RequestAuthorized(request)) {
+		return;
+	}
 	esp_task_wdt_reset();
 	if (!index) {
 		snprintf(tmpFileName, 13, "/_%lu", millis());

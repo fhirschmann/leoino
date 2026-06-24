@@ -210,9 +210,12 @@
 		"title": "Device password",
 		"password": {
 			"title": "Password",
-			"placeholder": "Leave empty to disable protection",
-			"desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. Leave empty to disable protection everywhere (web interface, FTP, WebDAV).",
-			"show": "Show/hide password"
+			"placeholder": "Set a password",
+			"keep": "Leave empty to keep the current password",
+			"desc": "One shared password for everything: web interface, FTP and WebDAV. For FTP and WebDAV the username does not matter - any username works, only this password is checked. Once logged in to the web interface you stay logged in for 90 days; protection is inactive in hotspot mode. The password is never shown again; leave the field empty to keep it. To turn protection off everywhere, tick “Disable password protection” and save.",
+			"show": "Show/hide password",
+			"disable": "Disable password protection",
+			"nochange": "Nothing to save: enter a new password or tick “Disable password protection”."
 		},
 		"cookie": {
 			"title": "Stay logged in",

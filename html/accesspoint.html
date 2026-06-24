@@ -283,14 +283,28 @@
 		}
 
 		function listWiFi(data) {
-			console.log(data);
 			var list = document.getElementById("WiFiList");
-			var h = "";
-			data.map(function (WiFis) {
-				h += `<div class="ssid" onclick="selectWiFi('${WiFis.ssid}')" title="${WiFis.quality}% (${WiFis.rssi} dBm) ${WiFis.bssid}"><span class="ico ${WiFis.wico}"></span><span class="name">${WiFis.ssid}</span><span class="ico ${WiFis.pico}"></span></div>\n`;
+			// Build the list via DOM nodes + textContent, never innerHTML: the SSID/BSSID are fully
+			// attacker-controlled (any nearby AP can broadcast a crafted 32-byte SSID), so string
+			// interpolation here would be DOM-based XSS on the page that takes the WiFi password.
+			list.textContent = "";
+			data.forEach(function (WiFis) {
+				var row = document.createElement("div");
+				row.className = "ssid";
+				row.title = WiFis.quality + "% (" + WiFis.rssi + " dBm) " + (WiFis.bssid || "");
+				row.addEventListener("click", function () { selectWiFi(WiFis.ssid); });
+				var wico = document.createElement("span");
+				wico.className = "ico " + WiFis.wico;
+				var name = document.createElement("span");
+				name.className = "name";
+				name.textContent = WiFis.ssid;
+				var pico = document.createElement("span");
+				pico.className = "ico " + WiFis.pico;
+				row.appendChild(wico);
+				row.appendChild(name);
+				row.appendChild(pico);
+				list.appendChild(row);
 			});
-			h += "<br>";
-			list.innerHTML = h;
 			setTimeout(getWiFiList, 5000);
 		}
 		// disable static input fields on toggle

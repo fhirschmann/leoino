@@ -203,9 +203,12 @@
 		"title": "Mot de passe de l'appareil",
 		"password": {
 			"title": "Mot de passe",
-			"placeholder": "Laisser vide pour désactiver la protection",
-			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Pour le FTP et le WebDAV, le nom d'utilisateur n'a pas d'importance - n'importe quel nom fonctionne, seul ce mot de passe est vérifié. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Laisser vide pour désactiver la protection partout (interface web, FTP, WebDAV).",
-			"show": "Afficher/masquer le mot de passe"
+			"placeholder": "Définir un mot de passe",
+			"keep": "Laisser vide pour conserver le mot de passe actuel",
+			"desc": "Un seul mot de passe partagé pour tout : interface web, FTP et WebDAV. Pour le FTP et le WebDAV, le nom d'utilisateur n'a pas d'importance - n'importe quel nom fonctionne, seul ce mot de passe est vérifié. Une fois connecté à l'interface web, vous restez connecté pendant 90 jours ; la protection est inactive en mode hotspot. Le mot de passe n'est jamais réaffiché ; laissez le champ vide pour le conserver. Pour tout désactiver, cochez « Désactiver la protection par mot de passe » puis enregistrez.",
+			"show": "Afficher/masquer le mot de passe",
+			"disable": "Désactiver la protection par mot de passe",
+			"nochange": "Rien à enregistrer : saisissez un nouveau mot de passe ou cochez « Désactiver la protection par mot de passe »."
 		},
 		"cookie": {
 			"title": "Rester connecté",
