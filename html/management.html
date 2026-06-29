@@ -478,6 +478,8 @@
 		   icon-only rail next to the content. */
 		#nav-general.active {
 			display: flex;
+			position: relative;
+			padding-top: 3.25rem; /* reserve room for the absolutely-positioned settings search above the nav+content row */
 			/* stretch so the nav column is as tall as the content — this lets the sticky
 			   sub-nav (below) stay pinned next to *any* section while scrolling a long
 			   settings page, instead of scrolling away after the first screenful. */
@@ -2707,12 +2709,12 @@
 		<!-- ### Tab General ### -->
 		<div class="tab-pane main-tab-pane fade mb-4" id="nav-general" role="tabpanel"
 			aria-labelledby="nav-general-tab">
-			<div class="settings-search mb-3" style="position: relative; max-width: 440px; margin-top: -1.25rem;">
-				<div class="d-flex align-items-center">
+			<div class="settings-search" style="position: absolute; top: 0.4rem; left: 0; width: 440px; max-width: 100%;">
+				<div class="d-flex align-items-center" style="position: relative; width: 100%;">
 					<span class="input-group-text" style="height:38px; width:40px; border-bottom-right-radius:0; border-top-right-radius:0;"><i class="fas fa-search"></i></span>
 					<input type="search" class="form-control border-start-0" style="height:38px; border-bottom-left-radius:0; border-top-left-radius:0;" id="settingsSearch" autocomplete="off" aria-label="Search settings" data-i18n="[placeholder]settingsex.search.placeholder">
+					<div id="settingsSearchResults" class="settings-search-results" role="listbox"></div>
 				</div>
-				<div id="settingsSearchResults" class="settings-search-results" role="listbox"></div>
 			</div>
 			<nav class="mb-3">
 				<div class="nav nav-tabs flex-column subnav" id="settings-subnav" role="tablist">
