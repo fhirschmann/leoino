@@ -175,6 +175,9 @@ static uint32_t    s_lastScrollStep   = 0;
 
 // font_6x13: 6 px wide → 21 chars fit in 126 px ≤ 128 px
 static constexpr uint8_t  kLineChars     = 21;
+// Right edge for right-aligned idle text (clock, battery). A few px short of 128 because the
+// SH1106 can clip the last column(s) and the burn-in shift would otherwise push text off the edge.
+static constexpr int      kIdleRightEdge = 124;
 static constexpr uint16_t kScrollPauseMs = 2000;
 static constexpr uint16_t kScrollStepMs  = 280;
 
@@ -782,17 +785,19 @@ void Display_Cyclic(void) {
             if (s_cfgIdleBatt) {
                 char batBuf[8];
                 snprintf(batBuf, sizeof(batBuf), "%d%%", static_cast<int>(Battery_EstimateLevel() * 100.0f));
-                s_u8g2.drawStr(128 - static_cast<int>(s_u8g2.getStrWidth(batBuf)) + sx, 39 + sy, batBuf);
+                s_u8g2.drawStr(kIdleRightEdge - static_cast<int>(s_u8g2.getStrWidth(batBuf)) + sx, 39 + sy, batBuf);
             }
 #endif
             bool cursorOn = (now / 500u) % 2u == 0u;
             s_u8g2.drawStr(0 + sx, 56 + sy, cursorOn ? "READY_" : "READY ");
 
-            // Clock (RTC) – right-aligned on the footer row, next to READY.
+            // Clock (RTC) – right-aligned on the footer row, next to READY. Keep a few px of right
+            // margin: the SH1106 can clip the last column(s), and the burn-in shift (+sx) would
+            // otherwise push the last digit off the edge.
             if (s_cfgShowClock) {
                 char clk[12];
                 if (Display_FormatClock(clk, sizeof(clk))) {
-                    s_u8g2.drawStr(128 - static_cast<int>(s_u8g2.getStrWidth(clk)) + sx, 56 + sy, clk);
+                    s_u8g2.drawStr(kIdleRightEdge - static_cast<int>(s_u8g2.getStrWidth(clk)) + sx, 56 + sy, clk);
                 }
             }
         }
