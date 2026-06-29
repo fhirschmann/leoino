@@ -146,6 +146,8 @@
 			"enable": "Enable OLED display",
 			"enablehint": "When disabled the panel is powered off (e.g. for night-time).",
 			"startanim": "Startup animation",
+			"animcoldonly": "Startup animation only on power-on",
+			"animcoldonlyhint": "Only on a real power-on via the switch — skipped when waking from sleep.",
 			"anim": {
 				"none": "None (go straight to idle)",
 				"boot": "Boot terminal",

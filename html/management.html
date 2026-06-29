@@ -3308,6 +3308,11 @@
 								<option value="3" data-i18n="settingsex.oled.anim.full"></option>
 							</select>
 						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_animColdOnly" name="oled_animColdOnly" value="false">
+							<label class="form-check-label" for="oled_animColdOnly" data-i18n="settingsex.oled.animcoldonly"></label>
+						</div>
+						<small class="text-muted d-block mb-3" data-i18n="settingsex.oled.animcoldonlyhint"></small>
 						<div class="mb-3">
 							<label class="form-label" for="oled_idleLine1" data-i18n="settingsex.oled.idleline1"></label>:
 							<input type="text" class="form-control" id="oled_idleLine1" name="oled_idleLine1" maxlength="21">
@@ -5792,6 +5797,7 @@
 				document.getElementById('settings-oled-subtab').setAttribute('data-visible', true);
 				document.getElementById('oled_enable').checked = oledSettings.enable !== false;
 				document.getElementById('oled_startAnim').value = oledSettings.startAnim != null ? oledSettings.startAnim : 3;
+				document.getElementById('oled_animColdOnly').checked = oledSettings.animColdOnly === true;
 				document.getElementById('oled_idleLine1').value = oledSettings.idleLine1 != null ? oledSettings.idleLine1 : '';
 				document.getElementById('oled_idleLine2').value = oledSettings.idleLine2 != null ? oledSettings.idleLine2 : '';
 				document.getElementById('oled_showBattery').checked = oledSettings.showBattery !== false;
@@ -6059,7 +6065,7 @@
 			if (c) c.addEventListener("shown.bs.collapse", rebuildEqRulesList);
 			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
 			// populated button dropdowns are covered too). No submit button on these tabs.
-			$('#settings-general, #settings-buttons, #settings-rfid, #settings-leds, #settings-power').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
+			$('#settings-general, #settings-buttons, #settings-rfid, #settings-leds, #settings-oled, #settings-power').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
 			initHomeKit();
 		});
 
@@ -6424,6 +6430,7 @@
 				"oled": {
 					enable: document.getElementById("oled_enable").checked,
 					startAnim: Number(document.getElementById("oled_startAnim").value),
+					animColdOnly: document.getElementById("oled_animColdOnly").checked,
 					idleLine1: document.getElementById("oled_idleLine1").value,
 					idleLine2: document.getElementById("oled_idleLine2").value,
 					showBattery: document.getElementById("oled_showBattery").checked,

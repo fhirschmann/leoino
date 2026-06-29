@@ -25,6 +25,7 @@ static constexpr char kDefaultIdleLine2[] = "AUDIO TERMINAL AT-1";
 
 static bool        s_cfgEnabled    = true;                       // master on/off (oledEnable)
 static StartupAnim s_cfgStartAnim  = StartupAnim::Full;          // oledStartAnim
+static bool        s_cfgAnimColdOnly = false;                    // oledAnimCold – only run the startup anim on a real power-on
 static bool        s_cfgShowBattery = true;                      // oledShowBatt – battery % on playing screen
 static bool        s_cfgShowTime   = true;                       // oledShowTime – elapsed/total on playing screen
 static bool        s_cfgShowWifi   = true;                       // oledShowWifi – WIFI marker on playing screen
@@ -39,6 +40,7 @@ static void Display_LoadConfig(void) {
     uint8_t anim     = gPrefsSettings.getUChar("oledStartAnim", static_cast<uint8_t>(StartupAnim::Full));
     if (anim > static_cast<uint8_t>(StartupAnim::Full)) anim = static_cast<uint8_t>(StartupAnim::Full);
     s_cfgStartAnim   = static_cast<StartupAnim>(anim);
+    s_cfgAnimColdOnly = gPrefsSettings.getBool("oledAnimCold", false);
     s_cfgShowBattery = gPrefsSettings.getBool("oledShowBatt", true);
     s_cfgShowTime    = gPrefsSettings.getBool("oledShowTime", true);
     s_cfgShowWifi    = gPrefsSettings.getBool("oledShowWifi", true);
@@ -114,6 +116,9 @@ static constexpr uint32_t kVolBarDurationMs = 2500;
 // -------- login splash state --------
 static uint32_t s_idleSince    = 0;        // millis() when we first entered idle
 static uint8_t  s_lastPlayMode = 0xFF;     // detect idle transition
+static bool     s_wokeFromSleep    = false; // this boot is a wake from an intentional deep-sleep (NVS intent-flag)
+static bool     s_coldStartLatched = false; // read+consume the wake-from-sleep flag exactly once per boot
+static bool     s_startupAnimShown = false; // the startup animation has already run to completion once
 static constexpr uint32_t kBootDurationMs  = 3000;  // boot screen
 static constexpr uint32_t kLoginDurationMs = 3500;  // login animation
 // Boot screen: first two lines appear, then "Booting." / ".." / "..."
@@ -408,6 +413,18 @@ static void Display_Send(void) {
 
 void Display_Init(void) {
     Display_LoadConfig();
+    if (!s_coldStartLatched) {
+        // The complete board cuts ESP32 power on deep-sleep, so esp_sleep_get_wakeup_cause() can't
+        // tell a real power-on apart from a sleep-wake (both look like a cold boot). Instead,
+        // System_DeepSleepManager() sets an NVS flag right before sleeping; we read and clear it
+        // here. Flag present => this boot is a wake from an intentional deep-sleep; absent => a
+        // genuine power-on via the physical switch.
+        s_wokeFromSleep = gPrefsSettings.getBool("wokeFromSleep", false);
+        if (s_wokeFromSleep) {
+            gPrefsSettings.putBool("wokeFromSleep", false); // consume it so the next real power-on animates
+        }
+        s_coldStartLatched = true;
+    }
     if (!s_cfgEnabled) {
         Log_Println("OLED: disabled via web settings", LOGLEVEL_NOTICE);
         return;
@@ -558,8 +575,14 @@ void Display_Cyclic(void) {
         // The startup/attract animation is selectable: it can show the boot screen, the
         // login splash, both (default) or nothing. Compute each phase's duration so the
         // disabled phases collapse to zero and we fall straight through to the idle screen.
-        const uint32_t bootDur  = (s_cfgStartAnim == StartupAnim::Boot || s_cfgStartAnim == StartupAnim::Full) ? kBootDurationMs : 0u;
-        const uint32_t loginDur = (s_cfgStartAnim == StartupAnim::Login || s_cfgStartAnim == StartupAnim::Full) ? kLoginDurationMs : 0u;
+        //
+        // "Cold-start only" (oledAnimCold) restricts the animation to a genuine power-on via the
+        // physical switch: it then plays exactly once and is skipped on every wake-from-deep-sleep
+        // and on the attract re-runs that follow each playback. Off (default) keeps the original
+        // behaviour where the animation plays on every idle entry.
+        const bool animAllowed = !s_cfgAnimColdOnly || (!s_wokeFromSleep && !s_startupAnimShown);
+        const uint32_t bootDur  = (animAllowed && (s_cfgStartAnim == StartupAnim::Boot || s_cfgStartAnim == StartupAnim::Full)) ? kBootDurationMs : 0u;
+        const uint32_t loginDur = (animAllowed && (s_cfgStartAnim == StartupAnim::Login || s_cfgStartAnim == StartupAnim::Full)) ? kLoginDurationMs : 0u;
 
         s_u8g2.setFont(u8g2_font_6x13_tf);
 
@@ -612,6 +635,9 @@ void Display_Cyclic(void) {
             }
         } else {
             // ---- NORMAL IDLE ----
+            // The startup animation (if any) has played out; latch that so cold-start-only mode
+            // never replays it on a later attract cycle.
+            s_startupAnimShown = true;
             s_u8g2.drawStr(0, 13, s_cfgIdleLine1);
             s_u8g2.drawStr(0, 26, s_cfgIdleLine2);
             String ip = Wlan_GetIpAddress();

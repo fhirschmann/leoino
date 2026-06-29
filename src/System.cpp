@@ -343,6 +343,12 @@ void System_DeepSleepManager(void) {
 		}
 
 		System_Sleeping = true;
+		// Record that this power-down is an *intentional* deep-sleep. On the complete board the POWER
+		// rail cuts the ESP32 itself, so a wake comes back as a full cold boot and
+		// esp_sleep_get_wakeup_cause() can't tell a real power-on apart from a sleep-wake. The OLED
+		// startup animation reads (and clears) this flag on the next boot to stay suppressed on a
+		// sleep-wake. Must be written *before* Power_PeripheralOff() since that may kill our power.
+		gPrefsSettings.putBool("wokeFromSleep", true);
 		Log_Println(goToSleepNow, LOGLEVEL_NOTICE);
 		// prepare power down (shutdown common modules)
 		System_PreparePowerDown();

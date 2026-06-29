@@ -146,6 +146,8 @@
 			"enable": "Activer l'écran OLED",
 			"enablehint": "Désactivé, l'écran est éteint (par ex. la nuit).",
 			"startanim": "Animation de démarrage",
+			"animcoldonly": "Animation uniquement à la mise sous tension",
+			"animcoldonlyhint": "Uniquement lors d'une vraie mise sous tension via l'interrupteur — ignorée au réveil de veille.",
 			"anim": {
 				"none": "Aucune (directement au repos)",
 				"boot": "Terminal de démarrage",

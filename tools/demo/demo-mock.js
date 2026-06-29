@@ -137,7 +137,7 @@
 				hueAtmo: 0, satAtmo: 255, dimStates: 3, reverseRot: false, offsetStart: 0
 			},
 			oled: {
-				enable: true, startAnim: 3, showBattery: true, showTime: true, showWifi: true,
+				enable: true, startAnim: 3, animColdOnly: false, showBattery: true, showTime: true, showWifi: true,
 				showVolume: true, flip: false, idleLine1: "LEO INDUSTRIES", idleLine2: "AUDIO TERMINAL AT-1"
 			},
 			buttons: (function () {

@@ -146,6 +146,8 @@
 			"enable": "OLED-Display aktivieren",
 			"enablehint": "Deaktiviert schaltet das Display ab (z. B. für die Nacht).",
 			"startanim": "Startanimation",
+			"animcoldonly": "Startanimation nur beim Einschalten",
+			"animcoldonlyhint": "Nur bei echtem Einschalten über den Netzschalter — nicht beim Aufwachen aus dem Ruhezustand.",
 			"anim": {
 				"none": "Keine (direkt zum Leerlauf)",
 				"boot": "Boot-Terminal",
