@@ -41,11 +41,11 @@ commit-by-commit list lives further down under
 - ▶️ **Try it with no hardware** — a [live browser demo](https://fhirschmann.github.io/leoino/)
   of the real management page on GitHub Pages, auto-deployed on every push.
 - 📺 **OLED display** — optional 128×64 SH1106/SSD1306 screen: boot splash, idle screen with
-  IP + clock + battery, scrolling now-playing title with a battery/time/WiFi status bar and
-  volume bar; deeply web-configurable — brightness, invert, idle clock (12/24h), idle battery %,
-  auto-off + pixel-shift
-  burn-in protection, custom login splash (username/boot-text/password-length/speed), track
-  number, remaining-vs-elapsed time, inverted status bar, 180° flip, and the startup animation
+  IP + clock + battery, scrolling now-playing title (with the **ID3 artist**) and a
+  battery/time/WiFi status bar and volume bar; deeply web-configurable — brightness, invert,
+  idle clock (12/24h), idle battery %, show-artist, auto-off + pixel-shift burn-in protection,
+  custom login splash (username/boot-text/password-length/speed), track number,
+  remaining-vs-elapsed time, inverted status bar, 180° flip, and the startup animation
   (optionally only on a real power-on, not on every sleep-wake).
 - 🔒 **Password protection** — one shared password for the web UI, FTP *and* WebDAV (also
   usable as an `X-API-Key`), with a session cookie and brute-force lockout.

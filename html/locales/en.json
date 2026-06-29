@@ -161,6 +161,7 @@
 			"idleline1": "Idle text line 1",
 			"idleline2": "Idle text line 2",
 			"showfields": "Show while playing",
+			"showartist": "Show artist (ID3)",
 			"showbattery": "Show battery level",
 			"showtime": "Show playback time",
 			"showwifi": "Show WiFi status",

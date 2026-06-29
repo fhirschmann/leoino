@@ -28,6 +28,7 @@ static bool        s_cfgEnabled    = true;                       // master on/of
 static StartupAnim s_cfgStartAnim  = StartupAnim::Full;          // oledStartAnim
 static bool        s_cfgAnimColdOnly = false;                    // oledAnimCold – only run the startup anim on a real power-on
 static bool        s_cfgShowBattery = true;                      // oledShowBatt – battery % on playing screen
+static bool        s_cfgShowArtist  = true;                      // oledShowArtist – prepend the ID3 artist to the playing title
 static bool        s_cfgShowTime   = true;                       // oledShowTime – elapsed/total on playing screen
 static bool        s_cfgShowWifi   = true;                       // oledShowWifi – WIFI marker on playing screen
 static bool        s_cfgShowVolume = true;                       // oledShowVol – full-screen volume overlay
@@ -74,6 +75,7 @@ static void Display_LoadConfig(void) {
     s_cfgStartAnim   = static_cast<StartupAnim>(anim);
     s_cfgAnimColdOnly = gPrefsSettings.getBool("oledAnimCold", false);
     s_cfgShowBattery = gPrefsSettings.getBool("oledShowBatt", true);
+    s_cfgShowArtist  = gPrefsSettings.getBool("oledShowArtist", true);
     s_cfgShowTime    = gPrefsSettings.getBool("oledShowTime", true);
     s_cfgShowWifi    = gPrefsSettings.getBool("oledShowWifi", true);
     s_cfgShowVolume  = gPrefsSettings.getBool("oledShowVol", true);
@@ -310,15 +312,31 @@ static void drawCentred(const char *s, uint8_t y) {
     s_u8g2.drawStr(x, y, s);
 }
 
-static void Display_DrawTitle(const char *rawTitle, uint8_t y1, uint8_t y2, uint8_t y3) {
+static void Display_DrawTitle(const char *rawTitle, const char *rawArtist, uint8_t y1, uint8_t y2, uint8_t y3) {
     char stripped[256];
     stripPathAndExt(rawTitle, stripped, sizeof(stripped));
-    char title[256];
-    utf8ToLatin1(stripped, title, sizeof(title));
+    char titleOnly[256];
+    utf8ToLatin1(stripped, titleOnly, sizeof(titleOnly));
+
+    // Optionally prepend the ID3/Vorbis artist as "Artist - Title". Done AFTER stripping so a
+    // path-style title can't swallow the artist; the existing " - " splitter then naturally puts
+    // the artist on its own line. The change-detection + scroll key below uses the combined string.
+    char title[384];
+    if (rawArtist && rawArtist[0] != '\0') {
+        char artist[160];
+        utf8ToLatin1(rawArtist, artist, sizeof(artist));
+        if (titleOnly[0] != '\0') {
+            snprintf(title, sizeof(title), "%s - %s", artist, titleOnly);
+        } else {
+            snprintf(title, sizeof(title), "%s", artist);
+        }
+    } else {
+        snprintf(title, sizeof(title), "%s", titleOnly);
+    }
     size_t len = strlen(title);
 
-    if (strncmp(rawTitle, s_lastRawTitle, sizeof(s_lastRawTitle)) != 0) {
-        strncpy(s_lastRawTitle, rawTitle, sizeof(s_lastRawTitle) - 1);
+    if (strncmp(title, s_lastRawTitle, sizeof(s_lastRawTitle)) != 0) {
+        strncpy(s_lastRawTitle, title, sizeof(s_lastRawTitle) - 1);
         s_lastRawTitle[sizeof(s_lastRawTitle) - 1] = '\0';
         s_scrollPos        = 0;
         s_scrollPhase      = ScrollPhase::PAUSE_START;
@@ -787,7 +805,7 @@ void Display_Cyclic(void) {
     // ---- PLAYING SCREEN ----
     // Title: larger font (6x13, still 6px wide so the 21-char wrapping stays valid)
     s_u8g2.setFont(u8g2_font_6x13_tf);
-    Display_DrawTitle(gPlayProperties.title, 12, 26, 40);
+    Display_DrawTitle(gPlayProperties.title, s_cfgShowArtist ? gPlayProperties.artist : "", 12, 26, 40);
 
     // Status bar (small font_5x7): XX% left | time centred | "N/M" or "WIFI" right.
     // Optionally rendered as an inverted (filled) strip for a highlighted look.

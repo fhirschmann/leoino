@@ -161,6 +161,7 @@
 			"idleline1": "Texte au repos ligne 1",
 			"idleline2": "Texte au repos ligne 2",
 			"showfields": "Afficher pendant la lecture",
+			"showartist": "Afficher l'artiste (ID3)",
 			"showbattery": "Afficher le niveau de batterie",
 			"showtime": "Afficher le temps de lecture",
 			"showwifi": "Afficher l'état du WiFi",

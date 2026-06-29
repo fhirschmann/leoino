@@ -1392,6 +1392,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putUChar("oledStartAnim", oledObj["startAnim"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledAnimCold", oledObj["animColdOnly"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledShowBatt", oledObj["showBattery"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledShowArtist", oledObj["showArtist"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledShowTime", oledObj["showTime"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledShowWifi", oledObj["showWifi"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledShowVol", oledObj["showVolume"].as<bool>()) != 0);

@@ -161,6 +161,7 @@
 			"idleline1": "Leerlauf-Text Zeile 1",
 			"idleline2": "Leerlauf-Text Zeile 2",
 			"showfields": "Anzeige während der Wiedergabe",
+			"showartist": "Interpret (ID3) anzeigen",
 			"showbattery": "Akkustand anzeigen",
 			"showtime": "Spielzeit anzeigen",
 			"showwifi": "WLAN-Status anzeigen",

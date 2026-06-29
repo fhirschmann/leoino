@@ -3444,6 +3444,10 @@
 						</div>
 						<label class="form-label" data-i18n="settingsex.oled.showfields"></label>:
 						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_showArtist" name="oled_showArtist" value="true">
+							<label class="form-check-label" for="oled_showArtist" data-i18n="settingsex.oled.showartist"></label>
+						</div>
+						<div class="form-check">
 							<input class="form-check-input" type="checkbox" id="oled_showBattery" name="oled_showBattery" value="true">
 							<label class="form-check-label" for="oled_showBattery" data-i18n="settingsex.oled.showbattery"></label>
 						</div>
@@ -5937,6 +5941,7 @@
 				document.getElementById('oled_animColdOnly').checked = oledSettings.animColdOnly === true;
 				document.getElementById('oled_idleLine1').value = oledSettings.idleLine1 != null ? oledSettings.idleLine1 : '';
 				document.getElementById('oled_idleLine2').value = oledSettings.idleLine2 != null ? oledSettings.idleLine2 : '';
+				document.getElementById('oled_showArtist').checked = oledSettings.showArtist !== false;
 				document.getElementById('oled_showBattery').checked = oledSettings.showBattery !== false;
 				document.getElementById('oled_showTime').checked = oledSettings.showTime !== false;
 				document.getElementById('oled_showWifi').checked = oledSettings.showWifi !== false;
@@ -6682,6 +6687,7 @@
 					animColdOnly: document.getElementById("oled_animColdOnly").checked,
 					idleLine1: document.getElementById("oled_idleLine1").value,
 					idleLine2: document.getElementById("oled_idleLine2").value,
+					showArtist: document.getElementById("oled_showArtist").checked,
 					showBattery: document.getElementById("oled_showBattery").checked,
 					showTime: document.getElementById("oled_showTime").checked,
 					showWifi: document.getElementById("oled_showWifi").checked,

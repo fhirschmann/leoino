@@ -164,6 +164,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		oledObj["startAnim"].set(gPrefsSettings.getUChar("oledStartAnim", 3)); // 0=none 1=boot 2=login 3=full
 		oledObj["animColdOnly"].set(gPrefsSettings.getBool("oledAnimCold", false)); // only on a real power-on, not on sleep-wake
 		oledObj["showBattery"].set(gPrefsSettings.getBool("oledShowBatt", true));
+		oledObj["showArtist"].set(gPrefsSettings.getBool("oledShowArtist", true));
 		oledObj["showTime"].set(gPrefsSettings.getBool("oledShowTime", true));
 		oledObj["showWifi"].set(gPrefsSettings.getBool("oledShowWifi", true));
 		oledObj["showVolume"].set(gPrefsSettings.getBool("oledShowVol", true));
