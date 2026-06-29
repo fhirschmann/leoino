@@ -111,6 +111,10 @@
 	},
 	"settingsex": {
 		"title": "Paramètres avancés",
+		"search": {
+			"placeholder": "Rechercher dans les paramètres…",
+			"none": "Aucun paramètre correspondant"
+		},
 		"led": {
 			"title": "Réglages des LED",
 			"numindicator": "Nombre d'indicateurs LED",

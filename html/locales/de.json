@@ -111,6 +111,10 @@
 	},
 	"settingsex": {
 		"title": "Erweiterte Einstellungen",
+		"search": {
+			"placeholder": "Einstellungen durchsuchen…",
+			"none": "Keine passende Einstellung"
+		},
 		"led": {
 			"title": "LED-Einstellungen",
 			"numindicator": "Anzahl Anzeige-LEDs",

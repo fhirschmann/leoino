@@ -1917,6 +1917,67 @@
 				linear-gradient(90deg, rgba(155, 227, 74, .04) 1px, transparent 1px);
 			background-size: 32px 32px, 32px 32px;
 		}
+
+		/* ---- Settings search ---- */
+		.settings-search-results {
+			position: absolute;
+			top: 40px;
+			left: 0;
+			right: 0;
+			z-index: 1050;
+			background: var(--cp-panel);
+			border: 1px solid var(--cp-cyan);
+			border-radius: 4px;
+			max-height: 340px;
+			overflow-y: auto;
+			display: none;
+			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+		}
+		.settings-search-results.open {
+			display: block;
+		}
+		.settings-search-result {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 10px;
+			padding: 7px 12px;
+			cursor: pointer;
+			border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+		}
+		.settings-search-result:last-child {
+			border-bottom: 0;
+		}
+		.settings-search-result:hover,
+		.settings-search-result.active {
+			background: rgba(0, 240, 255, 0.12);
+		}
+		.settings-search-result .ssr-section {
+			flex: none;
+			font-size: 0.72rem;
+			text-transform: uppercase;
+			letter-spacing: 0.04em;
+			color: var(--cp-magenta);
+			white-space: nowrap;
+		}
+		.settings-search-empty {
+			padding: 10px 12px;
+			color: #8a93a6;
+		}
+		@keyframes settingsHitPulse {
+			0% {
+				box-shadow: 0 0 0 2px var(--cp-yellow);
+				background-color: rgba(252, 238, 10, 0.10);
+			}
+			100% {
+				box-shadow: 0 0 0 2px rgba(252, 238, 10, 0);
+				background-color: transparent;
+			}
+		}
+		.settings-hit {
+			animation: settingsHitPulse 2.3s ease-out;
+			border-radius: 4px;
+		}
 	</style>
 </head>
 
@@ -2646,7 +2707,14 @@
 		<!-- ### Tab General ### -->
 		<div class="tab-pane main-tab-pane fade mb-4" id="nav-general" role="tabpanel"
 			aria-labelledby="nav-general-tab">
-			<nav class="mb-3" style="margin-top: -1.25rem;">
+			<div class="settings-search mb-3" style="position: relative; max-width: 440px; margin-top: -1.25rem;">
+				<div class="d-flex align-items-center">
+					<span class="input-group-text" style="height:38px; width:40px; border-bottom-right-radius:0; border-top-right-radius:0;"><i class="fas fa-search"></i></span>
+					<input type="search" class="form-control border-start-0" style="height:38px; border-bottom-left-radius:0; border-top-left-radius:0;" id="settingsSearch" autocomplete="off" aria-label="Search settings" data-i18n="[placeholder]settingsex.search.placeholder">
+				</div>
+				<div id="settingsSearchResults" class="settings-search-results" role="listbox"></div>
+			</div>
+			<nav class="mb-3">
 				<div class="nav nav-tabs flex-column subnav" id="settings-subnav" role="tablist">
 					<a class="nav-item nav-link active" id="settings-general-subtab" data-bs-toggle="tab" data-bs-target="#settings-general" href="#settings-general" role="tab" aria-controls="settings-general" aria-selected="true"><i class="fas fa-sliders-h"></i> <span class="d-none d-md-inline" data-i18n="nav.general"></span></a>
 					<a class="nav-item nav-link" id="settings-buttons-subtab" data-bs-toggle="tab" data-bs-target="#settings-buttons" href="#settings-buttons" role="tab" aria-controls="settings-buttons"><i class="fas fa-keyboard"></i> <span class="d-none d-md-inline" data-i18n="nav.buttons"></span></a>
@@ -6145,7 +6213,103 @@
 			// populated button dropdowns are covered too). No submit button on these tabs.
 			$('#settings-general, #settings-buttons, #settings-rfid, #settings-leds, #settings-oled, #settings-power').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
 			initHomeKit();
+			initSettingsSearch();
 		});
+
+		// ---- Settings search: filter all setting labels, jump to + highlight the matching control ----
+		function initSettingsSearch() {
+			const input = document.getElementById('settingsSearch');
+			const box = document.getElementById('settingsSearchResults');
+			if (!input || !box) return;
+			let results = [], active = -1;
+
+			// Resolve a pane element to its sub-tab nav link + section name; skip panes whose tab is
+			// hidden (feature not present on this device).
+			function paneSection(pane) {
+				const link = document.querySelector('#settings-subnav [data-bs-target="#' + pane.id + '"]');
+				if (!link || link.getAttribute('data-visible') === 'false') return null;
+				const span = link.querySelector('span');
+				return { name: span ? span.textContent.trim() : '', link: link };
+			}
+			// Built fresh on each search so dynamic visibility / language changes are always current.
+			function buildIndex() {
+				const out = [], seen = new Set();
+				const root = document.getElementById('settings-subcontent');
+				if (!root) return out;
+				root.querySelectorAll('label[for]').forEach(function (lbl) {
+					const ctrl = document.getElementById(lbl.getAttribute('for'));
+					if (!ctrl || ctrl.type === 'hidden') return;
+					const pane = lbl.closest('.tab-pane');
+					if (!pane) return;
+					const sec = paneSection(pane);
+					if (!sec) return;
+					const text = (lbl.textContent || '').replace(/\s+/g, ' ').trim();
+					if (!text) return;
+					const key = pane.id + '|' + lbl.getAttribute('for');
+					if (seen.has(key)) return;
+					seen.add(key);
+					out.push({ text: text, section: sec.name, link: sec.link, ctrl: ctrl, label: lbl });
+				});
+				return out;
+			}
+			function closeBox() { box.classList.remove('open'); box.innerHTML = ''; active = -1; }
+			function jump(item) {
+				closeBox();
+				input.value = '';
+				if (item.link) item.link.click(); // activate the Bootstrap sub-tab
+				setTimeout(function () {
+					const row = item.label.closest('.mb-3, .form-check, fieldset, .col-md-12') || item.ctrl;
+					row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+					row.classList.remove('settings-hit'); void row.offsetWidth; // restart the pulse animation
+					row.classList.add('settings-hit');
+					setTimeout(function () { row.classList.remove('settings-hit'); }, 2400);
+					try { item.ctrl.focus({ preventScroll: true }); } catch (e) { /* not focusable */ }
+				}, 90);
+			}
+			function render() {
+				box.innerHTML = '';
+				if (!results.length) {
+					const e = document.createElement('div');
+					e.className = 'settings-search-empty';
+					e.textContent = window.i18next ? i18next.t('settingsex.search.none') : 'No matching setting';
+					box.appendChild(e);
+					box.classList.add('open');
+					return;
+				}
+				results.forEach(function (item, i) {
+					const el = document.createElement('div');
+					el.className = 'settings-search-result' + (i === active ? ' active' : '');
+					el.setAttribute('role', 'option');
+					const t = document.createElement('span'); t.className = 'ssr-text'; t.textContent = item.text;
+					const s = document.createElement('span'); s.className = 'ssr-section'; s.textContent = item.section;
+					el.appendChild(t); el.appendChild(s);
+					el.addEventListener('mousedown', function (ev) { ev.preventDefault(); jump(item); });
+					box.appendChild(el);
+				});
+				box.classList.add('open');
+			}
+			function doSearch() {
+				const q = input.value.trim().toLowerCase();
+				if (q.length < 2) { closeBox(); return; }
+				results = buildIndex().filter(function (it) {
+					return (it.text + ' ' + it.section).toLowerCase().indexOf(q) !== -1;
+				}).slice(0, 12);
+				active = results.length ? 0 : -1;
+				render();
+			}
+			input.addEventListener('input', doSearch);
+			input.addEventListener('focus', function () { if (input.value.trim().length >= 2) doSearch(); });
+			input.addEventListener('keydown', function (e) {
+				if (!box.classList.contains('open')) return;
+				if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(active + 1, results.length - 1); render(); }
+				else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); render(); }
+				else if (e.key === 'Enter') { e.preventDefault(); if (results[active]) jump(results[active]); }
+				else if (e.key === 'Escape') { closeBox(); input.blur(); }
+			});
+			document.addEventListener('click', function (e) {
+				if (!e.target.closest('.settings-search')) closeBox();
+			});
+		}
 
 		// ---- Apple HomeKit settings section -------------------------------------
 		function renderHomeKitStatus(hk) {

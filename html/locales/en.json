@@ -111,6 +111,10 @@
 	},
 	"settingsex": {
 		"title": "Advanced settings",
+		"search": {
+			"placeholder": "Search settings…",
+			"none": "No matching setting"
+		},
 		"led": {
 			"title": "LED settings",
 			"numindicator": "Number of indicator LEDs",
