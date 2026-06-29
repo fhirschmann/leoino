@@ -161,7 +161,31 @@
 			"showtime": "Show playback time",
 			"showwifi": "Show WiFi status",
 			"showvolume": "Show volume overlay",
-			"flip": "Rotate display by 180°"
+			"flip": "Rotate display by 180°",
+			"contrast": "Brightness / contrast",
+			"invert": "Invert display",
+			"animspeed": "Animation speed",
+			"speed": {
+				"slow": "Slow",
+				"normal": "Normal",
+				"fast": "Fast"
+			},
+			"loginuser": "Login username",
+			"boottext": "Boot text",
+			"loginpwlen": "Password length (asterisks)",
+			"showclock": "Show clock when idle",
+			"clock24h": "24-hour format",
+			"idletimeout": "Turn display off when idle (s, 0 = off)",
+			"idletimeouthint": "Blanks the panel after this idle time — protects the OLED from burn-in and saves power.",
+			"burnin": "Burn-in protection (idle pixel-shift)",
+			"tracknum": "Show track number N/M",
+			"statusinvert": "Inverted status bar",
+			"timemode": "Time display (while playing)",
+			"time": {
+				"elapsedtotal": "Elapsed / total",
+				"remaining": "Remaining",
+				"elapsed": "Elapsed only"
+			}
 		},
 		"buttons": {
 			"title": "Button assignments",

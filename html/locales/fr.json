@@ -161,7 +161,31 @@
 			"showtime": "Afficher le temps de lecture",
 			"showwifi": "Afficher l'état du WiFi",
 			"showvolume": "Afficher l'overlay de volume",
-			"flip": "Pivoter l'écran de 180°"
+			"flip": "Pivoter l'écran de 180°",
+			"contrast": "Luminosité / contraste",
+			"invert": "Inverser l'affichage",
+			"animspeed": "Vitesse de l'animation",
+			"speed": {
+				"slow": "Lente",
+				"normal": "Normale",
+				"fast": "Rapide"
+			},
+			"loginuser": "Nom d'utilisateur (login)",
+			"boottext": "Texte de démarrage",
+			"loginpwlen": "Longueur du mot de passe (astérisques)",
+			"showclock": "Afficher l'horloge au repos",
+			"clock24h": "Format 24 heures",
+			"idletimeout": "Éteindre l'écran après inactivité (s, 0 = désactivé)",
+			"idletimeouthint": "Éteint l'écran après ce délai d'inactivité — protège l'OLED du marquage et économise l'énergie.",
+			"burnin": "Protection anti-marquage (décalage de pixels au repos)",
+			"tracknum": "Afficher le numéro de piste N/M",
+			"statusinvert": "Barre d'état inversée",
+			"timemode": "Affichage du temps (lecture)",
+			"time": {
+				"elapsedtotal": "Écoulé / total",
+				"remaining": "Restant",
+				"elapsed": "Écoulé seulement"
+			}
 		},
 		"buttons": {
 			"title": "Attribution des boutons",

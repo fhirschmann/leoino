@@ -170,6 +170,19 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		oledObj["flip"].set(gPrefsSettings.getBool("oledFlip", false));
 		oledObj["idleLine1"].set(gPrefsSettings.getString("oledIdleL1", "LEO INDUSTRIES"));
 		oledObj["idleLine2"].set(gPrefsSettings.getString("oledIdleL2", "AUDIO TERMINAL AT-1"));
+		oledObj["idleTimeout"].set(gPrefsSettings.getUShort("oledIdleTimeout", 0)); // blank panel after N s idle (0=off)
+		oledObj["contrast"].set(gPrefsSettings.getUChar("oledContrast", 255));
+		oledObj["showClock"].set(gPrefsSettings.getBool("oledShowClock", false));
+		oledObj["clock24h"].set(gPrefsSettings.getBool("oledClock24h", true));
+		oledObj["burnIn"].set(gPrefsSettings.getBool("oledBurnIn", false));
+		oledObj["invert"].set(gPrefsSettings.getBool("oledInvert", false));
+		oledObj["loginUser"].set(gPrefsSettings.getString("oledLoginUser", "leo"));
+		oledObj["bootText"].set(gPrefsSettings.getString("oledBootText", "Booting"));
+		oledObj["loginPwLen"].set(gPrefsSettings.getUChar("oledLoginPwLen", 6));
+		oledObj["animSpeed"].set(gPrefsSettings.getUChar("oledAnimSpeed", 1)); // 0=slow 1=normal 2=fast
+		oledObj["trackNum"].set(gPrefsSettings.getBool("oledTrackNum", false));
+		oledObj["timeMode"].set(gPrefsSettings.getUChar("oledTimeMode", 0)); // 0=elapsed/total 1=remaining 2=elapsed
+		oledObj["statusInvert"].set(gPrefsSettings.getBool("oledStatusInv", false));
 	}
 #endif
 	if ((section == "") || (section == "buttons")) {

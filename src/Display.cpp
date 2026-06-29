@@ -13,6 +13,7 @@
 
 #include <U8g2lib.h>
 #include <Wire.h>
+#include <time.h>
 
 extern TwoWire i2cBusTwo;
 
@@ -33,6 +34,36 @@ static bool        s_cfgShowVolume = true;                       // oledShowVol 
 static bool        s_cfgFlip       = false;                      // oledFlip – rotate the panel by 180°
 static char        s_cfgIdleLine1[32] = "";                      // oledIdleL1 – idle header line 1
 static char        s_cfgIdleLine2[32] = "";                      // oledIdleL2 – idle header line 2
+static uint16_t    s_cfgIdleTimeout = 0;                         // oledIdleTimeout – blank the panel after N s idle (0 = off)
+static uint8_t     s_cfgContrast    = 255;                       // oledContrast – panel brightness/contrast 0..255
+static bool        s_cfgShowClock   = false;                     // oledShowClock – show the RTC time on the idle screen
+static bool        s_cfgClock24h    = true;                      // oledClock24h – 24h vs 12h clock format
+static bool        s_cfgBurnIn      = false;                     // oledBurnIn – pixel-shift the idle content (anti burn-in)
+static bool        s_cfgInvert      = false;                     // oledInvert – invert the whole panel
+static char        s_cfgLoginUser[16] = "leo";                  // oledLoginUser – username typed in the login splash
+static char        s_cfgBootText[16]  = "Booting";              // oledBootText – word shown with the boot dots
+static uint8_t     s_cfgLoginPwLen  = 6;                         // oledLoginPwLen – number of password asterisks
+static uint8_t     s_cfgAnimSpeed   = 1;                         // oledAnimSpeed – 0 slow, 1 normal, 2 fast
+static bool        s_cfgTrackNum    = false;                     // oledTrackNum – show "N/M" track position on the playing screen
+static uint8_t     s_cfgTimeMode    = 0;                         // oledTimeMode – 0 elapsed/total, 1 remaining, 2 elapsed
+static bool        s_cfgStatusInv   = false;                     // oledStatusInv – draw the playing status-bar inverted
+
+// Boot/login animation phase timings at normal speed. The runtime copies below are these scaled by
+// s_cfgAnimSpeed in Display_LoadConfig.
+static constexpr uint32_t kBootDurationMs  = 3000;  // boot screen
+static constexpr uint32_t kLoginDurationMs = 3500;  // login animation
+static constexpr uint32_t kBootLine1Ms  = 0;        // boot line 1 appears immediately
+static constexpr uint32_t kBootLine2Ms  = 750;      // boot line 2 appears here
+static constexpr uint32_t kBootDotsMs   = 1000;     // dots start cycling from here
+static constexpr uint32_t kBootDotCycle = 600;      // ms per dot step
+static constexpr uint32_t kUserStart    = 500;      // login: username starts typing (relative to boot end)
+static constexpr uint32_t kUserStep     = 220;      // ms per username char
+static constexpr uint32_t kPassStart    = 1400;     // login: password starts typing
+static constexpr uint32_t kPassStep     = 220;      // ms per password char
+
+// Runtime (speed-scaled) copies of the timings above.
+static uint32_t s_bootDurMs, s_loginDurMs, s_bootLine2Ms, s_bootDotsMs, s_bootDotCycleMs;
+static uint32_t s_userStartMs, s_userStepMs, s_passStartMs, s_passStepMs;
 
 // Pull the OLED settings out of NVS into the cached statics above.
 static void Display_LoadConfig(void) {
@@ -52,6 +83,41 @@ static void Display_LoadConfig(void) {
     s_cfgIdleLine1[sizeof(s_cfgIdleLine1) - 1] = '\0';
     strncpy(s_cfgIdleLine2, l2.c_str(), sizeof(s_cfgIdleLine2) - 1);
     s_cfgIdleLine2[sizeof(s_cfgIdleLine2) - 1] = '\0';
+
+    s_cfgIdleTimeout = gPrefsSettings.getUShort("oledIdleTimeout", 0);
+    s_cfgContrast    = gPrefsSettings.getUChar("oledContrast", 255);
+    s_cfgShowClock   = gPrefsSettings.getBool("oledShowClock", false);
+    s_cfgClock24h    = gPrefsSettings.getBool("oledClock24h", true);
+    s_cfgBurnIn      = gPrefsSettings.getBool("oledBurnIn", false);
+    s_cfgInvert      = gPrefsSettings.getBool("oledInvert", false);
+    String lu        = gPrefsSettings.getString("oledLoginUser", "leo");
+    strncpy(s_cfgLoginUser, lu.c_str(), sizeof(s_cfgLoginUser) - 1);
+    s_cfgLoginUser[sizeof(s_cfgLoginUser) - 1] = '\0';
+    String bt        = gPrefsSettings.getString("oledBootText", "Booting");
+    strncpy(s_cfgBootText, bt.c_str(), sizeof(s_cfgBootText) - 1);
+    s_cfgBootText[sizeof(s_cfgBootText) - 1] = '\0';
+    s_cfgLoginPwLen  = gPrefsSettings.getUChar("oledLoginPwLen", 6);
+    if (s_cfgLoginPwLen < 1) s_cfgLoginPwLen = 1;
+    if (s_cfgLoginPwLen > 12) s_cfgLoginPwLen = 12;
+    s_cfgAnimSpeed   = gPrefsSettings.getUChar("oledAnimSpeed", 1);
+    if (s_cfgAnimSpeed > 2) s_cfgAnimSpeed = 1;
+    s_cfgTrackNum    = gPrefsSettings.getBool("oledTrackNum", false);
+    s_cfgTimeMode    = gPrefsSettings.getUChar("oledTimeMode", 0);
+    if (s_cfgTimeMode > 2) s_cfgTimeMode = 0;
+    s_cfgStatusInv   = gPrefsSettings.getBool("oledStatusInv", false);
+
+    // Scale the boot/login animation timings by the chosen speed (0 slow ×3/2, 1 normal ×1, 2 fast ×3/5).
+    const uint32_t sn = (s_cfgAnimSpeed == 0) ? 3u : (s_cfgAnimSpeed == 2) ? 3u : 1u;
+    const uint32_t sd = (s_cfgAnimSpeed == 0) ? 2u : (s_cfgAnimSpeed == 2) ? 5u : 1u;
+    s_bootDurMs      = kBootDurationMs * sn / sd;
+    s_loginDurMs     = kLoginDurationMs * sn / sd;
+    s_bootLine2Ms    = kBootLine2Ms * sn / sd;
+    s_bootDotsMs     = kBootDotsMs * sn / sd;
+    s_bootDotCycleMs = kBootDotCycle * sn / sd;
+    s_userStartMs    = kUserStart * sn / sd;
+    s_userStepMs     = kUserStep * sn / sd;
+    s_passStartMs    = kPassStart * sn / sd;
+    s_passStepMs     = kPassStep * sn / sd;
 }
 
 // Set by the byte callback when an I2C transfer NACKs/fails (e.g. a bus glitch or a transfer that
@@ -119,18 +185,6 @@ static uint8_t  s_lastPlayMode = 0xFF;     // detect idle transition
 static bool     s_wokeFromSleep    = false; // this boot is a wake from an intentional deep-sleep (NVS intent-flag)
 static bool     s_coldStartLatched = false; // read+consume the wake-from-sleep flag exactly once per boot
 static bool     s_startupAnimShown = false; // the startup animation has already run to completion once
-static constexpr uint32_t kBootDurationMs  = 3000;  // boot screen
-static constexpr uint32_t kLoginDurationMs = 3500;  // login animation
-// Boot screen: first two lines appear, then "Booting." / ".." / "..."
-static constexpr uint32_t kBootLine1Ms  = 0;
-static constexpr uint32_t kBootLine2Ms  = 750;
-static constexpr uint32_t kBootDotsMs   = 1000;  // dots start cycling from here
-static constexpr uint32_t kBootDotCycle = 600;   // ms per dot step
-// Login animation offsets are relative to kBootDurationMs
-static constexpr uint32_t kUserStart  = 500;
-static constexpr uint32_t kUserStep   = 220;
-static constexpr uint32_t kPassStart  = 1400;
-static constexpr uint32_t kPassStep   = 220;
 
 
 // Convert a UTF-8 string to ISO-8859-1 (Latin-1) in-place equivalent.
@@ -376,6 +430,8 @@ static bool Display_HwInit(bool settleDelay) {
     s_u8g2.initDisplay();
     s_u8g2.setFlipMode(s_cfgFlip ? 1 : 0); // 180° rotation when the panel is mounted upside-down
     s_u8g2.setPowerSave(0);
+    s_u8g2.setContrast(s_cfgContrast); // panel brightness/contrast
+    s_u8g2.sendF("c", s_cfgInvert ? 0x0A7 : 0x0A6); // SH1106: A7 = inverse, A6 = normal
     s_u8g2.clearBuffer();
     s_i2cSendError = false;
     s_u8g2.sendBuffer();
@@ -450,7 +506,11 @@ void Display_ReloadConfig(void) {
         Display_Init(); // re-reads the config, but that is harmless
         return;
     }
+    I2cBusTwo_Lock();
     s_u8g2.setFlipMode(s_cfgFlip ? 1 : 0);
+    s_u8g2.setContrast(s_cfgContrast); // apply a changed brightness live
+    s_u8g2.sendF("c", s_cfgInvert ? 0x0A7 : 0x0A6); // apply a changed invert-mode live
+    I2cBusTwo_Unlock();
 }
 
 // Toggle the master enable flag, persist it and apply immediately (CMD_TOGGLE_OLED).
@@ -463,6 +523,23 @@ void Display_Toggle(void) {
 
 bool Display_IsEnabled(void) {
     return s_cfgEnabled;
+}
+
+// Format the current wall-clock time (RTC-backed system clock) into buf. Returns false when the
+// clock hasn't been set yet, so the caller can simply skip drawing it.
+static bool Display_FormatClock(char *buf, size_t n) {
+    time_t t = time(nullptr);
+    if (t < 1700000000) return false; // ~2023-11: clock not set (no RTC/NTP time yet)
+    struct tm lt;
+    localtime_r(&t, &lt);
+    if (s_cfgClock24h) {
+        snprintf(buf, n, "%02d:%02d", lt.tm_hour, lt.tm_min);
+    } else {
+        int h = lt.tm_hour % 12;
+        if (h == 0) h = 12;
+        snprintf(buf, n, "%d:%02d%c", h, lt.tm_min, lt.tm_hour < 12 ? 'a' : 'p');
+    }
+    return true;
 }
 
 // -----------------------------------------------------------------------
@@ -533,6 +610,16 @@ void Display_Cyclic(void) {
     bool volScreen = s_cfgShowVolume && (s_volChangedAt > 0) && (now - s_volChangedAt < kVolBarDurationMs);
     bool idle      = (gPlayProperties.playMode == NO_PLAYLIST);
 
+    // Auto-off: once the panel has been blanked (see the idle branch below) bring it back the moment
+    // anything happens — playback resumes or the volume overlay shows.
+    static bool s_panelBlanked = false;
+    if (s_panelBlanked && (!idle || volScreen)) {
+        I2cBusTwo_Lock();
+        s_u8g2.setPowerSave(0);
+        I2cBusTwo_Unlock();
+        s_panelBlanked = false;
+    }
+
     s_u8g2.clearBuffer();
 
     // ---- VOLUME SCREEN (takes over entire display) ----
@@ -572,6 +659,20 @@ void Display_Cyclic(void) {
         }
         uint32_t idleMs = now - s_idleSince;
 
+        // Auto-off: after the configured idle time, power the panel down (burn-in + power). It comes
+        // back via the un-blank check above once playback resumes or the volume changes.
+        if (s_cfgIdleTimeout > 0 && idleMs >= static_cast<uint32_t>(s_cfgIdleTimeout) * 1000u) {
+            if (!s_panelBlanked) {
+                I2cBusTwo_Lock();
+                s_u8g2.clearBuffer();
+                s_u8g2.sendBuffer();
+                s_u8g2.setPowerSave(1);
+                I2cBusTwo_Unlock();
+                s_panelBlanked = true;
+            }
+            return;
+        }
+
         // The startup/attract animation is selectable: it can show the boot screen, the
         // login splash, both (default) or nothing. Compute each phase's duration so the
         // disabled phases collapse to zero and we fall straight through to the idle screen.
@@ -581,19 +682,20 @@ void Display_Cyclic(void) {
         // and on the attract re-runs that follow each playback. Off (default) keeps the original
         // behaviour where the animation plays on every idle entry.
         const bool animAllowed = !s_cfgAnimColdOnly || (!s_wokeFromSleep && !s_startupAnimShown);
-        const uint32_t bootDur  = (animAllowed && (s_cfgStartAnim == StartupAnim::Boot || s_cfgStartAnim == StartupAnim::Full)) ? kBootDurationMs : 0u;
-        const uint32_t loginDur = (animAllowed && (s_cfgStartAnim == StartupAnim::Login || s_cfgStartAnim == StartupAnim::Full)) ? kLoginDurationMs : 0u;
+        const uint32_t bootDur  = (animAllowed && (s_cfgStartAnim == StartupAnim::Boot || s_cfgStartAnim == StartupAnim::Full)) ? s_bootDurMs : 0u;
+        const uint32_t loginDur = (animAllowed && (s_cfgStartAnim == StartupAnim::Login || s_cfgStartAnim == StartupAnim::Full)) ? s_loginDurMs : 0u;
 
         s_u8g2.setFont(u8g2_font_6x13_tf);
 
         if (idleMs < bootDur) {
             // ---- BOOT SCREEN ----
             if (idleMs >= kBootLine1Ms) s_u8g2.drawStr(0, 13, s_cfgIdleLine1);
-            if (idleMs >= kBootLine2Ms) s_u8g2.drawStr(0, 26, s_cfgIdleLine2);
-            if (idleMs >= kBootDotsMs) {
-                uint32_t step = ((idleMs - kBootDotsMs) / kBootDotCycle) % 3u;
-                const char *dotStrs[] = {"Booting.", "Booting..", "Booting..."};
-                s_u8g2.drawStr(0, 45, dotStrs[step]);
+            if (idleMs >= s_bootLine2Ms) s_u8g2.drawStr(0, 26, s_cfgIdleLine2);
+            if (idleMs >= s_bootDotsMs) {
+                uint32_t step = ((idleMs - s_bootDotsMs) / s_bootDotCycleMs) % 3u;
+                char dotBuf[24];
+                snprintf(dotBuf, sizeof(dotBuf), "%s%s", s_cfgBootText, step == 0 ? "." : step == 1 ? ".." : "...");
+                s_u8g2.drawStr(0, 45, dotBuf);
             }
         } else if (idleMs < bootDur + loginDur) {
             // ---- LOGIN SPLASH ----
@@ -603,31 +705,32 @@ void Display_Cyclic(void) {
             // Header
             s_u8g2.drawStr(0, 13, "AT-1 LOGIN");
 
-            // Username line (row 3)
+            // Username line (row 3) – types out the configurable username one char at a time
             s_u8g2.drawStr(0, 35, "Username: ");
+            const char *uFull = s_cfgLoginUser;
+            uint8_t uLen = static_cast<uint8_t>(strlen(uFull));
             uint8_t uChars = 0;
-            if (loginMs >= kUserStart) {
+            if (loginMs >= s_userStartMs) {
                 uChars = static_cast<uint8_t>(
-                    min((loginMs - kUserStart) / kUserStep + 1u, static_cast<uint32_t>(3)));
+                    min((loginMs - s_userStartMs) / s_userStepMs + 1u, static_cast<uint32_t>(uLen)));
             }
-            const char *uFull = "leo";
-            char uBuf[5];
+            char uBuf[18];
             memcpy(uBuf, uFull, uChars);
-            bool uDone = (uChars >= 3);
+            bool uDone = (uChars >= uLen);
             uBuf[uChars] = (uDone ? '\0' : (cursorOn ? '_' : ' '));
             uBuf[uChars + (uDone ? 0 : 1)] = '\0';
             s_u8g2.drawStr(static_cast<int>(s_u8g2.getStrWidth("Username: ")), 35, uBuf);
 
-            // Password line (row 4)
-            if (loginMs >= kPassStart - kPassStep) {
+            // Password line (row 4) – label appears a step before the asterisks start filling
+            if (loginMs + s_passStepMs >= s_passStartMs) {
                 s_u8g2.drawStr(0, 52, "Password: ");
                 uint8_t pChars = 0;
-                if (loginMs >= kPassStart) {
+                if (loginMs >= s_passStartMs) {
                     pChars = static_cast<uint8_t>(
-                        min((loginMs - kPassStart) / kPassStep + 1u, static_cast<uint32_t>(6)));
+                        min((loginMs - s_passStartMs) / s_passStepMs + 1u, static_cast<uint32_t>(s_cfgLoginPwLen)));
                 }
-                bool pDone = (pChars >= 6);
-                char pBuf[8];
+                bool pDone = (pChars >= s_cfgLoginPwLen);
+                char pBuf[16];
                 memset(pBuf, '*', pChars);
                 pBuf[pChars] = (pDone ? '\0' : (cursorOn ? '_' : ' '));
                 pBuf[pChars + (pDone ? 0 : 1)] = '\0';
@@ -638,12 +741,32 @@ void Display_Cyclic(void) {
             // The startup animation (if any) has played out; latch that so cold-start-only mode
             // never replays it on a later attract cycle.
             s_startupAnimShown = true;
-            s_u8g2.drawStr(0, 13, s_cfgIdleLine1);
-            s_u8g2.drawStr(0, 26, s_cfgIdleLine2);
+
+            // Anti burn-in: nudge the whole idle screen by a few pixels on a slow cycle so no pixel
+            // stays lit in the same spot forever.
+            int sx = 0, sy = 0;
+            if (s_cfgBurnIn) {
+                static const int8_t ox[4] = {0, 1, 2, 1};
+                static const int8_t oy[4] = {0, 1, 0, -1};
+                uint8_t ph = (now / 30000u) % 4u; // shift every 30 s
+                sx = ox[ph];
+                sy = oy[ph];
+            }
+
+            s_u8g2.drawStr(0 + sx, 13 + sy, s_cfgIdleLine1);
+            s_u8g2.drawStr(0 + sx, 26 + sy, s_cfgIdleLine2);
             String ip = Wlan_GetIpAddress();
-            s_u8g2.drawStr(0, 39, ip.length() > 0 ? ip.c_str() : "NO WIFI");
+            s_u8g2.drawStr(0 + sx, 39 + sy, ip.length() > 0 ? ip.c_str() : "NO WIFI");
             bool cursorOn = (now / 500u) % 2u == 0u;
-            s_u8g2.drawStr(0, 56, cursorOn ? "READY_" : "READY ");
+            s_u8g2.drawStr(0 + sx, 56 + sy, cursorOn ? "READY_" : "READY ");
+
+            // Clock (RTC) – right-aligned on the footer row, next to READY.
+            if (s_cfgShowClock) {
+                char clk[12];
+                if (Display_FormatClock(clk, sizeof(clk))) {
+                    s_u8g2.drawStr(128 - static_cast<int>(s_u8g2.getStrWidth(clk)) + sx, 56 + sy, clk);
+                }
+            }
         }
 
         Display_Send();
@@ -656,8 +779,13 @@ void Display_Cyclic(void) {
     s_u8g2.setFont(u8g2_font_6x13_tf);
     Display_DrawTitle(gPlayProperties.title, 12, 26, 40);
 
-    // Status bar (small font_5x7): XX% left | elapsed/total centred | "WIFI" right (blank if no wifi)
+    // Status bar (small font_5x7): XX% left | time centred | "N/M" or "WIFI" right.
+    // Optionally rendered as an inverted (filled) strip for a highlighted look.
     s_u8g2.setFont(u8g2_font_5x7_tf);
+    if (s_cfgStatusInv) {
+        s_u8g2.drawBox(0, 52, 128, 12); // highlight strip behind the status row (y 52..63)
+        s_u8g2.setDrawColor(0); // draw the status text in black on top of the strip
+    }
 
     // Battery – left
 #ifdef BATTERY_MEASURE_ENABLE
@@ -669,12 +797,17 @@ void Display_Cyclic(void) {
     }
 #endif
 
-    // Elapsed / total – centred
+    // Time – centred, per the selected mode (0 elapsed/total, 1 remaining, 2 elapsed)
     if (s_cfgShowTime) {
         uint32_t elapsed  = AudioPlayer_GetCurrentTime();
         uint32_t duration = AudioPlayer_GetFileDuration();
         char timeBuf[16];
         if (gPlayProperties.isWebstream || duration == 0) {
+            snprintf(timeBuf, sizeof(timeBuf), "%d:%02d", elapsed / 60, elapsed % 60);
+        } else if (s_cfgTimeMode == 1) {
+            uint32_t rem = (duration > elapsed) ? (duration - elapsed) : 0u;
+            snprintf(timeBuf, sizeof(timeBuf), "-%d:%02d", rem / 60, rem % 60);
+        } else if (s_cfgTimeMode == 2) {
             snprintf(timeBuf, sizeof(timeBuf), "%d:%02d", elapsed / 60, elapsed % 60);
         } else {
             snprintf(timeBuf, sizeof(timeBuf), "%d:%02d/%d:%02d",
@@ -684,11 +817,25 @@ void Display_Cyclic(void) {
         s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(timeBuf)) / 2), 60, timeBuf);
     }
 
-    // WiFi – right ("wifi" when connected, nothing when not)
-    if (s_cfgShowWifi && Wlan_IsConnected()) {
+    // Right slot: track position "N/M" (if enabled) takes priority over the WiFi marker.
+    bool drewRight = false;
+    if (s_cfgTrackNum) {
+        Playlist *pl = gPlayProperties.playlist; // shared with the audio task; guard the pointer
+        if (pl != nullptr && pl->size() > 1) {
+            char tnBuf[12];
+            snprintf(tnBuf, sizeof(tnBuf), "%u/%u",
+                     static_cast<unsigned>(gPlayProperties.currentTrackNumber + 1),
+                     static_cast<unsigned>(pl->size()));
+            s_u8g2.drawStr(static_cast<int>(128 - s_u8g2.getStrWidth(tnBuf)), 60, tnBuf);
+            drewRight = true;
+        }
+    }
+    if (!drewRight && s_cfgShowWifi && Wlan_IsConnected()) {
         const char *wifiStr = "WIFI";
         s_u8g2.drawStr(static_cast<int>(128 - s_u8g2.getStrWidth(wifiStr)), 60, wifiStr);
     }
+
+    if (s_cfgStatusInv) s_u8g2.setDrawColor(1); // restore the normal draw colour
 
     Display_Send();
 }

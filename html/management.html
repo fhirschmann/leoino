@@ -3300,6 +3300,16 @@
 						</div>
 						<small class="text-muted d-block mb-3" data-i18n="settingsex.oled.enablehint"></small>
 						<div class="mb-3">
+							<label class="form-label" for="oled_contrast" data-i18n="settingsex.oled.contrast"></label>:
+							<span id="oled_contrastVal" class="text-muted">255</span>
+							<input type="range" class="form-range" id="oled_contrast" name="oled_contrast" min="0" max="255" step="1"
+								oninput="document.getElementById('oled_contrastVal').textContent = this.value;">
+						</div>
+						<div class="form-check mb-3">
+							<input class="form-check-input" type="checkbox" id="oled_invert" name="oled_invert" value="false">
+							<label class="form-check-label" for="oled_invert" data-i18n="settingsex.oled.invert"></label>
+						</div>
+						<div class="mb-3">
 							<label class="form-label" for="oled_startAnim" data-i18n="settingsex.oled.startanim"></label>:
 							<select class="form-select" id="oled_startAnim" name="oled_startAnim">
 								<option value="0" data-i18n="settingsex.oled.anim.none"></option>
@@ -3314,12 +3324,49 @@
 						</div>
 						<small class="text-muted d-block mb-3" data-i18n="settingsex.oled.animcoldonlyhint"></small>
 						<div class="mb-3">
+							<label class="form-label" for="oled_animSpeed" data-i18n="settingsex.oled.animspeed"></label>:
+							<select class="form-select" id="oled_animSpeed" name="oled_animSpeed">
+								<option value="0" data-i18n="settingsex.oled.speed.slow"></option>
+								<option value="1" data-i18n="settingsex.oled.speed.normal"></option>
+								<option value="2" data-i18n="settingsex.oled.speed.fast"></option>
+							</select>
+						</div>
+						<div class="mb-3">
+							<label class="form-label" for="oled_loginUser" data-i18n="settingsex.oled.loginuser"></label>:
+							<input type="text" class="form-control" id="oled_loginUser" name="oled_loginUser" maxlength="12">
+						</div>
+						<div class="mb-3">
+							<label class="form-label" for="oled_bootText" data-i18n="settingsex.oled.boottext"></label>:
+							<input type="text" class="form-control" id="oled_bootText" name="oled_bootText" maxlength="12">
+						</div>
+						<div class="mb-3">
+							<label class="form-label" for="oled_loginPwLen" data-i18n="settingsex.oled.loginpwlen"></label>:
+							<input type="number" class="form-control" id="oled_loginPwLen" name="oled_loginPwLen" min="1" max="12">
+						</div>
+						<div class="mb-3">
 							<label class="form-label" for="oled_idleLine1" data-i18n="settingsex.oled.idleline1"></label>:
 							<input type="text" class="form-control" id="oled_idleLine1" name="oled_idleLine1" maxlength="21">
 						</div>
 						<div class="mb-3">
 							<label class="form-label" for="oled_idleLine2" data-i18n="settingsex.oled.idleline2"></label>:
 							<input type="text" class="form-control" id="oled_idleLine2" name="oled_idleLine2" maxlength="21">
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_showClock" name="oled_showClock" value="false">
+							<label class="form-check-label" for="oled_showClock" data-i18n="settingsex.oled.showclock"></label>
+						</div>
+						<div class="form-check mb-3">
+							<input class="form-check-input" type="checkbox" id="oled_clock24h" name="oled_clock24h" value="true">
+							<label class="form-check-label" for="oled_clock24h" data-i18n="settingsex.oled.clock24h"></label>
+						</div>
+						<div class="mb-1">
+							<label class="form-label" for="oled_idleTimeout" data-i18n="settingsex.oled.idletimeout"></label>:
+							<input type="number" class="form-control" id="oled_idleTimeout" name="oled_idleTimeout" min="0" max="3600">
+						</div>
+						<small class="text-muted d-block mb-3" data-i18n="settingsex.oled.idletimeouthint"></small>
+						<div class="form-check mb-3">
+							<input class="form-check-input" type="checkbox" id="oled_burnIn" name="oled_burnIn" value="false">
+							<label class="form-check-label" for="oled_burnIn" data-i18n="settingsex.oled.burnin"></label>
 						</div>
 						<label class="form-label" data-i18n="settingsex.oled.showfields"></label>:
 						<div class="form-check">
@@ -3337,6 +3384,22 @@
 						<div class="form-check">
 							<input class="form-check-input" type="checkbox" id="oled_showVolume" name="oled_showVolume" value="true">
 							<label class="form-check-label" for="oled_showVolume" data-i18n="settingsex.oled.showvolume"></label>
+						</div>
+						<div class="form-check">
+							<input class="form-check-input" type="checkbox" id="oled_trackNum" name="oled_trackNum" value="false">
+							<label class="form-check-label" for="oled_trackNum" data-i18n="settingsex.oled.tracknum"></label>
+						</div>
+						<div class="form-check mb-2">
+							<input class="form-check-input" type="checkbox" id="oled_statusInvert" name="oled_statusInvert" value="false">
+							<label class="form-check-label" for="oled_statusInvert" data-i18n="settingsex.oled.statusinvert"></label>
+						</div>
+						<div class="mb-3">
+							<label class="form-label" for="oled_timeMode" data-i18n="settingsex.oled.timemode"></label>:
+							<select class="form-select" id="oled_timeMode" name="oled_timeMode">
+								<option value="0" data-i18n="settingsex.oled.time.elapsedtotal"></option>
+								<option value="1" data-i18n="settingsex.oled.time.remaining"></option>
+								<option value="2" data-i18n="settingsex.oled.time.elapsed"></option>
+							</select>
 						</div>
 						<div class="form-check mt-3">
 							<input class="form-check-input" type="checkbox" id="oled_flip" name="oled_flip" value="false">
@@ -5805,6 +5868,21 @@
 				document.getElementById('oled_showWifi').checked = oledSettings.showWifi !== false;
 				document.getElementById('oled_showVolume').checked = oledSettings.showVolume !== false;
 				document.getElementById('oled_flip').checked = oledSettings.flip === true;
+				let oledContrastVal = oledSettings.contrast != null ? oledSettings.contrast : 255;
+				document.getElementById('oled_contrast').value = oledContrastVal;
+				document.getElementById('oled_contrastVal').textContent = oledContrastVal;
+				document.getElementById('oled_invert').checked = oledSettings.invert === true;
+				document.getElementById('oled_idleTimeout').value = oledSettings.idleTimeout != null ? oledSettings.idleTimeout : 0;
+				document.getElementById('oled_showClock').checked = oledSettings.showClock === true;
+				document.getElementById('oled_clock24h').checked = oledSettings.clock24h !== false;
+				document.getElementById('oled_burnIn').checked = oledSettings.burnIn === true;
+				document.getElementById('oled_loginUser').value = oledSettings.loginUser != null ? oledSettings.loginUser : '';
+				document.getElementById('oled_bootText').value = oledSettings.bootText != null ? oledSettings.bootText : '';
+				document.getElementById('oled_loginPwLen').value = oledSettings.loginPwLen != null ? oledSettings.loginPwLen : 6;
+				document.getElementById('oled_animSpeed').value = oledSettings.animSpeed != null ? oledSettings.animSpeed : 1;
+				document.getElementById('oled_trackNum').checked = oledSettings.trackNum === true;
+				document.getElementById('oled_timeMode').value = oledSettings.timeMode != null ? oledSettings.timeMode : 0;
+				document.getElementById('oled_statusInvert').checked = oledSettings.statusInvert === true;
 			}
 			// IR remote control (section only present when IR_CONTROL_ENABLE is compiled in)
 			let irSettings = settings.ir;
@@ -6438,6 +6516,19 @@
 					showWifi: document.getElementById("oled_showWifi").checked,
 					showVolume: document.getElementById("oled_showVolume").checked,
 					flip: document.getElementById("oled_flip").checked,
+					contrast: Number(document.getElementById("oled_contrast").value),
+					invert: document.getElementById("oled_invert").checked,
+					idleTimeout: Number(document.getElementById("oled_idleTimeout").value),
+					showClock: document.getElementById("oled_showClock").checked,
+					clock24h: document.getElementById("oled_clock24h").checked,
+					burnIn: document.getElementById("oled_burnIn").checked,
+					loginUser: document.getElementById("oled_loginUser").value,
+					bootText: document.getElementById("oled_bootText").value,
+					loginPwLen: Number(document.getElementById("oled_loginPwLen").value),
+					animSpeed: Number(document.getElementById("oled_animSpeed").value),
+					trackNum: document.getElementById("oled_trackNum").checked,
+					timeMode: Number(document.getElementById("oled_timeMode").value),
+					statusInvert: document.getElementById("oled_statusInvert").checked,
 				},
 				"battery": {
 					warnLowVoltage: Number($('#warningLowVoltage').val()),

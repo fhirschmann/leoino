@@ -1396,11 +1396,28 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("oledShowWifi", oledObj["showWifi"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledShowVol", oledObj["showVolume"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledFlip", oledObj["flip"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putUShort("oledIdleTimeout", oledObj["idleTimeout"].as<uint16_t>()) != 0);
+		success = success && (gPrefsSettings.putUChar("oledContrast", oledObj["contrast"].as<uint8_t>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledShowClock", oledObj["showClock"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledClock24h", oledObj["clock24h"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledBurnIn", oledObj["burnIn"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledInvert", oledObj["invert"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putUChar("oledLoginPwLen", oledObj["loginPwLen"].as<uint8_t>()) != 0);
+		success = success && (gPrefsSettings.putUChar("oledAnimSpeed", oledObj["animSpeed"].as<uint8_t>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledTrackNum", oledObj["trackNum"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putUChar("oledTimeMode", oledObj["timeMode"].as<uint8_t>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledStatusInv", oledObj["statusInvert"].as<bool>()) != 0);
 		if (oledObj["idleLine1"].is<const char *>()) {
 			gPrefsSettings.putString("oledIdleL1", oledObj["idleLine1"].as<const char *>());
 		}
 		if (oledObj["idleLine2"].is<const char *>()) {
 			gPrefsSettings.putString("oledIdleL2", oledObj["idleLine2"].as<const char *>());
+		}
+		if (oledObj["loginUser"].is<const char *>()) {
+			gPrefsSettings.putString("oledLoginUser", oledObj["loginUser"].as<const char *>());
+		}
+		if (oledObj["bootText"].is<const char *>()) {
+			gPrefsSettings.putString("oledBootText", oledObj["bootText"].as<const char *>());
 		}
 		if (!success) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "oled");

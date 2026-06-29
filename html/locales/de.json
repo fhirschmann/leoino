@@ -161,7 +161,31 @@
 			"showtime": "Spielzeit anzeigen",
 			"showwifi": "WLAN-Status anzeigen",
 			"showvolume": "Lautstärke-Overlay anzeigen",
-			"flip": "Anzeige um 180° drehen"
+			"flip": "Anzeige um 180° drehen",
+			"contrast": "Helligkeit / Kontrast",
+			"invert": "Anzeige invertieren",
+			"animspeed": "Animationsgeschwindigkeit",
+			"speed": {
+				"slow": "Langsam",
+				"normal": "Normal",
+				"fast": "Schnell"
+			},
+			"loginuser": "Login-Benutzername",
+			"boottext": "Boot-Text",
+			"loginpwlen": "Passwort-Länge (Sternchen)",
+			"showclock": "Uhr im Leerlauf anzeigen",
+			"clock24h": "24-Stunden-Format",
+			"idletimeout": "Display aus nach Inaktivität (Sek., 0 = aus)",
+			"idletimeouthint": "Schaltet das Panel nach dieser Zeit im Leerlauf ab — Burn-in-Schutz und spart Strom.",
+			"burnin": "Burn-in-Schutz (Pixel-Shift im Leerlauf)",
+			"tracknum": "Titelnummer N/M anzeigen",
+			"statusinvert": "Statusleiste invertiert darstellen",
+			"timemode": "Zeitanzeige (Wiedergabe)",
+			"time": {
+				"elapsedtotal": "Vergangen / Gesamt",
+				"remaining": "Restzeit",
+				"elapsed": "Nur vergangen"
+			}
 		},
 		"buttons": {
 			"title": "Taster-Zuordnungen",
