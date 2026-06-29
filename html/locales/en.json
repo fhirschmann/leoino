@@ -182,6 +182,7 @@
 			"idletimeout": "Turn display off when idle (s, 0 = off)",
 			"idletimeouthint": "Blanks the panel after this idle time — protects the OLED from burn-in and saves power.",
 			"burnin": "Burn-in protection (idle pixel-shift)",
+			"idlebattery": "Show battery level when idle",
 			"tracknum": "Show track number N/M",
 			"statusinvert": "Inverted status bar",
 			"timemode": "Time display (while playing)",

@@ -47,6 +47,7 @@ static uint8_t     s_cfgAnimSpeed   = 1;                         // oledAnimSpee
 static bool        s_cfgTrackNum    = false;                     // oledTrackNum – show "N/M" track position on the playing screen
 static uint8_t     s_cfgTimeMode    = 0;                         // oledTimeMode – 0 elapsed/total, 1 remaining, 2 elapsed
 static bool        s_cfgStatusInv   = false;                     // oledStatusInv – draw the playing status-bar inverted
+static bool        s_cfgIdleBatt    = false;                     // oledIdleBatt – show battery % on the idle screen
 
 // Boot/login animation phase timings at normal speed. The runtime copies below are these scaled by
 // s_cfgAnimSpeed in Display_LoadConfig.
@@ -105,6 +106,7 @@ static void Display_LoadConfig(void) {
     s_cfgTimeMode    = gPrefsSettings.getUChar("oledTimeMode", 0);
     if (s_cfgTimeMode > 2) s_cfgTimeMode = 0;
     s_cfgStatusInv   = gPrefsSettings.getBool("oledStatusInv", false);
+    s_cfgIdleBatt    = gPrefsSettings.getBool("oledIdleBatt", false);
 
     // Scale the boot/login animation timings by the chosen speed (0 slow ×3/2, 1 normal ×1, 2 fast ×3/5).
     const uint32_t sn = (s_cfgAnimSpeed == 0) ? 3u : (s_cfgAnimSpeed == 2) ? 3u : 1u;
@@ -757,6 +759,14 @@ void Display_Cyclic(void) {
             s_u8g2.drawStr(0 + sx, 26 + sy, s_cfgIdleLine2);
             String ip = Wlan_GetIpAddress();
             s_u8g2.drawStr(0 + sx, 39 + sy, ip.length() > 0 ? ip.c_str() : "NO WIFI");
+#ifdef BATTERY_MEASURE_ENABLE
+            // Battery % – right-aligned on the IP row.
+            if (s_cfgIdleBatt) {
+                char batBuf[8];
+                snprintf(batBuf, sizeof(batBuf), "%d%%", static_cast<int>(Battery_EstimateLevel() * 100.0f));
+                s_u8g2.drawStr(128 - static_cast<int>(s_u8g2.getStrWidth(batBuf)) + sx, 39 + sy, batBuf);
+            }
+#endif
             bool cursorOn = (now / 500u) % 2u == 0u;
             s_u8g2.drawStr(0 + sx, 56 + sy, cursorOn ? "READY_" : "READY ");
 

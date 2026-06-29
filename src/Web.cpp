@@ -1407,6 +1407,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("oledTrackNum", oledObj["trackNum"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUChar("oledTimeMode", oledObj["timeMode"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledStatusInv", oledObj["statusInvert"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("oledIdleBatt", oledObj["idleBattery"].as<bool>()) != 0);
 		if (oledObj["idleLine1"].is<const char *>()) {
 			gPrefsSettings.putString("oledIdleL1", oledObj["idleLine1"].as<const char *>());
 		}

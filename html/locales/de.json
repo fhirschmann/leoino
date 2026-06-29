@@ -182,6 +182,7 @@
 			"idletimeout": "Display aus nach Inaktivität (Sek., 0 = aus)",
 			"idletimeouthint": "Schaltet das Panel nach dieser Zeit im Leerlauf ab — Burn-in-Schutz und spart Strom.",
 			"burnin": "Burn-in-Schutz (Pixel-Shift im Leerlauf)",
+			"idlebattery": "Akkustand im Leerlauf anzeigen",
 			"tracknum": "Titelnummer N/M anzeigen",
 			"statusinvert": "Statusleiste invertiert darstellen",
 			"timemode": "Zeitanzeige (Wiedergabe)",

@@ -183,6 +183,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		oledObj["trackNum"].set(gPrefsSettings.getBool("oledTrackNum", false));
 		oledObj["timeMode"].set(gPrefsSettings.getUChar("oledTimeMode", 0)); // 0=elapsed/total 1=remaining 2=elapsed
 		oledObj["statusInvert"].set(gPrefsSettings.getBool("oledStatusInv", false));
+		oledObj["idleBattery"].set(gPrefsSettings.getBool("oledIdleBatt", false));
 	}
 #endif
 	if ((section == "") || (section == "buttons")) {

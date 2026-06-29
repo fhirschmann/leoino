@@ -182,6 +182,7 @@
 			"idletimeout": "Éteindre l'écran après inactivité (s, 0 = désactivé)",
 			"idletimeouthint": "Éteint l'écran après ce délai d'inactivité — protège l'OLED du marquage et économise l'énergie.",
 			"burnin": "Protection anti-marquage (décalage de pixels au repos)",
+			"idlebattery": "Afficher le niveau de batterie au repos",
 			"tracknum": "Afficher le numéro de piste N/M",
 			"statusinvert": "Barre d'état inversée",
 			"timemode": "Affichage du temps (lecture)",

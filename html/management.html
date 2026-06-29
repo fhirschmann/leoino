@@ -3436,6 +3436,10 @@
 							<input class="form-check-input" type="checkbox" id="oled_burnIn" name="oled_burnIn" value="false">
 							<label class="form-check-label" for="oled_burnIn" data-i18n="settingsex.oled.burnin"></label>
 						</div>
+						<div class="form-check mb-3">
+							<input class="form-check-input" type="checkbox" id="oled_idleBattery" name="oled_idleBattery" value="false">
+							<label class="form-check-label" for="oled_idleBattery" data-i18n="settingsex.oled.idlebattery"></label>
+						</div>
 						<label class="form-label" data-i18n="settingsex.oled.showfields"></label>:
 						<div class="form-check">
 							<input class="form-check-input" type="checkbox" id="oled_showBattery" name="oled_showBattery" value="true">
@@ -5951,6 +5955,7 @@
 				document.getElementById('oled_trackNum').checked = oledSettings.trackNum === true;
 				document.getElementById('oled_timeMode').value = oledSettings.timeMode != null ? oledSettings.timeMode : 0;
 				document.getElementById('oled_statusInvert').checked = oledSettings.statusInvert === true;
+				document.getElementById('oled_idleBattery').checked = oledSettings.idleBattery === true;
 			}
 			// IR remote control (section only present when IR_CONTROL_ENABLE is compiled in)
 			let irSettings = settings.ir;
@@ -6693,6 +6698,7 @@
 					trackNum: document.getElementById("oled_trackNum").checked,
 					timeMode: Number(document.getElementById("oled_timeMode").value),
 					statusInvert: document.getElementById("oled_statusInvert").checked,
+					idleBattery: document.getElementById("oled_idleBattery").checked,
 				},
 				"battery": {
 					warnLowVoltage: Number($('#warningLowVoltage').val()),
