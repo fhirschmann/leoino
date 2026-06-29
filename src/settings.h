@@ -330,6 +330,7 @@
 		constexpr const char topicDailyLimitReached[] = "daily_limit_reached"; // State: ON/OFF, daily listening-time limit reached
 		#ifdef RTC_ENABLE
 		constexpr const char topicRtc[] = "rtc"; // State: current date/time from the system clock (kept by the DS3231 RTC), e.g. "2026-06-16 14:32:05"
+		constexpr const char topicRtcTemperature[] = "rtc_temperature"; // State: DS3231 die-temperature in °C (e.g. "24.50")
 		#endif
 		#ifdef BATTERY_MEASURE_ENABLE
 		constexpr const char topicBatteryVoltage[] = "battery_voltage"; // State: battery voltage float (e.g. 3.81)

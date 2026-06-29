@@ -145,6 +145,13 @@ void Rtc_Cyclic(void) {
 			strftime(timeStringBuff, sizeof(timeStringBuff), "%Y-%m-%d %H:%M:%S", &timeinfo);
 			publishMqtt(topicRtc, timeStringBuff, false);
 		}
+		// Also publish the DS3231 die-temperature (independent of whether the clock is set yet).
+		const float temp = Rtc_GetTemperature();
+		if (!isnan(temp)) {
+			char tempBuff[16];
+			snprintf(tempBuff, sizeof(tempBuff), "%.2f", temp);
+			publishMqtt(topicRtcTemperature, tempBuff, false);
+		}
 	}
 	#endif
 }

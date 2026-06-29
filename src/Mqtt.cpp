@@ -392,6 +392,7 @@ static void Mqtt_PublishHassDiscovery(void) {
 
 	#ifdef RTC_ENABLE
 	mqttHassPublish("sensor", "rtc", "\"name\":\"RTC time\",\"icon\":\"mdi:clock-outline\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicRtc)) + "\"");
+	mqttHassPublish("sensor", "rtc_temperature", "\"name\":\"RTC temperature\",\"device_class\":\"temperature\",\"unit_of_measurement\":\"°C\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicRtcTemperature)) + "\"");
 	#endif
 }
 #endif
