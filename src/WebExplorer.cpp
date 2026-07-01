@@ -555,6 +555,19 @@ void explorerHandleDownloadRequest(AsyncWebServerRequest *request) {
 	fileObj->dataFile = file;
 	request->_tempObject = (void *) fileObj;
 
+	// If the client aborts mid-download, the chunk callback that closes+deletes fileObj never runs and
+	// the request destructor only free()s _tempObject (skipping the File destructor) -> leaked SD handle,
+	// which exhausts SD_MMC's open-file limit after a few aborts. Clean up here instead; idempotent since
+	// the callback NULLs _tempObject on the final chunk (onDisconnect also fires after a successful send).
+	request->onDisconnect([request]() {
+		fileBlk *obj = (fileBlk *) request->_tempObject;
+		if (obj) {
+			request->_tempObject = NULL;
+			obj->dataFile.close();
+			delete obj;
+		}
+	});
+
 	AsyncWebServerResponse *response = request->beginResponse(dataType, fileObj->dataFile.size(), [request](uint8_t *buffer, size_t maxlen, size_t index) -> size_t {
 		fileBlk *fileObj = (fileBlk *) request->_tempObject;
 		size_t thisSize = fileObj->dataFile.read(buffer, maxlen);
