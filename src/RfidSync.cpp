@@ -501,12 +501,22 @@ static void rfidFullSyncTask(void *param) {
 		bool docOk = false;
 		int code = -1;
 		if (http.begin(*client, serverUrl)) {
+			// Force HTTP/1.0 so the server replies identity/close-delimited instead of chunked: deserializeJson
+			// reads the raw socket and does not de-chunk, so a chunked body would leave chunk framing in the
+			// stream and the parse would fail (or, worse, silently merge nothing).
+			http.useHTTP10(true);
 			code = http.GET();
 			if (code == 200) {
 				// Stream the body straight into the PSRAM-backed doc instead of buffering the whole response
 				// in a String first: the tag list can grow large and an intermediate String would fragment/
 				// exhaust the tight internal heap.
 				docOk = (deserializeJson(doc, http.getStream()) == DeserializationError::Ok);
+				// A well-formed-but-unexpected body (e.g. an error object with no "rfid" array, or a chunked
+				// prefix that happened to parse) must not be treated as an empty tag list and merged as zero
+				// tags: require either an object carrying an "rfid" array or a bare top-level array.
+				if (docOk && !doc["rfid"].is<JsonArray>() && !doc.is<JsonArray>()) {
+					docOk = false;
+				}
 			}
 		}
 		http.end();
@@ -603,14 +613,18 @@ static void rfidFullSyncTask(void *param) {
 }
 
 void RfidSync_TriggerFull(void) {
+	// Atomically claim the idle->running transition: this trigger is reachable from the web, Cmd, MQTT and
+	// the catch-up loop (different tasks/cores), so a plain check-then-set could double-start the task over
+	// the same NVS. Mirrors syncStart() in Sync.cpp.
+	static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+	portENTER_CRITICAL(&mux);
 	if (gRfidSyncStatus == 1) {
+		portEXIT_CRITICAL(&mux);
 		return; // already running
 	}
-	RfidSync_Init();
-	// Claim the slot BEFORE spawning: this trigger is reachable from the web, Cmd, MQTT and the
-	// catch-up loop (different tasks/cores). Setting the flag inside the task left a wide TOCTOU
-	// window in which two of them could each start a full sync over the same NVS.
 	gRfidSyncStatus = 1;
+	portEXIT_CRITICAL(&mux);
+	RfidSync_Init();
 	if (xTaskCreatePinnedToCore(rfidFullSyncTask, "rfidSync", 16384, NULL, 1, NULL, 1) != pdPASS) {
 		gRfidSyncStatus = 3; // couldn't spawn -> release the slot as failed
 	}

@@ -105,6 +105,11 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 	if (!http.begin(*client, url)) {
 		return false;
 	}
+	// Force HTTP/1.0 so the server can't reply with chunked transfer-encoding: the read loop below
+	// streams the raw socket straight to disk and does not de-chunk, so chunk framing would end up
+	// written into the file. HTTP/1.0 responses are always identity/close-delimited (read-until-close),
+	// which is exactly what the remaining == -1 branch already handles.
+	http.useHTTP10(true);
 	const int code = http.GET();
 	if (code != 200) {
 		http.end();
@@ -449,14 +454,23 @@ static void syncTask(void *parameter) {
 
 	bool cancelled = false;
 	bool more = true;
+	bool parseFailed = false; // a mid-manifest deserialize error (OOM / bad byte), not a clean end-of-array
+	bool sawArrayEnd = false; // findUntil actually consumed the array terminator ']'
 	while (more) {
 		if (gSyncCancel) {
 			cancelled = true;
 			break;
 		}
 		JsonDocument entryDoc; // holds a single manifest entry -> stays tiny
-		if (deserializeJson(entryDoc, manifest)) {
-			break; // no (more) entries -> we reached the closing ']'
+		DeserializationError err = deserializeJson(entryDoc, manifest);
+		if (err) {
+			// EmptyInput at the very start is a legitimately empty array; any other error (NoMemory under
+			// heap pressure, InvalidInput on a bad byte) is a real parse failure that must NOT look like a
+			// clean end-of-array, otherwise the mirror pass could delete every file listed after this entry.
+			if (err != DeserializationError::EmptyInput) {
+				parseFailed = true;
+			}
+			break;
 		}
 		JsonObject entry = entryDoc.as<JsonObject>();
 		String path = entry["path"].as<String>();
@@ -526,6 +540,9 @@ static void syncTask(void *parameter) {
 		vTaskDelay(pdMS_TO_TICKS(1));
 
 		more = manifest.findUntil(",", "]"); // step to the next entry, or stop at ']'
+		if (!more) {
+			sawArrayEnd = true; // stopped at the array terminator, not mid-stream
+		}
 	}
 
 	// Verify the buffered manifest actually ends cleanly: the last non-whitespace byte must be the
@@ -546,7 +563,14 @@ static void syncTask(void *parameter) {
 			break;
 		}
 	}
-	const bool manifestComplete = !cancelled && endsClean;
+	// Requiring sawArrayEnd (the loop actually consumed the ']' terminator) and !parseFailed on top of
+	// endsClean closes two holes: a mid-file parse error leaving a truncated keep-set with the file's
+	// last byte still ']', and endsClean accepting a bare '}' tail the array loop never reached.
+	const bool manifestComplete = !cancelled && endsClean && !parseFailed && sawArrayEnd;
+	if (!cancelled && (parseFailed || !sawArrayEnd)) {
+		Log_Printf(LOGLEVEL_ERROR, "Sync: manifest incomplete (%s) -> skipping mirror-delete pass",
+			parseFailed ? "parse error mid-manifest" : "array not terminated");
+	}
 
 	manifest.close();
 	gFSystem.remove(manifestTmp);
