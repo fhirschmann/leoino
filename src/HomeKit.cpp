@@ -93,6 +93,11 @@ static inline void HomeKit_EnqueueCmd(uint16_t mod) {
 // the expensive SRP recompute never blocks the async web/TCP task.
 static volatile bool gRegenRequested = false;
 
+// Set by the web "reset pairing" button; handled in HomeKit_Cyclic (core 1) under
+// the poll lock so the HAP teardown never races the poll task on the async web/TCP
+// task (that cross-core tear-down is a use-after-free).
+static volatile bool gResetRequested = false;
+
 // User-configurable HomeKit names (persisted in NVS, applied at boot). Held in
 // file-static Strings so the c_str() handed to HomeSpan stays valid for the
 // program's lifetime. The TV name is what shows on the Control-Center remote.
@@ -463,6 +468,16 @@ void HomeKit_Cyclic(void) {
 		HomeKit_DoRegenerate();
 	}
 
+	// --- reset pairing (web button) -------------------------------------------
+	// 'U' clears all controller data and tears down HAP connections; do it under
+	// the poll lock so the teardown can't race the poll task (core 0).
+	if (gResetRequested) {
+		gResetRequested = false;
+		homeSpanPAUSE;
+		homeSpan.processSerialCommand("U");
+		homeSpanRESUME;
+	}
+
 	// --- drain momentary commands from the TV remote / volume selector --------
 	if (gCmdQueue != nullptr) {
 		uint16_t mod;
@@ -508,56 +523,66 @@ void HomeKit_Cyclic(void) {
 	}
 	lastReflect = millis();
 
-	const bool playing = HomeKit_IsPlaying();
-	if (gPlayPower && gPlayPower->getVal() != playing) {
-		gPlayPower->setVal(playing);
-	}
-	if (gTvActive && gTvActive->getVal() != playing) {
-		gTvActive->setVal(playing);
-	}
+	// setVal() mutates HomeSpan's Notifications vector that the poll task (core 0)
+	// concurrently reads/flushes, so take the shared poll lock for the whole mirror
+	// block. homeSpanPAUSE declares a scoped std::shared_lock (pollLock); the extra
+	// { } braces bound its lifetime and guarantee release via RAII on scope exit.
+	{
+		homeSpanPAUSE;
 
-	const int maxVol = AudioPlayer_GetMaxVolume() < 1 ? 1 : AudioPlayer_GetMaxVolume();
-	const int curVol = AudioPlayer_GetCurrentVolume();
-	const int pct = (curVol * 100 + maxVol / 2) / maxVol;
-	if (gVolBright && gVolBright->getVal() != pct) {
-		gVolBright->setVal(pct);
-	}
-	if (gVolOn && gVolOn->getVal() != (curVol > 0)) {
-		gVolOn->setVal(curVol > 0);
-	}
-
-	if (gLockPower) {
-		const bool locked = System_AreControlsLocked();
-		if (gLockPower->getVal() != locked) {
-			gLockPower->setVal(locked);
+		const bool playing = HomeKit_IsPlaying();
+		if (gPlayPower && gPlayPower->getVal() != playing) {
+			gPlayPower->setVal(playing);
 		}
-	}
-
-	if (gRepeatPower) {
-		const bool repeat = gPlayProperties.repeatPlaylist;
-		if (gRepeatPower->getVal() != repeat) {
-			gRepeatPower->setVal(repeat);
+		if (gTvActive && gTvActive->getVal() != playing) {
+			gTvActive->setVal(playing);
 		}
-	}
 
-	if (gNightPower) {
-		const bool night = Led_GetNightmode();
-		if (gNightPower->getVal() != night) {
-			gNightPower->setVal(night);
+		const int maxVol = AudioPlayer_GetMaxVolume() < 1 ? 1 : AudioPlayer_GetMaxVolume();
+		const int curVol = AudioPlayer_GetCurrentVolume();
+		const int pct = (curVol * 100 + maxVol / 2) / maxVol;
+		if (gVolBright && gVolBright->getVal() != pct) {
+			gVolBright->setVal(pct);
 		}
-	}
+		if (gVolOn && gVolOn->getVal() != (curVol > 0)) {
+			gVolOn->setVal(curVol > 0);
+		}
+
+		if (gLockPower) {
+			const bool locked = System_AreControlsLocked();
+			if (gLockPower->getVal() != locked) {
+				gLockPower->setVal(locked);
+			}
+		}
+
+		if (gRepeatPower) {
+			const bool repeat = gPlayProperties.repeatPlaylist;
+			if (gRepeatPower->getVal() != repeat) {
+				gRepeatPower->setVal(repeat);
+			}
+		}
+
+		if (gNightPower) {
+			const bool night = Led_GetNightmode();
+			if (gNightPower->getVal() != night) {
+				gNightPower->setVal(night);
+			}
+		}
 
 	#ifdef BATTERY_MEASURE_ENABLE
-	int lvl = (int) (Battery_EstimateLevel() * 100.0F + 0.5F);
-	lvl = lvl < 0 ? 0 : (lvl > 100 ? 100 : lvl);
-	if (gBattLevel && gBattLevel->getVal() != lvl) {
-		gBattLevel->setVal(lvl);
-	}
-	const int low = Battery_IsLow() ? 1 : 0;
-	if (gBattLow && gBattLow->getVal() != low) {
-		gBattLow->setVal(low);
-	}
+		int lvl = (int) (Battery_EstimateLevel() * 100.0F + 0.5F);
+		lvl = lvl < 0 ? 0 : (lvl > 100 ? 100 : lvl);
+		if (gBattLevel && gBattLevel->getVal() != lvl) {
+			gBattLevel->setVal(lvl);
+		}
+		const int low = Battery_IsLow() ? 1 : 0;
+		if (gBattLow && gBattLow->getVal() != low) {
+			gBattLow->setVal(low);
+		}
 	#endif
+
+		homeSpanRESUME;
+	}
 }
 
 // --- Web interface helpers ---------------------------------------------------
@@ -651,9 +676,10 @@ String HomeKit_GetQrSvg(void) {
 }
 
 void HomeKit_ResetPairing(void) {
-	// 'U' clears all controller data and tears down connections without a reboot.
-	homeSpan.processSerialCommand("U");
-	Log_Println("HomeKit: pairing reset via web interface", LOGLEVEL_NOTICE);
+	// Deferred to HomeKit_Cyclic (core 1): 'U' tears down HAP connections, which is
+	// unsafe to do from the async web/TCP task while the poll task (core 0) runs.
+	gResetRequested = true;
+	Log_Println("HomeKit: pairing reset requested via web interface", LOGLEVEL_NOTICE);
 }
 
 void HomeKit_RequestRegenerate(void) {
