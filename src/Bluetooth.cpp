@@ -148,6 +148,11 @@ static void gap_callback_interceptor(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_
 			}
 		}
 
+		// Only request the remote name for newly-added devices that arrived
+		// without one — decided under the lock, but the blocking BT-stack call is
+		// issued after the critical section (it posts to a queue and must not run
+		// with interrupts disabled).
+		bool needNameLookup = false;
 		portENTER_CRITICAL_ISR(&scannedDevicesMux);
 		ScannedBluetoothDevice *existing = nullptr;
 		for (auto &d : scannedDevices) {
@@ -173,11 +178,13 @@ static void gap_callback_interceptor(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_
 			scannedDevices.push_back(device);
 
 			// Actively request the remote name for devices that arrived without one
-			if (strlen(ssid) == 0) {
-				esp_bt_gap_read_remote_name(bda);
-			}
+			needNameLookup = (strlen(ssid) == 0);
 		}
 		portEXIT_CRITICAL_ISR(&scannedDevicesMux);
+
+		if (needNameLookup) {
+			esp_bt_gap_read_remote_name(bda);
+		}
 
 	} else if (event == ESP_BT_GAP_READ_REMOTE_NAME_EVT && param->read_rmt_name.stat == ESP_BT_STATUS_SUCCESS) {
 		portENTER_CRITICAL_ISR(&scannedDevicesMux);
@@ -531,19 +538,28 @@ void Bluetooth_ConnectToAddress(esp_bd_addr_t address) {
 		return;
 	}
 
-	// Update stored device name from scan results if available
+	// Update stored device name from scan results if available. Only copy the
+	// matching name into a stack buffer under the spinlock; do the NVS write and
+	// logging afterwards (both are slow/blocking and unsafe with interrupts off).
+	char nameBuf[ESP_BT_GAP_MAX_BDNAME_LEN + 1] = {0};
+	bool found = false;
 	portENTER_CRITICAL(&scannedDevicesMux);
 	for (const auto &d : scannedDevices) {
 		if (memcmp(d.address, address, ESP_BD_ADDR_LEN) == 0) {
 			if (strcmp(d.name, "Unknown") != 0 && strcmp(d.name, "Connected Device") != 0) {
-				btDeviceName = d.name;
-				gPrefsSettings.putString("btDeviceName", btDeviceName);
-				Log_Printf(LOGLEVEL_INFO, "Bluetooth => set preferred device name: %s", btDeviceName.c_str());
+				strlcpy(nameBuf, d.name, sizeof(nameBuf));
+				found = true;
 			}
 			break;
 		}
 	}
 	portEXIT_CRITICAL(&scannedDevicesMux);
+
+	if (found) {
+		btDeviceName = nameBuf;
+		gPrefsSettings.putString("btDeviceName", btDeviceName);
+		Log_Printf(LOGLEVEL_INFO, "Bluetooth => set preferred device name: %s", btDeviceName.c_str());
+	}
 
 	// Reset retry state for this fresh manual connect request
 	connectRetryCount = 0;
@@ -572,7 +588,15 @@ std::vector<ScannedBluetoothDevice> Bluetooth_GetScannedDevices() {
 			Log_Println("Bluetooth_GetScannedDevices => WARNING: bluetoothSourceConnected=true but cachedPeerAddress is all-zeros", LOGLEVEL_NOTICE);
 		} else {
 			// Inject / promote the connected device under the spinlock so the
-			// snapshot below always includes it at position 0.
+			// snapshot below always includes it at position 0.  Record what
+			// happened in stack locals and emit the log lines after the unlock —
+			// Log_Printf allocates and blocks on UART, unsafe with interrupts off.
+			enum {
+				PromoteNone,
+				PromoteInjected,
+				PromotePromoted
+			} promoteAction = PromoteNone;
+			char promoteName[ESP_BT_GAP_MAX_BDNAME_LEN + 1] = {0};
 			portENTER_CRITICAL(&scannedDevicesMux);
 			auto it = std::find_if(scannedDevices.begin(), scannedDevices.end(), [&](const ScannedBluetoothDevice &d) {
 				return memcmp(d.address, currentAddr, ESP_BD_ADDR_LEN) == 0;
@@ -585,16 +609,24 @@ std::vector<ScannedBluetoothDevice> Bluetooth_GetScannedDevices() {
 				dev.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 				dev.rssi = 0;
 				scannedDevices.insert(scannedDevices.begin(), dev);
-				char buf[18];
-				Log_Printf(LOGLEVEL_INFO, "Bluetooth_GetScannedDevices => injected connected device at top: %s (%s)",
-					dev.name, btAddrStr(currentAddr, buf));
+				strlcpy(promoteName, dev.name, sizeof(promoteName));
+				promoteAction = PromoteInjected;
 			} else if (it != scannedDevices.begin()) {
 				ScannedBluetoothDevice dev = *it;
 				scannedDevices.erase(it);
 				scannedDevices.insert(scannedDevices.begin(), dev);
-				Log_Printf(LOGLEVEL_INFO, "Bluetooth_GetScannedDevices => moved connected device to top: %s", dev.name);
+				strlcpy(promoteName, dev.name, sizeof(promoteName));
+				promoteAction = PromotePromoted;
 			}
 			portEXIT_CRITICAL(&scannedDevicesMux);
+
+			if (promoteAction == PromoteInjected) {
+				char buf[18];
+				Log_Printf(LOGLEVEL_INFO, "Bluetooth_GetScannedDevices => injected connected device at top: %s (%s)",
+					promoteName, btAddrStr(currentAddr, buf));
+			} else if (promoteAction == PromotePromoted) {
+				Log_Printf(LOGLEVEL_INFO, "Bluetooth_GetScannedDevices => moved connected device to top: %s", promoteName);
+			}
 		}
 	}
 
