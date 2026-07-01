@@ -2255,7 +2255,7 @@
 			<div class="modal-content">
 				<div class="modal-header">
 					<h5 class="modal-title" data-i18n="files.rfid.learn.modalTitle"></h5>
-					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+					<button type="button" class="btn-close" aria-label="Close" onclick="stopRfidScan()"></button>
 				</div>
 				<div class="modal-body text-center">
 					<i class="fas fa-id-card fa-3x mb-3" style="opacity:.75"></i>
@@ -3271,7 +3271,7 @@
 								<div class="mb-3">
 									<label class="form-label" for="led_numIndicator" data-i18n="settingsex.led.numindicator"></label>:
 									<input type="number" class="form-control" id="led_numIndicator" name="led_numIndicator"
-										min="0" max="128">
+										min="1" max="128">
 								</div>
 								<div class="mb-3">
 									<label class="form-label" for="led_numControl" data-i18n="settingsex.led.numcontrol"></label>:
@@ -3345,7 +3345,7 @@
 								<div class="mb-3">
 									<label class="form-label" for="led_offsetStart" data-i18n="settingsex.led.offset"></label>:
 									<input type="number" class="form-control" id="led_offsetStart"
-										name="led_offsetStart">
+										name="led_offsetStart" min="0">
 								</div>
 								<div class="form-check">
 									<input class="form-check-input" type="checkbox" id="led_offsetPause" name="led_offsetPause" value="false">
@@ -4871,7 +4871,7 @@
 			} else {
 				/* remap sel to parent folder */
 				sel = ref.get_node(ref.get_parent(sel));
-				path = parentNode.data.path;
+				path = (sel && sel.data) ? sel.data.path : "/";
 				console.log("Parent path: " + path);
 			}
 			const startTime = new Date().getTime();
@@ -5533,7 +5533,7 @@
 				clearInterval(pingInterval);
 				clearInterval(getTrackProgressInterval);
 				pingInterval = setInterval(ping, 3000);
-				setTrackProgressInterval = setInterval(getTrackProgress, 1000);
+				getTrackProgressInterval = setInterval(getTrackProgress, 1000);
 				// clear old socket messages
 				socket.sendBuffer = [];
 				socket.send('{"settings":{"settings":"settings"}}'); // request settings
@@ -5633,7 +5633,7 @@
 					updateVolumeValue(parseInt(socketMsg.volume));
 				}
 				if ("trackinfo" in socketMsg) {
-					document.getElementById('track').innerHTML = socketMsg.trackinfo.name;
+					document.getElementById('track').textContent = socketMsg.trackinfo.name;
 					// ID3/Vorbis artist + album (if present): shown as "Artist — Album" under the title
 					var tmeta = document.getElementById('trackmeta');
 					if (tmeta) {
@@ -5764,16 +5764,19 @@
 					list.empty();
 					if (devices.length > 0) {
 						devices.forEach(dev => {
-							const displayName = (dev.name && dev.name !== 'Unknown') ? dev.name : `<i>Device ${dev.address}</i>`;
-							const row = `<tr>
+							const safeAddress = escapeHtml(dev.address);
+							const displayName = (dev.name && dev.name !== 'Unknown') ? escapeHtml(dev.name) : `<i>Device ${safeAddress}</i>`;
+							const row = $(`<tr>
 								<td>${displayName}</td>
-								<td><code>${dev.address}</code></td>
+								<td><code>${safeAddress}</code></td>
 								<td>${dev.rssi} dBm</td>
 								<td class="text-end">
-									<button class="btn btn-sm btn-success" onclick="saveBtDevice('${dev.name}', '${dev.address}')" title="${i18next.t('bt.scan.save')}"><i class="fas fa-save"></i></button>
-									<button class="btn btn-sm btn-primary" onclick="connectBt('${dev.address}')">${i18next.t('bt.scan.connect')}</button>
+									<button class="btn btn-sm btn-success bt-scan-save" title="${i18next.t('bt.scan.save')}"><i class="fas fa-save"></i></button>
+									<button class="btn btn-sm btn-primary bt-scan-connect">${i18next.t('bt.scan.connect')}</button>
 								</td>
-							</tr>`;
+							</tr>`);
+							row.find('.bt-scan-save').on('click', function () { saveBtDevice(dev.name, dev.address); });
+							row.find('.bt-scan-connect').on('click', function () { connectBt(dev.address); });
 							list.append(row);
 						});
 					} else {
@@ -6176,7 +6179,7 @@
 		async function deleteSSID(ssid) {
 			console.log("deleting", ssid);
 			$('#deleteSSIDModal').modal('hide');
-			await fetch("http://" + host + "/savedSSIDs/" + ssid, {
+			await fetch("http://" + host + "/savedSSIDs/" + encodeURIComponent(ssid), {
 				method: "DELETE"
 			});
 			await rebuildSSIDList();
@@ -7022,15 +7025,15 @@
 			renderPeerList();
 			syncSettings();
 		}
-		// Disable each section's Save button while its URL field is empty (nothing to save yet).
+		// Gate each section's action/run buttons while its URL field is empty (nothing to run yet).
+		// Save buttons stay enabled: clearing the URL is the only way to disable a feature and save it.
 		function updateSyncSaveButtons() {
-			var s = document.getElementById('syncSaveBtn'), su = document.getElementById('syncUrl');
-			if (s && su) s.disabled = (su.value.trim() === "");
-			var r = document.getElementById('rfidSyncSaveBtn'), ru = document.getElementById('rfidSyncUrl');
-			if (r && ru) r.disabled = (ru.value.trim() === "");
-			var b = document.getElementById('backupSaveBtn'), bu = document.getElementById('backupUrl');
+			var su = document.getElementById('syncUrl');
+			var srun = document.getElementById('syncRunBtn'), sdry = document.getElementById('syncDryRunBtn');
+			if (srun && su) srun.disabled = (su.value.trim() === "");
+			if (sdry && su) sdry.disabled = (su.value.trim() === "");
+			var bu = document.getElementById('backupUrl');
 			var brun = document.getElementById('backupRunBtn');
-			if (b && bu) b.disabled = (bu.value.trim() === "");
 			if (brun && bu) brun.disabled = (bu.value.trim() === "");
 		}
 		document.addEventListener("DOMContentLoaded", function () {
@@ -7658,6 +7661,8 @@
 				}
 				if (s.mqtt && 'password' in s.mqtt) s.mqtt.password = "";
 				if (s.ftp && 'password' in s.ftp) s.ftp.password = "";
+				if (s.webdav && 'password' in s.webdav) s.webdav.password = "";
+				if (s.bluetooth && 'pinCode' in s.bluetooth) s.bluetooth.pinCode = "";
 			}
 			const blob = new Blob([JSON.stringify(backup, null, "\t")], {
 				type: "application/json"
@@ -7688,7 +7693,7 @@
 			}
 			let errors = 0;
 			// the firmware applies one settings section per request
-			const sections = ['general', 'equalizer', 'led', 'oled', 'battery', 'playlist', 'buttons', 'rotary', 'ir', 'ftp', 'mqtt', 'bluetooth', 'sync'];
+			const sections = ['general', 'equalizer', 'led', 'oled', 'battery', 'playlist', 'buttons', 'rotary', 'ir', 'ftp', 'mqtt', 'bluetooth', 'sync', 'wifi', 'webdav'];
 			for (const section of sections) {
 				if (backup.settings && backup.settings[section]) {
 					const response = await fetch("http://" + host + "/settings", {
@@ -8903,7 +8908,7 @@
 				$(this).find('.modal-body').text(i18next.t("wifi.delete.prompt", {
 					ssid: ssid
 				}));
-				$(this).find('.btn-ok').attr('href', "javascript:deleteSSID('" + ssid + "')");
+				$(this).find('.btn-ok').off('click').on('click', function () { deleteSSID(ssid); });
 			})
 			$('#deleteRFIDModal').on('show.bs.modal', function (event) {
 				var rfid = $(event.relatedTarget).data('rfid')
