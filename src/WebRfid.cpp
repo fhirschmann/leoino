@@ -191,18 +191,26 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 	}
 	const char *_fileOrUrlAscii = fileOrUrl.c_str();
 	uint8_t _playModeOrModId;
+	bool isModId;
 	if (jsonObj["modId"].is<u_int8_t>()) {
 		_playModeOrModId = jsonObj["modId"];
+		isModId = true;
 	} else {
 		_playModeOrModId = jsonObj["playMode"];
+		isModId = false;
 	}
 	if (_playModeOrModId <= 0) {
 		Log_Println("/rfid (POST): Invalid playMode or modId", LOGLEVEL_ERROR);
 		request->send(500, "text/plain; charset=utf-8", "/rfid (POST): Invalid playMode or modId");
 		return;
 	}
+	// A modification-card (modId) has no resume position / last track; keep those 0. For a normal
+	// file/URL assignment (playMode) preserve the resume position and last track a backup-restore /
+	// import / peer-sync push sends (absent -> 0, matching the previous re-assign behavior).
+	uint32_t pos = isModId ? 0 : (jsonObj["lastPlayPos"] | 0);
+	uint16_t track = isModId ? 0 : (jsonObj["trackLastPlayed"] | 0);
 	char rfidString[275];
-	snprintf(rfidString, sizeof(rfidString) / sizeof(rfidString[0]), "%s%s%s0%s%u%s0", stringDelimiter, _fileOrUrlAscii, stringDelimiter, stringDelimiter, _playModeOrModId, stringDelimiter);
+	snprintf(rfidString, sizeof(rfidString) / sizeof(rfidString[0]), "%s%s%s%lu%s%u%s%u", stringDelimiter, _fileOrUrlAscii, stringDelimiter, (unsigned long) pos, stringDelimiter, _playModeOrModId, stringDelimiter, track);
 	// serialize the write + timestamp against a concurrent full-sync merge (cross-core RMW)
 	RfidSync_Lock();
 	gPrefsRfid.putString(tagId.c_str(), rfidString);

@@ -163,7 +163,9 @@ void Web_TriggerGithubOta(void) {
 // Passive "is this build the latest release?" check, used only for the UI version badge
 // (independent of the OTA flasher). -1 = unknown/not yet checked, 0 = update available, 1 = up to date.
 static volatile int8_t gFirmwareUpToDate = -1;
-static char gLatestBuild[24] = "";
+// gLatestBuild is written by the version-check task (core 1) and read by Web_GetLatestBuild on the
+// web server (core 0); StatusMessage's spinlock keeps the reader from ever seeing a torn string.
+static StatusMessage gLatestBuild;
 static volatile uint32_t gLastVersionCheckMs = 0; // 0 = never; used to rate-limit re-checks
 static volatile bool gVersionCheckRunning = false; // single-flight guard, see Web_CheckForUpdate()
 
@@ -175,8 +177,7 @@ void Web_GetLatestBuild(char *dst, size_t dstLen) {
 	if (!dst || dstLen == 0) {
 		return;
 	}
-	strncpy(dst, gLatestBuild, dstLen - 1);
-	dst[dstLen - 1] = '\0';
+	gLatestBuild.copy(dst, dstLen);
 }
 
 // Fetches the rolling release's version.json and compares it to the running build (background task).
@@ -200,8 +201,7 @@ static void versionCheckTask(void *parameter) {
 					gFirmwareUpToDate = (latest == current) ? 1 : 0;
 				}
 				if (latestBuild.length() > 0) {
-					strncpy(gLatestBuild, latestBuild.c_str(), sizeof(gLatestBuild) - 1);
-					gLatestBuild[sizeof(gLatestBuild) - 1] = '\0';
+					gLatestBuild.set(latestBuild.c_str());
 				}
 			}
 		}

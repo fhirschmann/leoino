@@ -182,8 +182,9 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		// register for early disconnect events
 		request->onDisconnect([]() {
 			// client went away before we were finished...
-			// trigger task suicide, since we can not use Log_Println here
-			xTaskNotify(fileStorageTaskHandle, 2u, eSetValueWithOverwrite);
+			// signal the storage task to abort via the flag it polls; the task may have already
+			// self-deleted (fileStorageTaskHandle set to NULL), so never xTaskNotify() it here.
+			uploadAborted = true;
 		});
 	}
 
@@ -420,6 +421,7 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 	if (response->overflowed()) {
 		// JSON buffer too small for data
 		Log_Println(jsonbufferOverflow, LOGLEVEL_ERROR);
+		delete response;
 		request->send(500);
 		return;
 	}
@@ -577,9 +579,11 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 		param = request->getParam("path");
 		System_UpdateActivityTimer();
 		const char *filePath = param->value().c_str();
-		// Guard the protected system folder: the web Explorer hides its delete action, but block it
-		// here too so a stray/direct API call (or an old client) can never wipe it.
-		if (strcasecmp(filePath, "/System") == 0) {
+		// Guard the protected folders: the web Explorer hides its delete action, but block it here
+		// too so a stray/direct API call (or an old client) can never wipe them. Reject the card root
+		// and anything at/under /System or /Playlists (mirrors Sync.cpp's mirror-protection intent),
+		// otherwise DELETE ?path=/ or ?path=/System/<child> would slip through.
+		if ((filePath[0] == '\0') || (strcmp(filePath, "/") == 0) || (strcasecmp(filePath, "/System") == 0) || (strncasecmp(filePath, "/System/", 8) == 0) || (strcasecmp(filePath, "/Playlists") == 0) || (strncasecmp(filePath, "/Playlists/", 11) == 0)) {
 			Log_Printf(LOGLEVEL_NOTICE, "DELETE:  refused to delete protected path %s", filePath);
 			request->send(403);
 			return;
@@ -744,6 +748,9 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	}
 	esp_task_wdt_reset();
 	if (!index) {
+		// reset the write offset here too: an aborted upload never reaches the final branch, so a
+		// stale fileIndex would otherwise seek past the start of the next upload and corrupt it.
+		fileIndex = 0;
 		snprintf(tmpFileName, 13, "/_%lu", millis());
 		tmpFile = gFSystem.open(tmpFileName, FILE_WRITE);
 	} else {
@@ -772,7 +779,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 
 // Parses content of temporary backup-file and writes payload into NVS
 void Web_DumpSdToNvs(const char *_filename) {
-	char ebuf[290];
+	char ebuf[526];
 	uint16_t j = 0;
 	char *token;
 	bool count = false;
@@ -796,8 +803,15 @@ void Web_DumpSdToNvs(const char *_filename) {
 
 	while (tmpFile.available() > 0) {
 		if (j >= sizeof(ebuf)) {
+			// over-long line: don't bail out (that would leave the LED task paused and the temp
+			// file orphaned). Drain to the next newline, drop the line, and carry on.
 			Log_Println(errorReadingTmpfile, LOGLEVEL_ERROR);
-			return;
+			while (tmpFile.available() > 0 && tmpFile.read() != '\n') {
+				esp_task_wdt_reset();
+			}
+			j = 0;
+			invalidCount++;
+			continue;
 		}
 		char buf = tmpFile.read();
 		if (buf != '\n') {

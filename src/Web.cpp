@@ -1879,6 +1879,7 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 	if (response->overflowed()) {
 		// JSON buffer too small for data
 		Log_Println(jsonbufferOverflow, LOGLEVEL_ERROR);
+		delete response;
 		request->send(500);
 		return;
 	}
@@ -1937,6 +1938,7 @@ void handleDebugRequest(AsyncWebServerRequest *request) {
 	if (response->overflowed()) {
 		// JSON buffer too small for data
 		Log_Println(jsonbufferOverflow, LOGLEVEL_ERROR);
+		delete response;
 		request->send(500);
 		return;
 	}
@@ -2192,6 +2194,10 @@ void handlePostSavedSSIDs(AsyncWebServerRequest *request, JsonVariant &json) {
 
 void handleDeleteSavedSSIDs(AsyncWebServerRequest *request) {
 	const AsyncWebParameter *p = request->getParam("ssid");
+	if (!p || p->value().isEmpty()) {
+		request->send(400, "text/plain; charset=utf-8", "missing ssid");
+		return;
+	}
 	const String ssid = p->value();
 
 	bool succ = Wlan_DeleteNetwork(ssid);

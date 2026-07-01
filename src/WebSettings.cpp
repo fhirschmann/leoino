@@ -499,6 +499,7 @@ void handleGetSettings(AsyncWebServerRequest *request) {
 	if (response->overflowed()) {
 		// JSON buffer too small for data
 		Log_Println(jsonbufferOverflow, LOGLEVEL_ERROR);
+		delete response;
 		request->send(500);
 		return;
 	}
