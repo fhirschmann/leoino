@@ -27,6 +27,7 @@
 #include "strnatcmp.h"
 
 #include <ArduinoJson.h>
+#include <atomic>
 #include <esp_task_wdt.h>
 #include <freertos/task.h>
 #include <random>
@@ -107,10 +108,16 @@ uint32_t AudioPlayer_ResumeFadeStartMs = 0u;
 // when the timer is cancelled/extended mid-fade.
 static bool AudioPlayer_SleepFadeApplied = false;
 Playlist *newPlayList = nullptr;
-bool newPlayListAvailable = false;
+std::atomic<bool> newPlayListAvailable {false}; // producer publishes newPlayList *before* setting this (handover flag)
 
 static bool AudioPlayer_UploadActive = false;
 static bool AudioPlayer_WasPausedBeforeUpload = false; // remember pre-upload pause state
+
+// Guards the per-path equalizer cache (AudioPlayer_EqRules, defined below): rebuilt by
+// AudioPlayer_ReloadEqRules() from a web handler (async_tcp task) while AudioPlayer_ApplyEqualizerForPath()
+// iterates it on the loop task. Held only briefly, never across NVS/JSON work. Created in AudioPlayer_Init()
+// before the web server can call reload.
+static SemaphoreHandle_t AudioPlayer_EqRulesMutex = NULL;
 
 static void AudioPlayer_HeadphoneVolumeManager(void);
 static std::optional<Playlist *> AudioPlayer_ReturnPlaylistFromWebstream(const char *_webUrl);
@@ -493,11 +500,13 @@ void AudioPlayer_Init(void) {
 		Log_Println(wroteMaxLoudnessForHeadphoneToNvs, LOGLEVEL_ERROR);
 	}
 #endif
-	// Adjust volume depending on headphone is connected and volume-adjustment is enabled
-	AudioPlayer_SetupVolumeAndAmps();
-
 	// initialize gPlayProperties
 	gPlayProperties = {};
+
+	// Adjust volume depending on headphone is connected and volume-adjustment is enabled
+	// (loads the NVS playMono flag into gPlayProperties, so it must run *after* the struct is zeroed)
+	AudioPlayer_SetupVolumeAndAmps();
+
 	gPlayProperties.playlistFinished = true;
 	gPlayProperties.jumpToFolderTrack = -1;
 	gPlayProperties.gainLowPass = 0;
@@ -553,6 +562,8 @@ void AudioPlayer_Init(void) {
 		gPrefsSettings.getChar("gainLowPass", 0),
 		gPrefsSettings.getChar("gainBandPass", 0),
 		gPrefsSettings.getChar("gainHighPass", 0));
+	// guards the per-path equalizer cache between the loop task and web readers (created before the web server starts)
+	AudioPlayer_EqRulesMutex = xSemaphoreCreateMutex();
 	AudioPlayer_ReloadEqRules();
 
 	audio->setAudioTaskCore(1);
@@ -948,6 +959,7 @@ void AudioPlayer_Loop() {
 			AudioPlayer_LockPlaylist();
 			freePlaylist(gPlayProperties.playlist);
 			gPlayProperties.playlist = newPlayList;
+			newPlayList = nullptr; // consumed - drop our copy so a stale pointer can't be re-used
 			AudioPlayer_UnlockPlaylist();
 			Log_Printf(LOGLEVEL_NOTICE, newPlaylistReceived, gPlayProperties.playlist->size());
 			Log_Printf(LOGLEVEL_DEBUG, "Free heap: %u", ESP.getFreeHeap());
@@ -1011,6 +1023,7 @@ void AudioPlayer_Loop() {
 				gPlayProperties.smartSeekPendingSec += forward ? (int32_t) step : -(int32_t) step;
 				gPlayProperties.smartSeekRequestMs = millis();
 				trackCommand = NO_ACTION; // applied later (coalesced) in the seek-handling section
+				return; // exit before the switch/reconnect tail so the current file isn't restarted from 0
 			} else {
 				trackCommand = forward ? NEXTTRACK : PREVIOUSTRACK;
 			}
@@ -1297,6 +1310,9 @@ void AudioPlayer_Loop() {
 				gResumeSeekPending = false; // cleared by default; re-armed below only for an actual mid-file resume
 				if (gPlayProperties.startAtFilePos > 0) {
 					fileStartTime = gPlayProperties.startAtFilePos;
+					if (fileStartTime > 65535) {
+						fileStartTime = 65535; // connecttoFS()/setAudioPlayTime() takes a uint16_t (seconds); clamp so an >18h resume can't wrap
+					}
 					if (RESUME_FADEIN_DURATION_MS > 0) {
 						// Rewind a few seconds so the cold-start glitch (file open + header
 						// decode + seek-flush) lands on already-heard audio, then fade in below.
@@ -1638,25 +1654,33 @@ struct EqRule {
 	int8_t band;
 	int8_t high;
 };
-static std::vector<EqRule> AudioPlayer_EqRules;
+static std::vector<EqRule> AudioPlayer_EqRules; // guarded by AudioPlayer_EqRulesMutex (declared near the top of this file)
 
 // (Re)load the per-path equalizer rules from NVS into the in-memory cache.
 void AudioPlayer_ReloadEqRules(void) {
-	AudioPlayer_EqRules.clear();
+	// Parse into a local vector first (no lock held during the NVS read / JSON deserialize), then take the
+	// mutex only to swap it in, so a concurrent reader never observes the cache empty or half-built.
+	std::vector<EqRule> rules;
 	String json = gPrefsSettings.getString("eqRules", "[]");
 	JsonDocument doc;
-	if (deserializeJson(doc, json) != DeserializationError::Ok || !doc.is<JsonArray>()) {
-		return;
-	}
-	for (JsonObject o : doc.as<JsonArray>()) {
-		EqRule r;
-		r.path = o["p"].as<String>();
-		r.low = o["l"] | 0;
-		r.band = o["b"] | 0;
-		r.high = o["h"] | 0;
-		if (r.path.length() > 0) {
-			AudioPlayer_EqRules.push_back(r);
+	if (deserializeJson(doc, json) == DeserializationError::Ok && doc.is<JsonArray>()) {
+		for (JsonObject o : doc.as<JsonArray>()) {
+			EqRule r;
+			r.path = o["p"].as<String>();
+			r.low = o["l"] | 0;
+			r.band = o["b"] | 0;
+			r.high = o["h"] | 0;
+			if (r.path.length() > 0) {
+				rules.push_back(r);
+			}
 		}
+	}
+	if (AudioPlayer_EqRulesMutex) {
+		xSemaphoreTake(AudioPlayer_EqRulesMutex, portMAX_DELAY);
+	}
+	AudioPlayer_EqRules.swap(rules);
+	if (AudioPlayer_EqRulesMutex) {
+		xSemaphoreGive(AudioPlayer_EqRulesMutex);
 	}
 }
 
@@ -1669,6 +1693,10 @@ void AudioPlayer_ApplyEqualizerForPath(const char *trackPath) {
 	if (trackPath != nullptr) {
 		const String tp = trackPath;
 		size_t bestLen = 0;
+		// Guard the read against a concurrent AudioPlayer_ReloadEqRules() swap on the web task.
+		if (AudioPlayer_EqRulesMutex) {
+			xSemaphoreTake(AudioPlayer_EqRulesMutex, portMAX_DELAY);
+		}
 		for (const EqRule &r : AudioPlayer_EqRules) {
 			const bool isMatch = (tp == r.path)
 				|| (tp.length() > r.path.length() && tp.startsWith(r.path) && tp.charAt(r.path.length()) == '/');
@@ -1678,6 +1706,9 @@ void AudioPlayer_ApplyEqualizerForPath(const char *trackPath) {
 				band = r.band;
 				high = r.high;
 			}
+		}
+		if (AudioPlayer_EqRulesMutex) {
+			xSemaphoreGive(AudioPlayer_EqRulesMutex);
 		}
 	}
 	gPlayProperties.gainLowPass = low;
@@ -1921,8 +1952,8 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 
 	if (!error) {
 		gPlayProperties.playMode = _playMode;
+		newPlayList = list; // publish the payload *before* the flag so the consumer never sees a stale pointer
 		newPlayListAvailable = true;
-		newPlayList = list;
 		return;
 	}
 
