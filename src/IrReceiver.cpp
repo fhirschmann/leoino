@@ -23,9 +23,13 @@ std::atomic<uint32_t> IrReceiver_LastRcCmdTimestamp = 0u;
 static IrMapping sMap[IR_MAX_MAPPINGS];
 static uint8_t sMapCount = 0;
 
+// Reload requests come from the web/async_tcp task but the mapping table must only ever be mutated on
+// the loop task. The web task sets this flag; IrReceiver_Cyclic() picks it up and does the reload.
+static std::atomic<bool> sReloadPending = false;
+
 // Learn mode: while armed, received codes are reported to the web UI instead of triggering actions.
 static std::atomic<bool> sLearnMode = false;
-static uint32_t sLearnDeadline = 0;
+static std::atomic<uint32_t> sLearnDeadline = 0;
 static constexpr uint32_t IR_LEARN_TIMEOUT = 30000; // ms; matches the web-UI learn modal timeout
 
 // Long-press handling. A held IR button keeps re-sending (repeat) frames; once they stop arriving
@@ -105,16 +109,20 @@ void IrReceiver_Init() {
 
 void IrReceiver_ReloadMappings() {
 #ifdef IR_CONTROL_ENABLE
-	loadMappings();
+	// Called from the web task: defer the actual reload to the loop task (see IrReceiver_Cyclic) so the
+	// mapping table is never mutated concurrently with a lookup.
+	sReloadPending = true;
 #endif
 }
 
 void IrReceiver_SetLearnMode(bool enable) {
 #ifdef IR_CONTROL_ENABLE
-	sLearnMode = enable;
+	// Publish the deadline BEFORE arming the flag: otherwise a Cyclic expiry check running between the
+	// two stores could see the armed flag with a stale/zero deadline and instantly disarm learn mode.
 	if (enable) {
 		sLearnDeadline = millis() + IR_LEARN_TIMEOUT;
 	}
+	sLearnMode = enable;
 #else
 	(void) enable;
 #endif
@@ -144,6 +152,11 @@ uint16_t IrReceiver_GetLongPressMs() {
 
 void IrReceiver_Cyclic() {
 #ifdef IR_CONTROL_ENABLE
+	// Apply any pending mapping reload here (loop task) so the table is only mutated by this single writer.
+	if (sReloadPending.exchange(false)) {
+		loadMappings();
+	}
+
 	// Auto-expire learn mode so a forgotten/aborted learn session can't suppress the remote forever.
 	if (sLearnMode && ((int32_t) (millis() - sLearnDeadline) >= 0)) {
 		sLearnMode = false;
@@ -165,6 +178,13 @@ void IrReceiver_Cyclic() {
 		Serial.println();
 		IrReceiver.resume(); // Enable receiving of the next value
 
+		// Ignore undecodable frames (ambient IR noise): they carry command 0 with no real protocol, so
+		// learn mode must not capture them and the runtime lookup (which only matches the 16-bit command)
+		// must not fire a stored code-0 mapping from them. resume() was already called above.
+		if (IrReceiver.decodedIRData.protocol == UNKNOWN) {
+			return;
+		}
+
 		const uint16_t command = IrReceiver.decodedIRData.command;
 		const bool isRepeat = (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) != 0;
 
@@ -181,7 +201,8 @@ void IrReceiver_Cyclic() {
 		// Look up the received command in the runtime mapping table.
 		int16_t mi = -1;
 		for (uint8_t i = 0; i < sMapCount; i++) {
-			if (sMap[i].code == command) {
+			// Never match a stored code-0 entry (defense-in-depth against noise-learned mappings).
+			if ((sMap[i].code != 0) && (sMap[i].code == command)) {
 				mi = i;
 				break;
 			}
