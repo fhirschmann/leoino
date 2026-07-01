@@ -6,9 +6,7 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=300, initial-scale=1.0">
 	<meta name="theme-color" content="#05070d">
-	<script src="/js/i18next.min.js"></script>
-	<script src="/js/i18nextHttpBackend.min.js"></script>
-	<script src="/js/loc_i18next.min.js"></script>
+	<script src="/js/vendor.min.js"></script>
 	<style>
 		/* ESPuino cyberpunk theme - self-contained (AP mode has no internet) */
 		:root {
@@ -218,7 +216,7 @@
 		<br>
 		<label for="hostname" data-i18n="wifi.hostname.title"></label>: <br>
 		<input type="text" id="hostname" name="hostname" value="espuino"
-			pattern="^[0-9a-zA-Z][0-9a-zA-Z\\-]{0,30}[0-9a-zA-Z]" required>
+			pattern="^[0-9a-zA-Z][0-9a-zA-Z\-]{0,30}[0-9a-zA-Z]" required>
 		<br>
 		<br>
 		<input type="checkbox" id="scan_wifi_on_start" name="scan_wifi_on_start" value="false">
@@ -338,7 +336,7 @@
 			});
 			var myObj = {
 				hostname: document.getElementById('hostname').value,
-				scanwifionstart: document.getElementById('scan_wifi_on_start').checked
+				scanOnStart: document.getElementById('scan_wifi_on_start').checked
 			};
 			await fetch("/wificonfig", {
 				method: "POST",
@@ -360,7 +358,7 @@
 				hostnameElem.value = config.hostname;
 				hostnameElem.defaultValue = config.hostname;
 			}
-			scanWifiElem.checked = config.scanwifionstart;
+			scanWifiElem.checked = config.scanOnStart;
 		}
 	</script>
 </body>

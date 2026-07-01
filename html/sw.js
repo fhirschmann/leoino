@@ -29,6 +29,12 @@ self.addEventListener('fetch', (event) => {
 		return;
 	}
 	event.respondWith(
-		fetch(req).catch(() => caches.match(OFFLINE_URL, { ignoreSearch: true }))
+		fetch(req).then((res) => {
+			// A live navigation succeeded: refresh the cached offline page in the
+			// background so edits to offline.html reach clients and evicted caches
+			// repopulate. Fire-and-forget; failures are ignored.
+			caches.open(CACHE).then((cache) => cache.add(new Request(OFFLINE_URL, { cache: 'reload' }))).catch(() => {});
+			return res;
+		}).catch(() => caches.match(OFFLINE_URL, { ignoreSearch: true }))
 	);
 });
