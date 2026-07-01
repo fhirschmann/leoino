@@ -114,6 +114,9 @@
 		{ id: "0033112299", modId: 110 }
 	];
 
+	// Named equalizer rules (POST /eqrule upserts, DELETE /eqrule removes, GET /eqrules lists).
+	var EQRULES = [];
+
 	// Full settings object, shaped like Web.cpp::settingsToJSON("").
 	function buildSettings() {
 		return {
@@ -279,7 +282,8 @@
 			}
 			if (p === "/savedSSIDs") { return jsonResp(["Heimnetz", "Gartenlaube"]); }
 			if (p === "/activeSSID") { return jsonResp({ active: "Heimnetz" }); }
-			if (p === "/eqrules") { return jsonResp([]); }
+			if (p === "/wificonfig") { return jsonResp({ hostname: "espuino-demo", scanOnStart: false }); }
+			if (p === "/eqrules") { return jsonResp(EQRULES); }
 			// HomeKit: enabled so the tab shows in the demo. The setup code is a placeholder
 			// (the QR is the bundled demo-homekit-qr.svg, swapped in by build_demo.py).
 			if (p === "/homekit") { return jsonResp({ enabled: true, active: true, paired: false, code: "031-45-154", deviceName: "Leo Industries AT-1", tvName: "AT-1 TV" }); }
@@ -295,6 +299,18 @@
 			if (p === "/backupupload") { return jsonResp({ status: 2, message: "demo: backup not actually uploaded" }); }
 			// file-sync status poll: the demo can't really sync, so report it as done immediately
 			if (p === "/sync") { return jsonResp({ status: 2, progress: 100, message: "demo: file sync runs only on the device" }); }
+			// firmware-update status poll: numeric status so the UI's poll loop terminates (checks st.status)
+			if (p === "/githubupdate") { return jsonResp({ status: 2, progress: 100, message: "demo: firmware update runs only on the device" }); }
+			// serial log tail: a few canned lines so the log viewer shows something
+			if (p === "/log") {
+				return { status: 200, contentType: "text/plain; charset=utf-8", body: [
+					"[demo] ESPuino web preview - no device connected",
+					"[demo] Wifi: connected (192.168.1.34)",
+					"[demo] RFID reader ready",
+					"[demo] SD card mounted (30 GB, 21 GB free)",
+					"[demo] Now playing: Die Bremer Stadtmusikanten"
+				].join("\n") + "\n" };
+			}
 			// dry-run report: a small sample so the dry-run button shows something in the demo
 			if (p === "/syncreport") {
 				return { status: 200, contentType: "text/plain; charset=utf-8", body: [
@@ -333,8 +349,22 @@
 			}
 		}
 
+		// RFID assignment writes (bare /rfid, not /rfidsync etc.): mutate the fixture so
+		// the table reflects the change, then report ok.
+		if (p === "/rfid") {
+			if (method === "DELETE") {
+				var delId = qs.get("id");
+				if (delId) { RFID = RFID.filter(function (r) { return r.id !== delId; }); }
+				return jsonResp({ status: "ok", demo: true });
+			}
+			return jsonResp({ status: "ok", demo: true });
+		}
+
+		// SD cleanup: the UI renders result.deleted, so answer with a plausible count.
+		if (p === "/sdclean") { return jsonResp({ deleted: 3 }); }
+
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
-		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|explorer|exploreraudio|playlist|sdclean|sdformat|rtc|homekit|security|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
+		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|rfid|explorer|exploreraudio|playlist|playstats|sdclean|sdformat|rtc|homekit|security|wificonfig|eqrule|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
 			return jsonResp({ status: "ok", demo: true });
 		}
 		return null;
@@ -505,11 +535,35 @@
 		if ("trackinfo" in msg) { this._emit({ trackinfo: TRACK }); }
 		if ("coverimg" in msg) { this._emit({ coverimg: true }); }
 		if ("ping" in msg) { this._emit({ pong: "pong", controlsLocked: TRACK.controlsLocked, repeatMode: TRACK.repeatMode }); }
-		if ("controls" in msg) { this._handleControl(msg.controls.action); }
+		// seek: move the playhead to the requested percentage and reflect it back
+		if ("trackProgress" in msg) {
+			var pct = Number(msg.trackProgress.posPercent);
+			if (!isNaN(pct)) {
+				TRACK.time = Math.max(0, Math.min(TRACK.duration, Math.round(TRACK.duration * pct / 100)));
+				syncTrack();
+				this._emit({ trackProgress: { posPercent: TRACK.posPercent, time: TRACK.time, duration: TRACK.duration } });
+			}
+		}
+		if ("controls" in msg) { this._handleControl(msg.controls); }
 	};
 	// React to the player's control commands (same action codes as the firmware /
 	// the mod-card list) and stream back the updated state so the UI reflects it.
-	MockWebSocket.prototype._handleControl = function (action) {
+	MockWebSocket.prototype._handleControl = function (controls) {
+		controls = controls || {};
+		// direct setters (not action codes): reflect them back like the firmware does
+		if ("set_volume" in controls) {
+			DEMO_VOLUME = Math.max(0, Math.min(21, Number(controls.set_volume)));
+			this._emit({ volume: DEMO_VOLUME });
+			this._emit({ status: "ok" });
+			return;
+		}
+		if ("sleep_timer" in controls) {
+			TRACK.sleepTimerDuration = Number(controls.sleep_timer) || 0;
+			this._emit({ trackinfo: TRACK });
+			this._emit({ status: "ok" });
+			return;
+		}
+		var action = controls.action;
 		var changed = true;
 		switch (Number(action)) {
 			case 170: // play / pause

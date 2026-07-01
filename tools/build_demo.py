@@ -57,7 +57,10 @@ def transform_html(src: str) -> str:
     out = out.replace("if ('serviceWorker' in navigator) {", "if (false) {")
 
     # 3) cover image -> bundled demo SVG (avoids http/mixed-content + 404)
+    #    two variants: the now-playing bar (double-quoted) and the track-info modal
+    #    (concatenated into a double-quoted attribute: "http://' + host + '/cover?')
     out = out.replace('"http://" + host + "/cover?"', '"demo-cover.svg?"')
+    out = out.replace('"http://\' + host + \'/cover?\'', '"demo-cover.svg?\'')
 
     # 3b) HomeKit pairing QR -> bundled placeholder SVG (same http/mixed-content + 404 reason)
     out = out.replace('"http://" + host + "/homekit/qr.svg?ts=" + Date.now()', '"demo-homekit-qr.svg?ts=" + Date.now()')
