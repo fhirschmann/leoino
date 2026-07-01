@@ -9,6 +9,12 @@
 #include <MFRC522.h>
 #include <SPI.h>
 #include <Wire.h>
+
+// The MFRC522-I2C reader is wired to the shared secondary bus (i2cBusTwo), NOT the primary Wire bus.
+// Probe on that bus so the reader is actually detectable and so the probe doesn't drive clock/data
+// onto other peripherals' pins (e.g. the PN5180 CS/RST on the complete board).
+extern TwoWire i2cBusTwo;
+
 #define MFRC522_firmware_referenceV0_0
 #define MFRC522_firmware_referenceV1_0
 #define MFRC522_firmware_referenceV2_0
@@ -96,17 +102,26 @@ bool RfidConfig_IsReaderAvailable(RfidReaderType readerType) {
 		case RfidReaderType::TYPE_MFRC522_I2C: // MFRC522 (I2C)
 			// Try to initialize MFRC522 via I2C and check if it responds
 			{
+	#if defined(I2C_2_ENABLE)
 				Log_Println("RFID: Checking MFRC522 (I2C)...", LOGLEVEL_DEBUG);
-				Wire.begin();
-				MFRC522_I2C mfrc522(MFRC522_ADDR, RST_PIN, &Wire);
+				// Probe on i2cBusTwo (the driver in RfidMfrc522.cpp attaches the reader there). The
+				// bus is normally already up (begun in setup()); begin() is idempotent so this is a
+				// no-op if so. Never call i2cBusTwo.end() — the bus is shared with the OLED/RTC.
+				i2cBusTwo.begin(ext_IIC_DATA, ext_IIC_CLK);
+				MFRC522_I2C mfrc522(MFRC522_ADDR, RST_PIN, &i2cBusTwo);
+				// Serialize against the OLED frame / RC522-I2C task like every other i2cBusTwo access.
+				I2cBusTwo_Lock();
 				mfrc522.PCD_Init();
 				byte version = mfrc522.PCD_ReadRegister(MFRC522_I2C::VersionReg);
-				Wire.end();
+				I2cBusTwo_Unlock();
 				Log_Printf(LOGLEVEL_DEBUG, "RFID: MFRC522 (I2C) version=0x%02X", version);
 
 				// Check if version is valid for MFRC522 (0x91, 0x92, 0x82, etc.)
 				// Valid versions are typically 0x80-0x9x range. Exclude invalid values.
 				return ((version >= 0x80) && (version <= 0x9F));
+	#else
+				return false;
+	#endif
 			}
 
 		case RfidReaderType::TYPE_PN5180: // PN5180

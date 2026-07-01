@@ -191,6 +191,7 @@ static uint32_t s_idleSince    = 0;        // millis() when we first entered idl
 static uint8_t  s_lastPlayMode = 0xFF;     // detect idle transition
 static bool     s_wokeFromSleep    = false; // this boot is a wake from an intentional deep-sleep (NVS intent-flag)
 static bool     s_coldStartLatched = false; // read+consume the wake-from-sleep flag exactly once per boot
+static bool     s_warmReinit       = false; // set by Display_ReloadConfig so Display_Init skips the cold-boot settle delay
 static bool     s_startupAnimShown = false; // the startup animation has already run to completion once
 
 
@@ -509,7 +510,13 @@ void Display_Init(void) {
         return;
     }
     s_consecSendErrors = 0;
-    if (Display_HwInit(true)) {
+    // The 200 ms power-rail settle in Display_HwInit is only needed on a real cold boot. A runtime
+    // re-init (Display_ReloadConfig, on the async_tcp task when OLED settings are saved) sets
+    // s_warmReinit so we skip it and don't stall the web server. read-and-clear so the next call
+    // defaults back to the cold-boot path.
+    bool coldBoot = !s_warmReinit;
+    s_warmReinit = false;
+    if (Display_HwInit(coldBoot)) {
         Log_Println("OLED: display initialised", LOGLEVEL_INFO);
     } else {
         Log_Println("OLED: display not found on I2C bus (will retry)", LOGLEVEL_ERROR);
@@ -526,6 +533,7 @@ void Display_ReloadConfig(void) {
         return;
     }
     if (!s_displayOk) {
+        s_warmReinit = true; // skip the cold-boot settle delay: this is a runtime re-init, rail is stable
         Display_Init(); // re-reads the config, but that is harmless
         return;
     }

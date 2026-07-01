@@ -145,9 +145,14 @@ bool Led_LoadSettings(LedSettings &settings) {
 	const uint8_t defLedOffset = 0;
 	#endif
 	settings.ledOffset = gPrefsSettings.getUChar("ledOffset", defLedOffset);
+	// Sanitize instead of just bailing: callers ignore the return value, so bad values from NVS must
+	// never survive here or they cause OOB writes / a "% 0" in the animation paths (Led_Address, Led_DrawIdleDots).
+	if (settings.numIndicatorLeds == 0) {
+		settings.numIndicatorLeds = 1;
+	}
 	if (settings.ledOffset >= settings.numIndicatorLeds) {
 		Log_Println("ledOffset must be between 0 and numIndicatorLeds-1", LOGLEVEL_ERROR);
-		return false;
+		settings.ledOffset %= settings.numIndicatorLeds;
 	}
 	// load control colors from NVS
 	settings.controlLedColors = CONTROL_LEDS_COLORS;
@@ -491,6 +496,9 @@ CRGB::HTMLColorCode Led_GetIdleColor() {
 }
 
 void Led_DrawIdleDots(CRGBSet &leds, uint8_t offset, CRGB::HTMLColorCode color) {
+	if (leds.size() == 0) { // guard against "% 0" on a zero-length strip
+		return;
+	}
 	const uint8_t Led_IdleDotDistance = gLedSettings.numIndicatorLeds / gLedSettings.numIdleDots;
 	for (uint8_t i = 0; i < gLedSettings.numIdleDots; i++) {
 		leds[(Led_Address(offset) + i * Led_IdleDotDistance) % leds.size()] = color;

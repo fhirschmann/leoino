@@ -101,9 +101,13 @@ float Battery_EstimateLevel(void) {
 	float vDiffCurrent = currentVoltage - voltageIndicatorLow;
 	float estimatedLevel = vDiffCurrent / vDiffIndicatorRange;
 	if (estimatedLevel < 0) { // Don't return value < 0.0
-		return 0.0F;
+		estimatedLevel = 0.0F;
+	} else if (estimatedLevel > 1) { // Don't return value > 1.0
+		estimatedLevel = 1.0F;
 	}
-	return (estimatedLevel > 1) ? 1.0F : estimatedLevel; // Don't return value > 1.0
+	cachedLevel = estimatedLevel;
+	lastReadMs = nowMs;
+	return estimatedLevel;
 }
 
 bool Battery_IsLow(void) {

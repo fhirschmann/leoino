@@ -21,6 +21,13 @@ static uint32_t gLastDay = 0; // local day number of the most recent tracked day
 static bool gDirty = false;
 static uint32_t gLastSaveMs = 0;
 
+// The ring buffer (gDays/gLastDay/gDirty) is touched from three tasks: the loop task (AddSecond),
+// async_tcp (getters, RestoreRing) and the backup task (GetRingSlot). Serialize every access with a
+// spinlock. taskENTER_CRITICAL is NOT recursive, so the internal helpers below assume the lock is
+// already held and the public entry points take it exactly once. Sections are bounded (<=365 words)
+// and never do flash I/O while held.
+static portMUX_TYPE gStatsMux = portMUX_INITIALIZER_UNLOCKED;
+
 // Per-card play counters live in their own NVS namespace, keyed by the 12-digit tag id.
 static Preferences gPrefsCardCnt;
 static bool gCardCntReady = false;
@@ -138,7 +145,8 @@ static uint32_t Playstats_CurrentDay(void) {
 
 // Roll the ring buffer forward to <today>, zeroing days that elapsed since gLastDay (so stale
 // slots from ~a year ago don't leak into the windows). Resets everything if the gap exceeds a year.
-static void Playstats_AdvanceTo(uint32_t today) {
+// PRECONDITION: gStatsMux is already held by the caller (this helper does not take the lock itself).
+static void Playstats_AdvanceLocked(uint32_t today) {
 	if (today == 0 || today == gLastDay) {
 		return;
 	}
@@ -175,27 +183,38 @@ void Playstats_AddSecond(void) {
 	if (today == 0) {
 		return; // clock not valid yet
 	}
-	Playstats_AdvanceTo(today);
+	// Advance-then-increment must be atomic together, otherwise a concurrent day-rollover could zero
+	// the slot between the two steps.
+	taskENTER_CRITICAL(&gStatsMux);
+	Playstats_AdvanceLocked(today);
 	gDays[today % PLAYSTATS_DAYS]++;
 	gDirty = true;
+	taskEXIT_CRITICAL(&gStatsMux);
 
 	// Persist at most once per minute to spare the NVS flash; a final flush happens on shutdown.
+	// Playstats_Save takes the lock itself, so it must run OUTSIDE this critical section.
 	if (millis() - gLastSaveMs >= 60000u) {
 		Playstats_Save();
 	}
 }
 
 void Playstats_Save(void) {
-	if (!gDirty) {
-		return;
-	}
 	uint8_t buf[sizeof(uint32_t) * 2 + sizeof(gDays)];
 	uint32_t magic = PLAYSTATS_MAGIC;
+	// Snapshot the ring into a local buffer under the lock, then release before the NVS write — never
+	// do flash I/O inside a spinlock.
+	taskENTER_CRITICAL(&gStatsMux);
+	if (!gDirty) {
+		taskEXIT_CRITICAL(&gStatsMux);
+		return;
+	}
 	memcpy(buf, &magic, sizeof(magic));
 	memcpy(buf + sizeof(uint32_t), &gLastDay, sizeof(gLastDay));
 	memcpy(buf + sizeof(uint32_t) * 2, gDays, sizeof(gDays));
-	gPrefsSettings.putBytes("playStats", buf, sizeof(buf));
 	gDirty = false;
+	taskEXIT_CRITICAL(&gStatsMux);
+
+	gPrefsSettings.putBytes("playStats", buf, sizeof(buf));
 	gLastSaveMs = millis();
 }
 
@@ -204,17 +223,27 @@ uint32_t Playstats_GetToday(void) {
 	if (today == 0) {
 		return 0;
 	}
-	Playstats_AdvanceTo(today);
-	return gDays[today % PLAYSTATS_DAYS];
+	taskENTER_CRITICAL(&gStatsMux);
+	Playstats_AdvanceLocked(today);
+	uint32_t val = gDays[today % PLAYSTATS_DAYS];
+	taskEXIT_CRITICAL(&gStatsMux);
+	return val;
 }
 
 uint32_t Playstats_GetYesterday(void) {
 	uint32_t today = Playstats_CurrentDay();
-	if (today == 0 || gLastDay == 0) {
+	if (today == 0) {
 		return 0;
 	}
-	Playstats_AdvanceTo(today);
-	return (today >= 1) ? gDays[(today - 1) % PLAYSTATS_DAYS] : 0;
+	taskENTER_CRITICAL(&gStatsMux);
+	if (gLastDay == 0) {
+		taskEXIT_CRITICAL(&gStatsMux);
+		return 0;
+	}
+	Playstats_AdvanceLocked(today);
+	uint32_t val = (today >= 1) ? gDays[(today - 1) % PLAYSTATS_DAYS] : 0;
+	taskEXIT_CRITICAL(&gStatsMux);
+	return val;
 }
 
 uint32_t Playstats_GetLastDays(uint16_t days) {
@@ -222,14 +251,16 @@ uint32_t Playstats_GetLastDays(uint16_t days) {
 	if (today == 0) {
 		return 0;
 	}
-	Playstats_AdvanceTo(today);
 	if (days > PLAYSTATS_DAYS) {
 		days = PLAYSTATS_DAYS;
 	}
 	uint32_t sum = 0;
+	taskENTER_CRITICAL(&gStatsMux);
+	Playstats_AdvanceLocked(today);
 	for (uint16_t i = 0; i < days && i <= today; i++) {
 		sum += gDays[(today - i) % PLAYSTATS_DAYS];
 	}
+	taskEXIT_CRITICAL(&gStatsMux);
 	return sum;
 }
 
@@ -237,19 +268,32 @@ uint16_t Playstats_GetRingSize(void) {
 	return PLAYSTATS_DAYS;
 }
 uint32_t Playstats_GetRingLastDay(void) {
-	return gLastDay;
+	taskENTER_CRITICAL(&gStatsMux);
+	uint32_t val = gLastDay;
+	taskEXIT_CRITICAL(&gStatsMux);
+	return val;
 }
 uint32_t Playstats_GetRingSlot(uint16_t i) {
-	return (i < PLAYSTATS_DAYS) ? gDays[i] : 0;
+	if (i >= PLAYSTATS_DAYS) {
+		return 0;
+	}
+	taskENTER_CRITICAL(&gStatsMux);
+	uint32_t val = gDays[i];
+	taskEXIT_CRITICAL(&gStatsMux);
+	return val;
 }
 void Playstats_RestoreRing(uint32_t lastDay, const uint32_t *slots, uint16_t count) {
 	if (count > PLAYSTATS_DAYS) {
 		count = PLAYSTATS_DAYS;
 	}
+	// Fill loop + gLastDay store as one critical section. Playstats_Save() takes the lock itself, so
+	// it runs afterwards, outside this section.
+	taskENTER_CRITICAL(&gStatsMux);
 	for (uint16_t i = 0; i < PLAYSTATS_DAYS; i++) {
 		gDays[i] = (i < count && slots) ? slots[i] : 0;
 	}
 	gLastDay = lastDay;
 	gDirty = true;
+	taskEXIT_CRITICAL(&gStatsMux);
 	Playstats_Save();
 }

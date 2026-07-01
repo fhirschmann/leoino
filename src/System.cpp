@@ -5,6 +5,7 @@
 
 #include "Audio.h"
 #include "AudioPlayer.h"
+#include "Backup.h"
 #include "Battery.h"
 #include "Bluetooth.h"
 #include "Display.h"
@@ -16,6 +17,7 @@
 #include "Port.h"
 #include "Power.h"
 #include "Rfid.h"
+#include "RfidSync.h"
 #include "SdCard.h"
 #include "Sync.h"
 #include "Web.h"
@@ -105,6 +107,14 @@ void System_Init(void) {
 void System_ReloadSleepSettings(void) {
 	System_NoSleepWhenPowered = gPrefsSettings.getBool("noSleepPwr", false);
 	System_PoweredVoltageThreshold = gPrefsSettings.getFloat("pwrSleepVolt", 3.5f);
+
+	// Also pick up the max inactivity-time so a change saved via the web UI applies live (matches
+	// the read in System_Init); refresh the activity timer so the new timeout starts from now.
+	uint32_t nvsMInactivityTime = gPrefsSettings.getUInt("mInactiviyT", System_MaxInactivityTime);
+	if (nvsMInactivityTime) {
+		System_MaxInactivityTime = nvsMInactivityTime;
+	}
+	System_UpdateActivityTimer();
 }
 
 // Heuristic "external power is connected": the battery voltage is at/above the (charge) threshold.
@@ -255,11 +265,11 @@ void System_SleepHandler(void) {
 	uint32_t lastActive = System_LastTimeActiveTimestamp.load();
 	uint32_t sleepStart = System_SleepTimerStartTimestamp.load();
 
-	// A running HTTP file sync runs in a background task and (while it pauses playback)
-	// does not refresh the activity timer. Without this guard a sync that outlasts the
-	// inactivity timeout / sleep timer would trigger deep-sleep mid-transfer, abruptly
-	// tearing down the SD card and aborting the sync. Keep the device awake until it finishes.
-	if (Sync_GetStatus() == 1) {
+	// A running HTTP file sync / backup / rfid-sync runs in a background task and (while it pauses
+	// playback) does not refresh the activity timer. Without this guard a transfer that outlasts
+	// the inactivity timeout / sleep timer would trigger deep-sleep mid-transfer, abruptly tearing
+	// down the SD card and aborting/corrupting the upload. Keep the device awake until it finishes.
+	if (Sync_GetStatus() == 1 || Backup_GetStatus() == 1 || RfidSync_GetStatus() == 1) {
 		System_UpdateActivityTimer();
 		return;
 	}

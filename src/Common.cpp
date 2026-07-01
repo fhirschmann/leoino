@@ -14,6 +14,10 @@ size_t b64decode(const void *input_buffer, void *output_buffer, const size_t inp
 	if (input_length == 0) {
 		return 0;
 	}
+	if (input_length % 4 == 1) {
+		// Invalid base64 (valid data never has remainder 1); the pad math below would read p[-1] / past the buffer.
+		return 0;
+	}
 
 	unsigned char *p = (unsigned char *) input_buffer;
 	size_t j = 0, pad1 = input_length % 4 || p[input_length - 1] == '=', pad2 = pad1 && (input_length % 4 > 2 || p[input_length - 2] != '=');

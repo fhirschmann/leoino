@@ -122,10 +122,12 @@ void Port_Write(const uint8_t _channel, const bool _newState, const bool _initGp
 				portOffset = 1;
 			}
 
-			uint8_t oldPortBitmask = Port_ExpanderPortsOutputChannelStatus[portOffset];
 			uint8_t newPortBitmask;
 
 			I2cBusTwo_Lock();
+			// Snapshot the shared output-state cache INSIDE the lock so the read-modify-write can't
+			// race another writer (recursive mutex, so nested callers are still fine).
+			uint8_t oldPortBitmask = Port_ExpanderPortsOutputChannelStatus[portOffset];
 			i2cBusTwo.beginTransmission(expanderI2cAddress);
 			i2cBusTwo.write(0x02); // Pointer to output configuration-register
 			if (_newState) {
