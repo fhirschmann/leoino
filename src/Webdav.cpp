@@ -93,11 +93,9 @@ static String webdavDecode(const String &in) {
 				continue;
 			}
 		}
-		if (c == '+') {
-			out += ' ';
-		} else {
-			out += c;
-		}
+		// A literal '+' in a URL *path* is a plain plus, not a space (the '+'->space rule is query-string
+		// only, RFC 3986); only %XX sequences are decoded, everything else is appended verbatim.
+		out += c;
 	}
 	return out;
 }
@@ -197,6 +195,17 @@ static void webdavDrain(WiFiClient &client, long n) {
 
 // ---------------------------------------------------------------------------- PROPFIND
 
+// Escape the five XML-significant characters we can actually emit inside element text (a filename can
+// contain any of &, <, >). Ampersand must be replaced first so we don't double-escape the entities we
+// just introduced. Without this a file like "Simon & Garfunkel" makes the whole 207 body malformed.
+static String webdavXmlEscape(const String &s) {
+	String out = s;
+	out.replace("&", "&amp;");
+	out.replace("<", "&lt;");
+	out.replace(">", "&gt;");
+	return out;
+}
+
 // Append one <D:response> element describing <logicalPath> (a file or directory) to <body>.
 static void webdavAppendResponse(String &body, const String &logicalPath, bool isDir, uint32_t size, time_t mtime) {
 	String href = Url_EncodePath(logicalPath);
@@ -209,7 +218,7 @@ static void webdavAppendResponse(String &body, const String &logicalPath, bool i
 	body += "<D:response><D:href>";
 	body += href;
 	body += "</D:href><D:propstat><D:prop>";
-	body += "<D:displayname>" + webdavBaseName(logicalPath) + "</D:displayname>";
+	body += "<D:displayname>" + webdavXmlEscape(webdavBaseName(logicalPath)) + "</D:displayname>";
 	body += "<D:getlastmodified>" + webdavHttpDate(mtime) + "</D:getlastmodified>";
 	if (isDir) {
 		body += "<D:resourcetype><D:collection/></D:resourcetype>";
@@ -311,7 +320,16 @@ static void webdavHandleGet(WiFiClient &client, const String &path, bool headOnl
 	if (range.startsWith("bytes=") && total > 0) {
 		String r = range.substring(6);
 		int dash = r.indexOf('-');
-		if (dash >= 0) {
+		if (dash == 0) {
+			// Suffix form "bytes=-N": the last N bytes. Misparsing this as the first N bytes would
+			// serve a *different* range than requested under a 206, which corrupts media playback.
+			uint32_t suffix = (uint32_t) r.substring(1).toInt();
+			if (suffix > 0) {
+				start = (suffix >= total) ? 0 : (total - suffix);
+				end = total - 1;
+				partial = true;
+			}
+		} else if (dash > 0) {
 			start = (uint32_t) r.substring(0, dash).toInt();
 			String es = r.substring(dash + 1);
 			if (es.length() > 0) {
@@ -416,7 +434,12 @@ static void webdavHandlePut(WiFiClient &client, const String &path, long content
 
 // ---------------------------------------------------------------------------- DELETE / MKCOL
 
-static bool webdavDeleteRecursive(const String &path) {
+static bool webdavDeleteRecursive(const String &path, uint8_t depth = 0) {
+	// Bound the recursion: the WebDAV task has an 8 kB stack and each frame holds a File + a String,
+	// so a pathologically deep tree could otherwise overflow it (mirrors syncMirrorDir in Sync.cpp).
+	if (depth >= 20) {
+		return false;
+	}
 	fs::File f = gFSystem.open(path);
 	if (!f) {
 		return false;
@@ -431,7 +454,7 @@ static bool webdavDeleteRecursive(const String &path) {
 	String child;
 	while ((child = gFSystem.nextFileName(dir, &childIsDir)).length() > 0) {
 		if (childIsDir) {
-			webdavDeleteRecursive(child);
+			webdavDeleteRecursive(child, depth + 1);
 		} else {
 			gFSystem.remove(child);
 		}
@@ -466,7 +489,12 @@ static void webdavHandleMkcol(WiFiClient &client, const String &path) {
 
 // ---------------------------------------------------------------------------- MOVE / COPY
 
-static bool webdavCopyRecursive(const String &src, const String &dst) {
+static bool webdavCopyRecursive(const String &src, const String &dst, uint8_t depth = 0) {
+	// Bound the recursion: the WebDAV task has an 8 kB stack and each frame holds two Files + Strings,
+	// so a pathologically deep tree could otherwise overflow it (mirrors syncMirrorDir in Sync.cpp).
+	if (depth >= 20) {
+		return false;
+	}
 	fs::File sf = gFSystem.open(src);
 	if (!sf) {
 		return false;
@@ -481,7 +509,7 @@ static bool webdavCopyRecursive(const String &src, const String &dst) {
 		String child;
 		bool ok = true;
 		while ((child = gFSystem.nextFileName(dir, &childIsDir)).length() > 0) {
-			ok = webdavCopyRecursive(child, dst + "/" + webdavBaseName(child)) && ok;
+			ok = webdavCopyRecursive(child, dst + "/" + webdavBaseName(child), depth + 1) && ok;
 		}
 		dir.close();
 		return ok;
@@ -519,6 +547,17 @@ static void webdavHandleMoveCopy(WiFiClient &client, const String &path, const S
 	String dest = webdavUriToPath(destHeader);
 	if (!gFSystem.exists(path)) {
 		webdavSendStatus(client, 404, "Not Found");
+		return;
+	}
+	// Reject self- and inside-source destinations: a MOVE onto its own path would delete the source
+	// (we remove an overwrite target first), and a COPY of /a into /a/b would recurse into its own
+	// output until the 8 kB task stack overflows. FAT is case-insensitive, so compare that way.
+	String pathSlash = path + "/";
+	String destSlash = dest + "/";
+	bool destInsideSrc = destSlash.length() >= pathSlash.length() && destSlash.substring(0, pathSlash.length()).equalsIgnoreCase(pathSlash);
+	bool srcInsideDest = pathSlash.length() >= destSlash.length() && pathSlash.substring(0, destSlash.length()).equalsIgnoreCase(destSlash);
+	if (dest.equalsIgnoreCase(path) || destInsideSrc || srcInsideDest) {
+		webdavSendStatus(client, 403, "Forbidden");
 		return;
 	}
 	bool destExisted = gFSystem.exists(dest);
@@ -595,7 +634,7 @@ static void webdavHandleClient(WiFiClient &client) {
 
 	long contentLength = 0;
 	String depth = "infinity";
-	String destination, authz, overwrite = "T", range;
+	String destination, authz, overwrite = "T", range, transferEncoding;
 	while (client.connected()) {
 		String line = client.readStringUntil('\n');
 		if (line == "\r" || line.length() == 0 || line == "\n") {
@@ -626,6 +665,8 @@ static void webdavHandleClient(WiFiClient &client) {
 			overwrite = val;
 		} else if (key == "range") {
 			range = val;
+		} else if (key == "transfer-encoding") {
+			transferEncoding = val;
 		}
 	}
 
@@ -658,7 +699,15 @@ static void webdavHandleClient(WiFiClient &client) {
 		webdavDrain(client, contentLength);
 		webdavHandleGet(client, path, method == "HEAD", range);
 	} else if (method == "PUT") {
-		webdavHandlePut(client, path, contentLength);
+		// A chunked body has no Content-Length, so we'd otherwise treat it as a 0-byte PUT and truncate
+		// the target to empty. We don't decode chunked transfer-encoding, so per RFC 7230 demand a length.
+		String te = transferEncoding;
+		te.toLowerCase();
+		if (te.indexOf("chunked") >= 0) {
+			webdavSendStatus(client, 411, "Length Required");
+		} else {
+			webdavHandlePut(client, path, contentLength);
+		}
 	} else if (method == "DELETE") {
 		webdavDrain(client, contentLength);
 		webdavHandleDelete(client, path);
