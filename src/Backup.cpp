@@ -3,6 +3,7 @@
 
 #include "Backup.h"
 
+#include "JsonPsram.h"
 #include "Log.h"
 #include "Net.h"
 #include "Playstats.h"
@@ -70,7 +71,8 @@ void Backup_Init(void) {
 
 // Strip secrets from the settings object so an uploaded backup never leaks credentials in
 // cleartext (mirrors the web export's "without credentials" mode). The WiFi sections are not
-// emitted by settingsToJSON("") at all, so only the service passwords need clearing.
+// emitted by settingsToJSON("") at all, but the SLIX2 RFID password, the Bluetooth pairing PIN
+// and (when WEBDAV_ENABLE is compiled in) the WebDAV password are, so they must be cleared too.
 static void backupStripSecrets(JsonObject settings) {
 	if (settings["sync"].is<JsonObject>()) {
 		JsonObject s = settings["sync"];
@@ -96,6 +98,16 @@ static void backupStripSecrets(JsonObject settings) {
 	if (settings["ftp"].is<JsonObject>() && settings["ftp"]["password"].is<const char *>()) {
 		settings["ftp"]["password"] = "";
 	}
+	if (settings["general"].is<JsonObject>() && settings["general"]["slix2Password"].is<const char *>()) {
+		settings["general"]["slix2Password"] = "";
+	}
+	if (settings["bluetooth"].is<JsonObject>() && settings["bluetooth"]["pinCode"].is<const char *>()) {
+		settings["bluetooth"]["pinCode"] = "";
+	}
+	// no-op today (WEBDAV_ENABLE is off, so the section isn't emitted), but future-proofs re-enabling it
+	if (settings["webdav"].is<JsonObject>() && settings["webdav"]["password"].is<const char *>()) {
+		settings["webdav"]["password"] = "";
+	}
 }
 
 // Writes the complete backup JSON to destFile on SD. Returns true on success. The shape matches the
@@ -118,13 +130,22 @@ static bool backupWriteToSd(const char *destFile) {
 		file.printf(",\"created\":\"%s\"", iso);
 	}
 
-	// settings (one bounded JsonDocument), with secrets stripped
+	// settings (one JsonDocument in PSRAM, not the scarce ~22 kB internal heap), with secrets stripped
 	{
-		JsonDocument doc;
+		SpiRamAllocator allocator;
+		JsonDocument doc(&allocator);
 		JsonObject root = doc.to<JsonObject>();
 		settingsToJSON(root, "");
 		root.remove("ssids"); // names only - not usable for a restore (matches the web export)
 		backupStripSecrets(root);
+		// If an allocation failed while building the object, ArduinoJson silently drops members;
+		// serializing now would upload an incomplete backup that only surfaces on a failed restore.
+		if (doc.overflowed()) {
+			backupFail("settings JSON overflow while building backup");
+			file.close();
+			gFSystem.remove(destFile);
+			return false;
+		}
 		file.print(",\"settings\":");
 		serializeJson(doc, file);
 	}
