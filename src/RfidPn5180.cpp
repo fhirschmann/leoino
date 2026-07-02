@@ -120,11 +120,16 @@ void RfidPn5180_TaskReset(void) {
 	rfidTaskResetRequested = true;
 }
 
-	// Number of consecutive failed read attempts before a card is considered removed.
-	// Counting attempts instead of wall-clock time keeps removal detection fast
-	// (~200-400 ms at the usual polling rate) while staying immune to single ghost
-	// misses and to wall-clock gaps caused by task starvation under load.
+	// A card is considered removed only after RFID_CARD_REMOVAL_MISS_THRESHOLD consecutive
+	// failed read attempts AND RFID_CARD_REMOVAL_GRACE_MS without a successful read.
+	// The attempt count keeps single ghost misses and task-starvation gaps from triggering
+	// a removal; the grace time additionally bridges the multi-second coupling dropouts
+	// that weakly-coupled tags (Tonie figurines) show while sitting untouched — field logs
+	// recorded spontaneous gaps up to ~1.4 s that used to stop playback mid-track.
+	// Trade-off: an actually removed card keeps playing for the grace time before the
+	// pause/stop kicks in (the original Toniebox behaves similarly).
 	#define RFID_CARD_REMOVAL_MISS_THRESHOLD 10u
+	#define RFID_CARD_REMOVAL_GRACE_MS		 2500u
 
 void RfidPn5180_Task(void *parameter) {
 	static PN5180ISO14443 nfc14443(RFID_CS, RFID_BUSY, RFID_RST);
@@ -226,9 +231,10 @@ void RfidPn5180_Task(void *parameter) {
 			} else {
 				// Reset to dummy-value if no card is there
 				// Necessary to differentiate between "card is still applied" and "card is re-applied again after removal"
-				// A card is only considered removed after several consecutive failed read attempts,
-				// so single ghost misses don't trigger a removal event.
-				if (!lastTimeDetected14443 || (++misses14443 >= RFID_CARD_REMOVAL_MISS_THRESHOLD)) {
+				if (misses14443 < UINT8_MAX) {
+					misses14443++;
+				}
+				if (!lastTimeDetected14443 || ((misses14443 >= RFID_CARD_REMOVAL_MISS_THRESHOLD) && (millis() - lastTimeDetected14443 >= RFID_CARD_REMOVAL_GRACE_MS))) {
 					lastTimeDetected14443 = 0;
 					misses14443 = 0;
 					cardAppliedCurrentRun = false;
@@ -271,9 +277,10 @@ void RfidPn5180_Task(void *parameter) {
 				lastTimeDetected15693 = millis();
 				cardAppliedCurrentRun = true;
 			} else {
-				// A card is only considered removed after several consecutive failed read attempts,
-				// so single ghost misses don't trigger a removal event.
-				if (!lastTimeDetected15693 || (++misses15693 >= RFID_CARD_REMOVAL_MISS_THRESHOLD)) {
+				if (misses15693 < UINT8_MAX) {
+					misses15693++;
+				}
+				if (!lastTimeDetected15693 || ((misses15693 >= RFID_CARD_REMOVAL_MISS_THRESHOLD) && (millis() - lastTimeDetected15693 >= RFID_CARD_REMOVAL_GRACE_MS))) {
 					lastTimeDetected15693 = 0;
 					misses15693 = 0;
 					cardAppliedCurrentRun = false;
