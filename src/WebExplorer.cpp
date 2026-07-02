@@ -14,6 +14,7 @@
 #include "Playstats.h"
 #include "Rfid.h"
 #include "SdCard.h"
+#include "StatusMessage.h"
 #include "System.h"
 #include "Web.h"
 #include "WebInternal.h"
@@ -479,41 +480,94 @@ static void Web_CleanDirectory(File dir, uint32_t &deletedCount) {
 	}
 }
 
-// Handles the request to remove macOS metadata junk from the SD card
-void handleCleanSdRequest(AsyncWebServerRequest *request) {
-	uint32_t deletedCount = 0;
-	// The full-tree sweep is heavy SD I/O; pause the RFID/LED/audio tasks for its duration so the
-	// audio task doesn't fight for the SD bus (dropouts) and an RFID tap can't start playback in the
-	// middle of the clean. (This handler still runs on the async task; the pause is the key fix.)
-	System_PauseTasksDuringUpload(true);
-	File root = gFSystem.open("/");
-	if (root && root.isDirectory()) {
-		Web_CleanDirectory(root, deletedCount);
+// SD clean/format are whole-card operations that take seconds to minutes. Running them inline on the
+// async web task froze the entire web UI (and, for a long format, could trip the async-task watchdog)
+// for their whole duration. Instead they run on a one-shot worker task; the web handlers return
+// immediately and the UI polls GET /sdmaint for progress. Status: 0 idle, 1 running, 2 done, 3 failed.
+static volatile uint8_t gSdMaintStatus = 0;
+static volatile uint32_t gSdMaintDeleted = 0; // entries removed by the last clean
+static volatile bool gSdMaintIsFormat = false; // which operation the worker should run
+static StatusMessage gSdMaintMsg;
+
+static void sdMaintTask(void *parameter) {
+	const bool isFormat = gSdMaintIsFormat;
+	bool ok = true;
+	uint32_t deleted = 0;
+	// Pause the RFID/LED/audio tasks so nothing else touches the SD bus during the operation.
+	if (isFormat) {
+		Cmd_Action(CMD_STOP, true); // stop playback before recreating the filesystem, even if locked
+		System_PauseTasksDuringUpload(true);
+		ok = SdCard_Format();
+		System_PauseTasksDuringUpload(false);
+	} else {
+		System_PauseTasksDuringUpload(true);
+		File root = gFSystem.open("/");
+		if (root && root.isDirectory()) {
+			Web_CleanDirectory(root, deleted);
+		}
+		System_PauseTasksDuringUpload(false);
 	}
-	System_PauseTasksDuringUpload(false);
-	Log_Printf(LOGLEVEL_NOTICE, "SD cleanup: removed %lu entries", (unsigned long) deletedCount);
+	gSdMaintDeleted = deleted;
+	if (ok) {
+		gSdMaintMsg.set(isFormat ? "format done" : "clean done");
+		if (isFormat) {
+			Log_Println("SD format: card reformatted via web request", LOGLEVEL_NOTICE);
+		} else {
+			Log_Printf(LOGLEVEL_NOTICE, "SD cleanup: removed %lu entries", (unsigned long) deleted);
+		}
+		gSdMaintStatus = 2;
+	} else {
+		gSdMaintMsg.set("format failed");
+		Log_Println("SD format: web request failed", LOGLEVEL_ERROR);
+		gSdMaintStatus = 3;
+	}
+	vTaskDelete(NULL);
+}
+
+// Spawns the SD-maintenance worker for the requested operation, or reports it is already busy.
+static void sdMaintStart(AsyncWebServerRequest *request, bool isFormat) {
+	if (gSdMaintStatus == 1) {
+		request->send(409, "text/plain; charset=utf-8", "SD maintenance already running");
+		return;
+	}
+	gSdMaintIsFormat = isFormat;
+	gSdMaintDeleted = 0;
+	gSdMaintMsg.set(isFormat ? "formatting" : "cleaning");
+	gSdMaintStatus = 1;
+	// 8 KB stack: Web_CleanDirectory recurses (a File + a String path per level); real media trees
+	// are shallow, so this is ample. On a NOT-watchdog-subscribed worker the long format no longer
+	// starves the async task's watchdog.
+	if (xTaskCreatePinnedToCore(sdMaintTask, "sdMaint", 8192, NULL, 1, NULL, 1) != pdPASS) {
+		gSdMaintStatus = 3;
+		gSdMaintMsg.set("could not start");
+		request->send(500, "text/plain; charset=utf-8", "could not start SD maintenance");
+		return;
+	}
 	AsyncJsonResponse *response = new AsyncJsonResponse(false);
-	response->getRoot()["deleted"] = deletedCount;
+	response->getRoot()["status"] = 1; // running; the UI polls /sdmaint from here
 	response->setLength();
 	request->send(response);
 }
 
-// Handles the request to format (reset) the SD card. ERASES ALL DATA on the card.
+// Handles the request to remove macOS metadata junk from the SD card (async; poll /sdmaint)
+void handleCleanSdRequest(AsyncWebServerRequest *request) {
+	sdMaintStart(request, false);
+}
+
+// Handles the request to format (reset) the SD card. ERASES ALL DATA (async; poll /sdmaint)
 void handleFormatSdRequest(AsyncWebServerRequest *request) {
-	// Stop playback and pause the RFID/LED/audio tasks: recreating the filesystem is an exclusive
-	// SD operation, so nothing else may touch the bus while it runs.
-	Cmd_Action(CMD_STOP, true); // stop playback before touching the file, even if controls are locked
-	System_PauseTasksDuringUpload(true);
-	const bool ok = SdCard_Format();
-	System_PauseTasksDuringUpload(false);
-	if (!ok) {
-		Log_Println("SD format: web request failed", LOGLEVEL_ERROR);
-		request->send(500, "text/plain", "SD format failed");
-		return;
-	}
-	Log_Println("SD format: card reformatted via web request", LOGLEVEL_NOTICE);
+	sdMaintStart(request, true);
+}
+
+// Status poll for the async SD clean/format worker: {status, deleted, message}
+void handleSdMaintStatusRequest(AsyncWebServerRequest *request) {
+	char msg[StatusMessage::Capacity];
+	gSdMaintMsg.copy(msg, sizeof(msg));
 	AsyncJsonResponse *response = new AsyncJsonResponse(false);
-	response->getRoot()["success"] = true;
+	JsonObject root = response->getRoot();
+	root["status"] = gSdMaintStatus;
+	root["deleted"] = gSdMaintDeleted;
+	root["message"] = msg;
 	response->setLength();
 	request->send(response);
 }

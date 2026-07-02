@@ -51,6 +51,7 @@ void explorerHandleRenameRequest(AsyncWebServerRequest *request);
 void explorerHandleAudioRequest(AsyncWebServerRequest *request);
 void handleCleanSdRequest(AsyncWebServerRequest *request);
 void handleFormatSdRequest(AsyncWebServerRequest *request);
+void handleSdMaintStatusRequest(AsyncWebServerRequest *request);
 void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &json);
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
 
