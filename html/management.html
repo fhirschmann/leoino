@@ -1898,6 +1898,17 @@
 			box-shadow: 0 6px 18px rgba(0, 0, 0, .06);
 		}
 
+		/* roomier boxes: keep the content clear of the rounded border so text doesn't sit flush against it */
+		body[data-family="playful"] fieldset,
+		body[data-family="playful"] .modal-content,
+		body[data-family="playful"] .card {
+			padding: 1.5rem 1.75rem !important;
+		}
+		body[data-family="playful"] .modal-body,
+		body[data-family="playful"] .card-body {
+			padding: 1rem 1.25rem;
+		}
+
 				/* ============================================================
 		   "Pixel" theme family - dark 8-bit retro. Squares every corner,
 		   swaps to a monospace face and adds chunky offset button shadows.
