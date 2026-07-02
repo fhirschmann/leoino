@@ -799,8 +799,10 @@
 			box-shadow: inset 0 0 12px rgba(0, 240, 255, .12);
 		}
 
-		.btn-primary:hover {
-			box-shadow: inset 0 0 18px rgba(0, 240, 255, .3);
+		@media (hover: hover) {
+			.btn-primary:hover {
+				box-shadow: inset 0 0 18px rgba(0, 240, 255, .3);
+			}
 		}
 
 		/* Native file inputs (backup/firmware/NVS upload): Bootstrap's .btn classes
@@ -824,10 +826,12 @@
 			transition: background .15s, color .15s;
 		}
 
-		input[type="file"].form-control-file::file-selector-button:hover,
-		input[type="file"].form-control-file::-webkit-file-upload-button:hover {
-			color: #021019;
-			background: var(--cp-cyan);
+		@media (hover: hover) {
+			input[type="file"].form-control-file::file-selector-button:hover,
+			input[type="file"].form-control-file::-webkit-file-upload-button:hover {
+				color: #021019;
+				background: var(--cp-cyan);
+			}
 		}
 
 		/* match the rounded button shape the playful palettes use */
@@ -852,8 +856,10 @@
 			box-shadow: inset 0 0 12px rgba(255, 42, 109, .12);
 		}
 
-		.btn-danger:hover {
-			box-shadow: inset 0 0 18px rgba(255, 42, 109, .3);
+		@media (hover: hover) {
+			.btn-danger:hover {
+				box-shadow: inset 0 0 18px rgba(255, 42, 109, .3);
+			}
 		}
 
 		.btn-warning {
@@ -872,8 +878,10 @@
 			box-shadow: inset 0 0 12px rgba(252, 238, 10, .1);
 		}
 
-		.btn-warning:hover {
-			box-shadow: inset 0 0 18px rgba(252, 238, 10, .25);
+		@media (hover: hover) {
+			.btn-warning:hover {
+				box-shadow: inset 0 0 18px rgba(252, 238, 10, .25);
+			}
 		}
 
 		.btn-outline-primary {
@@ -907,8 +915,24 @@
 			clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
 		}
 
-		.btn-success:hover {
-			box-shadow: inset 0 0 18px rgba(10, 255, 157, .3);
+		@media (hover: hover) {
+			.btn-success:hover {
+				box-shadow: inset 0 0 18px rgba(10, 255, 157, .3);
+			}
+		}
+
+		/* Touch screens have no mouse-leave: after a tap the browser keeps the
+		   element in :hover, so buttons got stuck in their bright hover fill until
+		   the next tap somewhere else. Where hovering isn't possible, make the
+		   hover state identical to the resting state — pressed feedback still
+		   comes from :active. Decorative :hover rules elsewhere in this sheet are
+		   gated behind @media (hover: hover) for the same reason. */
+		@media (hover: none) {
+			.btn {
+				--bs-btn-hover-color: var(--bs-btn-color);
+				--bs-btn-hover-bg: var(--bs-btn-bg);
+				--bs-btn-hover-border-color: var(--bs-btn-border-color);
+			}
 		}
 
 		/* tables (e.g. bluetooth scan results) */
@@ -995,11 +1019,13 @@
 			margin-left: 3px;
 		}
 
-		.ctrl-button:hover {
-			color: #021019;
-			background: var(--cp-cyan);
-			border-color: var(--cp-cyan);
-			box-shadow: 0 0 22px -4px rgba(0, 240, 255, .9);
+		@media (hover: hover) {
+			.ctrl-button:hover {
+				color: #021019;
+				background: var(--cp-cyan);
+				border-color: var(--cp-cyan);
+				box-shadow: 0 0 22px -4px rgba(0, 240, 255, .9);
+			}
 		}
 
 		#nav-btn-play {
@@ -1011,11 +1037,13 @@
 			box-shadow: 0 0 18px -6px rgba(255, 42, 109, .8), inset 0 0 10px rgba(255, 42, 109, .08);
 		}
 
-		#nav-btn-play:hover {
-			color: #190208;
-			background: var(--cp-magenta);
-			border-color: var(--cp-magenta);
-			box-shadow: 0 0 24px -4px rgba(255, 42, 109, .9);
+		@media (hover: hover) {
+			#nav-btn-play:hover {
+				color: #190208;
+				background: var(--cp-magenta);
+				border-color: var(--cp-magenta);
+				box-shadow: 0 0 24px -4px rgba(255, 42, 109, .9);
+			}
 		}
 
 		.cp-control-button,
@@ -1046,11 +1074,13 @@
 			box-shadow: 0 0 6px rgba(0, 0, 0, .2);
 		}
 
-		.cp-lock-button.unlocked:hover {
-			color: #021019;
-			background: var(--cp-cyan);
-			border-color: var(--cp-cyan);
-			box-shadow: 0 0 12px rgba(0, 240, 255, .6);
+		@media (hover: hover) {
+			.cp-lock-button.unlocked:hover {
+				color: #021019;
+				background: var(--cp-cyan);
+				border-color: var(--cp-cyan);
+				box-shadow: 0 0 12px rgba(0, 240, 255, .6);
+			}
 		}
 
 		.cp-lock-button.locked {
@@ -1060,11 +1090,13 @@
 			box-shadow: 0 0 8px rgba(255, 42, 109, .1);
 		}
 
-		.cp-lock-button.locked:hover {
-			color: #021019;
-			background: var(--cp-magenta);
-			border-color: var(--cp-magenta);
-			box-shadow: 0 0 12px rgba(255, 42, 109, .6);
+		@media (hover: hover) {
+			.cp-lock-button.locked:hover {
+				color: #021019;
+				background: var(--cp-magenta);
+				border-color: var(--cp-magenta);
+				box-shadow: 0 0 12px rgba(255, 42, 109, .6);
+			}
 		}
 
 		.cp-control-button {
@@ -1081,11 +1113,13 @@
 			box-shadow: 0 0 6px rgba(0, 0, 0, .08);
 		}
 
-		.cp-control-button:hover {
-			color: #021019;
-			background: var(--cp-cyan);
-			border-color: var(--cp-cyan);
-			box-shadow: 0 0 12px rgba(0, 240, 255, .6);
+		@media (hover: hover) {
+			.cp-control-button:hover {
+				color: #021019;
+				background: var(--cp-cyan);
+				border-color: var(--cp-cyan);
+				box-shadow: 0 0 12px rgba(0, 240, 255, .6);
+			}
 		}
 
 		.cp-control-button.active-cyan {
@@ -1094,11 +1128,13 @@
 			background: rgba(0, 240, 255, .05);
 			box-shadow: 0 0 8px rgba(0, 240, 255, .1);
 		}
-		.cp-control-button.active-cyan:hover {
-			color: #021019;
-			background: var(--cp-cyan);
-			border-color: var(--cp-cyan);
-			box-shadow: 0 0 12px rgba(0, 240, 255, .6);
+		@media (hover: hover) {
+			.cp-control-button.active-cyan:hover {
+				color: #021019;
+				background: var(--cp-cyan);
+				border-color: var(--cp-cyan);
+				box-shadow: 0 0 12px rgba(0, 240, 255, .6);
+			}
 		}
 
 		/* Visible keyboard-focus indicator for all interactive controls (accessibility) */
@@ -1121,11 +1157,13 @@
 			background: rgba(255, 42, 109, .05);
 			box-shadow: 0 0 8px rgba(255, 42, 109, .1);
 		}
-		.cp-control-button.active-magenta:hover {
-			color: #021019;
-			background: var(--cp-magenta);
-			border-color: var(--cp-magenta);
-			box-shadow: 0 0 12px rgba(255, 42, 109, .6);
+		@media (hover: hover) {
+			.cp-control-button.active-magenta:hover {
+				color: #021019;
+				background: var(--cp-magenta);
+				border-color: var(--cp-magenta);
+				box-shadow: 0 0 12px rgba(255, 42, 109, .6);
+			}
 		}
 
 		.cp-control-button.active-yellow {
@@ -1134,11 +1172,13 @@
 			background: rgba(252, 238, 10, .05);
 			box-shadow: 0 0 8px rgba(252, 238, 10, .1);
 		}
-		.cp-control-button.active-yellow:hover {
-			color: #021019;
-			background: var(--cp-yellow);
-			border-color: var(--cp-yellow);
-			box-shadow: 0 0 12px rgba(252, 238, 10, .6);
+		@media (hover: hover) {
+			.cp-control-button.active-yellow:hover {
+				color: #021019;
+				background: var(--cp-yellow);
+				border-color: var(--cp-yellow);
+				box-shadow: 0 0 12px rgba(252, 238, 10, .6);
+			}
 		}
 
 		.cp-control-button.active-green {
@@ -1147,11 +1187,13 @@
 			background: rgba(10, 255, 157, .05);
 			box-shadow: 0 0 8px rgba(10, 255, 157, .1);
 		}
-		.cp-control-button.active-green:hover {
-			color: #021019;
-			background: var(--cp-green);
-			border-color: var(--cp-green);
-			box-shadow: 0 0 12px rgba(10, 255, 157, .6);
+		@media (hover: hover) {
+			.cp-control-button.active-green:hover {
+				color: #021019;
+				background: var(--cp-green);
+				border-color: var(--cp-green);
+				box-shadow: 0 0 12px rgba(10, 255, 157, .6);
+			}
 		}
 
 		.volume-button {
@@ -1166,10 +1208,12 @@
 			color: var(--cp-cyan);
 		}
 
-		.cp-reveal-btn:hover {
-			color: #021019;
-			background: var(--cp-cyan);
-			border-color: var(--cp-cyan);
+		@media (hover: hover) {
+			.cp-reveal-btn:hover {
+				color: #021019;
+				background: var(--cp-cyan);
+				border-color: var(--cp-cyan);
+			}
 		}
 
 		/* playlist builder: scrollable file-browser / track panes */
@@ -2073,8 +2117,10 @@
 			background: transparent;
 			color: var(--cp-text);
 		}
-		body[data-family="chalk"] .btn:hover {
-			background: rgba(240, 238, 230, .08); /* faint chalk wash */
+		@media (hover: hover) {
+			body[data-family="chalk"] .btn:hover {
+				background: rgba(240, 238, 230, .08); /* faint chalk wash */
+			}
 		}
 
 		/* one continuous board: same slate everywhere, a chalk-dashed header ledge (no floating bar) */

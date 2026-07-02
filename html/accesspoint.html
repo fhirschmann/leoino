@@ -139,10 +139,14 @@
 			box-shadow: inset 0 0 12px rgba(0, 240, 255, .12);
 		}
 
-		.btn:hover {
-			background: var(--cp-cyan);
-			color: #021019;
-			box-shadow: inset 0 0 18px rgba(0, 240, 255, .3);
+		/* hover-only: on touch screens :hover sticks after a tap (no mouse-leave),
+		   leaving the control stuck in its highlight state */
+		@media (hover: hover) {
+			.btn:hover {
+				background: var(--cp-cyan);
+				color: #021019;
+				box-shadow: inset 0 0 18px rgba(0, 240, 255, .3);
+			}
 		}
 
 		/* scanned network list */
@@ -158,9 +162,11 @@
 			text-align: left;
 		}
 
-		.ssid:hover {
-			border-color: var(--cp-cyan);
-			box-shadow: 0 0 10px rgba(0, 240, 255, .25);
+		@media (hover: hover) {
+			.ssid:hover {
+				border-color: var(--cp-cyan);
+				box-shadow: 0 0 10px rgba(0, 240, 255, .25);
+			}
 		}
 
 		.ssid .name {
