@@ -54,6 +54,16 @@ struct RfidPushItem {
 };
 static QueueHandle_t gRfidPushQueue = NULL;
 static void rfidPushTask(void *param);
+static bool rfidSyncConfigured(void);
+// Lazily create the push queue + task (idempotent). The idle task holds an 8 KB stack, so on the
+// tight "complete" board (~22 KB free internal DRAM) we only pay for it once RFID-sync is actually
+// configured/enabled — an unconfigured device that never enqueues anything must not carry it.
+static void rfidEnsurePushTask(void) {
+	if (!gRfidPushQueue) {
+		gRfidPushQueue = xQueueCreate(16, sizeof(RfidPushItem));
+		xTaskCreatePinnedToCore(rfidPushTask, "rfidPush", 8192, NULL, 1, NULL, 1);
+	}
+}
 
 uint8_t RfidSync_GetStatus(void) {
 	return gRfidSyncStatus;
@@ -74,9 +84,10 @@ void RfidSync_Init(void) {
 	if (!gRfidNvsMutex) {
 		gRfidNvsMutex = xSemaphoreCreateMutex();
 	}
-	if (!gRfidPushQueue) {
-		gRfidPushQueue = xQueueCreate(16, sizeof(RfidPushItem));
-		xTaskCreatePinnedToCore(rfidPushTask, "rfidPush", 8192, NULL, 1, NULL, 1);
+	// Only spawn the background push task when RFID-sync is actually configured; enabling it later
+	// creates it on demand (RfidSync_OnLearn/OnDelete/TriggerFull), so no reboot is needed.
+	if (rfidSyncConfigured()) {
+		rfidEnsurePushTask();
 	}
 	gTsReady = true;
 }
@@ -414,6 +425,9 @@ void RfidSync_OnLearn(const char *tagId) {
 		return;
 	}
 	RfidSync_Init();
+	if (rfidSyncConfigured()) {
+		rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
+	}
 	RfidPushItem item;
 	snprintf(item.id, sizeof(item.id), "%s", tagId);
 	item.op = RFID_PUSH_LEARN;
@@ -438,6 +452,9 @@ bool RfidSync_OnDelete(const char *tagId) {
 	RfidSync_Unlock();
 	if (!removed || !gPrefsSettings.getBool("rfidSyncLearn", true) || ts == 0) {
 		return removed; // pushed on the next full sync (also heals ts==0)
+	}
+	if (rfidSyncConfigured()) {
+		rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
 	}
 	RfidPushItem item;
 	snprintf(item.id, sizeof(item.id), "%s", tagId);
@@ -625,6 +642,7 @@ void RfidSync_TriggerFull(void) {
 	gRfidSyncStatus = 1;
 	portEXIT_CRITICAL(&mux);
 	RfidSync_Init();
+	rfidEnsurePushTask(); // a full sync means sync is active — have the push task ready for later learns/deletes
 	if (xTaskCreatePinnedToCore(rfidFullSyncTask, "rfidSync", 16384, NULL, 1, NULL, 1) != pdPASS) {
 		gRfidSyncStatus = 3; // couldn't spawn -> release the slot as failed
 	}
