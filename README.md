@@ -32,10 +32,11 @@ The fork-specific features that stand out most against stock ESPuino. The comple
 commit-by-commit list lives further down under
 **[Differences to upstream](#-differences-to-upstream)**.
 
-- 🎨 **Cyberpunk web interface, four switchable themes** — management + access-point pages
-  fully rebuilt in neon; pick between **Cyberpunk** and three kid-friendly looks
-  (**Waldhaus**, **Wölkchen**, **Pixelheld**), remembered per browser. A **settings search**
-  box filters every option across all sub-tabs and jumps straight to the matching control.
+- 🎨 **Cyberpunk web interface, seven switchable themes** — management + access-point pages
+  fully rebuilt in neon; pick between **Cyberpunk** and six kid-friendly looks
+  (**Waldhaus**, **Wölkchen**, **Pixelheld**, **Riff**, **Dschungel**, **Robo**), remembered
+  per browser. A **settings search** box filters every option across all sub-tabs and jumps
+  straight to the matching control.
 - ⚡ **Fully offline & installable** — all libs and fonts vendored and served gzipped from
   flash, so the UI loads fast and works without internet (incl. AP mode); installable as a PWA.
 - ▶️ **Try it with no hardware** — a [live browser demo](https://fhirschmann.github.io/leoino/)
@@ -165,9 +166,9 @@ python3 -m http.server --directory demo_dist 8000   # open http://localhost:8000
 
 ### // Themes
 
-Four selectable themes (menu → 🎨) — each a pure client-side swap of the colour palette plus a
+Seven selectable themes (menu → 🎨) — each a pure client-side swap of the colour palette plus a
 shape/typography "family", remembered per browser. **Cyberpunk** is the default (and the only one
-with a dark/light toggle); the three kid-friendly designs each pin their own mood:
+with a dark/light toggle); the six kid-friendly designs each pin their own mood:
 
 <table>
 <tr>
@@ -177,6 +178,14 @@ with a dark/light toggle); the three kid-friendly designs each pin their own moo
 <tr>
 <td align="center" width="50%"><img src="docs/img/theme-wolkchen.png" alt="Wölkchen theme"><br><sub><strong>Wölkchen</strong> — soft marshmallow pastel</sub></td>
 <td align="center" width="50%"><img src="docs/img/theme-pixelheld.png" alt="Pixelheld theme"><br><sub><strong>Pixelheld</strong> — dark 8-bit retro, square &amp; mono</sub></td>
+</tr>
+<tr>
+<td align="center" width="50%"><img src="docs/img/theme-riff.png" alt="Riff theme"><br><sub><strong>Riff</strong> — under-the-sea aqua &amp; coral, rounded</sub></td>
+<td align="center" width="50%"><img src="docs/img/theme-dschungel.png" alt="Dschungel theme"><br><sub><strong>Dschungel</strong> — bright jungle green &amp; toucan orange</sub></td>
+</tr>
+<tr>
+<td align="center" width="50%"><img src="docs/img/theme-robo.png" alt="Robo theme"><br><sub><strong>Robo</strong> — dark steel robot panel, aqua &amp; orange, mono</sub></td>
+<td align="center" width="50%"></td>
 </tr>
 </table>
 
@@ -196,7 +205,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | Change | Commit |
 | --- | --- |
 | **Cyberpunk web interface**: the management + access-point pages rebuilt with a neon palette, scanlines, `Orbitron`/`Rajdhani`/`Share Tech Mono` type, a custom login page, navbar branding, an SVG-favicon logo and a matching footer; the upstream Bluetooth scan UI restyled to fit | [`7be5254`](../../commit/7be5254) · [`b49f131`](../../commit/b49f131) |
-| **Selectable UI themes** (menu → 🎨): switch the whole interface between the default **Cyberpunk** look and three kid-friendly designs — **Waldhaus** (cosy cream/forest, rounded), **Wölkchen** (soft marshmallow pastel) and **Pixelheld** (dark 8-bit retro: squared corners, monospace, lime/pink). Each theme carries its own shape/typography "family" (neon / playful / pixel) and pins its colour mode (Cyberpunk stays dark/light-togglable, the bright ones pin light, Pixelheld pins dark). Themes are a pure client-side CSS-variable + family swap (zero extra load on the ESP32 — the device still serves one static page) and the choice is remembered per browser in `localStorage` | [`6bb0097`](../../commit/6bb0097) · [`32a4d9b`](../../commit/32a4d9b) |
+| **Selectable UI themes** (menu → 🎨): switch the whole interface between the default **Cyberpunk** look and six kid-friendly designs — **Waldhaus** (cosy cream/forest, rounded), **Wölkchen** (soft marshmallow pastel), **Pixelheld** (dark 8-bit retro: squared corners, monospace, lime/pink), **Riff** (under-the-sea turquoise/coral, rounded), **Dschungel** (bright jungle green/toucan-orange) and **Robo** (dark steel robot panel: aqua/orange, monospace). Each theme carries its own shape/typography "family" (neon / playful / pixel) and pins its colour mode (Cyberpunk stays dark/light-togglable, the bright ones pin light, the dark retro ones pin dark). Themes are a pure client-side CSS-variable + family swap (zero extra load on the ESP32 — the device still serves one static page) and the choice is remembered per browser in `localStorage` | [`6bb0097`](../../commit/6bb0097) · [`32a4d9b`](../../commit/32a4d9b) |
 | **Fully offline web interface**: all third-party libs + fonts are vendored and served gzipped from flash (one JS + one CSS bundle), so the UI loads fast and works without internet (incl. AP mode) — fixes the ~2-min first-load hang and the browser stalls caused by too many parallel requests to the ESP32 | [`c618191`](../../commit/c618191) |
 | **PWA**: installable web-app manifest + icon ("add to home screen"), plus an offline fallback page with auto-reconnect when launched while the player is powered off | [`b4287b9`](../../commit/b4287b9) · [`bd07a7c`](../../commit/bd07a7c) |
 | **Browser demo on GitHub Pages** ([live](https://fhirschmann.github.io/leoino/)): a device-free static build of the management page with a mock WebSocket/REST layer and copyright-free content, auto-deployed on every push so the UI can be tried without hardware. A CI check (`tools/check_demo_endpoints.py`) fails the build if a new firmware HTTP endpoint is added without a matching demo-mock handler (or an explicit allow-list entry), so the demo can't silently break | [`8bf93da`](../../commit/8bf93da) |

@@ -124,6 +124,54 @@
 			--cp-dim: #8090a8;
 		}
 
+		/* "Riff" - under-the-sea reef: turquoise water, coral, sandy gold & seafoam. */
+		body[data-theme="riff"] {
+			--cp-cyan: #0898ac;
+			--cp-magenta: #f2725c;
+			--cp-yellow: #f4b62b;
+			--cp-green: #23a58a;
+			--cp-bg: #e3f6f5;
+			--cp-panel: #f1fbfa;
+			--cp-surface: #ffffff;
+			--cp-surface-2: #cdeeed;
+			--cp-border: #9fd6d4;
+			--cp-border-glow: rgba(8, 152, 172, .28);
+			--cp-text: #0f3a41;
+			--cp-dim: #5b8a8d;
+		}
+
+		/* "Dschungel" - bright jungle/dino: leaf-green paper, grass, toucan orange & banana. */
+		body[data-theme="dschungel"] {
+			--cp-cyan: #3aa0c9;
+			--cp-magenta: #ef7d3a;
+			--cp-yellow: #f3c012;
+			--cp-green: #5ba32a;
+			--cp-bg: #e8f4d9;
+			--cp-panel: #f3fae9;
+			--cp-surface: #ffffff;
+			--cp-surface-2: #d8ecc0;
+			--cp-border: #bcd79a;
+			--cp-border-glow: rgba(91, 163, 42, .26);
+			--cp-text: #2c3d1c;
+			--cp-dim: #6d8055;
+		}
+
+		/* "Robo" - friendly robot control panel: dark steel, LED aqua, warning orange & yellow (mono font). */
+		body[data-theme="robo"] {
+			--cp-cyan: #35c9e6;
+			--cp-magenta: #ff8a3d;
+			--cp-yellow: #ffd23f;
+			--cp-green: #4fd6a0;
+			--cp-bg: #171d29;
+			--cp-panel: #1e2636;
+			--cp-surface: #253046;
+			--cp-surface-2: #1c2334;
+			--cp-border: #37455f;
+			--cp-border-glow: rgba(53, 201, 230, .3);
+			--cp-text: #e4edf6;
+			--cp-dim: #8496b0;
+		}
+
 		body {
 			/* remap Bootstrap theme variables onto the cyberpunk palette */
 			--bs-body-bg: var(--cp-bg);
@@ -1920,6 +1968,27 @@
 			background-size: 32px 32px, 32px 32px;
 		}
 
+		body[data-theme="riff"] {
+			background-image:
+				radial-gradient(900px 500px at 50% -10%, rgba(8, 152, 172, .12), transparent 70%),
+				radial-gradient(700px 500px at 100% 100%, rgba(242, 114, 92, .1), transparent 70%);
+			background-size: auto, auto;
+		}
+
+		body[data-theme="dschungel"] {
+			background-image:
+				radial-gradient(900px 500px at 50% -10%, rgba(91, 163, 42, .14), transparent 70%),
+				radial-gradient(700px 500px at 100% 100%, rgba(239, 125, 58, .1), transparent 70%);
+			background-size: auto, auto;
+		}
+
+		body[data-theme="robo"] {
+			background-image:
+				linear-gradient(rgba(53, 201, 230, .05) 1px, transparent 1px),
+				linear-gradient(90deg, rgba(53, 201, 230, .05) 1px, transparent 1px);
+			background-size: 32px 32px, 32px 32px;
+		}
+
 		/* ---- Settings search ---- */
 		.settings-search-results {
 			position: absolute;
@@ -1987,7 +2056,7 @@
 	<!-- Apply the stored theme before paint to avoid a flash of the wrong colours. -->
 	<script>
 		(function () {
-			var T = { cyberpunk: { family: 'neon' }, waldhaus: { family: 'playful', mode: 'light' }, wolkchen: { family: 'playful', mode: 'light' }, pixelheld: { family: 'pixel', mode: 'dark' } };
+			var T = { cyberpunk: { family: 'neon' }, waldhaus: { family: 'playful', mode: 'light' }, wolkchen: { family: 'playful', mode: 'light' }, pixelheld: { family: 'pixel', mode: 'dark' }, riff: { family: 'playful', mode: 'light' }, dschungel: { family: 'playful', mode: 'light' }, robo: { family: 'pixel', mode: 'dark' } };
 				var theme = localStorage.getItem('uiTheme') || 'cyberpunk';
 				if (!T[theme]) { theme = 'cyberpunk'; }
 				document.body.setAttribute('data-theme', theme);
@@ -2067,6 +2136,9 @@
 										<option value="waldhaus" data-i18n="themeWaldhaus"></option>
 										<option value="wolkchen" data-i18n="themeWolkchen"></option>
 										<option value="pixelheld" data-i18n="themePixel"></option>
+										<option value="riff" data-i18n="themeRiff"></option>
+										<option value="dschungel" data-i18n="themeDschungel"></option>
+										<option value="robo" data-i18n="themeRobo"></option>
 									</select>
 								</div>
 							</li>
@@ -9040,6 +9112,9 @@
 				waldhaus: { family: 'playful', mode: 'light' },
 				wolkchen: { family: 'playful', mode: 'light' },
 				pixelheld: { family: 'pixel', mode: 'dark' },
+				riff: { family: 'playful', mode: 'light' },
+				dschungel: { family: 'playful', mode: 'light' },
+				robo: { family: 'pixel', mode: 'dark' },
 			};
 
 			function pinnedMode(theme) {
