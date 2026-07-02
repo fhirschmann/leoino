@@ -57,6 +57,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		generalObj["savePosPeriodic"].set(gPrefsSettings.getBool("savePosPeriodic", true)); // periodic audiobook play-position checkpoint
 		generalObj["restartFreshHrs"].set(gPrefsSettings.getUInt("freshAfterHrs", 24)); // restart audiobooks from start after this idle gap (0 = off)
 		generalObj["minResumeSec"].set(gPrefsSettings.getUInt("minResumeSec", 20)); // don't resume an audiobook pulled within the first N seconds (0 = off)
+		generalObj["shortTrackSec"].set(gPrefsSettings.getUInt("shortTrackSec", 300)); // tracks shorter than this restart from the beginning on resume (0 = off)
 		generalObj["seekStep"].set(gPrefsSettings.getUInt("seekStep", seekStepDefault)); // step (s) for smart forward/backward in-file seeking
 		generalObj["sleepFadeSec"].set(gPrefsSettings.getUInt("sleepFadeSec", 0)); // fade out over the last N s before the sleep timer expires (0 = off)
 		generalObj["dailyLimitMin"].set(gPrefsSettings.getUInt("dailyLimitMin", 0)); // daily listening-time limit in minutes (0 = off)
@@ -267,6 +268,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		genSettings["savePosPeriodic"].set(true); // periodic audiobook play-position checkpoint
 		genSettings["restartFreshHrs"].set(24u); // restart audiobooks from start after 24 h idle (0 = off)
 		genSettings["minResumeSec"].set(20u); // don't resume an audiobook pulled within the first 20 s (0 = off)
+		genSettings["shortTrackSec"].set(300u); // tracks shorter than this restart from the beginning on resume (0 = off)
 		genSettings["seekStep"].set((uint32_t) seekStepDefault); // step (s) for smart forward/backward in-file seeking
 		genSettings["sleepFadeSec"].set(0u); // fade out before the sleep timer expires (0 = off)
 		genSettings["dailyLimitMin"].set(0u); // daily listening-time limit in minutes (0 = off)

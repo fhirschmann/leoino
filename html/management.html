@@ -3494,6 +3494,11 @@
 						<input type="number" class="form-control" id="minResumeSec" name="minResumeSec" min="0" max="3600" step="1" style="max-width:7em">
 						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.minResumeSecExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
+					<div class="d-flex gap-2 align-items-center mb-2">
+						<label class="mb-0" for="shortTrackSec" data-i18n="general.options.shortTrackSec"></label>
+						<input type="number" class="form-control" id="shortTrackSec" name="shortTrackSec" min="0" max="7200" step="1" style="max-width:7em">
+						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.shortTrackSecExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+					</div>
 				</fieldset>
 				<fieldset>
 					<legend class="w-auto" data-i18n="settingsex.rfid.modTitle"></legend>
@@ -6171,6 +6176,9 @@
 				if (genSettings.minResumeSec !== undefined) {
 					$('#minResumeSec').val(genSettings.minResumeSec);
 				}
+				if (genSettings.shortTrackSec !== undefined) {
+					$('#shortTrackSec').val(genSettings.shortTrackSec);
+				}
 				if (genSettings.seekStep !== undefined) {
 					$('#seekStep').val(genSettings.seekStep);
 				}
@@ -6971,6 +6979,7 @@
 					savePosPeriodic: $('#savePlayPosPeriodic').prop('checked'),
 					restartFreshHrs: Number($('#restartFreshDays').val()) * 24,
 					minResumeSec: Number($('#minResumeSec').val()),
+					shortTrackSec: Number($('#shortTrackSec').val()),
 					seekStep: Number($('#seekStep').val()),
 					sleepFadeSec: Number($('#sleepFadeSec').val()),
 					dailyLimitMin: Number($('#dailyLimitMin').val()),

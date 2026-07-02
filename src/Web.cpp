@@ -1234,6 +1234,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (!generalObj["minResumeSec"].isNull()) { // don't resume an audiobook pulled within the first N seconds (0 = off)
 			gPrefsSettings.putUInt("minResumeSec", generalObj["minResumeSec"].as<uint32_t>());
 		}
+		if (!generalObj["shortTrackSec"].isNull()) { // tracks shorter than this restart from the beginning on resume (0 = off)
+			gPrefsSettings.putUInt("shortTrackSec", generalObj["shortTrackSec"].as<uint32_t>());
+		}
 		if (!generalObj["seekStep"].isNull()) { // step (s) for smart forward/backward in-file seeking
 			uint16_t seekStep = generalObj["seekStep"].as<uint16_t>();
 			if (seekStep == 0) {

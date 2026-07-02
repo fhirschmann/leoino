@@ -2015,6 +2015,20 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 		}
 	}
 
+	// Songs shouldn't resume mid-track: when the track being saved is shorter than
+	// <shortTrackSec> it is considered a song (music-album card) rather than an audiobook
+	// chapter, so persist position 0 — re-applying the card restarts the current song from
+	// its beginning while the track number is kept. Long chapter files keep their exact
+	// resume position. Uses the cached duration of the currently playing track; when the
+	// duration isn't known (yet), the exact position is kept. 0 = off. Default 300 s.
+	if (playPosition > 0 && (_playMode == AUDIOBOOK || _playMode == AUDIOBOOK_LOOP || _playMode == AUDIOBOOK_RECURSIVE)) {
+		const uint32_t shortTrackSec = gPrefsSettings.getUInt("shortTrackSec", 300);
+		if (shortTrackSec > 0 && AudioPlayer_FileDuration > 0 && AudioPlayer_FileDuration < shortTrackSec) {
+			Log_Printf(LOGLEVEL_DEBUG, "track shorter than %u s -> resume point set to track start", shortTrackSec);
+			playPosition = 0;
+		}
+	}
+
 	gPrefsRfid.getString(_rfidCardId, firstPart, sizeof(firstPart)); // read back previous value from NVS
 
 	// Remove everything after the first part (after the first stringDelimiter)
