@@ -31,6 +31,12 @@ static constexpr uint32_t rtcPublishInterval = 60UL * 1000UL; // 1min
 static uint32_t lastResyncTimestamp = 0;
 static uint32_t lastPublishTimestamp = 0;
 
+// Set by Rtc_RequestResyncFromSystemTime() (called from the SNTP notification
+// callback on the lwIP tcpip_thread) and consumed in Rtc_Cyclic() on the loop
+// task. Deferring the actual I2C write off tcpip_thread keeps a stalled/wedged
+// DS3231 from blocking the whole TCP/IP stack.
+static volatile bool resyncRequested = false;
+
 // Returns true if the system clock holds a plausible (NTP-set) time
 static bool systemTimeIsValid(struct tm *timeinfo) {
 	if (!getLocalTime(timeinfo, 5)) {
@@ -76,6 +82,12 @@ void Rtc_SetFromSystemTime(void) {
 	rtc.adjust(DateTime((uint32_t) time(nullptr)));
 	I2cBusTwo_Unlock();
 	Log_Println("RTC> DS3231 disciplined from system time", LOGLEVEL_NOTICE);
+}
+
+void Rtc_RequestResyncFromSystemTime(void) {
+	// Runs on the SNTP callback's tcpip_thread - just raise a flag; the blocking
+	// I2C write happens in Rtc_Cyclic() on the loop task.
+	resyncRequested = true;
 }
 
 bool Rtc_SetTime(time_t utcEpoch) {
@@ -126,6 +138,15 @@ void Rtc_Cyclic(void) {
 
 	const uint32_t millisNow = millis();
 
+	// Discipline the RTC promptly after an NTP sync. ntpTimeAvailable() runs on
+	// the lwIP tcpip_thread and must not do the blocking DS3231 I2C write itself
+	// (it would stall all networking), so it only requests a resync here.
+	if (resyncRequested) {
+		resyncRequested = false;
+		lastResyncTimestamp = millisNow;
+		Rtc_SetFromSystemTime();
+	}
+
 	// Periodically write the (NTP-disciplined) system time back to the RTC to
 	// compensate for drift. Only when WiFi is up so we trust the system clock.
 	if (millisNow - lastResyncTimestamp >= rtcResyncInterval) {
@@ -163,6 +184,8 @@ void Rtc_Init(void) {
 void Rtc_Cyclic(void) {
 }
 void Rtc_SetFromSystemTime(void) {
+}
+void Rtc_RequestResyncFromSystemTime(void) {
 }
 
 bool Rtc_SetTime(time_t utcEpoch) {

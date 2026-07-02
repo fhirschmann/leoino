@@ -467,8 +467,11 @@ void ntpTimeAvailable(struct timeval *t) {
 	snprintf(timeStringBuff, sizeof(char) * 255, ntpGotTime, timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
 	Log_Println(timeStringBuff, LOGLEVEL_NOTICE);
 	free(timeStringBuff);
-	// NTP is the master clock: discipline the battery-backed RTC so it stays accurate offline
-	Rtc_SetFromSystemTime();
+	// NTP is the master clock: discipline the battery-backed RTC so it stays accurate offline.
+	// This runs on the lwIP tcpip_thread, so defer the blocking DS3231 I2C write to Rtc_Cyclic()
+	// on the loop task -- doing it here would stall (or, if the I2C bus wedges, permanently block)
+	// the whole TCP/IP stack.
+	Rtc_RequestResyncFromSystemTime();
 	// set ESPuino's very first start date
 	if (!gPrefsSettings.isKey("firstStart")) {
 		gPrefsSettings.putULong("firstStart", t->tv_sec);

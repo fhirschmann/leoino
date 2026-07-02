@@ -19,6 +19,11 @@ bool Rtc_LostPower(void);
 // NTP-sync (NTP is the master clock) and via CMD_RTC_RESYNC.
 void Rtc_SetFromSystemTime(void);
 
+// Request a deferred Rtc_SetFromSystemTime() from Rtc_Cyclic() on the loop task.
+// Safe to call from the SNTP notification callback (lwIP tcpip_thread), which
+// must not do the blocking DS3231 I2C write directly.
+void Rtc_RequestResyncFromSystemTime(void);
+
 // Set the system clock (and the battery-backed RTC, if present) from the given
 // UTC unix-time. Used by the web UI to set the time from the browser on offline
 // devices that have no WiFi/NTP. Returns false if the timestamp is implausible
