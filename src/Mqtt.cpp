@@ -207,32 +207,23 @@ void Mqtt_OnWifiConnected(void) {
 }
 
 #ifdef MQTT_ENABLE
-const char *Mqtt_GetTopic(const char *topic, bool isStateTopic) {
-	static char out_string[MQTT_TOPIC_MAX_LENGTH]; // Static buffer to hold the result
-
-	// Build the topic string with schema: base_topic/device_id/keyword[/set]
+// Compose an MQTT-topic into a caller-provided buffer (no shared state) so concurrent
+// publishers from different tasks can't corrupt each other's topic. Schema:
+// base_topic/device_id/keyword[/set]
+static void Mqtt_MakeTopic(char *out, size_t outLen, const char *topic, bool isStateTopic) {
 	if (gBaseTopic.length() > 0) {
 		if (!isStateTopic) {
-			snprintf(out_string, MQTT_TOPIC_MAX_LENGTH, "%s/%s/%s/%s", gBaseTopic.c_str(), gDeviceId.c_str(), topic, setter_token);
+			snprintf(out, outLen, "%s/%s/%s/%s", gBaseTopic.c_str(), gDeviceId.c_str(), topic, setter_token);
 		} else {
-			snprintf(out_string, MQTT_TOPIC_MAX_LENGTH, "%s/%s/%s", gBaseTopic.c_str(), gDeviceId.c_str(), topic);
+			snprintf(out, outLen, "%s/%s/%s", gBaseTopic.c_str(), gDeviceId.c_str(), topic);
 		}
 	} else {
 		if (!isStateTopic) {
-			snprintf(out_string, MQTT_TOPIC_MAX_LENGTH, "%s/%s/%s", gDeviceId.c_str(), topic, setter_token);
+			snprintf(out, outLen, "%s/%s/%s", gDeviceId.c_str(), topic, setter_token);
 		} else {
-			snprintf(out_string, MQTT_TOPIC_MAX_LENGTH, "%s/%s", gDeviceId.c_str(), topic);
+			snprintf(out, outLen, "%s/%s", gDeviceId.c_str(), topic);
 		}
 	}
-
-	return out_string; // Return the static buffer
-}
-
-const char *Mqtt_GetStateTopic(const char *topic) {
-	return Mqtt_GetTopic(topic, true);
-}
-const char *Mqtt_GetCommandTopic(const char *topic) {
-	return Mqtt_GetTopic(topic, false);
 }
 #endif
 
@@ -266,7 +257,9 @@ bool publishMqtt(const char *topic, const char *payload, bool retained) {
 	}
 	if (strcmp(topic, "") != 0) {
 		int qos = 0;
-		int ret = esp_mqtt_client_publish(mqtt_client, Mqtt_GetStateTopic(topic), payload, 0, qos, retained);
+		char t[MQTT_TOPIC_MAX_LENGTH];
+		Mqtt_MakeTopic(t, sizeof(t), topic, true);
+		int ret = esp_mqtt_client_publish(mqtt_client, t, payload, 0, qos, retained);
 		// int ret = esp_mqtt_client_enqueue(mqtt_client, topic, payload, 0, qos, retained, true);
 		return ret == 0;
 	}
@@ -323,6 +316,20 @@ static NumberType toNumber(const std::string str) {
 // device. Reuses the existing state/command topics; called once on each MQTT connect.
 static String gHassDeviceBlock; // shared "device" + availability JSON (rebuilt per connect)
 
+// Race-free String-returning wrappers for the discovery path: each composes into a
+// local stack buffer and returns a String that owns its own copy (no shared buffer).
+static String Mqtt_StateTopicStr(const char *topic) {
+	char t[MQTT_TOPIC_MAX_LENGTH];
+	Mqtt_MakeTopic(t, sizeof(t), topic, true);
+	return String(t);
+}
+
+static String Mqtt_CommandTopicStr(const char *topic) {
+	char t[MQTT_TOPIC_MAX_LENGTH];
+	Mqtt_MakeTopic(t, sizeof(t), topic, false);
+	return String(t);
+}
+
 static void mqttHassPublish(const char *component, const char *objectId, const String &fields) {
 	if (mqtt_client == NULL) {
 		return;
@@ -336,63 +343,65 @@ static void Mqtt_PublishHassDiscovery(void) {
 	if (mqtt_client == NULL) {
 		return;
 	}
-	const String tState = Mqtt_GetStateTopic(topicState);
+	char tb[MQTT_TOPIC_MAX_LENGTH];
+	Mqtt_MakeTopic(tb, sizeof(tb), topicState, true);
+	const String tState = tb;
 	gHassDeviceBlock = ",\"device\":{\"identifiers\":[\"" + gDeviceId + "\"],\"name\":\"" + gDeviceId
 		+ "\",\"manufacturer\":\"Leo Industries\",\"model\":\"ESPuino AT-1\",\"sw_version\":\"" + String(buildRevision)
 		+ "\"},\"availability_topic\":\"" + tState + "\",\"payload_available\":\"Online\",\"payload_not_available\":\"Offline\"";
 
 	// sensors
-	mqttHassPublish("sensor", "track", "\"name\":\"Track\",\"icon\":\"mdi:music-note\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicTrack)) + "\"");
-	mqttHassPublish("sensor", "track_artist", "\"name\":\"Artist\",\"icon\":\"mdi:account-music\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicTrackArtist)) + "\"");
-	mqttHassPublish("sensor", "track_album", "\"name\":\"Album\",\"icon\":\"mdi:album\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicTrackAlbum)) + "\"");
-	mqttHassPublish("sensor", "status", "\"name\":\"Status\",\"icon\":\"mdi:play-pause\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicPausePlay)) + "\"");
-	mqttHassPublish("sensor", "wifi", "\"name\":\"WiFi signal\",\"device_class\":\"signal_strength\",\"unit_of_measurement\":\"dBm\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicWiFiRssi)) + "\"");
-	mqttHassPublish("sensor", "firmware", "\"name\":\"Firmware update\",\"icon\":\"mdi:package-up\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicFirmwareUpdate)) + "\"");
-	mqttHassPublish("sensor", "swrev", "\"name\":\"Software revision\",\"icon\":\"mdi:tag\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicSRevision)) + "\"");
-	mqttHassPublish("sensor", "listened_today", "\"name\":\"Listened today\",\"icon\":\"mdi:timer-sand\",\"unit_of_measurement\":\"min\",\"state_class\":\"total_increasing\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicListenedToday)) + "\"");
-	mqttHassPublish("binary_sensor", "daily_limit_reached", "\"name\":\"Daily limit reached\",\"icon\":\"mdi:timer-lock\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicDailyLimitReached)) + "\"");
+	mqttHassPublish("sensor", "track", "\"name\":\"Track\",\"icon\":\"mdi:music-note\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicTrack) + "\"");
+	mqttHassPublish("sensor", "track_artist", "\"name\":\"Artist\",\"icon\":\"mdi:account-music\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicTrackArtist) + "\"");
+	mqttHassPublish("sensor", "track_album", "\"name\":\"Album\",\"icon\":\"mdi:album\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicTrackAlbum) + "\"");
+	mqttHassPublish("sensor", "status", "\"name\":\"Status\",\"icon\":\"mdi:play-pause\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicPausePlay) + "\"");
+	mqttHassPublish("sensor", "wifi", "\"name\":\"WiFi signal\",\"device_class\":\"signal_strength\",\"unit_of_measurement\":\"dBm\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicWiFiRssi) + "\"");
+	mqttHassPublish("sensor", "firmware", "\"name\":\"Firmware update\",\"icon\":\"mdi:package-up\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicFirmwareUpdate) + "\"");
+	mqttHassPublish("sensor", "swrev", "\"name\":\"Software revision\",\"icon\":\"mdi:tag\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicSRevision) + "\"");
+	mqttHassPublish("sensor", "listened_today", "\"name\":\"Listened today\",\"icon\":\"mdi:timer-sand\",\"unit_of_measurement\":\"min\",\"state_class\":\"total_increasing\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicListenedToday) + "\"");
+	mqttHassPublish("binary_sensor", "daily_limit_reached", "\"name\":\"Daily limit reached\",\"icon\":\"mdi:timer-lock\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicDailyLimitReached) + "\"");
 
 	// numbers
-	const String loudCmd = Mqtt_GetCommandTopic(topicLoudness);
-	mqttHassPublish("number", "volume", "\"name\":\"Volume\",\"icon\":\"mdi:volume-high\",\"min\":" + String(AudioPlayer_GetMinVolume()) + ",\"max\":" + String(AudioPlayer_GetMaxVolume()) + ",\"command_topic\":\"" + loudCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicLoudness)) + "\"");
-	const String ledCmd = Mqtt_GetCommandTopic(topicLedBrightness);
-	mqttHassPublish("number", "ledbrightness", "\"name\":\"LED brightness\",\"icon\":\"mdi:brightness-6\",\"entity_category\":\"config\",\"min\":0,\"max\":255,\"command_topic\":\"" + ledCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicLedBrightness)) + "\"");
+	const String loudCmd = Mqtt_CommandTopicStr(topicLoudness);
+	mqttHassPublish("number", "volume", "\"name\":\"Volume\",\"icon\":\"mdi:volume-high\",\"min\":" + String(AudioPlayer_GetMinVolume()) + ",\"max\":" + String(AudioPlayer_GetMaxVolume()) + ",\"command_topic\":\"" + loudCmd + "\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicLoudness) + "\"");
+	const String ledCmd = Mqtt_CommandTopicStr(topicLedBrightness);
+	mqttHassPublish("number", "ledbrightness", "\"name\":\"LED brightness\",\"icon\":\"mdi:brightness-6\",\"entity_category\":\"config\",\"min\":0,\"max\":255,\"command_topic\":\"" + ledCmd + "\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicLedBrightness) + "\"");
 
 	// switches
-	const String lockCmd = Mqtt_GetCommandTopic(topicLockControls);
-	mqttHassPublish("switch", "lock", "\"name\":\"Lock controls\",\"icon\":\"mdi:lock\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + lockCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicLockControls)) + "\"");
-	mqttHassPublish("switch", "ambient", "\"name\":\"Ambient light\",\"icon\":\"mdi:lightbulb\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"optimistic\":true,\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicAmbientLight)) + "\"");
+	const String lockCmd = Mqtt_CommandTopicStr(topicLockControls);
+	mqttHassPublish("switch", "lock", "\"name\":\"Lock controls\",\"icon\":\"mdi:lock\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + lockCmd + "\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicLockControls) + "\"");
+	mqttHassPublish("switch", "ambient", "\"name\":\"Ambient light\",\"icon\":\"mdi:lightbulb\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"optimistic\":true,\"command_topic\":\"" + Mqtt_CommandTopicStr(topicAmbientLight) + "\"");
 
-	const String controlLedsCmd = Mqtt_GetCommandTopic(topicControlLeds);
-	mqttHassPublish("switch", "controlleds", "\"name\":\"Control LEDs\",\"icon\":\"mdi:led-on\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + controlLedsCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicControlLeds)) + "\"");
+	const String controlLedsCmd = Mqtt_CommandTopicStr(topicControlLeds);
+	mqttHassPublish("switch", "controlleds", "\"name\":\"Control LEDs\",\"icon\":\"mdi:led-on\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + controlLedsCmd + "\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicControlLeds) + "\"");
 
 	#ifdef WEBDAV_ENABLE
-	const String webdavCmd = Mqtt_GetCommandTopic(topicWebdav);
-	mqttHassPublish("switch", "webdav", "\"name\":\"WebDAV server\",\"icon\":\"mdi:folder-network\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + webdavCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicWebdav)) + "\"");
+	const String webdavCmd = Mqtt_CommandTopicStr(topicWebdav);
+	mqttHassPublish("switch", "webdav", "\"name\":\"WebDAV server\",\"icon\":\"mdi:folder-network\",\"payload_on\":\"ON\",\"payload_off\":\"OFF\",\"state_on\":\"ON\",\"state_off\":\"OFF\",\"command_topic\":\"" + webdavCmd + "\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicWebdav) + "\"");
 	#endif
 
 	// select
-	const String eqCmd = Mqtt_GetCommandTopic(topicEqualizer);
-	mqttHassPublish("select", "equalizer", "\"name\":\"Equalizer\",\"icon\":\"mdi:equalizer\",\"options\":[\"flat\",\"music\",\"speech\",\"voiceBoost\"],\"command_topic\":\"" + eqCmd + "\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicEqualizer)) + "\"");
+	const String eqCmd = Mqtt_CommandTopicStr(topicEqualizer);
+	mqttHassPublish("select", "equalizer", "\"name\":\"Equalizer\",\"icon\":\"mdi:equalizer\",\"options\":[\"flat\",\"music\",\"speech\",\"voiceBoost\"],\"command_topic\":\"" + eqCmd + "\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicEqualizer) + "\"");
 
 	// buttons
-	const String trackCmd = Mqtt_GetCommandTopic(topicTrackControl);
+	const String trackCmd = Mqtt_CommandTopicStr(topicTrackControl);
 	mqttHassPublish("button", "playpause", "\"name\":\"Play/Pause\",\"icon\":\"mdi:play-pause\",\"payload_press\":\"3\",\"command_topic\":\"" + trackCmd + "\"");
 	mqttHassPublish("button", "next", "\"name\":\"Next track\",\"icon\":\"mdi:skip-next\",\"payload_press\":\"4\",\"command_topic\":\"" + trackCmd + "\"");
 	mqttHassPublish("button", "prev", "\"name\":\"Previous track\",\"icon\":\"mdi:skip-previous\",\"payload_press\":\"5\",\"command_topic\":\"" + trackCmd + "\"");
-	mqttHassPublish("button", "update", "\"name\":\"Update firmware\",\"icon\":\"mdi:package-up\",\"entity_category\":\"config\",\"payload_press\":\"update\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicFirmwareUpdate)) + "\"");
-	mqttHassPublish("button", "shutdown", "\"name\":\"Shutdown\",\"icon\":\"mdi:power\",\"payload_press\":\"OFF\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicSleep)) + "\"");
-	mqttHassPublish("button", "backup", "\"name\":\"Backup now\",\"icon\":\"mdi:cloud-upload\",\"entity_category\":\"config\",\"payload_press\":\"backup\",\"command_topic\":\"" + String(Mqtt_GetCommandTopic(topicBackup)) + "\"");
-	mqttHassPublish("sensor", "backup_status", "\"name\":\"Backup status\",\"icon\":\"mdi:cloud-upload-outline\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBackup)) + "\"");
+	mqttHassPublish("button", "update", "\"name\":\"Update firmware\",\"icon\":\"mdi:package-up\",\"entity_category\":\"config\",\"payload_press\":\"update\",\"command_topic\":\"" + Mqtt_CommandTopicStr(topicFirmwareUpdate) + "\"");
+	mqttHassPublish("button", "shutdown", "\"name\":\"Shutdown\",\"icon\":\"mdi:power\",\"payload_press\":\"OFF\",\"command_topic\":\"" + Mqtt_CommandTopicStr(topicSleep) + "\"");
+	mqttHassPublish("button", "backup", "\"name\":\"Backup now\",\"icon\":\"mdi:cloud-upload\",\"entity_category\":\"config\",\"payload_press\":\"backup\",\"command_topic\":\"" + Mqtt_CommandTopicStr(topicBackup) + "\"");
+	mqttHassPublish("sensor", "backup_status", "\"name\":\"Backup status\",\"icon\":\"mdi:cloud-upload-outline\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicBackup) + "\"");
 
 	#ifdef BATTERY_MEASURE_ENABLE
-	mqttHassPublish("sensor", "battery_voltage", "\"name\":\"Battery voltage\",\"device_class\":\"voltage\",\"unit_of_measurement\":\"V\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBatteryVoltage)) + "\"");
-	mqttHassPublish("sensor", "battery", "\"name\":\"Battery\",\"device_class\":\"battery\",\"unit_of_measurement\":\"%\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicBatterySOC)) + "\"");
+	mqttHassPublish("sensor", "battery_voltage", "\"name\":\"Battery voltage\",\"device_class\":\"voltage\",\"unit_of_measurement\":\"V\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicBatteryVoltage) + "\"");
+	mqttHassPublish("sensor", "battery", "\"name\":\"Battery\",\"device_class\":\"battery\",\"unit_of_measurement\":\"%\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicBatterySOC) + "\"");
 	#endif
 
 	#ifdef RTC_ENABLE
-	mqttHassPublish("sensor", "rtc", "\"name\":\"RTC time\",\"icon\":\"mdi:clock-outline\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicRtc)) + "\"");
-	mqttHassPublish("sensor", "rtc_temperature", "\"name\":\"RTC temperature\",\"device_class\":\"temperature\",\"unit_of_measurement\":\"°C\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + String(Mqtt_GetStateTopic(topicRtcTemperature)) + "\"");
+	mqttHassPublish("sensor", "rtc", "\"name\":\"RTC time\",\"icon\":\"mdi:clock-outline\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicRtc) + "\"");
+	mqttHassPublish("sensor", "rtc_temperature", "\"name\":\"RTC temperature\",\"device_class\":\"temperature\",\"unit_of_measurement\":\"°C\",\"entity_category\":\"diagnostic\",\"state_topic\":\"" + Mqtt_StateTopicStr(topicRtcTemperature) + "\"");
 	#endif
 }
 #endif
@@ -407,52 +416,69 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 	switch ((esp_mqtt_event_id_t) event_id) {
 		case MQTT_EVENT_CONNECTED: {
 			int qos = 0;
+			// Reusable stack buffer for command-topic composition (this case runs on one task)
+			char subTopic[MQTT_TOPIC_MAX_LENGTH];
 
 			// Deepsleep-subscription
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicSleep), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicSleep, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// RFID-"mqtt_debug"-ID-subscription
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicRfid), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicRfid, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Loudness-subscription
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicLoudness), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicLoudness, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Sleep-Timer-subscription
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicSleepTimer), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicSleepTimer, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Ambient-Light-subscription
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicAmbientLight), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicAmbientLight, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Next/previous/stop/play-track-subscription
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicTrackControl), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicTrackControl, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Lock controls
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicLockControls), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicLockControls, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Current repeat-Mode
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicRepeatMode), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicRepeatMode, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// LED-brightness
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicLedBrightness), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicLedBrightness, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Control-LEDs on/off
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicControlLeds), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicControlLeds, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Equalizer-profile
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicEqualizer), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicEqualizer, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Firmware-update (GitHub OTA)
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicFirmwareUpdate), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicFirmwareUpdate, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// RFID-tag sync (full bidirectional sync trigger)
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicRfidSync), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicRfidSync, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 			// Auto-backup upload trigger
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicBackup), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicBackup, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 
 	#ifdef WEBDAV_ENABLE
 			// WebDAV server start/stop
-			esp_mqtt_client_subscribe(client, Mqtt_GetCommandTopic(topicWebdav), qos);
+			Mqtt_MakeTopic(subTopic, sizeof(subTopic), topicWebdav, false);
+			esp_mqtt_client_subscribe(client, subTopic, qos);
 	#endif
 
 			// Home Assistant MQTT discovery (entities auto-register under one device)
