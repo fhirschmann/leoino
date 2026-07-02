@@ -98,20 +98,25 @@ bool canConvertFromJson(JsonVariantConst src, const IPAddress &) {
 	return dst.fromString(src.as<const char *>());
 }
 
+// Embedded assets only change with the firmware, so let the browser revalidate
+// against the git revision: a page reload then gets tiny 304s instead of
+// re-downloading ~840 KB of assets. Besides faster reloads this keeps the
+// SPI-bus traffic low enough that audio playback doesn't stutter while the UI
+// loads. "no-cache" (unlike max-age/immutable) forces revalidation on every
+// request, so a new firmware revision is picked up immediately.
 static void serveProgmemFiles(const String &uri, const String &contentType, const uint8_t *content, size_t len) {
 	wServer.on(uri.c_str(), HTTP_GET, [contentType, content, len](AsyncWebServerRequest *request) {
 		AsyncWebServerResponse *response;
 
-		// const bool etag = request->hasHeader("if-None-Match") && request->getHeader("if-None-Match")->value().equals(gitRevShort);
-		const bool etag = false;
-		if (etag) {
+		const AsyncWebHeader *inm = request->getHeader("If-None-Match");
+		if (inm && inm->value().equals(gitRevShort)) {
 			response = request->beginResponse(304);
 		} else {
 			response = request->beginResponse(200, contentType, content, len);
 			response->addHeader("Content-Encoding", "gzip");
 		}
-		// response->addHeader("Cache-Control", "public, max-age=31536000, immutable");
-		// response->addHeader("ETag", gitRevShort);		// use git revision as digest
+		response->addHeader("Cache-Control", "no-cache");
+		response->addHeader("ETag", gitRevShort);
 		request->send(response);
 	});
 }
@@ -599,32 +604,32 @@ void webserverStart(void) {
 		wServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
 			AsyncWebServerResponse *response;
 
-			// const bool etag = request->hasHeader("if-None-Match") && request->getHeader("if-None-Match")->value().equals(gitRevShort);
-			const bool etag = false;
-			if (etag) {
-				response = request->beginResponse(304);
-			} else {
-				if (WiFi.getMode() == WIFI_STA) {
-					// serve management.html in station-mode
-#ifdef NO_SDCARD
+			if (WiFi.getMode() == WIFI_STA) {
+#ifndef NO_SDCARD
+				// custom UI hosted on the SD card can change without a firmware
+				// update, so it is served without any cache validators
+				if (gFSystem.exists("/.html/index.htm")) {
+					request->send(gFSystem, "/.html/index.htm", "text/html", false);
+					return;
+				}
+#endif
+				// serve management.html in station-mode; firmware-embedded, so it
+				// revalidates via the git revision like the other embedded assets
+				const AsyncWebHeader *inm = request->getHeader("If-None-Match");
+				if (inm && inm->value().equals(gitRevShort)) {
+					response = request->beginResponse(304);
+				} else {
 					response = request->beginResponse(200, "text/html", (const uint8_t *) management_html_BIN, sizeof(management_html_BIN));
 					response->addHeader("Content-Encoding", "gzip");
-#else
-					if (gFSystem.exists("/.html/index.htm")) {
-						response = request->beginResponse(gFSystem, "/.html/index.htm", "text/html", false);
-					} else {
-						response = request->beginResponse(200, "text/html", (const uint8_t *) management_html_BIN, sizeof(management_html_BIN));
-						response->addHeader("Content-Encoding", "gzip");
-					}
-#endif
-				} else {
-					// serve accesspoint.html in AP-mode
-					response = request->beginResponse(200, "text/html", (const uint8_t *) accesspoint_html_BIN, sizeof(accesspoint_html_BIN));
-					response->addHeader("Content-Encoding", "gzip");
 				}
+				response->addHeader("Cache-Control", "no-cache");
+				response->addHeader("ETag", gitRevShort);
+			} else {
+				// serve accesspoint.html in AP-mode — never with an ETag: "/" serves
+				// a different page per mode, a cached 304 could pin the wrong one
+				response = request->beginResponse(200, "text/html", (const uint8_t *) accesspoint_html_BIN, sizeof(accesspoint_html_BIN));
+				response->addHeader("Content-Encoding", "gzip");
 			}
-			// response->addHeader("Cache-Control", "public, max-age=31536000, immutable");
-			// response->addHeader("ETag", gitRevShort);		// use git revision as digest
 			request->send(response);
 		});
 
