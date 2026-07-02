@@ -19,3 +19,13 @@ void Net_SetupHttp(HTTPClient &http, const String &user, const String &pass, uin
 
 // Reads the shared sync credentials (syncUser/syncPwd) from NVS into user/pass.
 void Net_GetSyncCreds(String &user, String &pass);
+
+// Global single-slot gate for the heap-heavy background network tasks (file Sync, Backup, RFID-sync,
+// GitHub OTA + version check). Each spawns an 8-16 KB-stack task plus a TLS client (~40 KB), and the
+// board has only ~22 KB free internal DRAM, so two at once can OOM (the mDNS/AsyncTCP allocators then
+// abort). A trigger must call Net_TryClaimBgJob() before spawning and only proceed if it returns true;
+// the spawned task calls Net_ReleaseBgJob() exactly once when it finishes (and the trigger releases it
+// if the task-create itself fails). The cyclic callers (daily backup, sync catch-up, minutely version
+// check) simply retry on their next tick when the slot is busy.
+bool Net_TryClaimBgJob(void);
+void Net_ReleaseBgJob(void);

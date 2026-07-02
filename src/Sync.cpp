@@ -329,20 +329,18 @@ static int syncFetchManifest(const String &url, const String &user, const String
 	return written; // >= 0 on a complete transfer, < 0 (e.g. CONNECTION_LOST) if it dropped mid-stream
 }
 
-static void syncTask(void *parameter) {
+static void syncRun(void) {
 	gSyncProgress = 0;
 	gSyncMsg.set("");
 
 	if (!Wlan_IsConnected()) {
 		syncFail("no WiFi connection");
-		vTaskDelete(NULL);
 		return;
 	}
 
 	const String manifestUrl = gPrefsSettings.getString("syncUrl", "");
 	if (manifestUrl.length() == 0) {
 		syncFail("no sync URL configured");
-		vTaskDelete(NULL);
 		return;
 	}
 	String user, pass;
@@ -363,7 +361,6 @@ static void syncTask(void *parameter) {
 		dryReport = gFSystem.open(kSyncDryReport, "w", true);
 		if (!dryReport) {
 			syncFail("dry run: cannot write report to SD");
-			vTaskDelete(NULL);
 			return;
 		}
 		dryReport.print("# DRY RUN - nothing was changed. DL = would download, RM = would delete.\n");
@@ -387,7 +384,6 @@ static void syncTask(void *parameter) {
 		if (dryReport) {
 			dryReport.close();
 		}
-		vTaskDelete(NULL);
 		return;
 	}
 	if (manifestWritten < 0) {
@@ -398,7 +394,6 @@ static void syncTask(void *parameter) {
 			dryReport.close();
 		}
 		gFSystem.remove(manifestTmp);
-		vTaskDelete(NULL);
 		return;
 	}
 
@@ -411,7 +406,6 @@ static void syncTask(void *parameter) {
 			dryReport.close();
 		}
 		gFSystem.remove(manifestTmp);
-		vTaskDelete(NULL);
 		return;
 	}
 	const size_t manifestBytes = manifest.size();
@@ -422,7 +416,6 @@ static void syncTask(void *parameter) {
 			dryReport.close();
 		}
 		gFSystem.remove(manifestTmp);
-		vTaskDelete(NULL);
 		return;
 	}
 
@@ -620,6 +613,15 @@ static void syncTask(void *parameter) {
 	Sync_CopyMessage(summary, sizeof(summary));
 	Log_Printf(LOGLEVEL_NOTICE, "Sync %s%s: %s", dryRun ? "dry run " : "", cancelled ? "stopped" : "finished", summary);
 	gSyncStatus = cancelled ? 4 : ((!dryRun && failed > 0) ? 3 : 2);
+}
+
+static void syncTask(void *parameter) {
+	// Thin wrapper: syncRun() has many early-bail exit points, so run it to completion (its RAII locals
+	// unwind as the stack does), THEN release the shared net slot and delete the task. This guarantees
+	// the slot is freed on EVERY path without threading a release before each of syncRun's returns.
+	// vTaskDelete(NULL) never returns, so it must come last, after syncRun() has already cleaned up.
+	syncRun();
+	Net_ReleaseBgJob(); // free the shared net slot on EVERY exit path of syncRun (only reached because we claimed it)
 	vTaskDelete(NULL);
 }
 
@@ -634,11 +636,24 @@ static void syncStart(bool dryRun) {
 	}
 	gSyncStatus = 1;
 	portEXIT_CRITICAL(&mux);
+	// Serialize against the other heavy net tasks (Backup/RfidSync/OTA): the sync task needs a 16 KB
+	// stack plus a TLS client, so it must not run concurrently. Claim the shared slot AFTER the local
+	// idle->running claim (so a double-start doesn't grab the global slot only to bail); Net_TryClaimBgJob()
+	// may take a semaphore, so it must be OUTSIDE the portMUX critical section above. If another net job
+	// holds it, reset our status back to idle and defer — the caller (web/Cmd/MQTT) retries, so a deferred
+	// sync must not look "running" forever.
+	if (!Net_TryClaimBgJob()) {
+		gSyncStatus = 0; // back to idle, not failed: this is a deferral, not an error
+		gSyncMsg.set("another network job is running, deferred");
+		Log_Printf(LOGLEVEL_NOTICE, "Sync: another network job is running, deferring");
+		return;
+	}
 	gSyncDryRun = dryRun;
 	gSyncCancel = false;
 	gSyncProgress = 0;
 	gSyncMsg.set("");
 	if (xTaskCreatePinnedToCore(syncTask, "httpSync", 16384, NULL, 1, NULL, 1) != pdPASS) {
+		Net_ReleaseBgJob(); // task never started, so it can't release the slot -> do it here
 		gSyncStatus = 3; // couldn't spawn -> release the slot as failed
 	}
 }

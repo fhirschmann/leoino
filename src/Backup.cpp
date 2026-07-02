@@ -298,6 +298,7 @@ static void backupTask(void *parameter) {
 	// the task. vTaskDelete(NULL) never returns, so it must be the last thing after backupRun() has
 	// already cleaned up (see the RAII note on backupRun).
 	backupRun();
+	Net_ReleaseBgJob(); // free the shared net slot on EVERY exit path of backupRun (RAII locals already unwound)
 	vTaskDelete(NULL);
 }
 
@@ -312,8 +313,19 @@ void Backup_Trigger(void) {
 	}
 	gBackupStatus = 1;
 	portEXIT_CRITICAL(&mux);
+	// Serialize against the other heavy net tasks (Sync/RfidSync/OTA): the backup task needs a 16 KB
+	// stack plus a TLS client, so it must not run concurrently. Claim the shared slot AFTER the local
+	// idle->running claim (so a double-start doesn't grab the global slot only to bail); if another net
+	// job holds it, reset our status back to idle and defer — the caller (daily cyclic / manual / MQTT)
+	// retries, so a deferred backup must not look "running" forever.
+	if (!Net_TryClaimBgJob()) {
+		gBackupStatus = 0; // back to idle, not failed: this is a deferral, not an error
+		Log_Printf(LOGLEVEL_NOTICE, "Backup: another network job is running, deferring");
+		return;
+	}
 	gBackupMsg.set("");
 	if (xTaskCreatePinnedToCore(backupTask, "backup", 16384, NULL, 1, NULL, 1) != pdPASS) {
+		Net_ReleaseBgJob(); // task never started, so it can't release the slot -> do it here
 		gBackupStatus = 3; // couldn't spawn -> release the slot as failed
 	}
 }

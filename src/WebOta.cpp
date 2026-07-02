@@ -3,6 +3,7 @@
 
 #include "Log.h"
 #include "Mqtt.h"
+#include "Net.h"
 #include "StatusMessage.h"
 #include "System.h"
 #include "Web.h"
@@ -70,9 +71,10 @@ static bool githubOtaIsUpToDate() {
 	return upToDate;
 }
 
-// Background task: pull the latest firmware from GitHub over HTTPS and flash it via OTA.
-// Runs in its own task because the download/flash blocks for a while; the async webserver must not block.
-static void githubOtaTask(void *parameter) {
+// Pull the latest firmware from GitHub over HTTPS and flash it via OTA. Factored out of githubOtaTask
+// so that ALL its locals (WiFiClientSecure etc.) are destroyed as the stack unwinds on every exit path
+// before the wrapper releases the shared net slot and deletes the task.
+static void githubOtaRun(void) {
 	gGithubOtaProgress = 0;
 	gGithubOtaMsg.set("");
 
@@ -80,7 +82,6 @@ static void githubOtaTask(void *parameter) {
 	if (githubOtaIsUpToDate()) {
 		Log_Println("GitHub OTA: already up to date", LOGLEVEL_NOTICE);
 		gGithubOtaStatus = 2;
-		vTaskDelete(NULL);
 		return;
 	}
 
@@ -118,6 +119,14 @@ static void githubOtaTask(void *parameter) {
 	// terminal "no update needed"/"failed" states need to be reported back to MQTT here.
 	publishMqtt(topicFirmwareUpdate, Web_GetGithubOtaStatusText(), false);
 #endif
+}
+
+// Background task wrapper: run the OTA so all its locals are destroyed as the stack unwinds, THEN free
+// the shared net slot and delete the task. vTaskDelete(NULL) never returns, so the release must happen
+// after githubOtaRun() has fully unwound (mirrors backupTask).
+static void githubOtaTask(void *parameter) {
+	githubOtaRun();
+	Net_ReleaseBgJob(); // free the shared net slot on EVERY exit path of githubOtaRun (RAII locals already unwound)
 	vTaskDelete(NULL);
 }
 
@@ -149,9 +158,22 @@ void Web_TriggerGithubOta(void) {
 	}
 	portEXIT_CRITICAL(&mux);
 	if (claim) {
+		// Serialize against the other heavy net tasks (Sync/RfidSync/Backup/version-check): the OTA task
+		// needs a 16 KB stack plus a TLS client, so it must not run concurrently. Claim the shared slot
+		// AFTER the local idle->running claim (so a double-start doesn't grab the global slot only to bail);
+		// if another net job holds it, reset our status back to idle and defer — the caller (web/CMD/MQTT)
+		// retries, so a deferred OTA must not look "running" forever.
+		if (!Net_TryClaimBgJob()) {
+			gGithubOtaStatus = 0; // back to idle, not failed: this is a deferral, not an error
+			gGithubOtaProgress = 0;
+			gGithubOtaMsg.set("busy, retry");
+			Log_Printf(LOGLEVEL_NOTICE, "OTA: another network job is running, deferring");
+			return;
+		}
 		gGithubOtaProgress = 0;
 		gGithubOtaMsg.set("");
 		if (xTaskCreatePinnedToCore(githubOtaTask, "githubOta", 16384, NULL, 1, NULL, 1) != pdPASS) {
+			Net_ReleaseBgJob(); // task never started, so it can't release the slot -> do it here
 			gGithubOtaStatus = 3; // couldn't spawn -> release the slot as failed
 		}
 	}
@@ -208,6 +230,7 @@ static void versionCheckTask(void *parameter) {
 		http.end();
 	}
 	gVersionCheckRunning = false;
+	Net_ReleaseBgJob(); // free the shared net slot; the only exit path (all HTTPClient locals unwind first)
 	vTaskDelete(NULL);
 }
 
@@ -226,9 +249,16 @@ void Web_CheckForUpdate(void) {
 	if (gLastVersionCheckMs != 0 && (now - gLastVersionCheckMs) < 60000u) {
 		return;
 	}
+	// Serialize against the other heavy net tasks (Sync/RfidSync/Backup/OTA): this passive check pins an
+	// 8 KB stack plus a TLS client (~40 KB). If another net job holds the slot, skip this cycle silently and
+	// don't arm gLastVersionCheckMs/gVersionCheckRunning — the /version poll retries every minute anyway.
+	if (!Net_TryClaimBgJob()) {
+		return;
+	}
 	gLastVersionCheckMs = now;
 	gVersionCheckRunning = true;
 	if (xTaskCreatePinnedToCore(versionCheckTask, "verCheck", 8192, NULL, 1, NULL, 1) != pdPASS) {
+		Net_ReleaseBgJob(); // task never started, so it can't release the slot -> do it here
 		gVersionCheckRunning = false;
 	}
 #endif

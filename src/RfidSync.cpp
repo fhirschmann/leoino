@@ -626,6 +626,7 @@ static void rfidFullSyncTask(void *param) {
 		gRfidSyncStatus = 2;
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync full done: %s", done);
 	}
+	Net_ReleaseBgJob(); // release the shared bg-job slot claimed in RfidSync_TriggerFull() (single exit path)
 	vTaskDelete(NULL);
 }
 
@@ -642,8 +643,18 @@ void RfidSync_TriggerFull(void) {
 	gRfidSyncStatus = 1;
 	portEXIT_CRITICAL(&mux);
 	RfidSync_Init();
+	// Claim the single shared bg-job slot so the 16 KB-stack + TLS-client full sync can't run
+	// concurrently with Backup/Sync/OTA. Done outside the portMUX critical section (Net_TryClaimBgJob
+	// takes its own lock). If another net job holds the slot, reset to idle (not failed) so the cyclic
+	// catch-up / next trigger retries later.
+	if (!Net_TryClaimBgJob()) {
+		gRfidSyncStatus = 0;
+		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: another network job is running, deferring");
+		return;
+	}
 	rfidEnsurePushTask(); // a full sync means sync is active — have the push task ready for later learns/deletes
 	if (xTaskCreatePinnedToCore(rfidFullSyncTask, "rfidSync", 16384, NULL, 1, NULL, 1) != pdPASS) {
+		Net_ReleaseBgJob(); // task never started -> hand the slot back before releasing the status
 		gRfidSyncStatus = 3; // couldn't spawn -> release the slot as failed
 	}
 }
