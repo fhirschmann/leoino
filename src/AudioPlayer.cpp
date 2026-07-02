@@ -1726,12 +1726,12 @@ void AudioPlayer_PauseOnMinVolume(const uint8_t oldVolume, const uint8_t newVolu
 
 		if (!gPlayProperties.pausePlay) { // Volume changes from 1 to 0
 			if (oldVolume == AudioPlayer_GetMinVolume() + 1 && newVolume == AudioPlayer_GetMinVolume()) {
-				Cmd_Action(CMD_PLAYPAUSE);
+				Cmd_Action(CMD_PLAYPAUSE, true); // auto-pause must work even while controls are locked
 			}
 		}
 		if (gPlayProperties.pausePlay) { // Volume changes from 0 to 1
 			if (oldVolume == AudioPlayer_GetMinVolume() && newVolume > AudioPlayer_GetMinVolume()) {
-				Cmd_Action(CMD_PLAYPAUSE);
+				Cmd_Action(CMD_PLAYPAUSE, true); // auto-pause must work even while controls are locked
 			}
 		}
 	}
@@ -1765,10 +1765,15 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 		return;
 	}
 
-	// Make sure last playposition for audiobook is saved when new RFID-tag is applied
-	if (gPlayProperties.SavePlayPosRfidChange && !gPlayProperties.pausePlay && (gPlayProperties.playMode == AUDIOBOOK || gPlayProperties.playMode == AUDIOBOOK_LOOP || gPlayProperties.playMode == AUDIOBOOK_RECURSIVE)) {
+	// Make sure last playposition for audiobook is saved when new RFID-tag is applied. Skip this while
+	// an IP/time announcement is active: the speech-abort branch in AudioPlayer_Loop() would consume the
+	// PAUSEPLAY command below (so pausePlay would never be set and the wait would spin forever), and the
+	// book's position was already saved when the announcement started, so there is nothing to save here.
+	if (gPlayProperties.SavePlayPosRfidChange && !gPlayProperties.pausePlay && !gPlayProperties.currentSpeechActive && (gPlayProperties.playMode == AUDIOBOOK || gPlayProperties.playMode == AUDIOBOOK_LOOP || gPlayProperties.playMode == AUDIOBOOK_RECURSIVE)) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
-		while (!gPlayProperties.pausePlay) { // Make sure to wait until playback is paused in order to be sure that playposition saved in NVS
+		// Bounded (~5 s): make sure playback is paused so the position lands in NVS, but never spin the
+		// loop task forever if the PAUSEPLAY command gets swallowed for any reason.
+		for (uint8_t i = 0; !gPlayProperties.pausePlay && i < 50u; i++) {
 			AudioPlayer_Loop();
 			vTaskDelay(portTICK_PERIOD_MS * 100u);
 		}

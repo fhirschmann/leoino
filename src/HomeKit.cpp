@@ -482,20 +482,20 @@ void HomeKit_Cyclic(void) {
 	if (gCmdQueue != nullptr) {
 		uint16_t mod;
 		while (xQueueReceive(gCmdQueue, &mod, 0) == pdTRUE) {
-			Cmd_Action(mod);
+			Cmd_Action(mod, true); // HomeKit is a parent-side remote; honour it even while controls are locked
 		}
 	}
 
 	// --- apply intents recorded by the HomeKit poll task (core 0) -------------
 	if (gDesiredPlay >= 0) {
 		if ((gDesiredPlay == 1) != HomeKit_IsPlaying()) {
-			Cmd_Action(CMD_PLAYPAUSE);
+			Cmd_Action(CMD_PLAYPAUSE, true);
 		}
 		gDesiredPlay = -1;
 	}
 	if (gDesiredLock >= 0) {
 		if ((gDesiredLock == 1) != System_AreControlsLocked()) {
-			Cmd_Action(CMD_LOCK_BUTTONS_MOD);
+			Cmd_Action(CMD_LOCK_BUTTONS_MOD, true);
 		}
 		gDesiredLock = -1;
 	}
@@ -503,7 +503,7 @@ void HomeKit_Cyclic(void) {
 		// CMD_REPEAT_PLAYLIST toggles; only fire when the state actually differs.
 		// It no-ops while idle, so the switch will snap back via the mirror below.
 		if ((gDesiredRepeat == 1) != (bool) gPlayProperties.repeatPlaylist) {
-			Cmd_Action(CMD_REPEAT_PLAYLIST);
+			Cmd_Action(CMD_REPEAT_PLAYLIST, true);
 		}
 		gDesiredRepeat = -1;
 	}

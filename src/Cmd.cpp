@@ -49,14 +49,17 @@ static void Cmd_StartSleepTimer(uint8_t minutes) {
 	System_IndicateOk();
 }
 
-void Cmd_Action(const uint16_t mod) {
+void Cmd_Action(const uint16_t mod, bool bypassLock) {
 	// CMD_NOTHING (0) is the "no action assigned" sentinel - e.g. an unassigned button or an IR
 	// short/long press set to "- (None)". Treat it as a genuine no-op instead of falling through
 	// to the unknown-command error indication in the default case below.
 	if (mod == CMD_NOTHING) {
 		return;
 	}
-	if (System_AreControlsLocked() && (mod != CMD_LOCK_BUTTONS_MOD)) {
+	// The child lock only blocks physical controls (buttons/IR call with bypassLock=false). Internal
+	// automation callers pass bypassLock=true so a locked player still stops playback before a web
+	// delete/format, honours HomeKit/RFID-mod commands, and auto-pauses at min volume.
+	if (!bypassLock && System_AreControlsLocked() && (mod != CMD_LOCK_BUTTONS_MOD)) {
 		return;
 	}
 	// Abort a running HTTP file sync on any button/command press (configurable, default on).

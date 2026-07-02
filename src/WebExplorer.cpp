@@ -502,7 +502,7 @@ void handleCleanSdRequest(AsyncWebServerRequest *request) {
 void handleFormatSdRequest(AsyncWebServerRequest *request) {
 	// Stop playback and pause the RFID/LED/audio tasks: recreating the filesystem is an exclusive
 	// SD operation, so nothing else may touch the bus while it runs.
-	Cmd_Action(CMD_STOP);
+	Cmd_Action(CMD_STOP, true); // stop playback before touching the file, even if controls are locked
 	System_PauseTasksDuringUpload(true);
 	const bool ok = SdCard_Format();
 	System_PauseTasksDuringUpload(false);
@@ -603,7 +603,7 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 		}
 		if (gFSystem.exists(filePath)) {
 			// stop playback, file to delete might be in use
-			Cmd_Action(CMD_STOP);
+			Cmd_Action(CMD_STOP, true); // stop playback before touching the file, even if controls are locked
 			file = gFSystem.open(filePath);
 			if (file.isDirectory()) {
 				if (explorerDeleteDirectory(file)) {
