@@ -602,6 +602,7 @@ static uint32_t lastPosCheckpointMs = 0;
 // the whole book. Suppress position-saves until the resume seek has actually landed (or, as a safety
 // net, until a timeout elapses) so NVS keeps the correct resume point in the meantime.
 static bool gResumeSeekPending = false; // a cold-start resume seek is still settling
+static bool gResumeFallbackSeekDone = false; // the one player-driven fallback seek was already fired
 static uint32_t gResumeTargetSec = 0; // file-time (s) the decoder is seeking to
 static uint32_t gResumeSeekStartedMs = 0; // millis() the resume began (safety-timeout anchor)
 static constexpr uint32_t RESUME_SEEK_SETTLE_TIMEOUT_MS = 10000;
@@ -920,17 +921,20 @@ void AudioPlayer_Loop() {
 			AudioPlayer_CurrentTime = gResumeTargetSec;
 		}
 		// The audio library only executes the connecttoFS() start-time seek for files
-		// carrying a Xing/VBR header (it gates on the nominal bitrate); plain CBR files
-		// silently skip it and play from the beginning, losing the audiobook resume
-		// position. Drive the pending resume from here once the decoder reports a live
-		// bitrate; retries are throttled and bounded by the resume-settle timeout.
-		static uint32_t lastResumeSeekAttemptMs = 0;
-		if (gResumeSeekPending && audio->isRunning() && (audio->getBitRate() > 0)
-			&& ((audio->getAudioCurrentTime() + 2) < gResumeTargetSec)
-			&& ((millis() - lastResumeSeekAttemptMs) >= 1000)) {
-			lastResumeSeekAttemptMs = millis();
+		// whose header yields a nominal bitrate (Xing/Info block); other files silently
+		// play from the beginning, losing the audiobook resume position. Fire ONE
+		// fallback seek from here — but only after the library's own attempt had ample
+		// time to land (a seek takes seconds to travel through the input buffer) and
+		// only when playback demonstrably still sits near the file start. Re-seeking
+		// while an earlier seek is still in flight corrupts the library's playtime
+		// bookkeeping (tracks then appear to end several seconds early).
+		if (gResumeSeekPending && !gResumeFallbackSeekDone && audio->isRunning()
+			&& (audio->getBitRate() > 0) && (audio->getAudioFileDuration() > 0)
+			&& ((millis() - gResumeSeekStartedMs) >= 3000)
+			&& (audio->getAudioCurrentTime() < 10) && (gResumeTargetSec >= 15)) {
+			gResumeFallbackSeekDone = true;
 			if (audio->setAudioPlayTime(gResumeTargetSec)) {
-				Log_Printf(LOGLEVEL_DEBUG, "resume-seek to %u s driven from player (file has no VBR header)", (unsigned) gResumeTargetSec);
+				Log_Printf(LOGLEVEL_DEBUG, "resume-seek to %u s driven from player (library seek didn't land)", (unsigned) gResumeTargetSec);
 			}
 		}
 		// Cache the current stream format for the now-playing info dialog (read cross-core)
@@ -1329,6 +1333,7 @@ void AudioPlayer_Loop() {
 			} else {
 				int32_t fileStartTime = -1;
 				gResumeSeekPending = false; // cleared by default; re-armed below only for an actual mid-file resume
+				gResumeFallbackSeekDone = false;
 				if (gPlayProperties.startAtFilePos > 0) {
 					fileStartTime = gPlayProperties.startAtFilePos;
 					if (fileStartTime > 65535) {

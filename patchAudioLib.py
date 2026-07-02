@@ -1,18 +1,28 @@
 # -*- coding: utf-8 -*-
 
-"""PlatformIO pre-script that patches unused VU/FFT processing out of the
-ESP32-audioI2S library after it has been fetched into .pio/libdeps.
+"""PlatformIO pre-script that patches the ESP32-audioI2S library after it has
+been fetched into .pio/libdeps.
 
-The library unconditionally runs a VU envelope follower for every decoded
-sample (PSRAM delay lines + float AGC math, 44100x/s) and a spectrum FFT per
-chunk. ESPuino consumes neither. Skipping both frees ~18% of core 1 during
-playback (measured on the complete board), headroom that prevents audio
-drop-outs while the webserver pushes big transfers over the shared SPI bus.
+1. Unused VU/FFT processing: the library unconditionally runs a VU envelope
+   follower for every decoded sample (PSRAM delay lines + float AGC math,
+   44100x/s) and a spectrum FFT per chunk. ESPuino consumes neither. Skipping
+   both frees ~18% of core 1 during playback (measured on the complete board),
+   headroom that prevents audio drop-outs while the webserver pushes big
+   transfers over the shared SPI bus.
 
-The patch is applied idempotently. If the library source changes so the
-expected lines are no longer found, the build aborts loudly so the patch
+2. Seek bookkeeping: after a resume/seek the library sets m_audioDataReadPtr
+   to the ABSOLUTE file position (including the ID3 header offset), but the
+   end-of-file check compares it against m_audioDataSize, which is RELATIVE
+   to the audio block. On files with a large ID3 tag (Tonie music albums
+   carry ~135 KB embedded covers) every resumed track therefore ended
+   id3size/bitrate (~5-6 s) before its real end. A normal (non-seek) start
+   keeps the pointer relative, so only seeks were affected; the patch makes
+   the seek path consistent with that.
+
+The patches are applied idempotently. If the library source changes so the
+expected lines are no longer found, the build aborts loudly so a patch
 cannot silently disappear — re-evaluate it against the new library version
-(ideally it becomes a runtime flag upstream one day).
+(ideally both get fixed upstream one day).
 """
 
 import subprocess
@@ -21,10 +31,20 @@ from pathlib import Path
 
 Import("env")  # pylint: disable=undefined-variable
 
-MARKER = "// patched out by patchAudioLib.py (unused by ESPuino):"
-PATCHES = [
+MARKER = "patched by patchAudioLib.py"
+COMMENT_OUT = [
     "calculateVUlevel(&m_outBuff[i * 2]);",
     "processSpectrum();",
+]
+REPLACE = [
+    (
+        "m_audioDataReadPtr = m_prlf.newFilePos;",
+        "m_audioDataReadPtr = m_prlf.newFilePos - m_audioDataStart; // patched by patchAudioLib.py: keep read pointer relative to the audio block (EOF fired id3-size early after a seek)",
+    ),
+    (
+        "m_audioDataReadPtr = m_pwf.newFilePos;",
+        "m_audioDataReadPtr = m_pwf.newFilePos - m_audioDataStart; // patched by patchAudioLib.py: see above",
+    ),
 ]
 
 
@@ -56,18 +76,24 @@ def apply_patch():
     if MARKER in source:
         return  # already patched
 
-    for call in PATCHES:
-        if call not in source:
+    def require(needle):
+        if needle not in source:
             sys.stderr.write(
-                f"patchAudioLib: expected call '{call}' not found in {path}.\n"
+                f"patchAudioLib: expected code '{needle}' not found in {path}.\n"
                 "The library changed - re-evaluate whether this patch is still "
                 "needed/correct, then update patchAudioLib.py.\n"
             )
             sys.exit(1)
-        source = source.replace(call, f"{MARKER} {call}")
+
+    for call in COMMENT_OUT:
+        require(call)
+        source = source.replace(call, f"// patched by patchAudioLib.py (unused by ESPuino): {call}")
+    for old, new in REPLACE:
+        require(old)
+        source = source.replace(old, new)
 
     path.write_text(source, encoding="utf-8")
-    print("patchAudioLib: disabled unused VU/FFT processing in ESP32-audioI2S")
+    print("patchAudioLib: patched ESP32-audioI2S (VU/FFT off, seek read-pointer fix)")
 
 
 apply_patch()
