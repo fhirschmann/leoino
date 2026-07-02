@@ -226,29 +226,30 @@ static uint32_t backupCurrentDay(void) {
 	return (uint32_t) (local / 86400);
 }
 
-static void backupTask(void *parameter) {
+// The actual backup work. Kept in its own function that RETURNS normally so C++ destructors of the
+// locals below (the WiFiClient, which may be a heap-allocated WiFiClientSecure with mbedTLS
+// contexts, plus the HTTPClient and the url/user/pass Strings) all run on the way out. backupTask()
+// only calls this and then deletes itself: vTaskDelete(NULL) never returns, so it must run after the
+// stack has already unwound, otherwise every backup run leaks the (TLS) client and buffers.
+static void backupRun(void) {
 	const String url = gPrefsSettings.getString("backupUrl", "");
 	if (url.length() == 0) {
 		backupFail("no backup URL configured");
-		vTaskDelete(NULL);
 		return;
 	}
 	if (!Wlan_IsConnected()) {
 		backupFail("no WiFi");
-		vTaskDelete(NULL);
 		return;
 	}
 
 	gBackupMsg.set("writing backup to SD");
 	if (!backupWriteToSd(BACKUP_TMP_FILE)) {
-		vTaskDelete(NULL); // backupFail already set the status/message
-		return;
+		return; // backupFail already set the status/message
 	}
 
 	File file = gFSystem.open(BACKUP_TMP_FILE, FILE_READ);
 	if (!file) {
 		backupFail("cannot reopen backup file");
-		vTaskDelete(NULL);
 		return;
 	}
 	const size_t fileSize = file.size();
@@ -262,10 +263,8 @@ static void backupTask(void *parameter) {
 	Net_SetupHttp(http, user, pass, 20000); // larger read timeout for the (slow) upload
 	if (!http.begin(*client, url)) {
 		file.close();
-		client.reset(); // vTaskDelete() never returns, so unwind the (TLS) client ourselves to avoid a leak
 		backupFail("bad URL");
-		vTaskDelete(NULL);
-		return;
+		return; // returning unwinds the stack: client's destructor frees the (TLS) client for us
 	}
 	http.addHeader("Content-Type", "application/json");
 	// Hostname so the server can store per-device backups under a stable name.
@@ -292,6 +291,13 @@ static void backupTask(void *parameter) {
 		snprintf(msg, sizeof(msg), "upload failed (HTTP %d)", code);
 		backupFail(msg);
 	}
+}
+
+static void backupTask(void *parameter) {
+	// Thin wrapper: run the backup so all its locals are destroyed as the stack unwinds, THEN delete
+	// the task. vTaskDelete(NULL) never returns, so it must be the last thing after backupRun() has
+	// already cleaned up (see the RAII note on backupRun).
+	backupRun();
 	vTaskDelete(NULL);
 }
 
