@@ -329,6 +329,31 @@
 			border-color: var(--cp-border);
 		}
 
+		/* The neon outline + glow only suit the cyberpunk look. In the soft / 8-bit / chalk
+		   families drop the hard border and glow and use a subtle status-tinted chip instead. */
+		body[data-family="playful"] .cp-version-badge,
+		body[data-family="pixel"] .cp-version-badge,
+		body[data-family="chalk"] .cp-version-badge {
+			border-color: transparent !important;
+			text-shadow: none !important;
+			background: color-mix(in srgb, currentColor 14%, transparent);
+		}
+		body[data-family="playful"] .cp-version-badge,
+		body[data-family="chalk"] .cp-version-badge {
+			border-radius: 999px; /* soft pill to match the rounded themes */
+		}
+		/* keep the update-status colour on the badge in the playful family - the navbar-text rule
+		   forces navbar text to --cp-text, so match its specificity (.navbar ancestor) to win on order */
+		body[data-family="playful"] .navbar .cp-version-badge.up-to-date {
+			color: var(--cp-green) !important;
+		}
+		body[data-family="playful"] .navbar .cp-version-badge.update-available {
+			color: var(--cp-yellow) !important;
+		}
+		body[data-family="playful"] .navbar .cp-version-badge.unknown {
+			color: var(--cp-dim) !important;
+		}
+
 		#menuToggle {
 			color: var(--cp-cyan) !important;
 			text-shadow: 0 0 8px rgba(0, 240, 255, .6);
@@ -1907,6 +1932,13 @@
 		body[data-family="playful"] .modal-body,
 		body[data-family="playful"] .card-body {
 			padding: 1rem 1.25rem;
+		}
+
+		/* section headers in the soft playful face, not the techy Orbitron (the "//" prefix and
+		   palette colours stay). The playful *-rule already strips the neon glow / uppercase. */
+		body[data-family="playful"] legend {
+			font-family: inherit;
+			font-size: 1.05rem;
 		}
 
 				/* ============================================================
