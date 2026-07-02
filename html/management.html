@@ -172,6 +172,23 @@
 			--cp-dim: #8496b0;
 		}
 
+		/* "Kreidetafel" - a dark slate chalkboard drawn on in coloured chalk (uses the "chalk" family:
+		   line-art, handwritten font, wobbly borders, boxless underline tabs). Warm slate, not black. */
+		body[data-theme="kreidetafel"] {
+			--cp-cyan: #7fd6c4;
+			--cp-magenta: #f2a6c2;
+			--cp-yellow: #f4d67a;
+			--cp-green: #a8d98a;
+			--cp-bg: #2b3a3a;
+			--cp-panel: #30403f;
+			--cp-surface: #354645;
+			--cp-surface-2: #2e3d3c;
+			--cp-border: rgba(240, 238, 230, .32);
+			--cp-border-glow: rgba(240, 238, 230, .18);
+			--cp-text: #f3f0e6;
+			--cp-dim: #9fb0a8;
+		}
+
 		body {
 			/* remap Bootstrap theme variables onto the cyberpunk palette */
 			--bs-body-bg: var(--cp-bg);
@@ -1847,14 +1864,42 @@
 		body[data-family="playful"] .modal-content,
 		body[data-family="playful"] .toast,
 		body[data-family="playful"] .dropdown-menu,
-		body[data-family="playful"] .list-group-item,
-		body[data-family="playful"] .nav-link {
+		body[data-family="playful"] .list-group-item {
 			border-radius: 18px !important;
 		}
 
 		body[data-family="playful"] .btn {
 			font-weight: 700;
 			box-shadow: 0 4px 0 rgba(0, 0, 0, .08);
+		}
+
+		/* Tabs: clean flat labels with the active one as a soft filled tab, instead of every tab
+		   being a fat 18px outlined pill (which looked clumsy). The strip sits on a tinted rule. */
+		body[data-family="playful"] .nav-tabs {
+			border-bottom: 3px solid var(--cp-surface-2);
+			gap: .25rem;
+		}
+		body[data-family="playful"] .nav-tabs .nav-link {
+			border: 0 !important;
+			border-radius: 14px 14px 0 0 !important;
+			background: transparent;
+			color: var(--cp-dim);
+			font-weight: 700;
+			padding: .45rem .95rem;
+		}
+		body[data-family="playful"] .nav-tabs .nav-link:hover {
+			color: var(--cp-text);
+			background: var(--cp-surface-2);
+		}
+		body[data-family="playful"] .nav-tabs .nav-link.active {
+			color: var(--cp-panel) !important;
+			background: var(--cp-cyan) !important;
+		}
+		body[data-family="playful"] .nav-tabs .nav-link.ftp-active.active {
+			background: var(--cp-yellow) !important;
+		}
+		body[data-family="playful"] .nav-tabs .nav-link.bt-active.active {
+			background: var(--cp-magenta) !important;
 		}
 
 		/* bright, friendly navbar (tinted per palette) instead of the dark neon bar */
@@ -1946,6 +1991,154 @@
 			filter: none;
 		}
 
+		/* ============================================================
+		   "Chalk" theme family - the whole UI is hand-drawn onto a dark
+		   slate chalkboard. Off-white sketchy (wobbly) borders, a hand-
+		   written face, chalk-dust bloom instead of neon glow, and BOXLESS
+		   tabs with a thick hand-drawn underline on the active label (no
+		   boxes, no pills). Palette-driven (var(--cp-*)); used by the dark
+		   "kreidetafel" theme (pin dark). data-family="chalk".
+		   ============================================================ */
+		body[data-family="chalk"] {
+			font-family: "Patrick Hand", "Gochi Hand", "Chalkboard SE", "Comic Neue", "Segoe Print", cursive;
+			line-height: 1.45;
+		}
+
+		body[data-family="chalk"]::after {
+			display: none;
+		}
+
+		/* strip neon glows, flicker loops, angled corners and the cyberpunk
+		   uppercase/tracking - chalk reads friendlier in mixed case */
+		body[data-family="chalk"] *,
+		body[data-family="chalk"] *::before,
+		body[data-family="chalk"] *::after {
+			text-shadow: none !important;
+			clip-path: none !important;
+			animation: none !important;
+			text-transform: none !important;
+			letter-spacing: normal !important;
+		}
+
+		/* everything is DRAWN, not filled: a chalk outline, a wobbly hand-
+		   sketched radius, transparent slate fill, soft chalk-dust bloom */
+		body[data-family="chalk"] fieldset,
+		body[data-family="chalk"] .btn,
+		body[data-family="chalk"] .modal-content,
+		body[data-family="chalk"] .toast,
+		body[data-family="chalk"] .dropdown-menu,
+		body[data-family="chalk"] .list-group-item,
+		body[data-family="chalk"] .card {
+			border: 2px solid var(--cp-border) !important;
+			border-radius: 255px 12px 225px 15px / 15px 225px 18px 255px !important; /* hand-drawn wobble */
+			background: transparent;
+			box-shadow: 0 0 14px -4px var(--cp-border-glow); /* chalk-dust bloom */
+		}
+
+		/* inputs: only mildly wobbly so the native select caret stays aligned, faint raised fill */
+		body[data-family="chalk"] .form-control,
+		body[data-family="chalk"] .form-select {
+			border: 2px solid var(--cp-border) !important;
+			border-radius: 14px 10px 12px 9px !important;
+			background: var(--cp-surface);
+			color: var(--cp-text);
+		}
+
+		/* buttons = chalk outlines that "smudge" on hover (no pills, no offset blocks) */
+		body[data-family="chalk"] .btn {
+			font-weight: 400;
+			background: transparent;
+			color: var(--cp-text);
+		}
+		body[data-family="chalk"] .btn:hover {
+			background: rgba(240, 238, 230, .08); /* faint chalk wash */
+		}
+
+		/* one continuous board: same slate everywhere, a chalk-dashed header ledge (no floating bar) */
+		body[data-family="chalk"] .navbar.bg-primary {
+			background: var(--cp-panel) !important;
+			border-bottom: 2px dashed var(--cp-border);
+			box-shadow: none;
+		}
+		body[data-family="chalk"] #navbar-brand-co {
+			color: var(--cp-text) !important;
+		}
+		body[data-family="chalk"] #navbar-heading {
+			color: var(--cp-cyan) !important;
+		}
+		body[data-family="chalk"] .nav-logo {
+			filter: none;
+		}
+
+		/* chalked section heading with a doodle star + a wobbly hand-drawn underline */
+		body[data-family="chalk"] fieldset legend {
+			color: var(--cp-text);
+			position: relative;
+		}
+		body[data-family="chalk"] fieldset legend::before {
+			content: "\2732  "; /* chalk asterisk doodle */
+			color: var(--cp-cyan);
+		}
+
+		/* ---------- TABS: boxless chalk labels, active = one thick hand-drawn underline ---------- */
+		body[data-family="chalk"] .nav-tabs {
+			border-bottom: 2px dashed rgba(240, 238, 230, .3); /* smudged chalk ledge */
+			gap: .35rem;
+		}
+		body[data-family="chalk"] .nav-tabs .nav-link {
+			font-size: 1.02rem;
+			color: var(--cp-dim); /* faint chalk */
+			background: transparent !important;
+			border: 0 !important; /* NO box, NO pill */
+			border-radius: 0 !important;
+			padding: .5rem .9rem .6rem;
+			position: relative;
+		}
+		body[data-family="chalk"] .nav-tabs .nav-link:hover {
+			color: var(--cp-text);
+		}
+		body[data-family="chalk"] .nav-tabs .nav-link:hover::after {
+			content: "";
+			position: absolute;
+			left: .5rem;
+			right: .5rem;
+			bottom: .2rem;
+			height: 2px;
+			background: repeating-linear-gradient(90deg, var(--cp-dim) 0 5px, transparent 5px 8px);
+			opacity: .55; /* dashed = tentative chalk preview */
+		}
+		/* ACTIVE = bright chalk label + one thick wobbly hand-drawn underline via ::after */
+		body[data-family="chalk"] .nav-tabs .nav-link.active {
+			color: var(--cp-text);
+			background: transparent !important;
+			border: 0 !important;
+		}
+		body[data-family="chalk"] .nav-tabs .nav-link.active::after {
+			content: "";
+			position: absolute;
+			left: .35rem;
+			right: .35rem;
+			bottom: .1rem;
+			height: 4px;
+			background: repeating-linear-gradient(92deg, var(--cp-cyan) 0 9px, transparent 9px 12px, var(--cp-cyan) 12px 22px, transparent 22px 24px);
+			border-radius: 3px;
+			transform: skewX(-3deg); /* imperfect hand stroke */
+			filter: drop-shadow(0 0 2px var(--cp-border-glow)); /* chalk dust */
+		}
+		/* mode states just re-chalk the underline in another colour (no neon border swap) */
+		body[data-family="chalk"] .nav-tabs .nav-link.ftp-active {
+			color: var(--cp-yellow) !important;
+		}
+		body[data-family="chalk"] .nav-tabs .nav-link.ftp-active.active::after {
+			background: repeating-linear-gradient(92deg, var(--cp-yellow) 0 9px, transparent 9px 12px, var(--cp-yellow) 12px 22px, transparent 22px 24px);
+		}
+		body[data-family="chalk"] .nav-tabs .nav-link.bt-active {
+			color: var(--cp-magenta) !important;
+		}
+		body[data-family="chalk"] .nav-tabs .nav-link.bt-active.active::after {
+			background: repeating-linear-gradient(92deg, var(--cp-magenta) 0 9px, transparent 9px 12px, var(--cp-magenta) 12px 22px, transparent 22px 24px);
+		}
+
 		/* per-palette background washes for a bit of flavour */
 		body[data-theme="waldhaus"] {
 			background-image:
@@ -1987,6 +2180,15 @@
 				linear-gradient(rgba(53, 201, 230, .05) 1px, transparent 1px),
 				linear-gradient(90deg, rgba(53, 201, 230, .05) 1px, transparent 1px);
 			background-size: 32px 32px, 32px 32px;
+		}
+
+		/* faint chalk-dust grain on the slate board */
+		body[data-theme="kreidetafel"] {
+			background-image:
+				radial-gradient(1200px 600px at 50% -15%, rgba(240, 238, 230, .05), transparent 70%),
+				radial-gradient(3px 3px at 22% 38%, rgba(240, 238, 230, .05), transparent),
+				radial-gradient(2px 2px at 74% 66%, rgba(240, 238, 230, .045), transparent),
+				radial-gradient(2px 2px at 46% 82%, rgba(240, 238, 230, .04), transparent);
 		}
 
 		/* ---- Settings search ---- */
@@ -2056,7 +2258,7 @@
 	<!-- Apply the stored theme before paint to avoid a flash of the wrong colours. -->
 	<script>
 		(function () {
-			var T = { cyberpunk: { family: 'neon' }, waldhaus: { family: 'playful', mode: 'light' }, wolkchen: { family: 'playful', mode: 'light' }, pixelheld: { family: 'pixel', mode: 'dark' }, riff: { family: 'playful', mode: 'light' }, dschungel: { family: 'playful', mode: 'light' }, robo: { family: 'pixel', mode: 'dark' } };
+			var T = { cyberpunk: { family: 'neon' }, waldhaus: { family: 'playful', mode: 'light' }, wolkchen: { family: 'playful', mode: 'light' }, pixelheld: { family: 'pixel', mode: 'dark' }, riff: { family: 'playful', mode: 'light' }, dschungel: { family: 'playful', mode: 'light' }, robo: { family: 'pixel', mode: 'dark' }, kreidetafel: { family: 'chalk', mode: 'dark' } };
 				var theme = localStorage.getItem('uiTheme') || 'cyberpunk';
 				if (!T[theme]) { theme = 'cyberpunk'; }
 				document.body.setAttribute('data-theme', theme);
@@ -2139,6 +2341,7 @@
 										<option value="riff" data-i18n="themeRiff"></option>
 										<option value="dschungel" data-i18n="themeDschungel"></option>
 										<option value="robo" data-i18n="themeRobo"></option>
+										<option value="kreidetafel" data-i18n="themeKreidetafel"></option>
 									</select>
 								</div>
 							</li>
@@ -7865,37 +8068,66 @@
 			rebuildRFIDList();
 		}
 
+		// The clean/format ops run on a firmware worker task now; the POST just starts them and we poll
+		// GET /sdmaint for completion so the whole web UI doesn't freeze for the operation's duration.
+		function pollSdMaint(isFormat) {
+			const tick = async () => {
+				let st;
+				try {
+					st = await apiGet("/sdmaint");
+				} catch (e) {
+					setTimeout(tick, 1500); // transient; keep polling
+					return;
+				}
+				if (st.status === 1) {
+					setTimeout(tick, 1200); // still running
+					return;
+				}
+				if (st.status === 2) {
+					if (isFormat) {
+						toaster.success(i18next.t("tools.format.done"));
+					} else {
+						toaster.success(i18next.t("files.clean.done", { count: st.deleted }));
+					}
+					buildFileSystemTree("/");
+					refreshSdCapacity();
+				} else {
+					toaster.error(isFormat ? i18next.t("tools.format.error") : i18next.t("files.clean.error"));
+				}
+			};
+			setTimeout(tick, 700);
+		}
+
 		async function cleanSd() {
 			$('#cleanSdModal').modal('hide');
 			toaster.info(i18next.t("files.clean.running"));
-			const response = await fetch("http://" + host + "/sdclean", {
-				method: "POST"
-			});
-			if (response.ok) {
-				const result = await response.json();
-				toaster.success(i18next.t("files.clean.done", {
-					count: result.deleted
-				}));
-				buildFileSystemTree("/");
-				refreshSdCapacity();
-			} else {
-				toaster.error(response.statusText);
+			try {
+				const response = await fetch("http://" + host + "/sdclean", { method: "POST" });
+				if (!response.ok) {
+					toaster.error(response.statusText);
+					return;
+				}
+			} catch (e) {
+				toaster.error(String(e));
+				return;
 			}
+			pollSdMaint(false);
 		}
 
 		async function formatSd() {
 			$('#formatSdModal').modal('hide');
 			toaster.info(i18next.t("tools.format.running"));
-			const response = await fetch("http://" + host + "/sdformat", {
-				method: "POST"
-			});
-			if (response.ok) {
-				toaster.success(i18next.t("tools.format.done"));
-				buildFileSystemTree("/");
-				refreshSdCapacity();
-			} else {
+			try {
+				const response = await fetch("http://" + host + "/sdformat", { method: "POST" });
+				if (!response.ok) {
+					toaster.error(i18next.t("tools.format.error"));
+					return;
+				}
+			} catch (e) {
 				toaster.error(i18next.t("tools.format.error"));
+				return;
 			}
+			pollSdMaint(true);
 		}
 
 		/* ---- battery-backed RTC (DS3231) management ---- */
@@ -9115,6 +9347,7 @@
 				riff: { family: 'playful', mode: 'light' },
 				dschungel: { family: 'playful', mode: 'light' },
 				robo: { family: 'pixel', mode: 'dark' },
+				kreidetafel: { family: 'chalk', mode: 'dark' },
 			};
 
 			function pinnedMode(theme) {

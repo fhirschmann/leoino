@@ -23,6 +23,7 @@
 	"themeRiff": "Riff",
 	"themeDschungel": "Dschungel",
 	"themeRobo": "Roboter",
+	"themeKreidetafel": "Kreidetafel",
 	"restartinfo": "ESPuino wird jetzt neu gestartet...<br>Die Seite lädt sich nach dem Neustart automatisch neu.",
 	"shutdowninfo": "ESPuino wird jetzt ausgeschaltet...<br>Die Seite lädt sich nach dem Wiedereinschalten automatisch neu.",
 	"toast": {
@@ -371,7 +372,8 @@
 			"button": "SD-Karte bereinigen (macOS-Metadaten löschen)",
 			"confirm": "Bereinigen",
 			"running": "Bereinige SD-Karte…",
-			"done": "Bereinigung abgeschlossen: {{count}} Einträge entfernt"
+			"done": "Bereinigung abgeschlossen: {{count}} Einträge entfernt",
+			"error": "SD-Bereinigung fehlgeschlagen"
 		},
 		"storage": {
 			"title": "Speicherplatz",

@@ -301,6 +301,8 @@
 			if (p === "/sync") { return jsonResp({ status: 2, progress: 100, message: "demo: file sync runs only on the device" }); }
 			// firmware-update status poll: numeric status so the UI's poll loop terminates (checks st.status)
 			if (p === "/githubupdate") { return jsonResp({ status: 2, progress: 100, message: "demo: firmware update runs only on the device" }); }
+			// SD clean/format run async on the device now; the UI polls this. Report "done" immediately.
+			if (p === "/sdmaint") { return jsonResp({ status: 2, deleted: 3, message: "done" }); }
 			// serial log tail: a few canned lines so the log viewer shows something
 			if (p === "/log") {
 				return { status: 200, contentType: "text/plain; charset=utf-8", body: [
@@ -360,8 +362,9 @@
 			return jsonResp({ status: "ok", demo: true });
 		}
 
-		// SD cleanup: the UI renders result.deleted, so answer with a plausible count.
-		if (p === "/sdclean") { return jsonResp({ deleted: 3 }); }
+		// SD clean/format now start an async worker and the UI polls GET /sdmaint. The POST just
+		// acknowledges the start; /sdmaint (in the GET branch) then reports "done".
+		if (p === "/sdclean" || p === "/sdformat") { return jsonResp({ status: 1 }); }
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
 		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|rfid|explorer|exploreraudio|playlist|playstats|sdclean|sdformat|rtc|homekit|security|wificonfig|eqrule|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
