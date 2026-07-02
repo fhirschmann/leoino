@@ -912,6 +912,27 @@ void AudioPlayer_Loop() {
 		// Update current playtime and duration
 		AudioPlayer_CurrentTime = audio->getAudioCurrentTime();
 		AudioPlayer_FileDuration = audio->getAudioFileDuration();
+		// While a mid-file resume seek is still settling, the decoder briefly reports a
+		// near-0 time. Report the seek target instead, so the neopixel/web progress bars
+		// (and the OLED elapsed time) don't jump to "start of track" after a card is
+		// re-applied, only to leap back to the real position once the seek lands.
+		if (!AudioPlayer_ResumePositionSettled() && AudioPlayer_CurrentTime < gResumeTargetSec) {
+			AudioPlayer_CurrentTime = gResumeTargetSec;
+		}
+		// The audio library only executes the connecttoFS() start-time seek for files
+		// carrying a Xing/VBR header (it gates on the nominal bitrate); plain CBR files
+		// silently skip it and play from the beginning, losing the audiobook resume
+		// position. Drive the pending resume from here once the decoder reports a live
+		// bitrate; retries are throttled and bounded by the resume-settle timeout.
+		static uint32_t lastResumeSeekAttemptMs = 0;
+		if (gResumeSeekPending && audio->isRunning() && (audio->getBitRate() > 0)
+			&& ((audio->getAudioCurrentTime() + 2) < gResumeTargetSec)
+			&& ((millis() - lastResumeSeekAttemptMs) >= 1000)) {
+			lastResumeSeekAttemptMs = millis();
+			if (audio->setAudioPlayTime(gResumeTargetSec)) {
+				Log_Printf(LOGLEVEL_DEBUG, "resume-seek to %u s driven from player (file has no VBR header)", (unsigned) gResumeTargetSec);
+			}
+		}
 		// Cache the current stream format for the now-playing info dialog (read cross-core)
 		AudioPlayer_BitRate = audio->getBitRate();
 		AudioPlayer_SampleRate = audio->getSampleRate();
@@ -926,7 +947,7 @@ void AudioPlayer_Loop() {
 		if (!gPlayProperties.playlistFinished && AudioPlayer_FileDuration > 0) {
 			// for local files and web files with known size
 			if (!gPlayProperties.pausePlay && (gPlayProperties.seekmode != SEEK_POS_PERCENT)) { // To progress necessary when paused
-				gPlayProperties.currentRelPos = ((float) audio->getAudioCurrentTime() / audio->getAudioFileDuration()) * 100.0f;
+				gPlayProperties.currentRelPos = ((float) AudioPlayer_CurrentTime / AudioPlayer_FileDuration) * 100.0f;
 			}
 		} else {
 			if (gPlayProperties.isWebstream && (System_GetOperationMode() != OPMODE_BLUETOOTH_SINK) && (audio->getInBufferSize() > 0)) {
