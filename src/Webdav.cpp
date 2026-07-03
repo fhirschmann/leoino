@@ -24,6 +24,11 @@ static WiFiServer *webdavServer = nullptr;
 static TaskHandle_t webdavTaskHandle = nullptr;
 static volatile bool webdavShouldRun = false;
 static volatile bool webdavRunning = false;
+// Enable/Disable/Exit are called from several tasks (web, MQTT, command, system-shutdown). Without
+// serialization, a start racing the previous task's self-teardown (delete webdavServer) could spawn
+// a second task that `new`s the server against the concurrent delete -> use-after-free / double-free
+// reboot. This mutex makes the start/stop decision atomic; the task lifecycle itself stays lock-free.
+static portMUX_TYPE webdavStateMux = portMUX_INITIALIZER_UNLOCKED;
 
 String Webdav_User = "esp32"; // default; kept for compatibility but ignored for auth (any username is accepted)
 String Webdav_Password = "esp32"; // the shared device password (set on the Security tab)
@@ -190,6 +195,30 @@ static void webdavDrain(WiFiClient &client, long n) {
 			continue;
 		}
 		n -= got;
+	}
+}
+
+// Discard a chunked request body (Transfer-Encoding: chunked, no Content-Length). macOS Finder
+// sends chunked bodies on PROPFIND/LOCK/PROPPATCH; without draining them, client.stop() closes
+// the socket with the body still unread, which RSTs the connection and can truncate our reply -
+// Finder then never sees a valid response and retries in a tight loop. We don't need the decoded
+// content, so just read until the terminating 0-length chunk or the peer stops sending.
+static void webdavDrainChunked(WiFiClient &client) {
+	uint8_t tmp[256];
+	uint32_t idle = millis();
+	while (client.connected() && (millis() - idle) < 2000) {
+		int got = client.read(tmp, sizeof(tmp));
+		if (got > 0) {
+			idle = millis();
+			// the last chunk is "0\r\n\r\n"; once we see a standalone 0-size chunk trailer we're done
+			if (got >= 5 && tmp[0] == '0' && (tmp[1] == '\r' || tmp[1] == '\n')) {
+				break;
+			}
+			continue;
+		}
+		if (!client.available()) {
+			vTaskDelay(pdMS_TO_TICKS(5));
+		}
 	}
 }
 
@@ -361,7 +390,7 @@ static void webdavHandleGet(WiFiClient &client, const String &path, bool headOnl
 		uint8_t *buf = (uint8_t *) malloc(WEBDAV_BUFFER_SIZE);
 		if (buf) {
 			uint32_t remaining = length;
-			while (remaining > 0 && client.connected()) {
+			while (remaining > 0 && client.connected() && webdavShouldRun) { // abort a big GET promptly on shutdown
 				size_t want = (remaining > WEBDAV_BUFFER_SIZE) ? WEBDAV_BUFFER_SIZE : remaining;
 				int got = f.read(buf, want);
 				if (got <= 0) {
@@ -391,7 +420,7 @@ static void webdavHandlePut(WiFiClient &client, const String &path, long content
 	bool ok = (buf != nullptr);
 	long remaining = contentLength;
 	uint32_t idleStart = millis();
-	while (ok && remaining > 0 && client.connected()) {
+	while (ok && remaining > 0 && client.connected() && webdavShouldRun) { // abort a big PUT promptly on shutdown
 		int avail = client.available();
 		if (avail <= 0) {
 			if (millis() - idleStart > 8000) {
@@ -619,6 +648,12 @@ static void webdavHandleClient(WiFiClient &client) {
 		return; // parked/empty connection -- caller closes it, freeing us to accept the next at once
 	}
 	String reqLine = client.readStringUntil('\n');
+	// Cap the request line: a client that never sends a newline would otherwise grow this String
+	// until the (~55 KB) internal heap is exhausted, OOM-crashing the device.
+	if (reqLine.length() > 2048) {
+		webdavSendStatus(client, 414, "URI Too Long");
+		return;
+	}
 	reqLine.trim();
 	if (reqLine.isEmpty()) {
 		return;
@@ -635,10 +670,17 @@ static void webdavHandleClient(WiFiClient &client) {
 	long contentLength = 0;
 	String depth = "infinity";
 	String destination, authz, overwrite = "T", range, transferEncoding;
+	size_t headerBytes = 0;
 	while (client.connected()) {
 		String line = client.readStringUntil('\n');
 		if (line == "\r" || line.length() == 0 || line == "\n") {
 			break;
+		}
+		// Bound total header size: a flood of headers (or one endless line) would otherwise
+		// exhaust the internal heap. 8 KB is far more than any real WebDAV request needs.
+		if (line.length() > 1024 || (headerBytes += line.length()) > 8192) {
+			webdavSendStatus(client, 431, "Request Header Fields Too Large");
+			return;
 		}
 		line.trim();
 		if (line.isEmpty()) {
@@ -673,7 +715,11 @@ static void webdavHandleClient(WiFiClient &client) {
 	// Authentication (HTTP Basic). Any username is accepted; only the password is checked.
 	// When no password is configured the drive is open.
 	if (!webdavCheckAuth(authz)) {
-		webdavDrain(client, contentLength);
+		if (transferEncoding.indexOf("hunked") >= 0) {
+			webdavDrainChunked(client);
+		} else {
+			webdavDrain(client, contentLength);
+		}
 		client.print("HTTP/1.1 401 Unauthorized\r\n");
 		client.print("WWW-Authenticate: Basic realm=\"ESPuino WebDAV\"\r\n");
 		client.print("Connection: close\r\n");
@@ -684,8 +730,26 @@ static void webdavHandleClient(WiFiClient &client) {
 	String path = webdavUriToPath(rawUri);
 	bool overwriteFlag = !overwrite.equalsIgnoreCase("F");
 
+	// Whether the request carries a chunked body (no Content-Length). We don't decode chunked
+	// content, but every non-PUT method below still has to *consume* it before closing the socket,
+	// or the RST-on-close truncates our reply and Finder retries in a loop.
+	bool bodyIsChunked = false;
+	{
+		String te = transferEncoding;
+		te.toLowerCase();
+		bodyIsChunked = te.indexOf("chunked") >= 0;
+	}
+	// Consume the request body (fixed length or chunked) so client.stop() never RSTs on unread data.
+	auto consumeBody = [&]() {
+		if (bodyIsChunked) {
+			webdavDrainChunked(client);
+		} else {
+			webdavDrain(client, contentLength);
+		}
+	};
+
 	if (method == "OPTIONS") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		client.print("HTTP/1.1 200 OK\r\n");
 		client.print("Connection: close\r\n");
 		client.print("DAV: 1, 2\r\n");
@@ -693,38 +757,41 @@ static void webdavHandleClient(WiFiClient &client) {
 		client.print("Allow: OPTIONS, GET, HEAD, PUT, DELETE, PROPFIND, PROPPATCH, MKCOL, COPY, MOVE, LOCK, UNLOCK\r\n");
 		client.print("Content-Length: 0\r\n\r\n");
 	} else if (method == "PROPFIND") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavHandlePropfind(client, path, depth);
 	} else if (method == "GET" || method == "HEAD") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavHandleGet(client, path, method == "HEAD", range);
 	} else if (method == "PUT") {
 		// A chunked body has no Content-Length, so we'd otherwise treat it as a 0-byte PUT and truncate
-		// the target to empty. We don't decode chunked transfer-encoding, so per RFC 7230 demand a length.
-		String te = transferEncoding;
-		te.toLowerCase();
-		if (te.indexOf("chunked") >= 0) {
+		// the target to empty. We don't decode chunked transfer-encoding, so per RFC 7230 demand a length
+		// (draining the body first so the 411 reaches Finder cleanly instead of being RST-truncated).
+		if (bodyIsChunked) {
+			webdavDrainChunked(client);
 			webdavSendStatus(client, 411, "Length Required");
+		} else if (contentLength < 0) {
+			// a negative length would skip the copy loop and leave the freshly-truncated target empty
+			webdavSendStatus(client, 400, "Bad Request");
 		} else {
 			webdavHandlePut(client, path, contentLength);
 		}
 	} else if (method == "DELETE") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavHandleDelete(client, path);
 	} else if (method == "MKCOL") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavHandleMkcol(client, path);
 	} else if (method == "MOVE" || method == "COPY") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavHandleMoveCopy(client, path, destination, method == "MOVE", overwriteFlag);
 	} else if (method == "LOCK") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavHandleLock(client, path);
 	} else if (method == "UNLOCK") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavSendStatus(client, 204, "No Content");
 	} else if (method == "PROPPATCH") {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		// We don't persist arbitrary props (e.g. Win32 timestamps); acknowledge so writes complete.
 		String href = Url_EncodePath((path == "/") ? "" : path);
 		if (href.isEmpty()) {
@@ -738,7 +805,7 @@ static void webdavHandleClient(WiFiClient &client) {
 		client.printf("Content-Length: %u\r\n\r\n", (unsigned) body.length());
 		client.print(body);
 	} else {
-		webdavDrain(client, contentLength);
+		consumeBody();
 		webdavSendStatus(client, 405, "Method Not Allowed");
 	}
 }
@@ -816,18 +883,29 @@ void Webdav_Cyclic(void) {
 }
 
 void Webdav_EnableServer(void) {
-	if (webdavTaskHandle != nullptr || webdavRunning) {
-		return; // already running
-	}
 	if (!Wlan_IsConnected()) {
 		Log_Println("WebDAV: cannot start, no WiFi", LOGLEVEL_ERROR);
 		System_IndicateError();
 		return;
 	}
-	webdavShouldRun = true;
+	// Claim the start atomically: only proceed if the server is fully stopped (no task, not running,
+	// and not asked to run). Anything else means a start is already live or the previous instance
+	// hasn't finished tearing down - either way, don't spawn a second task.
+	bool claimed = false;
+	portENTER_CRITICAL(&webdavStateMux);
+	if (webdavTaskHandle == nullptr && !webdavRunning && !webdavShouldRun) {
+		webdavShouldRun = true;
+		claimed = true;
+	}
+	portEXIT_CRITICAL(&webdavStateMux);
+	if (!claimed) {
+		return; // already running or mid-transition
+	}
 	if (xTaskCreatePinnedToCore(webdavTask, "webdav", 8192, nullptr, 1, &webdavTaskHandle, 0) != pdPASS) {
+		portENTER_CRITICAL(&webdavStateMux);
 		webdavShouldRun = false;
 		webdavTaskHandle = nullptr;
+		portEXIT_CRITICAL(&webdavStateMux);
 		Log_Println("WebDAV: failed to create task", LOGLEVEL_ERROR);
 		System_IndicateError();
 		return;
@@ -844,9 +922,14 @@ void Webdav_DisableServer(void) {
 }
 
 void Webdav_Exit(void) {
+	// Signal the task to stop; the GET/PUT transfer loops watch webdavShouldRun and bail out fast,
+	// so an in-flight transfer no longer runs its full 8 s timeout before the task tears down. Wait
+	// long enough (9 s) that the task always finishes deleting webdavServer and clearing its state
+	// before we return - a shorter cap let the task outlive teardown and dereference a WiFi stack
+	// that was already being shut down.
 	webdavShouldRun = false;
 	uint32_t start = millis();
-	while (webdavRunning && (millis() - start < 1500)) {
+	while (webdavRunning && (millis() - start < 9000)) {
 		vTaskDelay(pdMS_TO_TICKS(20));
 	}
 }
