@@ -7,6 +7,7 @@
 #include "Log.h"
 #include "SdCard.h"
 #include "System.h"
+#include "Web.h"
 #include "Wlan.h"
 
 #include <WiFi.h>
@@ -962,6 +963,17 @@ void Webdav_Cyclic(void) {
 		autostartHandled = true;
 		Webdav_EnableServer();
 	}
+
+	// Keep every open web UI in sync no matter WHO toggled the server (websocket button, command
+	// 188 via button/IR remote, MQTT, autostart): broadcast on every state edge. The websocket
+	// handler's own broadcast right after Enable/Disable covers the common case; this catches the
+	// rest without the other call sites having to know about the web layer.
+	static bool lastReportedState = false;
+	const bool state = Webdav_IsServerRunning();
+	if (state != lastReportedState) {
+		lastReportedState = state;
+		Web_SendWebsocketData(0, WebsocketCodeType::WebdavStatus);
+	}
 }
 
 void Webdav_EnableServer(void) {
@@ -1029,7 +1041,13 @@ void Webdav_Exit(void) {
 }
 
 bool Webdav_IsServerRunning(void) {
-	return webdavRunning || webdavShouldRun;
+	// Report the TARGET state, not the workers' teardown progress: after a stop request the
+	// workers keep running for one more loop pass (longer mid-transfer), and the status
+	// broadcast the web/command handlers send right after Enable/Disable raced that window -
+	// the UI's on/off button then showed "on" although the server was already shutting down.
+	// For every consumer (web UI button, MQTT state topic, the command-188 toggle) the intent
+	// is the correct answer during that brief transition.
+	return webdavShouldRun;
 }
 
 #else // WEBDAV_ENABLE
