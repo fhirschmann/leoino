@@ -20,14 +20,29 @@
 
 #ifdef WEBDAV_ENABLE
 
+// macOS Finder opens one TCP connection per file in a folder (no keep-alive: "Connection: close")
+// to fetch cover-art/thumbnail data, all at once when entering a folder in icon view. Handling
+// them one at a time made a real folder's browse time scale linearly with file count (measured
+// ~0.6s/file -> 5.5s wall for 9 files, worse for a typical 14+-track audiobook folder) - easily
+// past what Finder waits before it looks permanently stuck. NetworkServer::accept() is safe to
+// call from multiple tasks on the same listening socket (the only shared, mutable member it
+// touches - _accepted_sockfd - is only ever written by the available()/hasClient() path, which
+// this server never calls), so a small pool of worker tasks pulls connections off the same
+// listener concurrently. Each request is still handled synchronously end-to-end on its own
+// worker, so a single slow transfer only blocks the OTHER workers, never all of them at once.
+static constexpr int WEBDAV_WORKER_COUNT = 2;
+
 static WiFiServer *webdavServer = nullptr;
-static TaskHandle_t webdavTaskHandle = nullptr;
+static TaskHandle_t webdavTaskHandles[WEBDAV_WORKER_COUNT] = {nullptr};
 static volatile bool webdavShouldRun = false;
-static volatile bool webdavRunning = false;
-// Enable/Disable/Exit are called from several tasks (web, MQTT, command, system-shutdown). Without
-// serialization, a start racing the previous task's self-teardown (delete webdavServer) could spawn
-// a second task that `new`s the server against the concurrent delete -> use-after-free / double-free
-// reboot. This mutex makes the start/stop decision atomic; the task lifecycle itself stays lock-free.
+static volatile bool webdavRunning = false; // true once the first worker has created+started the listener
+static volatile int webdavActiveWorkers = 0; // workers currently inside their accept loop
+// Enable/Disable/Exit are called from several tasks (web, MQTT, command, system-shutdown), and now
+// also guard the multi-worker startup/teardown handoff (first worker in creates the listener, last
+// worker out destroys it). Without serialization, a start racing the previous run's self-teardown
+// (delete webdavServer) could `new` a second server against the concurrent delete -> use-after-free
+// / double-free reboot. This mutex makes those decisions atomic; steady-state request handling
+// itself stays lock-free.
 static portMUX_TYPE webdavStateMux = portMUX_INITIALIZER_UNLOCKED;
 
 String Webdav_User = "esp32"; // default; kept for compatibility but ignored for auth (any username is accepted)
@@ -851,10 +866,28 @@ static void webdavHandleClient(WiFiClient &client) {
 // ---------------------------------------------------------------------------- task + lifecycle
 
 static void webdavTask(void *param) {
-	webdavServer = new WiFiServer(webdavPort);
-	webdavServer->begin();
-	webdavRunning = true;
-	Log_Printf(LOGLEVEL_NOTICE, "WebDAV server started on port %u", webdavPort);
+	const int workerIndex = (int) (intptr_t) param;
+
+	// First worker in creates the shared listener; later workers just wait for it. Backlog raised
+	// from the default of 4 to match CONFIG_LWIP_TCP_ACCEPTMBOX_SIZE (bumped alongside this in
+	// sdkconfig.defaults) so a realistic folder's simultaneous connections are all queued
+	// immediately instead of a fraction of them being SYN-retried.
+	bool isFirst = false;
+	portENTER_CRITICAL(&webdavStateMux);
+	webdavActiveWorkers++;
+	isFirst = (webdavActiveWorkers == 1);
+	portEXIT_CRITICAL(&webdavStateMux);
+	if (isFirst) {
+		webdavServer = new WiFiServer(webdavPort, 12);
+		webdavServer->begin();
+		webdavRunning = true;
+		Log_Printf(LOGLEVEL_NOTICE, "WebDAV server started on port %u (%d workers)", webdavPort, WEBDAV_WORKER_COUNT);
+	} else {
+		while (!webdavRunning && webdavShouldRun) {
+			vTaskDelay(pdMS_TO_TICKS(5));
+		}
+	}
+
 	while (webdavShouldRun) {
 		if (!Wlan_IsConnected()) {
 			vTaskDelay(pdMS_TO_TICKS(250));
@@ -863,7 +896,8 @@ static void webdavTask(void *param) {
 		// Use accept() (not the deprecated available()): it hands back each *new* connection exactly
 		// once and a falsy client when none is pending. available() can keep returning the same/stale
 		// client, which spins this loop at 100% CPU and wedges the server once Finder opens its burst
-		// of short-lived connections -- the drive then "disappears" mid-mount.
+		// of short-lived connections -- the drive then "disappears" mid-mount. Safe to call from
+		// several worker tasks concurrently (see the WEBDAV_WORKER_COUNT comment above).
 		WiFiClient client = webdavServer->accept();
 		if (client) {
 			// NB: we deliberately do NOT refresh the inactivity timer here. A mounted drive makes
@@ -877,12 +911,22 @@ static void webdavTask(void *param) {
 			vTaskDelay(pdMS_TO_TICKS(20));
 		}
 	}
-	webdavServer->stop();
-	delete webdavServer;
-	webdavServer = nullptr;
-	webdavRunning = false;
-	webdavTaskHandle = nullptr;
-	Log_Println("WebDAV server stopped", LOGLEVEL_NOTICE);
+
+	bool isLast = false;
+	portENTER_CRITICAL(&webdavStateMux);
+	webdavActiveWorkers--;
+	isLast = (webdavActiveWorkers == 0);
+	portEXIT_CRITICAL(&webdavStateMux);
+	if (isLast) {
+		if (webdavServer != nullptr) { // defensive: null only if this worker raced past a not-yet-scheduled "first" worker
+			webdavServer->stop();
+			delete webdavServer;
+			webdavServer = nullptr;
+		}
+		webdavRunning = false;
+		Log_Println("WebDAV server stopped", LOGLEVEL_NOTICE);
+	}
+	webdavTaskHandles[workerIndex] = nullptr;
 	vTaskDelete(nullptr);
 }
 
@@ -926,12 +970,16 @@ void Webdav_EnableServer(void) {
 		System_IndicateError();
 		return;
 	}
-	// Claim the start atomically: only proceed if the server is fully stopped (no task, not running,
-	// and not asked to run). Anything else means a start is already live or the previous instance
-	// hasn't finished tearing down - either way, don't spawn a second task.
+	// Claim the start atomically: only proceed if the server is fully stopped (no worker task, not
+	// running, and not asked to run). Anything else means a start is already live or the previous
+	// instance hasn't finished tearing down - either way, don't spawn a second batch of workers.
 	bool claimed = false;
 	portENTER_CRITICAL(&webdavStateMux);
-	if (webdavTaskHandle == nullptr && !webdavRunning && !webdavShouldRun) {
+	bool anyTaskAlive = false;
+	for (int i = 0; i < WEBDAV_WORKER_COUNT; i++) {
+		anyTaskAlive = anyTaskAlive || (webdavTaskHandles[i] != nullptr);
+	}
+	if (!anyTaskAlive && !webdavRunning && !webdavShouldRun) {
 		webdavShouldRun = true;
 		claimed = true;
 	}
@@ -939,14 +987,22 @@ void Webdav_EnableServer(void) {
 	if (!claimed) {
 		return; // already running or mid-transition
 	}
-	if (xTaskCreatePinnedToCore(webdavTask, "webdav", 8192, nullptr, 1, &webdavTaskHandle, 0) != pdPASS) {
-		portENTER_CRITICAL(&webdavStateMux);
-		webdavShouldRun = false;
-		webdavTaskHandle = nullptr;
-		portEXIT_CRITICAL(&webdavStateMux);
-		Log_Println("WebDAV: failed to create task", LOGLEVEL_ERROR);
-		System_IndicateError();
-		return;
+	for (int i = 0; i < WEBDAV_WORKER_COUNT; i++) {
+		if (xTaskCreatePinnedToCore(webdavTask, "webdav", 8192, (void *) (intptr_t) i, 1, &webdavTaskHandles[i], 0) != pdPASS) {
+			Log_Println("WebDAV: failed to create worker task", LOGLEVEL_ERROR);
+			// Stop whichever workers already started and wait for them to unwind before giving up,
+			// so we don't leave a partially-started server (and its listener) behind.
+			webdavShouldRun = false;
+			uint32_t start = millis();
+			while (webdavActiveWorkers > 0 && (millis() - start < 9000)) {
+				vTaskDelay(pdMS_TO_TICKS(20));
+			}
+			for (int j = 0; j < WEBDAV_WORKER_COUNT; j++) {
+				webdavTaskHandles[j] = nullptr;
+			}
+			System_IndicateError();
+			return;
+		}
 	}
 	System_IndicateOk();
 }
@@ -955,16 +1011,16 @@ void Webdav_DisableServer(void) {
 	if (!webdavShouldRun && !webdavRunning) {
 		return;
 	}
-	webdavShouldRun = false; // the task closes the listener and self-deletes on its next iteration
+	webdavShouldRun = false; // each worker closes the listener (the last one out) and self-deletes on its next iteration
 	System_IndicateOk();
 }
 
 void Webdav_Exit(void) {
-	// Signal the task to stop; the GET/PUT transfer loops watch webdavShouldRun and bail out fast,
-	// so an in-flight transfer no longer runs its full 8 s timeout before the task tears down. Wait
-	// long enough (9 s) that the task always finishes deleting webdavServer and clearing its state
-	// before we return - a shorter cap let the task outlive teardown and dereference a WiFi stack
-	// that was already being shut down.
+	// Signal the workers to stop; the GET/PUT transfer loops watch webdavShouldRun and bail out
+	// fast, so an in-flight transfer no longer runs its full 8 s timeout before teardown. Wait long
+	// enough (9 s) that every worker always finishes (the last one deletes webdavServer) before we
+	// return - a shorter cap let a worker outlive teardown and dereference a WiFi stack that was
+	// already being shut down.
 	webdavShouldRun = false;
 	uint32_t start = millis();
 	while (webdavRunning && (millis() - start < 9000)) {

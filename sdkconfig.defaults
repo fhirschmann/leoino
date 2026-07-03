@@ -251,6 +251,12 @@ CONFIG_LWIP_IPV6_AUTOCONFIG=y
 CONFIG_LWIP_TCP_SYNMAXRTX=6
 CONFIG_LWIP_TCP_MSS=1436
 CONFIG_LWIP_TCP_RTO_TIME=3000
+# macOS Finder opens one connection per file (cover-art/thumbnail fetch, no keep-alive) when
+# entering a folder in icon view - a folder with more files than the accept-queue depth left
+# the excess connections stuck in TCP SYN-retransmit backoff before the (bumped-to-match, see
+# Webdav.cpp) WebDAV server's listen backlog ever saw them, which is what made Finder folder
+# browsing "hang" on anything past a handful of tracks. Default was 6.
+CONFIG_LWIP_TCP_ACCEPTMBOX_SIZE=12
 # end of TCP
 
 CONFIG_LWIP_TCPIP_TASK_STACK_SIZE=2560
