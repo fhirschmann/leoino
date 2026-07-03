@@ -632,27 +632,62 @@ static void webdavHandleLock(WiFiClient &client, const String &path) {
 
 // ---------------------------------------------------------------------------- request dispatch
 
+// The whole request line + header block of a real WebDAV request arrives within one LAN round-trip
+// (single-digit ms). We read the header block under this overall deadline so a connection that
+// stalls mid-request (macOS opens a pool of connections and doesn't always finish a request on
+// each) is abandoned in well under a second instead of blocking this single-threaded server for
+// the full socket timeout. That per-connection stall was what made Finder browsing sit on
+// "Loading..." for many seconds: every half-open pooled connection froze the server in turn.
+static constexpr uint32_t WEBDAV_HEADER_DEADLINE_MS = 500;
+
+// Read one line (up to and including a '\n', which is discarded) into out, bounded by an absolute
+// millis() deadline. Returns false when the deadline passes before a full line arrives, or the
+// connection closes, or the line grows past 2 KB (OOM guard) - the caller then drops the socket.
+static bool webdavReadLine(WiFiClient &client, String &out, uint32_t deadlineMs) {
+	out = "";
+	while (true) {
+		int c = client.read();
+		if (c < 0) {
+			if ((int32_t) (millis() - deadlineMs) >= 0) {
+				return false; // request stalled - don't let it hog the single server task
+			}
+			if (!client.connected() && client.available() == 0) {
+				return false;
+			}
+			vTaskDelay(pdMS_TO_TICKS(2));
+			continue;
+		}
+		if (c == '\n') {
+			return true;
+		}
+		if (out.length() >= 2048) {
+			return false; // absurdly long line (no newline) - drop before it OOMs the heap
+		}
+		out += (char) c;
+	}
+}
+
 static void webdavHandleClient(WiFiClient &client) {
 	client.setNoDelay(true);
 	client.setTimeout(1500);
-	// macOS' webdavfs keeps idle keep-alive connections parked in a pool. Since we answer with
-	// "Connection: close", accept() hands us those parked sockets with no request on them; blocking
-	// in readStringUntil for the full timeout would stall this single-threaded server and make Finder
-	// hang ("stuck loading"). A real request's bytes arrive within the first round-trip, so wait only
-	// briefly for the first byte and drop the connection fast if nothing comes.
-	uint32_t idleStart = millis();
-	while (client.connected() && client.available() == 0 && (millis() - idleStart) < 150) {
-		vTaskDelay(pdMS_TO_TICKS(3));
+	// macOS' webdavfs keeps a pool of keep-alive connections parked. Since we answer with
+	// "Connection: close", accept() hands us those parked sockets with no request on them. Drop
+	// them fast (a real request's first byte is here within one LAN round-trip) so the pool doesn't
+	// serialize into a multi-second stall on this single-threaded server.
+	uint32_t firstByte = millis();
+	while (client.connected() && client.available() == 0 && (millis() - firstByte) < 120) {
+		vTaskDelay(pdMS_TO_TICKS(2));
 	}
 	if (client.available() == 0) {
-		return; // parked/empty connection -- caller closes it, freeing us to accept the next at once
+		return; // parked/empty connection
 	}
-	String reqLine = client.readStringUntil('\n');
-	// Cap the request line: a client that never sends a newline would otherwise grow this String
-	// until the (~55 KB) internal heap is exhausted, OOM-crashing the device.
-	if (reqLine.length() > 2048) {
-		webdavSendStatus(client, 414, "URI Too Long");
-		return;
+	// Once bytes are flowing, the whole header block of a real request follows within a few ms.
+	// Bound the rest so a connection that stalls mid-request is abandoned in well under a second.
+	const uint32_t headerDeadline = millis() + WEBDAV_HEADER_DEADLINE_MS;
+
+	String reqLine;
+	if (!webdavReadLine(client, reqLine, headerDeadline)) {
+		return; // stalled after the first byte -- drop it
 	}
 	reqLine.trim();
 	if (reqLine.isEmpty()) {
@@ -671,14 +706,17 @@ static void webdavHandleClient(WiFiClient &client) {
 	String depth = "infinity";
 	String destination, authz, overwrite = "T", range, transferEncoding;
 	size_t headerBytes = 0;
-	while (client.connected()) {
-		String line = client.readStringUntil('\n');
-		if (line == "\r" || line.length() == 0 || line == "\n") {
+	while (true) {
+		String line;
+		if (!webdavReadLine(client, line, headerDeadline)) {
+			return; // stalled mid-headers -- drop fast rather than block the server
+		}
+		if (line == "\r" || line.length() == 0) {
 			break;
 		}
-		// Bound total header size: a flood of headers (or one endless line) would otherwise
-		// exhaust the internal heap. 8 KB is far more than any real WebDAV request needs.
-		if (line.length() > 1024 || (headerBytes += line.length()) > 8192) {
+		// Bound total header size: a flood of headers would otherwise exhaust the internal heap.
+		// 8 KB is far more than any real WebDAV request needs.
+		if ((headerBytes += line.length()) > 8192) {
 			webdavSendStatus(client, 431, "Request Header Fields Too Large");
 			return;
 		}
