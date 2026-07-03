@@ -953,12 +953,10 @@ void webserverStart(void) {
 				AudioPlayer_UnlockPlaylist();
 				if (havePath) {
 					o["path"] = trackPath; // String -> copied into the document
-					if (!gPlayProperties.isWebstream && trackPath.length() > 0 && trackPath[0] == '/') {
-						File f = gFSystem.open(trackPath);
-						if (f) {
-							o["size"].set((uint64_t) f.size());
-							f.close();
-						}
+					// served from the size cached at track start: opening the currently
+					// playing file on SD from the webserver task is avoidable bus traffic
+					if (!gPlayProperties.isWebstream && gPlayProperties.audioFileSize > 0) {
+						o["size"].set((uint64_t) gPlayProperties.audioFileSize);
 					}
 				}
 			}
@@ -1233,9 +1231,11 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 		if (!generalObj["minResumeSec"].isNull()) { // don't resume an audiobook pulled within the first N seconds (0 = off)
 			gPrefsSettings.putUInt("minResumeSec", generalObj["minResumeSec"].as<uint32_t>());
+			AudioPlayer_SetMinResumeSec(generalObj["minResumeSec"].as<uint32_t>()); // apply without reboot
 		}
 		if (!generalObj["shortTrackSec"].isNull()) { // tracks shorter than this restart from the beginning on resume (0 = off)
 			gPrefsSettings.putUInt("shortTrackSec", generalObj["shortTrackSec"].as<uint32_t>());
+			AudioPlayer_SetShortTrackSec(generalObj["shortTrackSec"].as<uint32_t>()); // apply without reboot
 		}
 		if (!generalObj["seekStep"].isNull()) { // step (s) for smart forward/backward in-file seeking
 			uint16_t seekStep = generalObj["seekStep"].as<uint16_t>();
@@ -2282,6 +2282,19 @@ bool DumpNvsToArrayCallback(const char *key, void *data) {
 }
 
 // handle album cover image request
+// Single-slot PSRAM cache for the current track's embedded cover image. The web UI fetches
+// /cover on every track change and page (re)load; extracting it from the audio file each time
+// opened the currently PLAYING file on SD from the webserver task and then read it in 1 KB
+// nibbles per TCP chunk — sustained SD traffic exactly while the audio task needs the card.
+// Now the image is read once per track in large bursts and every further request is served
+// from RAM. The buffer is allocated once and never freed; all reads/writes happen on the
+// async_tcp task (both the handler and response callbacks run there), so no locking is needed.
+static constexpr size_t COVER_CACHE_MAX = 512 * 1024;
+static uint8_t *sCoverCacheBuf = nullptr;
+static String sCoverCacheKey;
+static String sCoverCacheMime;
+static size_t sCoverCacheLen = 0;
+
 static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 
 	if (!gPlayProperties.coverFilePos || !gPlayProperties.playlist) {
@@ -2345,6 +2358,26 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 	if (coverFileName.length() == 0) {
 		return;
 	}
+
+	// Snapshot the cover fields once: the audio task rewrites them at every track change
+	// while this handler does long SD I/O — re-reading gPlayProperties mid-parse could mix
+	// the old track's file handle with the new track's offsets (garbage seeks/sizes).
+	const size_t coverPos = gPlayProperties.coverFilePos;
+	const size_t coverSizeSnapshot = gPlayProperties.coverFileSize;
+	if (coverPos == 0) { // track changed to one without an embedded cover since the check above
+		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
+		return;
+	}
+
+	const String cacheKey = coverFileName + "#" + String((uint32_t) coverPos);
+	if (sCoverCacheLen > 0 && sCoverCacheKey == cacheKey) {
+		// same track, same cover: no SD access at all
+		AsyncWebServerResponse *response = request->beginResponse(200, sCoverCacheMime.c_str(), sCoverCacheBuf, sCoverCacheLen);
+		response->addHeader("Cache-Control", "no-cache, must-revalidate");
+		request->send(response);
+		return;
+	}
+
 	String decodedCover = "/.cache";
 	decodedCover.concat(coverFileName);
 
@@ -2356,10 +2389,11 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 	}
 	char mimeType[256] {0};
 	char fileType[4];
+	size_t flacImageSize = 0; // set only by the FLAC branch below
 	coverFile.readBytes(fileType, 4);
 	if (strncmp(fileType, "ID3", 3) == 0) { // mp3 (ID3v2) Routine
 		// seek to start position
-		coverFile.seek(gPlayProperties.coverFilePos);
+		coverFile.seek(coverPos);
 		uint8_t encoding = coverFile.read();
 		if (fileType[3] == 0x02) {
 			// image format (3 Bytes) for ID3v2.2
@@ -2390,12 +2424,12 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 		}
 	} else if (strncmp(fileType, "fLaC", 4) == 0) { // flac Routine
 		uint32_t length = 0; // length of strings: MIME type, description of the picture, binary picture data
-		coverFile.seek(gPlayProperties.coverFilePos + 4); // pass only picture type (4 Bytes) (audioI2S points to METADATA_BLOCK_PICTURE since 6241daa)
+		coverFile.seek(coverPos + 4); // pass only picture type (4 Bytes) (audioI2S points to METADATA_BLOCK_PICTURE since 6241daa)
 		for (int i = 0; i < 4; ++i) { // length of mime type string
 			length = (length << 8) | coverFile.read();
 		}
 		if (length > 255) {
-			Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type string length (%u > 255). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", length, gPlayProperties.coverFilePos);
+			Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type string length (%u > 255). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", length, (unsigned) coverPos);
 			request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
 			coverFile.close();
 			return;
@@ -2415,25 +2449,58 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 		for (int i = 0; i < 4; ++i) { // length of picture data
 			length = (length << 8) | coverFile.read();
 		}
-		gPlayProperties.coverFileSize = length;
+		flacImageSize = length; // FLAC carries the size right here; don't write webserver-task
+								// state into gPlayProperties (the audio task owns that struct)
 	} else {
 		// test for M4A header
 		coverFile.seek(8);
 		coverFile.readBytes(fileType, 3);
 		if (strncmp(fileType, "M4A", 3) == 0) {
 			strcpy(mimeType, "application/octet-stream");
-			coverFile.seek(gPlayProperties.coverFilePos);
+			coverFile.seek(coverPos);
 		}
 	}
 	if (strncmp(mimeType, "image", 5) != 0 && strncmp(mimeType, "application/octet-stream", 24) != 0) {
-		Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type (%s). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", mimeType, gPlayProperties.coverFilePos);
+		Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type (%s). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", mimeType, (unsigned) coverPos);
 		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
 		coverFile.close();
 		return;
 	}
 	Log_Printf(LOGLEVEL_NOTICE, "serve cover image (%s): %s", mimeType, gFSystem.name(coverFile).c_str());
 
-	int imageSize = gPlayProperties.coverFileSize;
+	int imageSize = flacImageSize ? flacImageSize : (int) coverSizeSnapshot;
+	if (imageSize <= 0 || imageSize > (8 * 1024 * 1024)) { // implausible: raced a track change or corrupt tag
+		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
+		coverFile.close();
+		return;
+	}
+
+	// populate the PSRAM cache: one burst read instead of 1 KB SD nibbles per TCP chunk,
+	// and every further request for this track is served without touching the card
+	if (imageSize > 0 && (size_t) imageSize <= COVER_CACHE_MAX) {
+		if (sCoverCacheBuf == nullptr) {
+			sCoverCacheBuf = (uint8_t *) ps_malloc(COVER_CACHE_MAX);
+		}
+		if (sCoverCacheBuf != nullptr) {
+			sCoverCacheLen = 0; // invalidate while the slot is being rewritten
+			const size_t got = coverFile.read(sCoverCacheBuf, imageSize);
+			coverFile.close();
+			if (got == (size_t) imageSize) {
+				sCoverCacheKey = cacheKey;
+				sCoverCacheMime = mimeType;
+				sCoverCacheLen = got;
+				AsyncWebServerResponse *response = request->beginResponse(200, sCoverCacheMime.c_str(), sCoverCacheBuf, sCoverCacheLen);
+				response->addHeader("Cache-Control", "no-cache, must-revalidate");
+				request->send(response);
+				return;
+			}
+			Log_Printf(LOGLEVEL_ERROR, "cover cache: short read (%u of %d bytes), serving placeholder", (unsigned) got, imageSize);
+			request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
+			return;
+		}
+	}
+
+	// fallback: cover larger than the cache slot (or PSRAM alloc failed) -> stream from SD
 	AsyncWebServerResponse *response = request->beginChunkedResponse(mimeType, [coverFile, imageSize](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
 		// some kind of webserver bug with actual size available, reduce the len
 		if (maxLen > 1024) {

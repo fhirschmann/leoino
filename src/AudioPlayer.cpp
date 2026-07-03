@@ -373,6 +373,20 @@ uint16_t AudioPlayer_GetSeekStep(void) {
 	return gSeekStep;
 }
 
+// Cached from the "minResumeSec" / "shortTrackSec" web settings so the resume-point saves
+// (periodic checkpoint, pause, card removal) don't take the NVS mutex for reads — a
+// concurrent NVS writer (RFID sync, settings save) could otherwise delay the save path.
+static uint32_t gMinResumeSec = 20;
+static uint32_t gShortTrackSec = 300;
+
+void AudioPlayer_SetMinResumeSec(uint32_t seconds) {
+	gMinResumeSec = seconds;
+}
+
+void AudioPlayer_SetShortTrackSec(uint32_t seconds) {
+	gShortTrackSec = seconds;
+}
+
 // Fade-out span (in seconds) before the sleep timer expires. Cached from the "sleepFadeSec" web
 // setting so the audio loop doesn't hit NVS each iteration. 0 = feature off (hard stop as before).
 static uint16_t gSleepFadeSec = 0;
@@ -528,6 +542,8 @@ void AudioPlayer_Init(void) {
 	gPlayProperties.SavePlayPosRfidChange = gPrefsSettings.getBool("savePosRfidChge", false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 	gSavePosPeriodic = gPrefsSettings.getBool("savePosPeriodic", true); // periodic audiobook play-position checkpoint
 	AudioPlayer_SetSeekStep(gPrefsSettings.getUInt("seekStep", seekStepDefault)); // step for smart forward/backward (routes through the 0 -> default guard)
+	AudioPlayer_SetMinResumeSec(gPrefsSettings.getUInt("minResumeSec", 20));
+	AudioPlayer_SetShortTrackSec(gPrefsSettings.getUInt("shortTrackSec", 300));
 	AudioPlayer_SetSleepFadeSec(gPrefsSettings.getUInt("sleepFadeSec", 0)); // fade out over the last N s before the sleep timer expires (0 = off)
 	AudioPlayer_SetDailyLimitMin(gPrefsSettings.getUInt("dailyLimitMin", 0)); // daily listening-time limit in minutes (0 = off)
 	gPlayProperties.pauseOnMinVolume = gPrefsSettings.getBool("pauseOnMinVol", false); // PAUSE_ON_MIN_VOLUME
@@ -555,7 +571,10 @@ void AudioPlayer_Init(void) {
 	AudioPlayer_CurrentVolume = AudioPlayer_GetInitVolume();
 	// DMA-settings must be adjusted before setting the pinout
 	audio->setOutput16Bit(true); // to save dma-buffer and because we just don't need more than 16 bit
-	audio->settings.DMA_DESC_NUM = 32;
+	// 48 descriptors x 256 frames ~= 279 ms of buffered output at 44.1 kHz (~17 KB more
+	// internal RAM than the previous 32/186 ms). The extra cushion absorbs the cache
+	// freezes that NVS flash writes/erases inflict on both cores mid-playback.
+	audio->settings.DMA_DESC_NUM = 48;
 	audio->settings.DMA_FRAME_NUM = 256; // not too high, so safe SRAM
 	if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
 		audio->setOutput44K1Hz(true);
@@ -1124,6 +1143,7 @@ void AudioPlayer_Loop() {
 				gPlayProperties.playMode = NO_PLAYLIST;
 				Audio_setTitle(noPlaylist);
 				AudioPlayer_ClearCover();
+				Playstats_Save(); // flush listening stats now that nothing plays (periodic save runs only every 5 min)
 #ifdef MQTT_ENABLE
 				publishMqtt(topicPausePlay, "idle", false);
 #endif
@@ -1149,6 +1169,9 @@ void AudioPlayer_Loop() {
 				if (gPlayProperties.saveLastPlayPosition && !gPlayProperties.pausePlay && !gPlayProperties.currentSpeechActive && AudioPlayer_ResumePositionSettled()) {
 					Log_Printf(LOGLEVEL_INFO, trackPausedAtPos, audio->getAudioCurrentTime(), audio->getAudioFileDuration());
 					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
+				}
+				if (!gPlayProperties.pausePlay) {
+					Playstats_Save(); // entering pause: flush listening stats (periodic save runs only every 5 min)
 				}
 				gPlayProperties.pausePlay = !gPlayProperties.pausePlay;
 
@@ -1432,6 +1455,9 @@ void AudioPlayer_Loop() {
 				Audio_setTitle("%s", title);
 			}
 			AudioPlayer_ClearCover();
+			// after ClearCover (which zeroes it): cache the file size for web handlers, so
+			// they don't have to open the currently playing file on SD again
+			gPlayProperties.audioFileSize = gPlayProperties.isWebstream ? 0 : audio->getFileSize();
 			Log_Printf(LOGLEVEL_NOTICE, currentlyPlaying, gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber), (gPlayProperties.currentTrackNumber + 1), gPlayProperties.playlist->size());
 			gPlayProperties.playlistFinished = false;
 		}
@@ -2059,9 +2085,8 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 	// 0 = off. Default 20 s.
 	uint32_t playPosition = _playPosition;
 	if (_trackLastPlayed == 0 && _playPosition > 0 && (_playMode == AUDIOBOOK || _playMode == AUDIOBOOK_LOOP || _playMode == AUDIOBOOK_RECURSIVE)) {
-		const uint32_t minResumeSec = gPrefsSettings.getUInt("minResumeSec", 20);
-		if (minResumeSec > 0 && _playPosition < minResumeSec) {
-			Log_Printf(LOGLEVEL_NOTICE, "Audiobook pulled within first %u s -> resetting resume point to start", minResumeSec);
+		if (gMinResumeSec > 0 && _playPosition < gMinResumeSec) {
+			Log_Printf(LOGLEVEL_NOTICE, "Audiobook pulled within first %u s -> resetting resume point to start", gMinResumeSec);
 			playPosition = 0;
 		}
 	}
@@ -2073,9 +2098,8 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 	// resume position. Uses the cached duration of the currently playing track; when the
 	// duration isn't known (yet), the exact position is kept. 0 = off. Default 300 s.
 	if (playPosition > 0 && (_playMode == AUDIOBOOK || _playMode == AUDIOBOOK_LOOP || _playMode == AUDIOBOOK_RECURSIVE)) {
-		const uint32_t shortTrackSec = gPrefsSettings.getUInt("shortTrackSec", 300);
-		if (shortTrackSec > 0 && AudioPlayer_FileDuration > 0 && AudioPlayer_FileDuration < shortTrackSec) {
-			Log_Printf(LOGLEVEL_DEBUG, "track shorter than %u s -> resume point set to track start", shortTrackSec);
+		if (gShortTrackSec > 0 && AudioPlayer_FileDuration > 0 && AudioPlayer_FileDuration < gShortTrackSec) {
+			Log_Printf(LOGLEVEL_DEBUG, "track shorter than %u s -> resume point set to track start", gShortTrackSec);
 			playPosition = 0;
 		}
 	}
@@ -2093,8 +2117,11 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 
 	Log_Printf(LOGLEVEL_INFO, wroteLastTrackToNvs, prefBuf, _rfidCardId, _playMode, _trackLastPlayed);
 	Log_Println(prefBuf, LOGLEVEL_INFO);
+	// keep the LED task paused THROUGH the flash write (that is the whole point of the
+	// pause); releasing it before putString re-armed the NeoPixel during the write
+	const size_t written = gPrefsRfid.putString(_rfidCardId, prefBuf);
 	Led_SetPause(false);
-	return gPrefsRfid.putString(_rfidCardId, prefBuf);
+	return written;
 
 	// Examples for serialized RFID-actions that are stored in NVS
 	// #<file/folder>#<startPlayPositionInBytes>#<playmode>#<trackNumberToStartWith>
@@ -2206,6 +2233,7 @@ void AudioPlayer_SortPlaylist(Playlist *playlist) {
 // Clear cover send notification
 void AudioPlayer_ClearCover(void) {
 	gPlayProperties.coverFilePos = 0;
+	gPlayProperties.audioFileSize = 0;
 	AudioPlayer_StationLogoUrl = "";
 	// reset per-track metadata too (called at the start of every track), so artist/album from a
 	// previous track don't linger if the new one carries no ID3/Vorbis tags

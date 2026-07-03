@@ -474,6 +474,27 @@ static bool Display_HwInit(bool settleDelay) {
 // interpreter until it was physically power-cycled (it has no reset line, so an ESP reboot can't
 // clear it). Re-init only ever happens for the boot-probe case, bounded, in Display_Cyclic.
 static void Display_Send(void) {
+    // Skip the ~25 ms I2C transfer when the framebuffer is identical to the last frame the
+    // panel acknowledged — most cycles the screen is static (title, icons; the clock only
+    // ticks once per second). This frees a big slice of loopTask time every 100 ms cycle.
+    // A frame is still pushed (a) after any send error, so a NACKed frame gets resent and
+    // the panel keeps its self-correcting property, and (b) at the latest every 30 skipped
+    // cycles (~3 s), so a frame corrupted on the wire while the screen is static heals too.
+    static uint32_t s_lastFrameHash = 0;
+    static uint8_t s_skippedFrames = 0;
+    const uint8_t *buf = s_u8g2.getBufferPtr();
+    const size_t bufLen = 8u * s_u8g2.getBufferTileHeight() * s_u8g2.getBufferTileWidth();
+    uint32_t hash = 2166136261u; // FNV-1a
+    for (size_t i = 0; i < bufLen; i++) {
+        hash = (hash ^ buf[i]) * 16777619u;
+    }
+    if (hash == s_lastFrameHash && s_consecSendErrors == 0 && s_skippedFrames < 30) {
+        s_skippedFrames++;
+        return;
+    }
+    s_lastFrameHash = hash;
+    s_skippedFrames = 0;
+
     I2cBusTwo_Lock();
     s_i2cSendError = false;
     s_u8g2.sendBuffer();

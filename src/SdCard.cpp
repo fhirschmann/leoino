@@ -64,6 +64,12 @@ void SdCard_Init(void) {
 		gPrefsSettings.putUInt("nvsRecDepth", 2);
 		maxRecursionDepth = 2;
 	}
+
+	// Prime FatFs' free-cluster count now: with a stale FSINFO sector the first f_getfree
+	// scans the whole FAT under the filesystem mutex (multi-second on a large card). Doing
+	// it here, before any playback exists, means the first Info-tab open in the web UI
+	// can't stall SD access mid-listening.
+	SdCard_GetFreeSize();
 }
 
 void SdCard_Exit(void) {

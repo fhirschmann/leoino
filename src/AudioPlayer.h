@@ -59,6 +59,8 @@ typedef struct { // Bit field
 	size_t coverFilePos; // current cover file position
 	size_t coverFileSize; // current cover file size
 	size_t audioFileDuration; // file duration of current audio file (in seconds)
+	size_t audioFileSize; // file size (bytes) of the current audio file, cached at track start
+						  // so web handlers don't have to open the playing file on SD again
 } playProps;
 
 extern playProps gPlayProperties;
@@ -71,6 +73,8 @@ void AudioPlayer_Exit(void);
 void AudioPlayer_SetSavePosPeriodic(bool enabled);
 void AudioPlayer_SetSeekStep(uint16_t seconds); // step (in seconds) for CMD_SMART_FORWARDS/BACKWARDS in-file seeking
 uint16_t AudioPlayer_GetSeekStep(void);
+void AudioPlayer_SetMinResumeSec(uint32_t seconds); // don't resume an audiobook pulled within the first N s (0 = off)
+void AudioPlayer_SetShortTrackSec(uint32_t seconds); // tracks shorter than this restart from the beginning on resume (0 = off)
 void AudioPlayer_SetSleepFadeSec(uint16_t seconds); // fade-out span (s) before the sleep timer expires (0 = off)
 uint16_t AudioPlayer_GetSleepFadeSec(void);
 void AudioPlayer_SetDailyLimitMin(uint16_t minutes); // daily listening-time limit in minutes (0 = off)

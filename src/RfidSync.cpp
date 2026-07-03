@@ -572,6 +572,10 @@ static void rfidFullSyncTask(void *param) {
 					rfidWriteTag(id, t["fileOrUrl"].as<String>(), rfidModeFromJson(t), inTs);
 					gPrefsRfidDel.remove(id.c_str());
 					merged++;
+					// Each merged tag costs several NVS flash writes; pace them so a large
+					// catch-up sync right after boot can't monopolize the flash (every write
+					// freezes the cache for both cores — audible while music plays).
+					vTaskDelay(pdMS_TO_TICKS(10));
 				}
 			}
 			RfidSync_Unlock();

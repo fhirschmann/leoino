@@ -860,6 +860,11 @@ void Web_DumpSdToNvs(const char *_filename) {
 		return;
 	}
 
+	// A backup restore is a long burst of NVS writes; every write freezes the flash cache
+	// for both cores, which is audible if something is playing. Pause playback/RFID/LED for
+	// the import (ref-counted, so nesting inside an already-bracketed upload is fine).
+	System_PauseTasksDuringUpload(true);
+
 	Led_SetPause(true);
 	// try to read UTF-8 BOM marker
 	bool isUtf8 = (tmpFile.read() == 0xEF) && (tmpFile.read() == 0xBB) && (tmpFile.read() == 0xBF);
@@ -918,4 +923,5 @@ void Web_DumpSdToNvs(const char *_filename) {
 	Log_Printf(LOGLEVEL_NOTICE, importCountNokNvs, invalidCount);
 	tmpFile.close();
 	gFSystem.remove(_filename);
+	System_PauseTasksDuringUpload(false);
 }

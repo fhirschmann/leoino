@@ -191,9 +191,12 @@ void Playstats_AddSecond(void) {
 	gDirty = true;
 	taskEXIT_CRITICAL(&gStatsMux);
 
-	// Persist at most once per minute to spare the NVS flash; a final flush happens on shutdown.
+	// Persist at most once every 5 minutes to spare the NVS flash: every save can end in a
+	// flash program/erase that freezes the cache for BOTH cores mid-playback, so fewer is
+	// better. Losing up to 5 min of listening statistics on a hard power cut is acceptable —
+	// pause/stop (AudioPlayer_Loop) and shutdown flush explicitly.
 	// Playstats_Save takes the lock itself, so it must run OUTSIDE this critical section.
-	if (millis() - gLastSaveMs >= 60000u) {
+	if (millis() - gLastSaveMs >= 300000u) {
 		Playstats_Save();
 	}
 }

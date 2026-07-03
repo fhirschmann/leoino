@@ -259,9 +259,12 @@ bool publishMqtt(const char *topic, const char *payload, bool retained) {
 		int qos = 0;
 		char t[MQTT_TOPIC_MAX_LENGTH];
 		Mqtt_MakeTopic(t, sizeof(t), topic, true);
-		int ret = esp_mqtt_client_publish(mqtt_client, t, payload, 0, qos, retained);
-		// int ret = esp_mqtt_client_enqueue(mqtt_client, topic, payload, 0, qos, retained, true);
-		return ret == 0;
+		// enqueue instead of publish: publish blocks the calling task (main loop) until the
+		// broker's TCP socket accepts the data — a wedged or slowly-dying broker stalled the
+		// loop for seconds and starved playback. enqueue hands the message to the MQTT
+		// task's outbox and returns immediately (>= 0 on success).
+		int ret = esp_mqtt_client_enqueue(mqtt_client, t, payload, 0, qos, retained, true);
+		return ret >= 0;
 	}
 #endif
 
