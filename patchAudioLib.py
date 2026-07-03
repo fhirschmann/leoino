@@ -37,13 +37,27 @@ COMMENT_OUT = [
     "processSpectrum();",
 ]
 REPLACE = [
+    # After a seek the playtime is recomputed from the new file position and the AVERAGE
+    # bitrate. In the first ~1.5 s of a track that average is still swinging in (the very
+    # first measurement bursts make it huge), so an early seek recomputed the time as ~0
+    # and the whole progress display, the resume-settle detection and subsequent position
+    # saves ran on a wrong clock. Wait for the library's own "bitrate stable" signal; the
+    # pending m_haveNewFilePos simply stays queued until then (files with a Xing/Info
+    # header use the nominal bitrate and are unaffected).
+    (
+        "if (m_haveNewFilePos && (m_cat.avrBitRate || m_cat.nominalBitRate)) {",
+        "if (m_haveNewFilePos && (m_cat.avrBitrateStable || m_cat.nominalBitRate)) { // patched by patchAudioLib.py: recompute only with a stable avg bitrate",
+    ),
+    # newInBuffStart() returns 0 (seek rejected) or -1 (seek failed) without moving the
+    # file; subtracting the header offset from those sentinels would wrap the unsigned
+    # read pointer and fire an instant EOF, so only genuine positions are translated.
     (
         "m_audioDataReadPtr = m_prlf.newFilePos;",
-        "m_audioDataReadPtr = m_prlf.newFilePos - m_audioDataStart; // patched by patchAudioLib.py: keep read pointer relative to the audio block (EOF fired id3-size early after a seek)",
+        "m_audioDataReadPtr = (m_prlf.newFilePos > (int32_t) m_audioDataStart) ? (m_prlf.newFilePos - m_audioDataStart) : 0; // patched by patchAudioLib.py: keep read pointer relative to the audio block (EOF fired id3-size early after a seek)",
     ),
     (
         "m_audioDataReadPtr = m_pwf.newFilePos;",
-        "m_audioDataReadPtr = m_pwf.newFilePos - m_audioDataStart; // patched by patchAudioLib.py: see above",
+        "m_audioDataReadPtr = (m_pwf.newFilePos > (int32_t) m_audioDataStart) ? (m_pwf.newFilePos - m_audioDataStart) : 0; // patched by patchAudioLib.py: see above",
     ),
 ]
 

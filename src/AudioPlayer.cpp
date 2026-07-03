@@ -178,6 +178,12 @@ void AudioPlayer_NotifyUploadEnd(void) {
 	AudioPlayer_UploadActive = false;
 }
 
+// Set (from the audio task) once the decoder knows a trustworthy bitrate for the current
+// track: fired on the Xing/Info-header parse or once the measured average stabilizes. The
+// resume fallback-seek waits for this signal — earlier seeks race the library's own
+// connecttoFS seek and are computed from a still-swinging average bitrate.
+static volatile bool gAudioBitrateKnown = false;
+
 void Audio_InfoCallback(Audio::msg_t m) {
 	switch (m.e) {
 		case Audio::evt_info: {
@@ -196,6 +202,7 @@ void Audio_InfoCallback(Audio::msg_t m) {
 		}
 		case Audio::evt_bitrate: {
 			Log_Printf(LOGLEVEL_INFO, "bitrate:      %s", m.msg);
+			gAudioBitrateKnown = true;
 			break;
 		}
 		case Audio::evt_icyurl: {
@@ -605,7 +612,11 @@ static bool gResumeSeekPending = false; // a cold-start resume seek is still set
 static bool gResumeFallbackSeekDone = false; // the one player-driven fallback seek was already fired
 static uint32_t gResumeTargetSec = 0; // file-time (s) the decoder is seeking to
 static uint32_t gResumeSeekStartedMs = 0; // millis() the resume began (safety-timeout anchor)
+static uint8_t gResumeLowTimeTicks = 0; // consecutive 250ms ticks the decoder sat near the file start
 static constexpr uint32_t RESUME_SEEK_SETTLE_TIMEOUT_MS = 10000;
+// Longest span the resume fade-in start may be deferred while waiting for the fallback seek
+// to fire; past this the fade just runs so an unseekable file can't hold the output silent.
+static constexpr uint32_t RESUME_HOLD_CAP_MS = 4000;
 
 // True when it's safe to persist the audiobook play-position. While a resume seek is still settling
 // the reported time is bogus, so callers should skip the save (NVS keeps the correct resume point).
@@ -876,6 +887,18 @@ void AudioPlayer_Loop() {
 	// glitch is masked. Only the audio-lib gain is ramped; AudioPlayer_CurrentVolume (and
 	// thus the UI/MQTT-reported volume) is left untouched.
 	if (AudioPlayer_ResumeFadeStartMs && (RESUME_FADEIN_DURATION_MS > 0)) {
+		// While the resume seek is still outstanding, keep re-arming the fade start so both
+		// the wrong-content phase (track plays from its beginning until the seek fires) and
+		// the seek's buffer flush happen at volume 0. This only slides an already-armed
+		// anchor (a manual volume change cancels the fade for good), only for targets the
+		// fallback seek will actually chase (>= 15 s), never during a TTS announcement, and
+		// is capped so an unseekable file can't keep the output silent. Every exit path
+		// simply lets the existing self-completing ramp below run.
+		if (gResumeSeekPending && !gResumeFallbackSeekDone
+			&& (gResumeTargetSec >= 15) && !gPlayProperties.currentSpeechActive
+			&& ((millis() - gResumeSeekStartedMs) < RESUME_HOLD_CAP_MS)) {
+			AudioPlayer_ResumeFadeStartMs = millis();
+		}
 		const uint8_t target = AudioPlayer_GetCurrentVolume();
 		const uint32_t elapsed = millis() - AudioPlayer_ResumeFadeStartMs;
 		if (elapsed >= RESUME_FADEIN_DURATION_MS) {
@@ -921,18 +944,34 @@ void AudioPlayer_Loop() {
 			AudioPlayer_CurrentTime = gResumeTargetSec;
 		}
 		// The audio library only executes the connecttoFS() start-time seek for files
-		// whose header yields a nominal bitrate (Xing/Info block); other files silently
-		// play from the beginning, losing the audiobook resume position. Fire ONE
-		// fallback seek from here — but only after the library's own attempt had ample
-		// time to land (a seek takes seconds to travel through the input buffer) and
-		// only when playback demonstrably still sits near the file start. Re-seeking
-		// while an earlier seek is still in flight corrupts the library's playtime
-		// bookkeeping (tracks then appear to end several seconds early).
+		// whose header yields a nominal bitrate (Xing/Info frame within the first 50
+		// bytes of frame data); other files silently play from the beginning, losing
+		// the audiobook resume position. Fire ONE fallback seek from here — but only
+		// after the library's own attempt had time to land, and only when playback
+		// demonstrably still sits near the file start on two consecutive ticks (the
+		// library seek briefly reports ~0 while it lands; re-seeking on top of it
+		// corrupts the playtime bookkeeping and tracks then appear to end early).
+		if (gResumeSeekPending && gAudioBitrateKnown && (audio->getAudioCurrentTime() < 10)) {
+			// Counted only once the bitrate is known: for files with a Xing/Info header the
+			// library's own seek fires right at that moment and the playtime jumps to the
+			// target, so these ticks never accumulate and the fallback stays quiet.
+			if (gResumeLowTimeTicks < UINT8_MAX) {
+				gResumeLowTimeTicks++;
+			}
+		} else {
+			gResumeLowTimeTicks = 0;
+		}
 		if (gResumeSeekPending && !gResumeFallbackSeekDone && audio->isRunning()
-			&& (audio->getBitRate() > 0) && (audio->getAudioFileDuration() > 0)
-			&& ((millis() - gResumeSeekStartedMs) >= 3000)
-			&& (audio->getAudioCurrentTime() < 10) && (gResumeTargetSec >= 15)) {
+			&& !gPlayProperties.currentSpeechActive
+			&& (audio->getAudioFileDuration() > 0)
+			&& ((millis() - gResumeSeekStartedMs) >= 750)
+			&& (gResumeLowTimeTicks >= 2) && (gResumeTargetSec >= 15)) {
 			gResumeFallbackSeekDone = true;
+			if (AudioPlayer_ResumeFadeStartMs) {
+				// Restart the fade ramp at the seek: its buffer flush and the content jump
+				// land within the first ~10% of the ramp, i.e. effectively at volume 0.
+				AudioPlayer_ResumeFadeStartMs = millis();
+			}
 			if (audio->setAudioPlayTime(gResumeTargetSec)) {
 				Log_Printf(LOGLEVEL_DEBUG, "resume-seek to %u s driven from player (library seek didn't land)", (unsigned) gResumeTargetSec);
 			}
@@ -1334,6 +1373,8 @@ void AudioPlayer_Loop() {
 				int32_t fileStartTime = -1;
 				gResumeSeekPending = false; // cleared by default; re-armed below only for an actual mid-file resume
 				gResumeFallbackSeekDone = false;
+				gResumeLowTimeTicks = 0;
+				gAudioBitrateKnown = false; // re-set by Audio_InfoCallback once this track's bitrate is known
 				if (gPlayProperties.startAtFilePos > 0) {
 					fileStartTime = gPlayProperties.startAtFilePos;
 					if (fileStartTime > 65535) {
@@ -1368,6 +1409,11 @@ void AudioPlayer_Loop() {
 			gPlayProperties.trackFinished = true;
 			return;
 		} else {
+			if (gResumeSeekPending) {
+				// connecttoFS() blocks for the SD open + header read; anchor the fallback-seek
+				// wait (and the settle timeout) after it so the wait isn't partly consumed.
+				gResumeSeekStartedMs = millis();
+			}
 			if (resumeFadeWanted) {
 				// Start the (rewound) resume muted; AudioPlayer_Loop ramps the volume back up.
 				audio->setVolume(0);
