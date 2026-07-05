@@ -1883,21 +1883,21 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 	String folderPath = _itemToPlay;
 
 	if (_playMode != WEBSTREAM) {
+		// Every directory playmode recurses into subdirectories: a card assigned to a folder plays
+		// everything in that folder *and* its subfolders (capped by SdCard_GetMaxRecursionDepth()).
+		// Single-track and m3u modes ignore the depth entirely, so passing it is harmless there.
+		// The dedicated *_RECURSIVE modes (15/16/17) still exist for backwards compatibility and now
+		// behave identically to their non-recursive counterparts.
 		if (_playMode == RANDOM_SUBDIRECTORY_OF_DIRECTORY || _playMode == RANDOM_SUBDIRECTORY_OF_DIRECTORY_ALL_TRACKS_OF_DIR_RANDOM) {
 			folderPath = SdCard_pickRandomSubdirectory(_itemToPlay);
 			if (!folderPath) {
 				// If error occured while extracting random subdirectory
 				musicFiles = std::nullopt;
 			} else {
-				musicFiles = SdCard_ReturnPlaylist(folderPath.c_str(), _playMode, 0, false); // Provide random subdirectory in order to enter regular playlist-generation
+				musicFiles = SdCard_ReturnPlaylist(folderPath.c_str(), _playMode, SdCard_GetMaxRecursionDepth(), false); // Provide random subdirectory in order to enter regular playlist-generation
 			}
 		} else {
-			// Need to define recursion depth for recursive playmodes. Other playmodes get static recursion depth of 0
-			if (_playMode == ALL_TRACKS_OF_DIR_SORTED_RECURSIVE || _playMode == AUDIOBOOK_RECURSIVE || _playMode == ALL_TRACKS_OF_DIR_RANDOM_RECURSIVE) {
-				musicFiles = SdCard_ReturnPlaylist(_itemToPlay, _playMode, SdCard_GetMaxRecursionDepth(), false);
-			} else {
-				musicFiles = SdCard_ReturnPlaylist(_itemToPlay, _playMode, 0, false);
-			}
+			musicFiles = SdCard_ReturnPlaylist(_itemToPlay, _playMode, SdCard_GetMaxRecursionDepth(), false);
 		}
 	} else {
 		musicFiles = AudioPlayer_ReturnPlaylistFromWebstream(_itemToPlay);
