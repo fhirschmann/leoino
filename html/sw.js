@@ -3,7 +3,7 @@
 // home screen, page loads fail and iOS shows a black screen. This worker
 // serves a cached offline page for failed navigations instead.
 
-const CACHE = 'espuino-offline-v1';
+const CACHE = 'espuino-offline-v2';
 const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
@@ -30,6 +30,12 @@ self.addEventListener('fetch', (event) => {
 	}
 	event.respondWith(
 		fetch(req).then((res) => {
+			// Behind a reverse proxy (nginx/SWAG) an unreachable device does not fail the
+			// fetch - the proxy answers with its own 502/503/504 error page. Treat that as
+			// offline too; fall back to the proxy's page only if our cache was evicted.
+			if (res && (res.status === 502 || res.status === 503 || res.status === 504)) {
+				return caches.match(OFFLINE_URL, { ignoreSearch: true }).then((off) => off || res);
+			}
 			// A live navigation succeeded: refresh the cached offline page in the
 			// background so edits to offline.html reach clients and evicted caches
 			// repopulate. Fire-and-forget; failures are ignored.
