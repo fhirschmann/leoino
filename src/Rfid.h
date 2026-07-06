@@ -15,6 +15,7 @@ void Rfid_TaskReset(void);
 void Rfid_WakeupCheck(void);
 void Rfid_PreferenceLookupHandler(void);
 const char *Rfid_GetReaderFirmwareVersion(void); // PN5180 reader firmware version (RFID_READER_TYPE_RUNTIME builds only)
+bool Rfid_IsCardApplied(void); // true while a tag physically sits on the reader (PN5180 only; false on MFRC522)
 
 // Parse a stored tag assignment "#file#pos#mode#track" into its fields (any out-param may be NULL).
 bool Rfid_ParseAssignment(const char *stored, char *fileOut, size_t fileLen, uint32_t *posOut, uint32_t *modeOut, uint16_t *trackOut);

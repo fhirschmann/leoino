@@ -788,6 +788,16 @@ void explorerHandleAudioRequest(AsyncWebServerRequest *request) {
 			request->send(200);
 			return;
 		}
+		// Optional guard: refuse to start playback from the web file browser while an RFID tag
+		// physically sits on the reader. Web-started playback would replace the tag's playback,
+		// and the tag-removal pause/stop logic then acts on content the tag never started -
+		// pulling the tag pauses the "wrong" music and can persist resume positions for it.
+		if (gPrefsSettings.getBool("blockWebPlayTag", false) && Rfid_IsCardApplied()) {
+			Log_Println("web playback refused: an RFID tag is currently applied (blockWebPlayTag)", LOGLEVEL_NOTICE);
+			Web_SendWebsocketData(0, WebsocketCodeType::WebPlayBlockedByTag);
+			request->send(200);
+			return;
+		}
 		param = request->getParam("path");
 		const char *filePath = param->value().c_str();
 		param = request->getParam("playmode");

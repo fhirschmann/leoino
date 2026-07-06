@@ -357,6 +357,7 @@
 	"files": {
 		"title": "Fichiers",
 		"loading": "Veuillez patienter...",
+		"playBlockedByTag": "Lecture verrouillée : une balise RFID est posée sur le lecteur",
 		"clean": {
 			"title": "Nettoyer la carte SD",
 			"prompt": "Supprime les métadonnées macOS de la carte SD (.DS_Store, fichiers ._*, dossiers Spotlight et corbeille). Les fichiers musicaux ne sont pas touchés. Continuer ?",
@@ -809,6 +810,8 @@
 			"stopIfRfidRemovedExp": "Si activé (uniquement avec « Mettre en pause si la balise RFID est retirée ») : retirer la balise arrête complètement la lecture au lieu de la mettre en pause, les LED reviennent donc à l'animation de veille. Pour les livres audio, la position exacte est enregistrée au moment du retrait, de sorte que reposer la balise reprend précisément où vous vous étiez arrêté ; les autres contenus recommencent depuis le début.",
 			"dontAcceptRfidTwice": "Ne pas accepter la balise RFID deux fois",
 			"dontAcceptRfidTwiceExp": "Ne pas accepter la même balise RFID deux fois. Ne peut pas être utilisé avec <em>Mettre en pause si la balise RFID est retirée</em>.",
+			"blockWebPlayTag": "Verrouiller la lecture web tant qu'une balise RFID est posée",
+			"blockWebPlayTagExp": "Tant qu'une balise RFID est physiquement posée sur le lecteur, la lecture ne peut pas être lancée depuis le navigateur de fichiers de l'interface web. Évite des états déroutants : la lecture web remplacerait celle de la balise, et la logique de retrait (pause/arrêt, sauvegarde de position) agirait alors sur un contenu qui n'appartient pas à la balise posée. Nécessite un lecteur PN5180 (détection de présence). Fonction du fork.",
 			"playLastRfidOnReboot": "Lire la dernière balise RFID au redémarrage",
 			"playLastRfidOnRebootExp": "La dernière balise RFID lue est lue après le redémarrage. Plus d'informations <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>ici</a> sous <code>PLAY_LAST_RFID_ON_REBOOT</code>.",
 			"pauseOnMinVolume": "Pause au volume minimal",

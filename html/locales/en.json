@@ -364,6 +364,7 @@
 	"files": {
 		"title": "Files",
 		"loading": "Please wait...",
+		"playBlockedByTag": "Playback locked: an RFID tag is currently on the reader",
 		"clean": {
 			"title": "Clean SD card",
 			"prompt": "Removes macOS metadata from the SD card (.DS_Store, ._* files, Spotlight and trash folders). Music files are left untouched. Continue?",
@@ -820,6 +821,8 @@
 			"stopIfRfidRemovedExp": "When enabled (only together with “Pause when RFID tag is removed”): removing the tag fully stops playback instead of just pausing, so the LEDs return to the idle animation. For audiobooks the exact position is saved the moment the tag is removed, so re-applying it continues right where you left off; other content starts over.",
 			"dontAcceptRfidTwice": "Don't accept the same RFID twice",
 			"dontAcceptRfidTwiceExp": "RFID tags are not accepted twice in a row. Cannot be used together with <em>Pause when RFID tag is removed</em>.",
+			"blockWebPlayTag": "Lock web playback while an RFID tag is applied",
+			"blockWebPlayTagExp": "While an RFID tag physically sits on the reader, playback cannot be started from the web interface's file browser. Prevents confusing states: web playback would replace the tag's playback, and the tag-removal logic (pause/stop, position saving) would then act on content that doesn't belong to the applied tag. Requires a PN5180 reader (tag-presence detection). Fork feature.",
 			"playLastRfidOnReboot": "Play last RFID tag on restart",
 			"playLastRfidOnRebootExp": "Play last RFID tag on restart. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PLAY_LAST_RFID_ON_REBOOT</code>.",
 			"pauseOnMinVolume": "Pause at minimum volume",

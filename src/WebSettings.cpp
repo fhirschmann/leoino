@@ -65,6 +65,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		generalObj["pauseIfRfidRemoved"].set(gPrefsSettings.getBool("pauseRfidRem", false)); // PAUSE_WHEN_RFID_REMOVED
 		generalObj["stopIfRfidRemoved"].set(gPrefsSettings.getBool("stopRfidRem", false)); // stop instead of pause when RFID is removed
 		generalObj["dontAcceptRfidTwice"].set(gPrefsSettings.getBool("dAccRfidTwice", false)); // DONT_ACCEPT_SAME_RFID_TWICE
+		generalObj["blockWebPlayTag"].set(gPrefsSettings.getBool("blockWebPlayTag", false)); // refuse web file-browser playback while an RFID tag is applied
 		generalObj["rfidReaderType"].set(gPrefsRfid.getUChar("rfidReaderType", 0)); // RFID_READER_TYPE_RUNTIME
 		generalObj["pn5180Lpcd"].set(gPrefsRfid.getBool("pn5180Lpcd", false)); // PN5180 LPCD
 		generalObj["slix2Password"].set(gPrefsRfid.getString("slix2Pwd", "")); // SLIX2 Password
@@ -277,6 +278,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		genSettings["pauseIfRfidRemoved"].set(false); // PAUSE_WHEN_RFID_REMOVED
 		genSettings["stopIfRfidRemoved"].set(false); // stop instead of pause when RFID is removed
 		genSettings["dontAcceptRfidTwice"].set(false); // DONT_ACCEPT_SAME_RFID_TWICE
+		genSettings["blockWebPlayTag"].set(false); // refuse web file-browser playback while an RFID tag is applied
 		genSettings["pauseOnMinVol"].set(false); // PAUSE_ON_MIN_VOLUME
 		genSettings["recoverVolBoot"].set(false); // USE_LAST_VOLUME_AFTER_REBOOT
 		genSettings["volumeCurve"].set(0u); // VOLUME_CURVE

@@ -3480,6 +3480,11 @@
 						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.dontAcceptRfidTwiceExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="form-check form-switch mb-2">
+						<input class="form-check-input" type="checkbox" role="switch" id="blockWebPlayTag" name="blockWebPlayTag" value="false">
+						<label class="form-check-label" for="blockWebPlayTag" data-i18n="general.options.blockWebPlayTag"></label>
+						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.blockWebPlayTagExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+					</div>
+					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" role="switch" id="playLastRfidOnReboot" name="playLastRfidOnReboot" value="false">
 						<label class="form-check-label" for="playLastRfidOnReboot" data-i18n="general.options.playLastRfidOnReboot"></label>
 						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.playLastRfidOnRebootExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
@@ -5927,6 +5932,9 @@
 					if (socketMsg.status == "not_allowed_in_current_mode") {
 						showSwitchModePrompt();
 					}
+					if (socketMsg.status == "web_play_blocked_by_tag") {
+						toaster.error(i18next.t('files.playBlockedByTag') || "Playback locked: an RFID tag is currently on the reader");
+					}
 				}
 				if ("pong" in socketMsg) {
 					if (socketMsg.pong == 'pong') {
@@ -6194,6 +6202,9 @@
 				$('#stopIfRfidRemoved').prop('disabled', !genSettings.pauseIfRfidRemoved);
 				$('#dontAcceptRfidTwice').prop('checked', genSettings.dontAcceptRfidTwice);
 				$('#dontAcceptRfidTwice').prop('disabled', genSettings.pauseIfRfidRemoved);
+				if (genSettings.blockWebPlayTag !== undefined) {
+					$('#blockWebPlayTag').prop('checked', genSettings.blockWebPlayTag);
+				}
 				$('#pauseOnMinVolume').prop('checked', genSettings.pauseOnMinVol);
 				$('#recoverVolBoot').prop('checked', genSettings.recoverVolBoot);
 				$('#noSleepWhenPowered').prop('checked', genSettings.noSleepWhenPowered);
@@ -6987,6 +6998,7 @@
 					pauseIfRfidRemoved: $('#pauseIfRfidRemoved').prop('checked'),
 					stopIfRfidRemoved: $('#stopIfRfidRemoved').prop('checked'),
 					dontAcceptRfidTwice: $('#dontAcceptRfidTwice').prop('checked'),
+					blockWebPlayTag: $('#blockWebPlayTag').prop('checked'),
 					pauseOnMinVol: $('#pauseOnMinVolume').prop('checked'),
 					recoverVolBoot: $('#recoverVolBoot').prop('checked'),
 					noSleepWhenPowered: $('#noSleepWhenPowered').prop('checked'),

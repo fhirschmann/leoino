@@ -18,7 +18,8 @@ typedef enum class WebsocketCode {
 	BluetoothScanComplete,
 	FtpStatus,
 	WebdavStatus,
-	IrLearn
+	IrLearn,
+	WebPlayBlockedByTag // web file-browser playback refused because an RFID tag is applied
 } WebsocketCodeType;
 
 void Web_Cyclic(void);

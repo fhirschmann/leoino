@@ -46,6 +46,10 @@ extern TwoWire i2cBusTwo;
 static void RfidPn5180_Task(void *parameter);
 uint8_t stateMachine = RFID_PN5180_STATE_INIT;
 static volatile bool rfidTaskResetRequested = false; // set from another task via RfidPn5180_TaskReset()
+// Whether a tag currently sits on the reader (includes the removal grace period, so a brief
+// coupling dropout still counts as "applied"). Written only by the RFID task; read cross-task
+// via RfidPn5180_IsCardApplied() (e.g. to refuse web-started playback while a tag is applied).
+static volatile bool cardAppliedCurrentRun = false;
 static byte lastValidcardId[cardIdSize];
 static char Rfid_ReaderFwVersion[12] = ""; // cached PN5180 firmware version (e.g. "4.0"), read once at init
 
@@ -138,7 +142,6 @@ void RfidPn5180_Task(void *parameter) {
 	uint32_t lastTimeDetected15693 = 0;
 	uint8_t misses14443 = 0;
 	uint8_t misses15693 = 0;
-	bool cardAppliedCurrentRun = false;
 	bool cardAppliedLastRun = false;
 	static byte cardId[cardIdSize], lastCardId[cardIdSize];
 	static byte pendingCardId[cardIdSize];
@@ -180,6 +183,7 @@ void RfidPn5180_Task(void *parameter) {
 			lastTimeDetected15693 = millis();
 			misses14443 = 0;
 			misses15693 = 0;
+			cardAppliedCurrentRun = false; // a still-present tag re-detects within the next scan cycles
 			rfidTaskResetRequested = false;
 			stateMachine = RFID_PN5180_NFC14443_STATE_RESET;
 		}
@@ -359,6 +363,10 @@ void RfidPn5180_Task(void *parameter) {
 			}
 		}
 	}
+}
+
+bool RfidPn5180_IsCardApplied(void) {
+	return cardAppliedCurrentRun;
 }
 
 void RfidPn5180_Exit(void) {

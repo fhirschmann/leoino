@@ -18,6 +18,7 @@ extern void RfidPn5180_Cyclic(void);
 extern void RfidPn5180_Exit(void);
 extern void RfidPn5180_TaskReset(void);
 extern void RfidPn5180_WakeupCheck(void);
+extern bool RfidPn5180_IsCardApplied(void);
 
 TaskHandle_t rfidTaskHandle = NULL;
 
@@ -74,4 +75,16 @@ void Rfid_WakeupCheck(void) {
 		RfidMfrc522_WakeupCheck();
 	}
 #endif
+}
+
+// True while a tag physically sits on the reader (the PN5180 driver tracks presence including
+// its removal grace period). The MFRC522 driver has no presence tracking, so there this always
+// reports false and features gated on it are inactive.
+bool Rfid_IsCardApplied(void) {
+#if defined(RFID_READER_TYPE_RUNTIME)
+	if (RfidConfig_GetReaderType() == RfidReaderType::TYPE_PN5180) {
+		return RfidPn5180_IsCardApplied();
+	}
+#endif
+	return false;
 }

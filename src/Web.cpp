@@ -1260,6 +1260,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("pauseRfidRem", generalObj["pauseIfRfidRemoved"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("stopRfidRem", generalObj["stopIfRfidRemoved"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("dAccRfidTwice", generalObj["dontAcceptRfidTwice"].as<bool>()) != 0);
+		if (generalObj["blockWebPlayTag"].is<bool>()) { // refuse web file-browser playback while an RFID tag is applied
+			gPrefsSettings.putBool("blockWebPlayTag", generalObj["blockWebPlayTag"].as<bool>());
+		}
 		success = success && (gPrefsSettings.putBool("pauseOnMinVol", generalObj["pauseOnMinVol"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("recoverVolBoot", generalObj["recoverVolBoot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUChar("volumeCurve", generalObj["volumeCurve"].as<uint8_t>()) != 0);
@@ -2000,6 +2003,8 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 		object["status"] = "dropout";
 	} else if (code == WebsocketCodeType::NotAllowedInCurrentMode) {
 		object["status"] = "not_allowed_in_current_mode";
+	} else if (code == WebsocketCodeType::WebPlayBlockedByTag) {
+		object["status"] = "web_play_blocked_by_tag";
 	} else if (code == WebsocketCodeType::CurrentRfid) {
 		object["rfidId"] = gCurrentRfidTagId;
 	} else if (code == WebsocketCodeType::Pong) {

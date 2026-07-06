@@ -364,6 +364,7 @@
 	"files": {
 		"title": "Dateien",
 		"loading": "Wird geladen...",
+		"playBlockedByTag": "Wiedergabe gesperrt: Es liegt gerade eine RFID-Karte auf",
 		"clean": {
 			"title": "SD-Karte bereinigen",
 			"prompt": "Entfernt macOS-Metadaten von der SD-Karte (.DS_Store, ._*-Dateien, Spotlight- und Papierkorb-Ordner). Musikdateien bleiben unangetastet. Fortfahren?",
@@ -820,6 +821,8 @@
 			"stopIfRfidRemovedExp": "Wenn aktiv (nur in Kombination mit „Pause wenn RFID-Tag entfernt“): Beim Abziehen der Karte wird die Wiedergabe vollständig gestoppt statt nur pausiert, die LEDs kehren also zur Idle-Animation zurück. Bei Hörbüchern wird die genaue Position im Moment des Abziehens gespeichert, sodass erneutes Auflegen genau dort weitermacht, wo du aufgehört hast; anderer Inhalt startet von vorn.",
 			"dontAcceptRfidTwice": "Denselben RFID-Tag nicht erneut akzeptieren",
 			"resumeOnSameRfidExp": "Wenn die Wiedergabe pausiert ist und derselbe RFID-Tag erneut aufgelegt wird, wird die Wiedergabe fortgesetzt. Funktioniert nur, wenn <em>Denselben RFID-Tag nicht erneut akzeptieren</em> aktiv ist.",
+			"blockWebPlayTag": "Web-Wiedergabe sperren solange RFID aufliegt",
+			"blockWebPlayTagExp": "Solange eine RFID-Karte physisch auf dem Leser liegt, kann aus dem Datei-Browser der Weboberfläche keine Wiedergabe gestartet werden. Verhindert verwirrende Zustände: Web-Wiedergabe würde die Karten-Wiedergabe ersetzen, und die Abzieh-Logik (Pause/Stopp, Positions-Speicherung) würde dann auf Inhalte wirken, die gar nicht zur aufgelegten Karte gehören. Benötigt einen PN5180-Leser (Kartenpräsenz-Erkennung). Fork-Funktion.",
 			"playLastRfidOnReboot": "Letzten RFID-Tag nach Neustart abspielen",
 			"playLastRfidOnRebootExp": "Letzten RFID-Tag nach Neustart wieder abspielen. Mehr Infos <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>hier</a> unter <code>PLAY_LAST_RFID_ON_REBOOT</code>.",
 			"pauseOnMinVolume": "Pause bei minimaler Lautstärke",
