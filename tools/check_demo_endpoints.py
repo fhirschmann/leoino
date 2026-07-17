@@ -36,6 +36,8 @@ ALLOWLIST = {
     "/stats.csv": "CSV download of listening stats — not exercised by the demo",
     "/wifiscan": "live WiFi scan — device-only",
     "/wificonfig": "WiFi credential write — device-only",
+    "/wifistatus": "live WiFi connection status — device-only (AP-setup page)",
+    "/wifitest": "live WiFi credential test — device-only (AP-setup page)",
     "/playlist": "writes an .m3u to the SD card — no real SD card in the demo",
     "/eqrule": "per-path EQ rule write — not exercised by the demo",
     "/rfidresetpos": "audiobook resume reset — not exercised by the demo",
