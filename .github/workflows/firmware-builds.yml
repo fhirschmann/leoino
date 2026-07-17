@@ -73,9 +73,12 @@ jobs:
 
       - name: Build ${{ matrix.variant }} (${{ matrix.language }})
         run: |
-          sed -i 's/^#define LANGUAGE .*/#define LANGUAGE ${{ matrix.language }}/' src/settings.h
+          sed -i -E 's/^[[:space:]]*#define LANGUAGE .*/\t#define LANGUAGE ${{ matrix.language }}/' src/settings.h
           platformio run -e ${{ matrix.variant }}
           cp .pio/build/${{ matrix.variant }}/firmware.bin binaries/firmware-${{ matrix.language }}.bin
+          # bootloader and partition table are language-independent (published for full-flash / OTA recovery)
+          cp .pio/build/${{ matrix.variant }}/bootloader.bin binaries/bootloader.bin
+          cp .pio/build/${{ matrix.variant }}/partitions.bin binaries/partitions.bin
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

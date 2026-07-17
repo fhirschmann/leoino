@@ -30,7 +30,7 @@
 #include "WebInternal.h"
 #include "Webdav.h"
 #include "Wlan.h"
-#include "revision.h"
+#include "gitrevision.h"
 
 // Settings serialization + the settings/equalizer-rule/operation-mode endpoints, extracted from
 // Web.cpp. Web.cpp registers these handlers (declared in WebInternal.h) in webserverStart and owns

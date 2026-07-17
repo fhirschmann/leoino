@@ -9,6 +9,7 @@
 #include "Backup.h"
 #include "Battery.h"
 #include "Bluetooth.h"
+#include "Button.h"
 #include "Cmd.h"
 #include "Common.h"
 #include "Display.h"
@@ -36,7 +37,8 @@
 #include "Webdav.h"
 #include "Wlan.h"
 #include "freertos/ringbuf.h"
-#include "revision.h"
+#include "gitrevision.h"
+#include "platforminfo.h"
 #include "soc/timer_group_reg.h"
 #include "soc/timer_group_struct.h"
 
@@ -52,6 +54,17 @@
 #include <mbedtls/sha256.h>
 #include <nvs.h>
 
+// An override written before this feature existed does not define it (settings-override.h replaces
+// settings.h wholesale), so fall back rather than break those builds.
+#ifndef JUMP_OFFSET_ROTARY
+	#define JUMP_OFFSET_ROTARY 10
+#endif
+
+typedef struct {
+	char nvsKey[cardIdStringSize];
+	char nvsEntry[512];
+} nvs_t;
+
 AsyncWebServer wServer(80);
 AsyncWebSocket ws("/ws");
 AsyncEventSource events("/events");
@@ -63,6 +76,8 @@ static uint16_t sLastIrCode = 0;
 
 static void handleTrackProgressRequest(AsyncWebServerRequest *request);
 static void handleGetSavedSSIDs(AsyncWebServerRequest *request);
+static void handleGetWifiStatus(AsyncWebServerRequest *request);
+static void handlePostWifiTest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handlePostSavedSSIDs(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleDeleteSavedSSIDs(AsyncWebServerRequest *request);
 static void handleGetActiveSSID(AsyncWebServerRequest *request);
@@ -604,26 +619,42 @@ void webserverStart(void) {
 		wServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
 			AsyncWebServerResponse *response;
 
+			// ETag is tied to the firmware build (gitRevShort), so it must only gate the firmware-embedded
+			// management_html_BIN response below - never the user-provided SD-card index.htm, whose content
+			// can change independently of the firmware (a stale 304 would then serve an outdated cached
+			// copy of the user's own custom page).
+			const bool etag = request->hasHeader("If-None-Match") && request->getHeader("If-None-Match")->value().equals(gitRevShort);
+
+			// management.html's frontend libraries are embedded rather than loaded from a CDN (see
+			// html/vendor/), so it no longer *needs* internet access - but AP-mode is typically reached
+			// through the OS's captive-portal mini-browser (e.g. iOS's Captive Network Assistant), which
+			// is a constrained sandbox: fixed small viewport, often no/partial WebSocket support, and a
+			// load-time budget the heavy Bootstrap/jQuery/jstree/WebSocket app can exceed - causing the OS
+			// to report the connection attempt as failed. So AP-mode keeps serving the minimal,
+			// framework-free accesspoint.html, which is known to work reliably in that sandbox.
 			if (WiFi.getMode() == WIFI_STA) {
-#ifndef NO_SDCARD
-				// custom UI hosted on the SD card can change without a firmware
-				// update, so it is served without any cache validators
-				if (gFSystem.exists("/.html/index.htm")) {
-					request->send(gFSystem, "/.html/index.htm", "text/html", false);
-					return;
-				}
-#endif
-				// serve management.html in station-mode; firmware-embedded, so it
-				// revalidates via the git revision like the other embedded assets
-				const AsyncWebHeader *inm = request->getHeader("If-None-Match");
-				if (inm && inm->value().equals(gitRevShort)) {
+				// serve management.html in station-mode
+#ifdef NO_SDCARD
+				if (etag) {
 					response = request->beginResponse(304);
 				} else {
 					response = request->beginResponse(200, "text/html", (const uint8_t *) management_html_BIN, sizeof(management_html_BIN));
 					response->addHeader("Content-Encoding", "gzip");
+					response->addHeader("Cache-Control", "no-cache");
+					response->addHeader("ETag", gitRevShort);
 				}
-				response->addHeader("Cache-Control", "no-cache");
-				response->addHeader("ETag", gitRevShort);
+#else
+				if (gFSystem.exists("/.html/index.htm")) {
+					response = request->beginResponse(gFSystem, "/.html/index.htm", "text/html", false);
+				} else if (etag) {
+					response = request->beginResponse(304);
+				} else {
+					response = request->beginResponse(200, "text/html", (const uint8_t *) management_html_BIN, sizeof(management_html_BIN));
+					response->addHeader("Content-Encoding", "gzip");
+					response->addHeader("Cache-Control", "no-cache");
+					response->addHeader("ETag", gitRevShort);
+				}
+#endif
 			} else {
 				// serve accesspoint.html in AP-mode — never with an ETag: "/" serves
 				// a different page per mode, a cached 304 could pin the wrong one
@@ -738,6 +769,11 @@ void webserverStart(void) {
 
 				Update.write(data, len);
 				Log_Print(".", LOGLEVEL_NOTICE, false);
+
+				const size_t contentLength = request->contentLength();
+				if (contentLength > 0) {
+					Led_ShowOtaProgress((uint8_t) (((index + len) * 100) / contentLength));
+				}
 
 				if (final) {
 					Update.end(true);
@@ -1101,6 +1137,8 @@ void webserverStart(void) {
 		wServer.addRewrite(new OneParamRewrite("/savedSSIDs/{ssid}", "/savedSSIDs?ssid={ssid}"));
 		wServer.on("/savedSSIDs", HTTP_DELETE, handleDeleteSavedSSIDs);
 		wServer.on("/activeSSID", HTTP_GET, handleGetActiveSSID);
+		wServer.on("/wifistatus", HTTP_GET, handleGetWifiStatus);
+		wServer.addHandler(new AsyncCallbackJsonWebHandler("/wifitest", handlePostWifiTest));
 
 		wServer.on("/wificonfig", HTTP_GET, handleGetWiFiConfig);
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/wificonfig", handlePostWiFiConfig));
@@ -1113,7 +1151,9 @@ void webserverStart(void) {
 		wServer.on("/bluetoothresults", HTTP_GET, handleBluetoothResultsRequest);
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/bluetoothconnect", handleBluetoothConnectRequest));
 
-		// ESPuino logo
+		// ESPuino logo: user-provided SD override takes precedence, otherwise fall back to the default
+		// logo embedded in the firmware (previously an external redirect to espuino.de, which failed
+		// without internet access, e.g. in AP-mode).
 		wServer.on("/logo", HTTP_GET, [](AsyncWebServerRequest *request) {
 #ifndef NO_SDCARD
 			Log_Println("logo request", LOGLEVEL_DEBUG);
@@ -1222,6 +1262,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putUInt("maxVolumeSp", generalObj["maxVolumeSp"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUInt("maxVolumeHp", generalObj["maxVolumeHp"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUInt("mInactiviyT", generalObj["sleepInactivity"].as<uint8_t>()) != 0);
+		if (generalObj["rotSeekStep"].is<uint8_t>()) {
+			success = success && (gPrefsSettings.putUChar("rotSeekStep", generalObj["rotSeekStep"].as<uint8_t>()) != 0);
+		}
 		success = success && (gPrefsSettings.putBool("playMono", generalObj["playMono"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosShutdown", generalObj["savePosShutdown"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosRfidChge", generalObj["savePosRfidChge"].as<bool>()) != 0);
@@ -1263,6 +1306,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (generalObj["blockWebPlayTag"].is<bool>()) { // refuse web file-browser playback while an RFID tag is applied
 			gPrefsSettings.putBool("blockWebPlayTag", generalObj["blockWebPlayTag"].as<bool>());
 		}
+		success = success && (gPrefsSettings.putBool("p2pSameRfid", generalObj["resumeOnSameRfid"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseOnMinVol", generalObj["pauseOnMinVol"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("recoverVolBoot", generalObj["recoverVolBoot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUChar("volumeCurve", generalObj["volumeCurve"].as<uint8_t>()) != 0);
@@ -1295,6 +1339,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			}
 		}
 		success = success && (gPrefsRfid.putUChar("mfrc522Gain", generalObj["mfrc522Gain"].as<uint8_t>()) != 0);
+		success = success && (gPrefsRfid.putUShort("pn5180Debounce", generalObj["pn5180Debounce"].as<uint16_t>()) != 0);
 		if (!success) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "general");
 			return WebsocketCodeType::Error;
@@ -1305,6 +1350,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		gPlayProperties.pauseOnMinVolume = generalObj["pauseOnMinVol"].as<bool>();
 		gPlayProperties.pauseIfRfidRemoved = generalObj["pauseIfRfidRemoved"].as<bool>();
 		gPlayProperties.stopIfRfidRemoved = generalObj["stopIfRfidRemoved"].as<bool>();
+		gPlayProperties.resumeOnSameRfid = generalObj["resumeOnSameRfid"].as<bool>();
 		if (gPlayProperties.pauseIfRfidRemoved) {
 			// ignore feature silently if PAUSE_WHEN_RFID_REMOVED is active
 			Log_Println("pauseIfRfidRemoved is enabled -> deactivate dontAcceptRfidTwice", LOGLEVEL_NOTICE);
@@ -1458,6 +1504,19 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putUChar("btnLong4", buttonsObj["long4"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUChar("btnLong5", buttonsObj["long5"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUChar("btnLong6", buttonsObj["long6"].as<uint8_t>()) != 0);
+		for (uint8_t i = 0; i < 6; i++) { // "hold button + turn encoder" gestures
+			char keyCw[12], keyCcw[13], jsonCw[10], jsonCcw[11];
+			snprintf(keyCw, sizeof(keyCw), "btnRotCw%u", i);
+			snprintf(keyCcw, sizeof(keyCcw), "btnRotCcw%u", i);
+			snprintf(jsonCw, sizeof(jsonCw), "rotCw%u", i);
+			snprintf(jsonCcw, sizeof(jsonCcw), "rotCcw%u", i);
+			if (buttonsObj[jsonCw].is<uint8_t>()) {
+				success = success && (gPrefsSettings.putUChar(keyCw, buttonsObj[jsonCw].as<uint8_t>()) != 0);
+			}
+			if (buttonsObj[jsonCcw].is<uint8_t>()) {
+				success = success && (gPrefsSettings.putUChar(keyCcw, buttonsObj[jsonCcw].as<uint8_t>()) != 0);
+			}
+		}
 		success = success && (gPrefsSettings.putUChar("btnMulti01", buttonsObj["multi01"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUChar("btnMulti02", buttonsObj["multi02"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUChar("btnMulti03", buttonsObj["multi03"].as<uint8_t>()) != 0);
@@ -1731,7 +1790,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			lastPongTimestamp = millis();
 			Web_SendWebsocketData(0, WebsocketCodeType::Pong);
 		}
-		return WebsocketCodeType::Error;
+		return WebsocketCodeType::Silent;
 	} else if (doc["controls"].is<JsonObject>()) {
 		// Prevent website control over volume and player actions in Bluetooth-Speaker mode
 		// we could still allow sone special commands, but it's cleaner this way
@@ -1742,7 +1801,12 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		const JsonObject controlsObj = doc["controls"].as<JsonObject>();
 		if (controlsObj["set_volume"].is<uint8_t>()) {
 			uint8_t new_vol = controlsObj["set_volume"].as<uint8_t>();
-			AudioPlayer_SetVolume(new_vol);
+			AudioPlayer_SetVolume(new_vol); // already broadcasts its own Volume update
+			if (!controlsObj["action"].is<uint8_t>()) {
+				// pure volume-slider drag (no button action alongside it) - don't also send
+				// back an Ok ack, or dragging the slider spams a "success" toast per tick
+				return WebsocketCodeType::Silent;
+			}
 		}
 		if (controlsObj["action"].is<uint8_t>()) {
 			uint8_t cmd = controlsObj["action"].as<uint8_t>();
@@ -1754,14 +1818,19 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 	} else if (doc["trackinfo"].is<JsonObject>()) {
 		Web_SendWebsocketData(0, WebsocketCodeType::TrackInfo);
+		return WebsocketCodeType::Silent;
 	} else if (doc["coverimg"].is<JsonObject>()) {
 		Web_SendWebsocketData(0, WebsocketCodeType::CoverImg);
+		return WebsocketCodeType::Silent;
 	} else if (doc["volume"].is<JsonObject>()) {
 		Web_SendWebsocketData(0, WebsocketCodeType::Volume);
+		return WebsocketCodeType::Silent;
 	} else if (doc["settings"].is<JsonObject>()) {
 		Web_SendWebsocketData(0, WebsocketCodeType::Settings);
+		return WebsocketCodeType::Silent;
 	} else if (doc["ssids"].is<JsonObject>()) {
 		Web_SendWebsocketData(0, WebsocketCodeType::Ssid);
+		return WebsocketCodeType::Silent;
 	} else if (doc["trackProgress"].is<JsonObject>()) {
 		// Prevent seeking in Bluetooth mode
 		if (!System_IsWebControlAllowed()) {
@@ -1774,6 +1843,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			gPlayProperties.currentRelPos = trackObj["posPercent"].as<uint8_t>();
 		}
 		Web_SendWebsocketData(0, WebsocketCodeType::TrackProgress);
+		return WebsocketCodeType::Silent;
 	}
 
 	return WebsocketCodeType::Ok;
@@ -1795,8 +1865,16 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		softwareObj["version"] = (String) softwareRevision;
 		softwareObj["git"] = (String) gitRevision;
 		softwareObj["build"] = (String) buildRevision;
+		softwareObj["branch"] = (String) gitBranch;
 		softwareObj["arduino"] = String(ESP_ARDUINO_VERSION_MAJOR) + "." + String(ESP_ARDUINO_VERSION_MINOR) + "." + String(ESP_ARDUINO_VERSION_PATCH);
 		softwareObj["idf"] = String(ESP.getSdkVersion());
+		softwareObj["platform"] = (String) espuinoPlatform;
+		softwareObj["customBuild"] = espuinoCustomBuild;
+#ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
+		softwareObj["otaSupported"] = true;
+#else
+		softwareObj["otaSupported"] = false;
+#endif
 	}
 	// hardware
 	if ((section == "") || (section == "hardware")) {
@@ -1906,7 +1984,7 @@ void handlePostSettings(AsyncWebServerRequest *request, JsonVariant &json) {
 	const JsonObject &jsonObj = json.as<JsonObject>();
 	WebsocketCodeType res = JSONToSettings(jsonObj);
 	if (res != WebsocketCodeType::Error) {
-		if (res != WebsocketCodeType::Ok) {
+		if (res != WebsocketCodeType::Ok && res != WebsocketCodeType::Silent) {
 			Web_SendWebsocketData(0, res);
 		}
 		request->send(200);
@@ -2133,10 +2211,8 @@ void onWebsocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsE
 			data[len] = 0;
 
 			WebsocketCodeType result = processJsonRequest((char *) data);
-			if (result != WebsocketCodeType::Error) {
-				if (strncmp((char *) data, "track", 5)) { // Don't send back ok-feedback if track's name is requested in background
-					Web_SendWebsocketData(client->id(), result);
-				}
+			if (result != WebsocketCodeType::Error && result != WebsocketCodeType::Silent) {
+				Web_SendWebsocketData(client->id(), result);
 			}
 		}
 	}
@@ -2177,6 +2253,89 @@ void handleGetSavedSSIDs(AsyncWebServerRequest *request) {
 
 	response->setLength();
 	request->send(response);
+}
+
+// Map an 802.11 disconnect reason code onto a coarse, user-explainable class.
+// The page translates the class into a localized message; the raw code is
+// reported alongside for the curious/for support.
+static const char *classifyDisconnectReason(uint8_t reason) {
+	switch (reason) {
+		case 0: // no disconnect event: association held, but no IP arrived
+			return "timeout";
+		case WIFI_REASON_AUTH_EXPIRE:
+		case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+		case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT:
+		case WIFI_REASON_IE_IN_4WAY_DIFFERS:
+		case WIFI_REASON_AUTH_FAIL:
+		case WIFI_REASON_HANDSHAKE_TIMEOUT:
+			return "wrong_password";
+		case WIFI_REASON_NO_AP_FOUND:
+		case 210: // NO_AP_FOUND_IN_RSSI_THRESHOLD (IDF >= 5.3)
+		case 211: // NO_AP_FOUND_IN_AUTHMODE_THRESHOLD
+		case 212: // NO_AP_FOUND_IN_BAND
+		case 213: // NO_AP_FOUND_W_COMPATIBLE_SECURITY
+			return "not_found";
+		case WIFI_REASON_ASSOC_TOOMANY:
+		case WIFI_REASON_802_1X_AUTH_FAILED:
+		case WIFI_REASON_CIPHER_SUITE_REJECTED:
+		case WIFI_REASON_ASSOC_FAIL:
+		case WIFI_REASON_CONNECTION_FAIL:
+			return "rejected";
+		default:
+			return "other";
+	}
+}
+
+// Current WiFi state plus diagnostics of the last failed connection attempt.
+// Used by the accesspoint page to tell the user why their credentials didn't
+// work instead of silently falling back to the setup AP.
+void handleGetWifiStatus(AsyncWebServerRequest *request) {
+	AsyncJsonResponse *response = new AsyncJsonResponse();
+	JsonObject obj = response->getRoot();
+
+	obj["state"] = Wlan_GetConnectState();
+	if (Wlan_IsConnected()) {
+		obj["ssid"] = Wlan_GetCurrentSSID();
+		obj["ip"] = Wlan_GetIpAddress();
+	}
+
+	String failSsid;
+	uint8_t failReason;
+	if (Wlan_GetLastFailure(failSsid, failReason)) {
+		JsonObject fail = obj["last_failure"].to<JsonObject>();
+		fail["ssid"] = failSsid;
+		fail["reason"] = failReason;
+		fail["class"] = classifyDisconnectReason(failReason);
+	}
+
+	// live connection test (started via POST /wifitest from the setup page)
+	const char *testPhase = Wlan_GetTestPhase();
+	if (strcmp(testPhase, "idle") != 0) {
+		JsonObject test = obj["test"].to<JsonObject>();
+		test["phase"] = testPhase;
+		test["ssid"] = Wlan_GetTestSsid();
+		if (strcmp(testPhase, "failed") == 0) {
+			const uint8_t reason = Wlan_GetTestReason();
+			test["reason"] = reason;
+			test["class"] = classifyDisconnectReason(reason);
+		} else if (strcmp(testPhase, "success") == 0) {
+			test["ip"] = Wlan_GetIpAddress();
+		}
+	}
+
+	response->setLength();
+	request->send(response);
+}
+
+// Start a live connection test while in AP mode. Body: {"ssid": "..."} —
+// the credentials must have been saved via POST /savedSSIDs beforehand.
+void handlePostWifiTest(AsyncWebServerRequest *request, JsonVariant &json) {
+	const char *ssid = json["ssid"].as<const char *>();
+	if (!ssid || !Wlan_StartConnectionTest(ssid)) {
+		request->send(400);
+		return;
+	}
+	request->send(200);
 }
 
 void handlePostSavedSSIDs(AsyncWebServerRequest *request, JsonVariant &json) {
@@ -2244,6 +2403,9 @@ void handleGetWiFiConfig(AsyncWebServerRequest *request) {
 
 	obj["hostname"] = Wlan_GetHostname();
 	obj["scanOnStart"].set(scanWifiOnStart);
+	obj["apSSID"] = Wlan_GetApSSID();
+	obj["apPassword"] = Wlan_GetApPassword();
+	obj["apTimeout"] = Wlan_GetApTimeoutMinutes();
 
 	response->setLength();
 	request->send(response);
@@ -2261,22 +2423,40 @@ void handlePostWiFiConfig(AsyncWebServerRequest *request, JsonVariant &json) {
 	}
 
 	// hostname
-	if (jsonObj["hostname"].is<const char *>()) {
-		String strHostname = jsonObj["hostname"];
-		if (!Wlan_ValidateHostname(strHostname)) {
-			Log_Println("hostname validation failed", LOGLEVEL_ERROR);
-			request->send(400, "text/plain; charset=utf-8", "hostname validation failed");
-			return;
-		}
-		if (!Wlan_SetHostname(strHostname)) {
-			Log_Println("error setting hostname", LOGLEVEL_ERROR);
-			request->send(500, "text/plain; charset=utf-8", "error setting hostname");
-			return;
-		}
+	String strHostname = jsonObj["hostname"];
+	if (!Wlan_ValidateHostname(strHostname)) {
+		Log_Println("hostname validation failed", LOGLEVEL_ERROR);
+		request->send(400, "text/plain; charset=utf-8", "hostname validation failed");
+		return;
 	}
 
-	Log_Println("WiFi configuration saved.", LOGLEVEL_NOTICE);
-	request->send(200, "text/plain; charset=utf-8", "ok");
+	// ESPuino's own access-point (used as fallback when no known WiFi is available)
+	String strApSSID = jsonObj["apSSID"];
+	if (!Wlan_ValidateApSSID(strApSSID)) {
+		Log_Println("AP SSID validation failed", LOGLEVEL_ERROR);
+		request->send(400, "text/plain; charset=utf-8", "AP SSID validation failed");
+		return;
+	}
+	String strApPassword = jsonObj["apPassword"];
+	if (!Wlan_ValidateApPassword(strApPassword)) {
+		Log_Println("AP password validation failed", LOGLEVEL_ERROR);
+		request->send(400, "text/plain; charset=utf-8", "AP password validation failed");
+		return;
+	}
+	// minutes the AP stays open before auto-closing; 0 = never close automatically
+	uint32_t apTimeoutMinutes = jsonObj["apTimeout"] | 5;
+
+	bool succ = Wlan_SetHostname(strHostname);
+	succ = succ && Wlan_SetApSSID(strApSSID);
+	succ = succ && Wlan_SetApPassword(strApPassword);
+	succ = succ && Wlan_SetApTimeoutMinutes(apTimeoutMinutes);
+	if (succ) {
+		Log_Println("WiFi configuration saved.", LOGLEVEL_NOTICE);
+		request->send(200, "text/plain; charset=utf-8", strHostname);
+	} else {
+		Log_Println("error setting hostname", LOGLEVEL_ERROR);
+		request->send(500, "text/plain; charset=utf-8", "error setting hostname");
+	}
 }
 
 // callback for writing a NVS entry to list

@@ -69,7 +69,14 @@ bool Rfid_GetLpcdShutdownStatus(void) {
 	return enabledLpcdShutdown;
 }
 
-void RfidPn5180_Init(void) {
+// Handles a possible deep-sleep wakeup via card-detection and releases GPIO pin holds left
+// over from a previous LPCD-armed deep-sleep. Must run early (before other peripherals are
+// powered), since a wakeup without a known card can send the device straight back to sleep
+// via RfidPn5180_WakeupCheck(). Does NOT start the scanning task: RfidPn5180_Task performing
+// SPI traffic concurrently with the rest of setup()'s peripheral init (Power_PeripheralOn(),
+// Led_Init(), SdCard_Init(), ...) was found to cause an intermittent full boot-hang, so task
+// creation is deferred to RfidPn5180_StartTask(), called once peripherals are up.
+void RfidPn5180_WakeupHandling(void) {
 	if (Rfid_Pn5180LpcdEnabled()) {
 		// Check if wakeup-reason was card-detection (PN5180 only)
 		// This only works if RFID.IRQ is connected to a GPIO and not to a port-expander
@@ -102,7 +109,9 @@ void RfidPn5180_Init(void) {
 		pinMode(RFID_IRQ, INPUT); // Not necessary for port-expander as for pca9555 all pins are configured as input per default
 	#endif
 	}
+}
 
+void RfidPn5180_StartTask(void) {
 	if (rfidTaskHandle == NULL) {
 		xTaskCreatePinnedToCore(
 			RfidPn5180_Task, /* Function to implement the task */
@@ -114,6 +123,11 @@ void RfidPn5180_Init(void) {
 			0 /* Core where the task should run */
 		);
 	}
+}
+
+void RfidPn5180_Init(void) {
+	RfidPn5180_WakeupHandling();
+	RfidPn5180_StartTask();
 }
 
 void RfidPn5180_Cyclic(void) {
@@ -200,6 +214,12 @@ void RfidPn5180_Task(void *parameter) {
 		if (RFID_PN5180_STATE_INIT == stateMachine) {
 			nfc14443.begin();
 			nfc14443.reset();
+			// Lower than the library default (500ms): transceiveCommand()'s BUSY-pin wait loops
+			// should normally resolve in well under this, so fail/retry faster if the chip is
+			// genuinely unresponsive instead of stalling the polling loop for half a second. This is
+			// the firmware-side half of upstream's false-"card removed" fix (our PN5180 lib is vendored).
+			nfc14443.commandTimeout = 100;
+			nfc15693.commandTimeout = 100;
 			// read and cache the PN5180 reader firmware version once (for the info dialog).
 			// Only cache a plausible value: if no (or a non-PN5180) reader is connected the
 			// EEPROM read yields garbage (0x00/0xFF), which we reject so /info omits the field.
@@ -268,6 +288,12 @@ void RfidPn5180_Task(void *parameter) {
 				}
 			}
 		} else if ((RFID_PN5180_NFC15693_STATE_GETINVENTORY == stateMachine) || (RFID_PN5180_NFC15693_STATE_GETINVENTORY_PRIVACY == stateMachine)) {
+			// Unlike the ISO14443 path, PN5180ISO15693::issueISO15693Command() (called by
+			// getInventory()) never clears the chip's IRQ-status register before checking for a
+			// fresh response. Without this, a stale RX-IRQ flag left over from an earlier
+			// successful read could make the next poll immediately look like "new data arrived"
+			// and return leftover buffer content as a phantom card - even with no tag present.
+			nfc15693.clearIRQStatus(0xffffffff);
 			// try to read ISO15693 inventory
 			ISO15693ErrorCode rc = nfc15693.getInventory(uid);
 			if (rc == ISO15693_EC_OK) {
@@ -311,12 +337,15 @@ void RfidPn5180_Task(void *parameter) {
 
 			// check for different card id
 			if (memcmp((const void *) cardId, (const void *) lastCardId, sizeof(cardId)) == 0) {
-				// reset state machine
+				// Same card as last poll (the common case while a tag sits continuously on the
+				// reader): skip the "new card" processing below (logging/queueing) and poll again
+				// directly, without a RESET in between - see the comment on the ACTIVE-bypass at
+				// the end of this loop for why avoiding the hardware reset here matters.
 				if (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) {
-					stateMachine = RFID_PN5180_NFC14443_STATE_RESET;
+					stateMachine = RFID_PN5180_NFC14443_STATE_READCARD;
 					continue;
 				} else if (RFID_PN5180_NFC15693_STATE_ACTIVE == stateMachine) {
-					stateMachine = RFID_PN5180_NFC15693_STATE_RESET;
+					stateMachine = RFID_PN5180_NFC15693_STATE_GETINVENTORY;
 					continue;
 				}
 			}
@@ -352,10 +381,19 @@ void RfidPn5180_Task(void *parameter) {
 			Rfid_HandleCardDetected(uid, lastValidcardId, (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) ? "ISO-14443" : "ISO-15693");
 		}
 
-		if (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) { // If 14443 is active, bypass 15693 as next check (performance)
-			stateMachine = RFID_PN5180_NFC14443_STATE_RESET;
-		} else if (RFID_PN5180_NFC15693_STATE_ACTIVE == stateMachine) { // If 15693 is active, bypass 14443 as next check (performance)
-			stateMachine = RFID_PN5180_NFC15693_STATE_RESET;
+		if (RFID_PN5180_NFC14443_STATE_ACTIVE == stateMachine) {
+			// Poll again directly, without a RESET in between: nfc14443.reset() is a full hardware
+			// reset of the PN5180 (RST-pin toggle + reboot wait) that collapses the RF field, and
+			// readCardSerial() re-establishes the field on every call anyway. Cycling a hard reset
+			// on every ~20ms poll while a card is already confirmed present forces marginally-coupled
+			// tags (e.g. a case with a larger antenna-to-card gap) to fully re-power from scratch each
+			// time, which is a plausible cause of intermittent "card not recognized" blips while a tag
+			// sits untouched on the reader. A RESET is still done for the initial scan (state machine
+			// starts at RESET) and after the tag is confirmed gone (see debounce below).
+			stateMachine = RFID_PN5180_NFC14443_STATE_READCARD;
+		} else if (RFID_PN5180_NFC15693_STATE_ACTIVE == stateMachine) {
+			// Same reasoning as above, for ISO15693.
+			stateMachine = RFID_PN5180_NFC15693_STATE_GETINVENTORY;
 		} else {
 			stateMachine++;
 			if (stateMachine > RFID_PN5180_NFC15693_STATE_GETINVENTORY_PRIVACY) {
@@ -468,7 +506,12 @@ void RfidPn5180_WakeupCheck(void) {
 
 	// check for card id in NVS
 	if (isCardPresent) {
-		// uint8_t[10] -> char[cardIdStringSize]
+		// Only the first cardIdSize bytes of the UID are used, matching the same ID scheme used for
+		// NVS lookups everywhere else (see RfidPn5180_Task below, memcpy(cardId, uid, cardIdSize)).
+		// Formatting all 10 raw UID bytes here previously overflowed this cardIdStringSize-sized
+		// stack buffer (cardIdStringSize is sized for exactly cardIdSize formatted bytes): once the
+		// write position exceeded the buffer, "cardIdStringSize - pos" (both size_t/unsigned) wrapped
+		// to a huge value, so snprintf kept writing well past the end of tagId.
 		char tagId[cardIdStringSize];
 		Rfid_CardIdToString(uid, tagId);
 

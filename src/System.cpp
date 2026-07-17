@@ -22,6 +22,7 @@
 #include "Sync.h"
 #include "Web.h"
 #include "Webdav.h"
+#include "Wlan.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -398,7 +399,9 @@ void System_PauseTasksDuringUpload(bool pause) {
 		AudioPlayer_NotifyUploadStart();
 		Rfid_TaskPause();
 		Led_TaskPause();
+		Wlan_SetPowerSave(false); // full WiFi power for max upload throughput (restored on resume)
 	} else if (doResume) {
+		Wlan_SetPowerSave(true); // restore power-save to keep idle power low (esp. on battery)
 		Led_TaskResume();
 		Rfid_TaskResume();
 		AudioPlayer_NotifyUploadEnd();

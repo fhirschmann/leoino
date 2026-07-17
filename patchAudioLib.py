@@ -10,14 +10,16 @@ been fetched into .pio/libdeps.
    headroom that prevents audio drop-outs while the webserver pushes big
    transfers over the shared SPI bus.
 
-2. Seek bookkeeping: after a resume/seek the library sets m_audioDataReadPtr
-   to the ABSOLUTE file position (including the ID3 header offset), but the
-   end-of-file check compares it against m_audioDataSize, which is RELATIVE
-   to the audio block. On files with a large ID3 tag (Tonie music albums
-   carry ~135 KB embedded covers) every resumed track therefore ended
-   id3size/bitrate (~5-6 s) before its real end. A normal (non-seek) start
-   keeps the pointer relative, so only seeks were affected; the patch makes
-   the seek path consistent with that.
+2. Seek bookkeeping: older library versions set m_audioDataReadPtr to the
+   ABSOLUTE file position (including the ID3 header offset) after a resume/seek,
+   while the end-of-file check compares it against m_audioDataSize, which is
+   RELATIVE to the audio block. On files with a large ID3 tag (Tonie music
+   albums carry ~135 KB embedded covers) every resumed track therefore ended
+   id3size/bitrate (~5-6 s) before its real end. As of ESP32-audioI2S v3.4.7h
+   the library fixes this itself in the resume path
+   (`m_audioDataReadPtr = (resumeFilePos + offset) - m_audioDataStart;`), so our
+   former `m_audioDataReadPtr = m_prlf/m_pwf.newFilePos` relativization patch is
+   no longer applicable and has been dropped. Re-check this if the lib is bumped.
 
 The patches are applied idempotently. If the library source changes so the
 expected lines are no longer found, the build aborts loudly so a patch
@@ -48,17 +50,8 @@ REPLACE = [
         "if (m_haveNewFilePos && (m_cat.avrBitRate || m_cat.nominalBitRate)) {",
         "if (m_haveNewFilePos && (m_cat.avrBitrateStable || m_cat.nominalBitRate)) { // patched by patchAudioLib.py: recompute only with a stable avg bitrate",
     ),
-    # newInBuffStart() returns 0 (seek rejected) or -1 (seek failed) without moving the
-    # file; subtracting the header offset from those sentinels would wrap the unsigned
-    # read pointer and fire an instant EOF, so only genuine positions are translated.
-    (
-        "m_audioDataReadPtr = m_prlf.newFilePos;",
-        "m_audioDataReadPtr = (m_prlf.newFilePos > (int32_t) m_audioDataStart) ? (m_prlf.newFilePos - m_audioDataStart) : 0; // patched by patchAudioLib.py: keep read pointer relative to the audio block (EOF fired id3-size early after a seek)",
-    ),
-    (
-        "m_audioDataReadPtr = m_pwf.newFilePos;",
-        "m_audioDataReadPtr = (m_pwf.newFilePos > (int32_t) m_audioDataStart) ? (m_pwf.newFilePos - m_audioDataStart) : 0; // patched by patchAudioLib.py: see above",
-    ),
+    # (The former m_audioDataReadPtr relativization patch was dropped in the v3.4.7h
+    #  library bump — see the module docstring, item 2: the library now does it itself.)
 ]
 
 

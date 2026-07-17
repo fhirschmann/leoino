@@ -7,8 +7,8 @@
 #include "StatusMessage.h"
 #include "System.h"
 #include "Web.h"
+#include "gitrevision.h"
 #include "logmessages.h"
-#include "revision.h"
 
 #include <ArduinoJson.h>
 #include <HTTPClient.h>

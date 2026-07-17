@@ -36,6 +36,13 @@
 // Allocate gPlayProperties in PSRAM if available
 EXT_RAM_BSS_ATTR playProps gPlayProperties;
 
+// Pending relative seek in seconds, written from the button/rotary/web tasks and drained by the audio loop.
+static std::atomic<int16_t> AudioPlayer_PendingSeekSeconds {0};
+
+void AudioPlayer_AddSeekOffset(const int16_t seconds) {
+	AudioPlayer_PendingSeekSeconds.fetch_add(seconds, std::memory_order_relaxed);
+}
+
 // Playlist
 static playlistSortMode AudioPlayer_PlaylistSortMode = AUDIOPLAYER_PLAYLIST_SORT_MODE_DEFAULT;
 
@@ -112,6 +119,25 @@ std::atomic<bool> newPlayListAvailable {false}; // producer publishes newPlayLis
 
 static bool AudioPlayer_UploadActive = false;
 static bool AudioPlayer_WasPausedBeforeUpload = false; // remember pre-upload pause state
+static bool gResetOldRfidOnIdle = false; // release the "don't accept same rfid twice"-lock on next idle-state
+
+// Remember an RFID-tag whose webstream could not be started because WiFi is not (yet) connected, so it can
+// be re-injected into the RFID-queue once WiFi is up (see handleWifiStateConnectionSuccess() in Wlan.cpp).
+static void AudioPlayer_RememberRfidForWifiRetry(const char *rfidTagId) {
+	strncpy(gRetryRfidTagId, rfidTagId, cardIdStringSize - 1);
+	gRetryRfidTagId[cardIdStringSize - 1] = '\0';
+	gRetryRfidOnWifiConnect = true;
+}
+
+// "Arm" the release of the DONT_ACCEPT_SAME_RFID_TWICE-lock: called by the RFID-handler the moment a new
+// tag is accepted, it records that this playback-attempt happened. The lock is then actually released the
+// next time the player becomes idle (see AudioPlayer_Cyclic()), which re-allows the same tag to be applied
+// again. Arming on acceptance - rather than on playback becoming active - is deliberate: it ensures the
+// release still fires even if the very first track fails immediately (e.g. a webstream applied before WiFi
+// is connected), which would otherwise leave the tag locked forever.
+void AudioPlayer_ArmRfidResetOnIdle(void) {
+	gResetOldRfidOnIdle = true;
+}
 
 // Guards the per-path equalizer cache (AudioPlayer_EqRules, defined below): rebuilt by
 // AudioPlayer_ReloadEqRules() from a web handler (async_tcp task) while AudioPlayer_ApplyEqualizerForPath()
@@ -558,6 +584,11 @@ void AudioPlayer_Init(void) {
 #else
 	gPlayProperties.dontAcceptRfidTwice = gPrefsSettings.getBool("dAccRfidTwice", false);
 #endif
+#ifdef RESUME_ON_SAME_RFID
+	gPlayProperties.resumeOnSameRfid = gPrefsSettings.getBool("p2pSameRfid", true);
+#else
+	gPlayProperties.resumeOnSameRfid = gPrefsSettings.getBool("p2pSameRfid", false);
+#endif
 	if (gPlayProperties.pauseIfRfidRemoved) {
 		// ignore feature silently if PAUSE_WHEN_RFID_REMOVED is active
 		Log_Println("pauseIfRfidRemoved is enabled -> deactivate dontAcceptRfidTwice", LOGLEVEL_NOTICE);
@@ -570,15 +601,21 @@ void AudioPlayer_Init(void) {
 
 	AudioPlayer_CurrentVolume = AudioPlayer_GetInitVolume();
 	// DMA-settings must be adjusted before setting the pinout
-	audio->setOutput16Bit(true); // to save dma-buffer and because we just don't need more than 16 bit
+	// (ESP32-audioI2S v3.4.7h defaults to 16-bit output, so the former setOutput16Bit(true) is gone.)
 	// 48 descriptors x 256 frames ~= 279 ms of buffered output at 44.1 kHz (~17 KB more
 	// internal RAM than the previous 32/186 ms). The extra cushion absorbs the cache
 	// freezes that NVS flash writes/erases inflict on both cores mid-playback.
 	audio->settings.DMA_DESC_NUM = 48;
 	audio->settings.DMA_FRAME_NUM = 256; // not too high, so safe SRAM
 	if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
-		audio->setOutput44K1Hz(true);
+		audio->setOutputSampleRate(Audio::OutputSR_t::SR_44100);
+		audio->settings.DMA_FRAME_NUM = 192; // not too high, to safe some SRAM
+	} else if (System_GetOperationMode() == OPMODE_BLUETOOTH_SINK) {
+		audio->settings.DMA_FRAME_NUM = 192; // not too high, to safe some SRAM
+	} else {
+		// just use default-values
 	}
+
 	audio->setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
 	audio->setVolumeSteps(AUDIOPLAYER_VOLUME_MAX);
 	audio->setVolumeCurve(Audio_GetVolume);
@@ -1385,7 +1422,6 @@ void AudioPlayer_Loop() {
 		if (gPlayProperties.playMode == WEBSTREAM || (gPlayProperties.playMode == LOCAL_M3U && gPlayProperties.isWebstream)) { // Webstream
 			audioReturnCode = audio->connecttohost(gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber));
 			gPlayProperties.playlistFinished = false;
-			gTriedToConnectToHost = true;
 		} else if (gPlayProperties.playMode != WEBSTREAM && !gPlayProperties.isWebstream) {
 			// Files from SD
 			if (!gFSystem.exists(gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber))) { // Check first if file/folder exists
@@ -1429,6 +1465,11 @@ void AudioPlayer_Loop() {
 
 		if (!audioReturnCode) {
 			System_IndicateError();
+			// If a webstream (e.g. from an m3u-playlist) failed because WiFi is not (yet) connected,
+			// remember the tag and retry it once WiFi is up.
+			if (gPlayProperties.isWebstream && !Wlan_IsConnected()) {
+				AudioPlayer_RememberRfidForWifiRetry(gPlayProperties.playRfidTag);
+			}
 			gPlayProperties.trackFinished = true;
 			return;
 		} else {
@@ -1501,21 +1542,19 @@ void AudioPlayer_Loop() {
 		}
 	}
 
+	// Relative seek. Accumulated in an atomic so that firing CMD_SEEK_* once per rotary detent scrubs
+	// proportionally instead of collapsing into a single jump (seekmode was a single overwrite-able enum
+	// consumed once per iteration, so rapid repeats were lost).
+	const int16_t seekOffset = AudioPlayer_PendingSeekSeconds.exchange(0, std::memory_order_relaxed);
+	if (seekOffset != 0) {
+		if (audio->setTimeOffset(seekOffset)) {
+			Log_Printf(LOGLEVEL_NOTICE, (seekOffset > 0) ? secondsJumpForward : secondsJumpBackward, abs(seekOffset));
+		}
+	}
+
 	// Handle seekmodes
 	if (gPlayProperties.seekmode != SEEK_NORMAL) {
-		if (gPlayProperties.seekmode == SEEK_FORWARDS) {
-			if (audio->setTimeOffset(jumpOffset)) {
-				Log_Printf(LOGLEVEL_NOTICE, secondsJumpForward, jumpOffset);
-			} else {
-				System_IndicateError();
-			}
-		} else if (gPlayProperties.seekmode == SEEK_BACKWARDS) {
-			if (audio->setTimeOffset(-(jumpOffset))) {
-				Log_Printf(LOGLEVEL_NOTICE, secondsJumpBackward, jumpOffset);
-			} else {
-				System_IndicateError();
-			}
-		} else if ((gPlayProperties.seekmode == SEEK_POS_PERCENT) && (gPlayProperties.currentRelPos > 0) && (gPlayProperties.currentRelPos < 100)) {
+		if ((gPlayProperties.seekmode == SEEK_POS_PERCENT) && (gPlayProperties.currentRelPos > 0) && (gPlayProperties.currentRelPos < 100)) {
 			uint32_t newFileTime = uint32_t((gPlayProperties.currentRelPos / 100.0f) * audio->getAudioFileDuration());
 			if (audio->setAudioPlayTime(newFileTime)) {
 				Log_Printf(LOGLEVEL_NOTICE, JumpToPosition, newFileTime, audio->getAudioFileDuration());
@@ -1622,14 +1661,15 @@ void AudioPlayer_Loop() {
 	}
 
 	if (gPlayProperties.dontAcceptRfidTwice) {
-		static uint8_t resetOnNextIdle = false;
+		// Release the lock once playback is idle again, so the same tag can be applied anew. The lock is
+		// armed when a tag is accepted (see Rfid_PreferenceLookupHandler()), independent of whether playback
+		// actually started - otherwise a tag whose first track fails immediately (e.g. a webstream without
+		// WiFi) would stay locked forever and could never be retried.
 		if (gPlayProperties.playlistFinished || gPlayProperties.playMode == NO_PLAYLIST) {
-			if (resetOnNextIdle) {
+			if (gResetOldRfidOnIdle) {
 				Rfid_ResetOldRfid();
-				resetOnNextIdle = false;
+				gResetOldRfidOnIdle = false;
 			}
-		} else {
-			resetOnNextIdle = true;
 		}
 	}
 }
@@ -1654,14 +1694,18 @@ void AudioPlayer_SetVolume(const int32_t _newVolume) {
 	int32_t _volumeBuf = AudioPlayer_GetCurrentVolume();
 
 	Led_Indicate(LedIndicatorType::VolumeChange);
-	if (_newVolume < AudioPlayer_GetMinVolume()) {
+	// Clamp rather than reject: a fast rotary spin can ask for several steps at once, and rejecting the whole
+	// change meant that near the rails (e.g. 20 -> 23 with max 21) nothing happened at all instead of pinning.
+	int32_t clampedVolume = _newVolume;
+	if (clampedVolume < AudioPlayer_GetMinVolume()) {
+		clampedVolume = AudioPlayer_GetMinVolume();
 		Log_Println(minLoudnessReached, LOGLEVEL_INFO);
-		return;
-	} else if (_newVolume > AudioPlayer_GetMaxVolume()) {
+	} else if (clampedVolume > AudioPlayer_GetMaxVolume()) {
+		clampedVolume = AudioPlayer_GetMaxVolume();
 		Log_Println(maxLoudnessReached, LOGLEVEL_INFO);
-		return;
-	} else {
-		_volume = _newVolume;
+	}
+	{
+		_volume = clampedVolume;
 		AudioPlayer_SetCurrentVolume(_volume);
 
 		Log_Printf(LOGLEVEL_INFO, newLoudnessReceived, _volume);
@@ -1671,7 +1715,7 @@ void AudioPlayer_SetVolume(const int32_t _newVolume) {
 #ifdef MQTT_ENABLE
 		publishMqtt(topicLoudness, static_cast<uint32_t>(_volume), false);
 #endif
-		AudioPlayer_PauseOnMinVolume(_volumeBuf, _newVolume);
+		AudioPlayer_PauseOnMinVolume(_volumeBuf, clampedVolume);
 	}
 }
 
@@ -2038,6 +2082,8 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 			Log_Println(modeWebstream, LOGLEVEL_NOTICE);
 			if (!Wlan_IsConnected()) {
 				Log_Println(webstreamNotAvailable, LOGLEVEL_ERROR);
+				// Remember this tag and retry automatically once WiFi is connected (e.g. webradio-tag applied at boot)
+				AudioPlayer_RememberRfidForWifiRetry(gCurrentRfidTagId);
 				error = true;
 			}
 			break;
@@ -2333,7 +2379,13 @@ void audio_oggimage(File &file, std::vector<uint32_t> v) {
 // record audiodata or send via BT
 void audio_process_i2s(int32_t *outBuff, int16_t validSamples, bool *continueI2S) {
 	if ((System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) && Bluetooth_Device_Connected()) {
-		Bluetooth_Source_SendAudioData(outBuff, validSamples);
+		// do downsamling to 16bit and send via BT
+		int16_t *outBuff16 = reinterpret_cast<int16_t *>(outBuff);
+		for (int16_t i = 0; i < validSamples * 2; i++) {
+			outBuff16[i] = outBuff16[i * 2 + 1];
+		}
+
+		Bluetooth_Source_SendAudioData(outBuff16, validSamples);
 		*continueI2S = false;
 		return;
 	}

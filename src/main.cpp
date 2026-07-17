@@ -33,12 +33,12 @@
 #include "Web.h"
 #include "Webdav.h"
 #include "Wlan.h"
-#include "revision.h"
+#include "gitrevision.h"
 
 #include <Wire.h>
 
-bool gPlayLastRfIdWhenWiFiConnected = false;
-bool gTriedToConnectToHost = false;
+bool gRetryRfidOnWifiConnect = false;
+char gRetryRfidTagId[cardIdStringSize] = "";
 
 static constexpr const char *logo = R"literal(
  _____   ____    ____            _
@@ -114,7 +114,6 @@ void recoverLastRfidPlayedFromNvs(bool force) {
 		} else {
 			Rfid_ResetOldRfid();
 			xQueueSend(gRfidCardQueue, lastRfidPlayed.c_str(), 0);
-			gPlayLastRfIdWhenWiFiConnected = !force;
 			Log_Printf(LOGLEVEL_INFO, restoredLastRfidFromNVS, lastRfidPlayed.c_str());
 		}
 	}
@@ -130,7 +129,10 @@ void setup() {
 	System_Init_Rfid_Prefs();
 	const bool pn5180LpcdEnabled = gPrefsRfid.getBool("pn5180Lpcd", false);
 	if (pn5180LpcdEnabled) {
-		Rfid_Init();
+		// Only handle a possible deep-sleep wakeup here; starting the RFID scanning task
+		// this early raced with the peripheral init below and could hang the boot (see
+		// Rfid_StartTask() call further down).
+		Rfid_WakeupHandling();
 	}
 	System_Init();
 
@@ -193,6 +195,9 @@ void setup() {
 	Webdav_Init();
 	if (!pn5180LpcdEnabled) {
 		Rfid_Init();
+	} else {
+		// Peripherals are up now, safe to start the scanning task deferred above.
+		Rfid_StartTask();
 	}
 	RotaryEncoder_Init();
 	Bluetooth_Init();

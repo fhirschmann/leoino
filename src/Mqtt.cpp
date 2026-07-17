@@ -13,8 +13,8 @@
 #include "Web.h"
 #include "Webdav.h"
 #include "Wlan.h"
+#include "gitrevision.h"
 #include "mqtt_client.h"
-#include "revision.h"
 
 #include <Rfid.h>
 #include <RfidSync.h>
@@ -518,7 +518,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 	#endif
 
 			char revBuf[16];
-			strncpy(revBuf, softwareRevision + 19, sizeof(revBuf) - 1);
+			strncpy(revBuf, softwareRevisionShort, sizeof(revBuf) - 1);
 			revBuf[sizeof(revBuf) - 1] = '\0';
 			publishMqtt(topicSRevision, revBuf, false);
 

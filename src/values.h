@@ -62,10 +62,12 @@
 #define CMD_ENABLE_FTP_SERVER			 150 // Enables FTP-server
 #define CMD_TELL_IP_ADDRESS				 151 // Command: ESPuino announces its IP-address via speech
 #define CMD_TELL_CURRENT_TIME			 152 // Command: ESPuino announces current time via speech
-#define CMD_TOGGLE_AMBIENT_LIGHT		 153 // Command: ESPuino announces current time via speech
+#define CMD_TOGGLE_AMBIENT_LIGHT		 153 // Command: toggles the ambient light
 #define CMD_TOGGLE_EQUALIZER			 154 // Command: cycle through the predefined equalizer profiles (flat/music/speech/voiceBoost)
 #define CMD_RTC_RESYNC					 155 // Command: write the current (NTP-disciplined) system time into the battery-backed RTC (DS3231)
 #define CMD_TOGGLE_OLED					 156 // Command: toggle the OLED display on/off (persisted; e.g. to blank it at night)
+#define CMD_BRIGHTNESS_UP				 157 // Command: raise LED-brightness by one step (hold-button + turn-encoder gesture)
+#define CMD_BRIGHTNESS_DOWN				 158 // Command: lower LED-brightness by one step (hold-button + turn-encoder gesture)
 
 #define CMD_PLAYPAUSE			 170 // Command: play/pause
 #define CMD_PREVTRACK			 171 // Command: previous track

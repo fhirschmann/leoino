@@ -19,7 +19,11 @@ typedef enum class WebsocketCode {
 	FtpStatus,
 	WebdavStatus,
 	IrLearn,
-	WebPlayBlockedByTag // web file-browser playback refused because an RFID tag is applied
+	WebPlayBlockedByTag, // web file-browser playback refused because an RFID tag is applied
+	// Request was a read-only data fetch (ssids/settings/trackinfo/coverimg/volume/...) that
+	// already sent its own specific response - the caller should not also forward Ok/an ack
+	// for it, unlike a genuine settings-save or control action.
+	Silent
 } WebsocketCodeType;
 
 void Web_Cyclic(void);

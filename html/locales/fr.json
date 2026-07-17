@@ -31,7 +31,8 @@
 		"conlost": "Connexion à l'ESPuino perdue! Veuillez recharger la page.",
 		"dropout": "flux lent, des interruptions sont possibles.",
 		"saved": "Paramètres enregistrés.",
-		"error": "Erreur"
+		"error": "Erreur",
+		"ledCountRestart": "Le nombre de LEDs a été modifié. L'ESPuino va redémarrer pour appliquer ce changement."
 	},
 	"nav": {
 		"updateAvailable": "Mise à jour disponible",
@@ -54,7 +55,8 @@
 		"leds": "LEDs",
 		"oled": "OLED",
 		"power": "Alim.",
-		"security": "Sécurité"
+		"security": "Sécurité",
+		"updates": "Mises à jour"
 	},
 	"ir": {
 		"title": "Télécommande infrarouge",
@@ -145,7 +147,20 @@
 			"satatmo": "Saturation d'ambiance",
 			"dimmablestates": "Étapes à gradation",
 			"reverserotation": "Inversion du sens de rotation",
-			"offset": "Début de l'offset LED"
+			"offset": "Début de l'offset LED",
+			"huestart": "Début de la couleur",
+			"hueend": "Fin de la couleur",
+			"numindicatorExp": "Nombre de LED utilisées pour l'indication d'état/de progression (par ex. volume, progression de lecture). Un redémarrage est nécessaire pour que la modification prenne effet.",
+			"numcontrolExp": "Nombre de LED supplémentaires en bout de chaîne, pouvant chacune se voir attribuer une couleur propre et librement choisie. Un redémarrage est nécessaire pour que la modification prenne effet.",
+			"numidledotsExp": "Nombre de points/LED affichés au repos (aucune lecture en cours).",
+			"huestartExp": "Teinte (0-255) au début de l'indicateur de progression. -1 = utiliser la couleur par défaut.",
+			"hueendExp": "Teinte (0-255) à la fin de l'indicateur de progression. -1 = utiliser la couleur par défaut.",
+			"hueatmoExp": "Teinte (0-255) en mode lumière d'ambiance. -1 = utiliser la couleur par défaut.",
+			"satatmoExp": "Saturation (0-255) en mode lumière d'ambiance. -1 = utiliser la valeur par défaut.",
+			"dimmablestatesExp": "Nombre d'étapes intermédiaires par LED, utilisées pour rendre les transitions (par ex. volume ou progression) plus douces/fines.",
+			"offsetExp": "Décale la première LED de l'indicateur de ce nombre de positions - utile si l'anneau LED ne doit pas commencer à la position 0.",
+			"offsetpauseExp": "Décale l'indicateur de pause d'un demi-espacement de LED par rapport à l'indicateur de repos normal, afin de distinguer visuellement la pause du repos.",
+			"reverserotationExp": "Inverse le sens de défilement de l'indicateur LED, par ex. pour les anneaux montés dans le sens antihoraire au lieu du sens horaire."
 		},
 		"oled": {
 			"title": "Écran OLED",
@@ -227,7 +242,12 @@
 		},
 		"rotary": {
 			"title": "Codeur rotatif",
-			"reverse": "Inversion du sens de rotation"
+			"reverse": "Inversion du sens de rotation",
+			"reverseExp": "Inverse le sens de comptage/rotation du codeur rotatif, par ex. si volume haut/bas est inversé.",
+			"gestures": "Bouton maintenu + rotation",
+			"gesturesExp": "Tant qu'un de ces boutons est maintenu, tourner le codeur rotatif déclenche l'action attribuée au lieu de changer le volume. « Tourner à droite » est le sens qui augmente le volume. L'appui long d'un tel bouton ne se déclenche qu'au relâchement - et pas du tout si le codeur a été tourné.",
+			"ccw": "tourner à gauche",
+			"cw": "tourner à droite"
 		},
 		"autosaveHint": "Les modifications sont enregistrées automatiquement",
 		"rfid": {
@@ -263,17 +283,20 @@
 		"ssid": {
 			"title": "Nom du WiFi (SSID)",
 			"placeholder": "SSID",
-			"validation": "Entrez le SSID du WiFi"
+			"validation": "Entrez le SSID du WiFi",
+			"explanation": "Nom du réseau WiFi auquel ESPuino doit se connecter."
 		},
 		"password": {
 			"title": "Mot de passe",
 			"placeholder": "Mot de passe",
-			"validation": "Entrez le mot de passe du WiFi"
+			"validation": "Entrez le mot de passe du WiFi",
+			"explanation": "Mot de passe du réseau WiFi auquel ESPuino doit se connecter."
 		},
 		"hostname": {
 			"title": "Nom de l'ESPuino (nom d'hôte)",
 			"placeholder": "espuino",
-			"validation": "Entrez un nom d'hôte valide"
+			"validation": "Entrez un nom d'hôte valide",
+			"explanation": "C'est le nom de votre ESPuino tel qu'il apparaît dans votre réseau."
 		},
 		"static": {
 			"addr": "Adresse IP statique",
@@ -281,16 +304,61 @@
 			"gateway": "Passerelle pour la configuration IP statique",
 			"subnet": "Masque de sous-réseau pour la configuration IP statique",
 			"dns1": "DNS 1 pour la configuration IP statique",
-			"dns2": "DNS 2 pour la configuration IP statique"
+			"dns2": "DNS 2 pour la configuration IP statique",
+			"explanation": "La configuration IP se fait manuellement au lieu de passer par un serveur DHCP. Attention : vous devez savoir ce qu'il faut saisir ici, sinon votre ESPuino risque de ne plus être accessible sur le réseau.",
+			"addrExp": "Adresse IPv4 fixe pour ESPuino sur le réseau WiFi (effective uniquement si la configuration IP statique est activée).",
+			"gatewayExp": "Adresse IP de la passerelle/du routeur pour la configuration IP statique.",
+			"subnetExp": "Masque de sous-réseau pour la configuration IP statique, par ex. 255.255.255.0.",
+			"dns1Exp": "Serveur DNS préféré pour la configuration IP statique.",
+			"dns2Exp": "Serveur DNS alternatif pour la configuration IP statique (utilisé si le premier est injoignable)."
 		},
 		"scan": {
-			"enabled": "Démarrer avec le WiFi le plus puissant"
+			"enabled": "Démarrer avec le WiFi le plus puissant",
+			"explanation": "Si plusieurs réseaux WiFi sont configurés dans ESPuino, ou si vous exploitez un réseau WiFi maillé (mesh), ESPuino ne rejoint pas simplement le premier réseau configuré qu'il trouve lors du scan. Il scanne plutôt tous les réseaux et rejoint le plus puissant. Avantage : débit plus élevé. Inconvénient : cela prend un peu plus de temps."
 		},
 		"delete": {
 			"title": "Supprimer WiFi",
 			"prompt": "Supprimer le WiFi enregistré \"{{ssid}}\"?"
 		},
-		"restartPrompt": "Prêt à partir?"
+		"restartPrompt": "Prêt à partir?",
+		"saveButton": "Enregistrer les paramètres WiFi",
+		"addNetworkButton": "Ajouter le réseau",
+		"apSSID": {
+			"title": "Nom du point d'accès ESPuino",
+			"placeholder": "ESPuino",
+			"explanation": "Nom du réseau WiFi qu'ESPuino ouvre lorsqu'aucun WiFi n'a encore été configuré, ou qu'aucun WiFi configuré n'est à portée."
+		},
+		"apPassword": {
+			"title": "Mot de passe du point d'accès ESPuino",
+			"placeholder": "Mot de passe",
+			"explanation": "Mot de passe du réseau WiFi qu'ESPuino ouvre lorsqu'aucun WiFi n'a encore été configuré, ou qu'aucun WiFi configuré n'est à portée."
+		},
+		"apTimeout": {
+			"title": "Le point d'accès se ferme après (minutes)",
+			"hint": "0 = le point d'accès ne se ferme jamais automatiquement (faille de sécurité !)",
+			"explanation": "Durée en minutes pendant laquelle le réseau WiFi qu'ESPuino ouvre (lorsqu'aucun WiFi n'a encore été configuré, ou qu'aucun WiFi configuré n'est à portée) reste ouvert."
+		},
+		"fullInterface": {
+			"title": "Vous voulez juste l'interface web ?",
+			"hint": "Si vous ne voulez pas configurer le WiFi mais juste accéder à l'interface (par ex. en déplacement sans WiFi connu) : fermez cette fenêtre, ouvrez votre navigateur habituel et accédez à cette adresse.",
+			"copy": "Copier l'adresse",
+			"copied": "Adresse copiée !",
+			"copyFailed": "Impossible de copier - veuillez sélectionner et copier l'adresse ci-dessus manuellement."
+		},
+		"fail": {
+			"wrong_password": "Impossible de rejoindre « {{ssid}} » — le mot de passe est probablement incorrect (code {{code}}). Veuillez le vérifier et réessayer.",
+			"not_found": "Le réseau « {{ssid}} » est introuvable (code {{code}}). Est-il à portée et en 2,4 GHz ?",
+			"rejected": "Le routeur a refusé la connexion à « {{ssid}} » (code {{code}}). Vérifiez les filtres MAC, les limites de clients ou les paramètres de sécurité (WPA2 requis).",
+			"other": "Échec de la connexion à « {{ssid}} » (code {{code}}).",
+			"timeout": "Connecté à « {{ssid}} », mais aucune adresse IP reçue (code {{code}}). Vérifiez les paramètres DHCP du routeur."
+		},
+		"test": {
+			"connecting": "Connexion à « {{ssid}} » …",
+			"connectingBtn": "Connexion …",
+			"success": "Connecté ! La box a reçu l'adresse IP {{ip}} et quitte maintenant le mode configuration. Reconnectez votre téléphone à votre WiFi habituel et accédez à la box via http://{{ip}}",
+			"reachTitle": "Accéder à votre ESPuino",
+			"reachHint": "Votre ESPuino est maintenant accessible à cette adresse sur votre WiFi. Copiez-la ou enregistrez-la dans vos favoris — le réseau de configuration va se fermer."
+		}
 	},
 	"control": {
 		"title": "Contrôle",
@@ -506,7 +574,8 @@
 					"247": "Lire la carte RFID virtuelle 07",
 					"248": "Lire la carte RFID virtuelle 08",
 					"249": "Lire la carte RFID virtuelle 09",
-					"250": "Lire la carte RFID virtuelle 10"
+					"250": "Lire la carte RFID virtuelle 10",
+					"155": "🔅 Diminuer la luminosité LED"
 				}
 			},
 			"learn": {
@@ -518,7 +587,8 @@
 				"virtualAssign": "Assigner",
 				"virtualOption": "Carte virtuelle {{n}}",
 				"virtualUsed": "utilisée"
-			}
+			},
+			"saveButton": "Enregistrer l'affectation"
 		}
 	},
 	"mqtt": {
@@ -527,22 +597,26 @@
 		"clientId": {
 			"title": "Identifiant client MQTT",
 			"placeholder": "par exemple ESPuino-<MAC>",
-			"validation": ""
+			"validation": "",
+			"explanation": "Identifiant unique utilisé par ESPuino pour se connecter au broker MQTT - doit être unique sur le réseau. Le paramètre substituable &lt;MAC&gt; est remplacé par l'adresse MAC."
 		},
 		"server": {
 			"title": "Serveur MQTT",
 			"placeholder": "par exemple 192.168.2.89",
-			"validation": ""
+			"validation": "",
+			"explanation": "Nom d'hôte ou adresse IP du broker MQTT."
 		},
 		"baseTopic": {
 			"title": "Topic de base (optionnel)",
 			"placeholder": "p.ex. home/espuino",
-			"validation": ""
+			"validation": "",
+			"explanation": "Chemin de base sous lequel tous les topics MQTT d'ESPuino sont publiés, par ex. 'espuino/salon/...'."
 		},
 		"deviceId": {
 			"title": "Identifiant de l'appareil",
 			"placeholder": "p.ex. ESPuino-<MAC>",
-			"validation": ""
+			"validation": "",
+			"explanation": "Identifiant de l'appareil, qui fait partie du chemin des topics MQTT - utile pour distinguer plusieurs ESPuino sur le même broker. Le paramètre substituable &lt;MAC&gt; est remplacé par l'adresse MAC."
 		},
 		"topicsPreview": "Sujets complets (aperçu)",
 		"restartNote": "Remarque : les modifications MQTT ne prennent effet qu'après le redémarrage de l'appareil.",
@@ -553,18 +627,23 @@
 		"user": {
 			"title": "Nom d'utilisateur MQTT (facultatif)",
 			"placeholder": "nom d'utilisateur",
-			"validation": ""
+			"validation": "",
+			"explanation": "Nom d'utilisateur pour la connexion au broker MQTT (si celui-ci requiert une authentification)."
 		},
 		"pwd": {
 			"title": "Mot de passe MQTT (facultatif)",
 			"placeholder": "mot de passe",
-			"validation": ""
+			"validation": "",
+			"explanation": "Mot de passe pour la connexion au broker MQTT (si celui-ci requiert une authentification)."
 		},
 		"port": {
 			"title": "Port MQTT",
 			"placeholder": "par exemple 1883",
-			"validation": ""
-		}
+			"validation": "",
+			"explanation": "Port TCP du broker MQTT (par défaut : 1883 pour les connexions non chiffrées)."
+		},
+		"saveButton": "Enregistrer les paramètres MQTT",
+		"enableExp": "Active la connexion à un broker MQTT. Un redémarrage est nécessaire pour que la modification prenne effet."
 	},
 	"ftp": {
 		"title": "Paramètres FTP",
@@ -572,20 +651,23 @@
 		"enable": "Démarrer le FTP automatiquement au démarrage",
 		"user": {
 			"title": "Nom d'utilisateur FTP",
-			"placeholder": "nom d'utilisateur"
+			"placeholder": "nom d'utilisateur",
+			"explanation": "Nom d'utilisateur pour accéder à ESPuino via FTP."
 		},
 		"pwd": {
 			"title": "Mot de passe FTP",
 			"placeholder": "mot de passe",
 			"show": "Afficher/masquer le mot de passe",
-			"securityHint": "Le mot de passe FTP se règle dans l'onglet « Sécurité » (mot de passe partagé de l'appareil)."
+			"securityHint": "Le mot de passe FTP se règle dans l'onglet « Sécurité » (mot de passe partagé de l'appareil).",
+			"explanation": "Mot de passe pour accéder à ESPuino via FTP."
 		},
 		"start": {
 			"title": "Démarrer serveur FTP",
 			"desc": "Active le serveur FTP jusqu'au redémarrage du périphérique.",
 			"button": "Démarrer le serveur FTP",
 			"stopButton": "Arrêter le serveur FTP"
-		}
+		},
+		"saveButton": "Enregistrer les paramètres FTP"
 	},
 	"webdav": {
 		"title": "Paramètres WebDAV",
@@ -730,16 +812,25 @@
 		},
 		"device": {
 			"title": "Périphérique Bluetooth (casque)",
-			"placeholder": "par exemple Mon casque sans fil POGS"
+			"placeholder": "par exemple Mon casque sans fil POGS",
+			"explanation": "Nom sous lequel ESPuino apparaît lors de l'appairage Bluetooth, ou qu'il utilise en se connectant comme casque Bluetooth."
 		},
 		"pincode": {
 			"title": "Code PIN de couplage",
-			"placeholder": "par exemple 0000"
+			"placeholder": "par exemple 0000",
+			"explanation": "Code PIN pour l'appairage Bluetooth (nécessaire uniquement si l'appareil cible le demande)."
 		},
 		"switchmode": {
 			"title": "Basculer vers le mode WiFi",
 			"prompt": "Le mode actuel ne prend pas en charge le contrôle via le site web. Voulez-vous basculer vers le mode WiFi pour permettre le contrôle via le site web ? L'appareil sera redémarré.",
 			"button": "Basculer vers le mode WiFi"
+		},
+		"saveButton": "Enregistrer les paramètres Bluetooth",
+		"normal": {
+			"title": "Quitter le mode Bluetooth",
+			"desc": "Retourne au mode normal avec fonctionnalité WiFi. La musique de la carte SD et les flux web peuvent être lus.",
+			"button": "Quitter le mode Bluetooth",
+			"indicator": "Mode WiFi (RSSI: {{rssi}} dBm)"
 		}
 	},
 	"general": {
@@ -748,7 +839,10 @@
 			"title": "Volume",
 			"restart": "Après le redémarrage",
 			"speakerMax": "Volume maximal (haut-parleur)",
-			"headphoneMax": "Volume maximal (écouteurs)"
+			"headphoneMax": "Volume maximal (écouteurs)",
+			"restartExp": "Volume avec lequel ESPuino démarre après la mise sous tension (sauf si 'Mémoriser le dernier volume' est activé).",
+			"speakerMaxExp": "Volume maximal autorisé lors de la lecture via le haut-parleur.",
+			"headphoneMaxExp": "Volume maximal autorisé lors de la lecture via un casque."
 		},
 		"equalizer": {
 			"title": "Égaliseur",
@@ -774,13 +868,16 @@
 				"auto": "Auto-detect",
 				"mfrc522_spi": "MFRC522 (SPI)",
 				"mfrc522_i2c": "MFRC522 (I2C)",
-				"pn5180": "PN5180"
+				"pn5180": "PN5180",
+				"description": "Sélectionnez le type de lecteur RFID connecté à votre ESPuino. La détection automatique tentera de déterminer le type de lecteur connecté automatiquement."
 			},
 			"description": "Sélectionnez le type de lecteur RFID connecté à votre ESPuino. La détection automatique tentera de déterminer le type de lecteur connecté automatiquement.",
 			"pn5180Lpcd": "Activer PN5180 LPCD",
 			"pn5180LpcdExp": "Active la détection de carte à faible puissance pour le lecteur RFID PN5180. Uniquement possible si les broches de soudure sont correctement configurées.",
 			"mfrc522Gain": "MFRC522 Gain",
-			"mfrc522GainExp": "Définit la sensibilité du lecteur RFID MFRC522. Les valeurs possibles sont de 0 (sensibilité la plus faible) à 7 (sensibilité la plus élevée). La valeur par défaut est 7."
+			"mfrc522GainExp": "Définit la sensibilité du lecteur RFID MFRC522. Les valeurs possibles sont de 0 (sensibilité la plus faible) à 7 (sensibilité la plus élevée). La valeur par défaut est 7.",
+			"pn5180Debounce": "Anti-rebond PN5180",
+			"pn5180DebounceExp": "Durée en millisecondes pendant laquelle une carte doit rester non détectée avant d'être considérée comme retirée. Évite que de brèves pertes de lecture (par ex. avec un écart plus important entre la carte et le lecteur) soient interprétées à tort comme un retrait de carte. Un redémarrage est nécessaire pour qu'une modification prenne effet. La valeur par défaut est 500ms."
 		},
 		"options": {
 			"title": "Options",
@@ -827,17 +924,23 @@
 			"noSleepWhenPoweredExp": "Si activé, l'appareil ne se met pas en veille par inactivité tant qu'il est sur secteur. Faute de détection de charge/USB, « sur secteur » est estimé via la tension de la batterie (la tension de charge dépasse la tension au repos) — voir le seuil. La minuterie de veille manuelle n'est pas affectée.",
 			"noSleepWhenPoweredWarn": "Attention : si l'appareil reste alimenté et ne se met jamais en veille, le rare tas interne se fragmente au fil des heures et l'interface web devient de plus en plus lente à charger. Remède : redémarrer de temps en temps, ou laisser cette option désactivée pour que la veille (= un démarrage à froid au réveil) défragmente le tas.",
 			"poweredVoltage": "Seuil « sur secteur » (V)",
-			"poweredVoltageExp": "À partir de cette tension de batterie, l'appareil est considéré « sur secteur ». Pour le LiFePO4, ~3,5 V est un bon point de départ (tension de charge ~3,6 V, repos plein ~3,3-3,4 V)."
+			"poweredVoltageExp": "À partir de cette tension de batterie, l'appareil est considéré « sur secteur ». Pour le LiFePO4, ~3,5 V est un bon point de départ (tension de charge ~3,6 V, repos plein ~3,3-3,4 V).",
+			"resumeOnSameRfid": "Reprendre la lecture si la même RFID est reposée",
+			"resumeOnSameRfidExp": "Si la lecture est en pause et que la même balise RFID est reposée, la lecture reprend. Actif uniquement si <em>Ne pas accepter la balise RFID deux fois</em> est activé."
 		},
 		"neopixel": {
 			"title": "Neopixel (luminosité)",
 			"restart": "Après le redémarrage",
 			"nightmode": "Pour le mode nuit",
-			"atmomode": "Pour le mode ambiance"
+			"atmomode": "Pour le mode ambiance",
+			"restartExp": "Luminosité des LED juste après la mise sous tension.",
+			"nightmodeExp": "Luminosité réduite des LED en mode nuit.",
+			"atmomodeExp": "Luminosité des LED en mode lumière d'ambiance (Atmolight)."
 		},
 		"sleep": {
 			"title": "Veille profonde",
-			"inactivity": "Après n minutes d'inactivité"
+			"inactivity": "Après n minutes d'inactivité",
+			"inactivityExp": "Durée en minutes sans interaction après laquelle ESPuino passe automatiquement en veille profonde."
 		},
 		"battery": {
 			"title": "Batterie",
@@ -846,7 +949,12 @@
 			"lowCritical": "Tension la plus basse (en volt), indiquée par une LED",
 			"criticalShutoff": "En dessous de cette tension (en volt), ESPuino s'éteint",
 			"high": "Tension indiquée par toutes les LED (en volt)",
-			"measureInterval": "Intervalle entre les mesures (en minutes)"
+			"measureInterval": "Intervalle entre les mesures (en minutes)",
+			"lowWarningExp": "Tension en dessous de laquelle un avertissement visuel (LED) de batterie faible est déclenché.",
+			"lowCriticalExp": "Tension considérée comme 0% de charge de la batterie (batterie vide).",
+			"highExp": "Tension considérée comme 100% de charge de la batterie (batterie pleine).",
+			"criticalShutoffExp": "Tension à laquelle ESPuino s'éteint automatiquement pour protéger la batterie d'une décharge profonde.",
+			"measureIntervalExp": "Intervalle de temps en minutes auquel la tension de la batterie est mesurée."
 		},
 		"playlist": {
 			"title": "Playlist",
@@ -854,13 +962,23 @@
 			"strcmp": "Tri standard",
 			"strnatcmp": "Naturel: sensible à la casse",
 			"strnatcasecmp": "Naturel: insensible à la casse",
-			"recDepth": "Profondeur de récursion maximale lors de la génération de playlists récursives"
+			"recDepth": "Profondeur de récursion maximale lors de la génération de playlists récursives",
+			"sortModeExp": "Définit comment les fichiers et playlists sont triés : tri alphabétique standard (par ex. '10' avant '2') ou tri naturel, qui ordonne correctement les nombres dans les noms (par ex. '2' avant '10'), avec ou sans distinction majuscules/minuscules.",
+			"recDepthExp": "Profondeur maximale de répertoire explorée lors de la génération de playlists récursives à partir de sous-dossiers."
 		},
 		"branding": {
 			"title": "Branding",
 			"brand": "Nom de marque",
 			"brandPlaceholder": "p.ex. Mon lecteur",
 			"hint": "Laisser vide pour la valeur par défaut. Remplace « ESPuino » dans l'en-tête et le pied de page."
+		},
+		"saveButton": "Enregistrer les paramètres",
+		"tabs": {
+			"playback": "Lecture",
+			"rfidReader": "Lecteur RFID",
+			"encoderButtons": "Codeur rotatif et boutons",
+			"led": "LED",
+			"power": "Énergie"
 		}
 	},
 	"tools": {
@@ -892,7 +1010,8 @@
 			"title": "Affectations RFID enregistrées",
 			"desc": "Les affectations RFID ne sont pas stockées sur la carte SD, mais sur la mémoire interne non volatile (NVS) de l'ESPuino.",
 			"list": {
-				"title": "Liste de toutes les affectations RFID enregistrées"
+				"title": "Liste de toutes les affectations RFID enregistrées",
+				"show": "Afficher les affectations"
 			},
 			"erase": {
 				"title": "Supprimer toutes les affectations RFID",
@@ -906,11 +1025,13 @@
 			},
 			"import": {
 				"title": "Importer",
-				"desc": "Le fichier de sauvegarde peut être téléversé ici pour importer les affectations RFID."
+				"desc": "Le fichier de sauvegarde peut être téléversé ici pour importer les affectations RFID.",
+				"button": "Importer les affectations"
 			},
 			"export": {
 				"title": "Exporter",
-				"desc": "Un fichier de sauvegarde peut être téléchargé ici afin d'exporter les affectations RFID."
+				"desc": "Un fichier de sauvegarde peut être téléchargé ici afin d'exporter les affectations RFID.",
+				"button": "Exporter les affectations"
 			}
 		},
 		"format": {
@@ -949,8 +1070,21 @@
 				"uptodate": "Déjà à jour – aucune mise à jour nécessaire.",
 				"flashing": "Téléchargement et installation…",
 				"started": "L'appareil installe le micrologiciel et va redémarrer – la page se rechargera sous peu…",
-				"error": "Échec de la mise à jour (voir la console/le journal)."
-			}
+				"error": "Échec de la mise à jour (voir la console/le journal).",
+				"title": "Charger le micrologiciel depuis GitHub",
+				"branch": "Branche",
+				"checkButton": "Rechercher des mises à jour",
+				"searching": "Recherche en cours…",
+				"noBuilds": "Aucune version trouvée pour cette sélection.",
+				"notAvailablePlatform": "Aucun micrologiciel prêt à l'emploi n'est fourni dans le dépôt pour cette plateforme ({{platform}}). Veuillez télécharger le micrologiciel manuellement.",
+				"notAvailableCustomBuild": "Cette carte a été compilée avec des paramètres personnalisés (settings-override.h / platformio-override.ini). Le micrologiciel officiel ne contient pas ces personnalisations – veuillez le compiler vous-même et le télécharger manuellement comme d'habitude.",
+				"notAvailableOta": "Cette carte ne prend pas en charge la mise à jour du micrologiciel via l'interface web. Veuillez flasher le micrologiciel via le port série.",
+				"buildEntry": "{{date}} – commit :",
+				"installButton": "Installer",
+				"installPrompt": "Installer le micrologiciel du {{date}} (commit {{commit}}) maintenant ?\n\nPlateforme : {{platform}}\nBranche : {{branch}}\nLangue : {{language}}\n\nLe nouveau micrologiciel va maintenant être installé sur votre ESPuino. Cela prend environ une minute - si un ruban Neopixel avec plusieurs LEDs est connecté, une animation de progression (bleue) sera affichée pendant ce temps. S'il n'y a qu'une seule LED, elle clignotera en bleu.",
+				"fetchError": "Impossible de récupérer la liste des micrologiciels."
+			},
+			"button": "Télécharger le micrologiciel"
 		},
 		"nav": {
 			"command": "Commande",
@@ -1025,7 +1159,8 @@
 		"lblPlay30d": "30 derniers jours",
 		"lblTopCard": "Plus joué",
 		"chartTitle": "30 derniers jours",
-		"exportCsv": "CSV"
+		"exportCsv": "CSV",
+		"branch": "Branche : {{branch}}"
 	},
 	"homekit": {
 		"title": "Apple HomeKit",
@@ -1049,5 +1184,9 @@
 		"confirmreset": "Supprimer tous les jumelages HomeKit de cet ESPuino ?",
 		"confirmregen": "Générer un nouveau code de jumelage ? Le code et le QR actuels cesseront de fonctionner pour les nouveaux jumelages.",
 		"namessaved": "Noms enregistrés. Redémarrer l’ESPuino maintenant pour les appliquer ?"
+	},
+	"status": {
+		"connected": "Connexion à l'ESPuino : OK",
+		"disconnected": "Connexion à l'ESPuino perdue - tentative de reconnexion..."
 	}
 }
