@@ -134,7 +134,13 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 		}
 
 		case CMD_SLEEP_AFTER_5_TRACKS: {
-			if (gPlayProperties.playMode == NO_PLAYLIST || !gPlayProperties.playlist) {
+			size_t playlistSize = 0;
+			AudioPlayer_LockPlaylist();
+			if (gPlayProperties.playlist) {
+				playlistSize = gPlayProperties.playlist->size();
+			}
+			AudioPlayer_UnlockPlaylist();
+			if (gPlayProperties.playMode == NO_PLAYLIST || playlistSize == 0) {
 				Log_Println(modificatorNotallowedWhenIdle, LOGLEVEL_NOTICE);
 				System_IndicateError();
 				return;
@@ -145,7 +151,7 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 			gPlayProperties.sleepAfter5Tracks = !gPlayProperties.sleepAfter5Tracks;
 
 			if (gPlayProperties.sleepAfter5Tracks) {
-				if (gPlayProperties.currentTrackNumber + 5 > gPlayProperties.playlist->size()) {
+				if (gPlayProperties.currentTrackNumber + 5 >= playlistSize) {
 					// execute a sleep after end of playlist
 					Cmd_Action(CMD_SLEEP_AFTER_END_OF_PLAYLIST);
 					break;

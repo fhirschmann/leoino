@@ -1268,10 +1268,17 @@ AnimationReturnType Animation_PlaylistProgress(const bool startNewAnimation, CRG
 	static uint32_t staticLastTrack = 0; // variable to remember the last track (for connecting animations)
 
 	if (gLedSettings.numIndicatorLeds >= 4) {
-		const uint16_t currentTrack = (gPlayProperties.playlist) ? gPlayProperties.playlist->size() : 0;
-		if (currentTrack > 1 && gPlayProperties.currentTrackNumber < currentTrack) {
+		size_t playlistSize = 0;
+		uint16_t currentTrackNumber = 0;
+		AudioPlayer_LockPlaylist();
+		if (gPlayProperties.playlist) {
+			playlistSize = gPlayProperties.playlist->size();
+		}
+		currentTrackNumber = gPlayProperties.currentTrackNumber;
+		AudioPlayer_UnlockPlaylist();
+		if (playlistSize > 1 && currentTrackNumber < playlistSize) {
 			uint8_t fullLeds, lastLed;
-			Led_QuantizeToBar(gPlayProperties.currentTrackNumber, currentTrack - 1, leds.size(), fullLeds, lastLed);
+			Led_QuantizeToBar(currentTrackNumber, playlistSize - 1, leds.size(), fullLeds, lastLed);
 			static LedPlaylistProgressStates animationState = LedPlaylistProgressStates::Done; // Statemachine-variable of this animation
 
 			if (LED_INDICATOR_IS_SET(LedIndicatorType::PlaylistProgress)) {
@@ -1280,13 +1287,13 @@ AnimationReturnType Animation_PlaylistProgress(const bool startNewAnimation, CRG
 				// only animate diff, if triggered again
 				if (!startNewAnimation) {
 					// forward progress
-					if (staticLastTrack < gPlayProperties.currentTrackNumber) {
+					if (staticLastTrack < currentTrackNumber) {
 						if (animationState > LedPlaylistProgressStates::FillBar) {
 							animationState = LedPlaylistProgressStates::FillBar;
 							animationCounter = staticLastBarLenghtPlaylist;
 						}
 						// backwards progress
-					} else if (staticLastTrack > gPlayProperties.currentTrackNumber) {
+					} else if (staticLastTrack > currentTrackNumber) {
 						if (staticLastBarLenghtPlaylist < fullLeds) {
 							animationState = LedPlaylistProgressStates::FillBar;
 							animationCounter = staticLastBarLenghtPlaylist;
@@ -1296,7 +1303,7 @@ AnimationReturnType Animation_PlaylistProgress(const bool startNewAnimation, CRG
 						}
 					}
 				}
-				staticLastTrack = gPlayProperties.currentTrackNumber;
+				staticLastTrack = currentTrackNumber;
 			}
 
 			if (startNewAnimation) {

@@ -2122,9 +2122,17 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 		object["opmode"] = System_GetOperationMode();
 	} else if (code == WebsocketCodeType::TrackInfo) {
 		JsonObject entry = object["trackinfo"].to<JsonObject>();
+		size_t playlistSize = 0;
+		uint16_t currentTrackNumber = 0;
+		AudioPlayer_LockPlaylist();
+		if (gPlayProperties.playlist) {
+			playlistSize = gPlayProperties.playlist->size();
+		}
+		currentTrackNumber = gPlayProperties.currentTrackNumber;
+		AudioPlayer_UnlockPlaylist();
 		entry["pausePlay"] = gPlayProperties.pausePlay;
-		entry["currentTrackNumber"] = gPlayProperties.currentTrackNumber + 1;
-		entry["numberOfTracks"] = (gPlayProperties.playlist) ? gPlayProperties.playlist->size() : 0;
+		entry["currentTrackNumber"] = currentTrackNumber + 1;
+		entry["numberOfTracks"] = playlistSize;
 		entry["volume"] = AudioPlayer_GetCurrentVolume();
 		entry["name"] = gPlayProperties.title;
 		entry["artist"] = gPlayProperties.artist; // ID3/Vorbis artist (empty if none)

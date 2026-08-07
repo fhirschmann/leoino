@@ -887,12 +887,19 @@ void Display_Cyclic(void) {
     // Right slot: track position "N/M" (if enabled) takes priority over the WiFi marker.
     bool drewRight = false;
     if (s_cfgTrackNum) {
-        Playlist *pl = gPlayProperties.playlist; // shared with the audio task; guard the pointer
-        if (pl != nullptr && pl->size() > 1) {
-            char tnBuf[12];
+        size_t playlistSize = 0;
+        uint16_t currentTrackNumber = 0;
+        AudioPlayer_LockPlaylist();
+        if (gPlayProperties.playlist != nullptr) {
+            playlistSize = gPlayProperties.playlist->size();
+        }
+        currentTrackNumber = gPlayProperties.currentTrackNumber;
+        AudioPlayer_UnlockPlaylist();
+        if (playlistSize > 1 && currentTrackNumber < playlistSize) {
+            char tnBuf[24];
             snprintf(tnBuf, sizeof(tnBuf), "%u/%u",
-                     static_cast<unsigned>(gPlayProperties.currentTrackNumber + 1),
-                     static_cast<unsigned>(pl->size()));
+                     static_cast<unsigned>(currentTrackNumber + 1),
+                     static_cast<unsigned>(playlistSize));
             s_u8g2.drawStr(static_cast<int>(128 - s_u8g2.getStrWidth(tnBuf)), 60, tnBuf);
             drewRight = true;
         }

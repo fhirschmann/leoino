@@ -82,6 +82,7 @@ time_t playTimeSecSinceStart = 0;
 
 // current station logo url
 static String AudioPlayer_StationLogoUrl;
+static SemaphoreHandle_t gMetadataMutex = NULL;
 
 #ifdef HEADPHONE_ADJUST_ENABLE
 static bool AudioPlayer_HeadphoneLastDetectionState;
@@ -119,7 +120,7 @@ constexpr uint32_t playbackTimeout = 2000;
 uint32_t playbackTimeoutStart = millis();
 uint8_t currentVolume;
 BaseType_t trackQStatus = pdFAIL;
-uint8_t trackCommand = NO_ACTION;
+static std::atomic<uint8_t> trackCommand {NO_ACTION};
 bool audioReturnCode;
 uint32_t AudioPlayer_LastPlaytimeStatsTimestamp = 0u;
 // Resume fade-in (see settings.h RESUME_FADEIN_*): millis() when the fade started after a
@@ -147,7 +148,8 @@ static PendingPlaylist gPendingPlaylist;
 static SemaphoreHandle_t gPendingPlaylistMutex = NULL;
 static std::atomic<bool> gPendingPlaylistAvailable {false};
 
-static bool AudioPlayer_UploadActive = false;
+static std::atomic<bool> AudioPlayer_UploadRequested {false};
+static std::atomic<bool> AudioPlayer_UploadActive {false};
 static bool AudioPlayer_WasPausedBeforeUpload = false; // remember pre-upload pause state
 static bool gResetOldRfidOnIdle = false; // release the "don't accept same rfid twice"-lock on next idle-state
 
@@ -214,34 +216,90 @@ static void AudioPlayer_SaveTrackStart(uint16_t trackNo, bool logTrackStart = fa
 	}
 }
 
-void AudioPlayer_NotifyUploadStart(void) {
-	if (AudioPlayer_UploadActive) {
-		return; // already suspended – ignore nested calls
+// All Audio-library calls belong to the audio task. Upload callbacks run on web/sync tasks, so
+// they publish the desired state and wait briefly for AudioPlayer_Cyclic() to apply it instead of
+// racing audio->loop() with a cross-core pauseResume().
+static void AudioPlayer_ApplyUploadState(void) {
+	const bool requested = AudioPlayer_UploadRequested.load(std::memory_order_acquire);
+	if (requested == AudioPlayer_UploadActive.load(std::memory_order_relaxed)) {
+		return;
 	}
-	AudioPlayer_UploadActive = true;
-	if (!gPlayProperties.pausePlay && gPlayProperties.playMode != NO_PLAYLIST && gPlayProperties.playMode != BUSY) {
-		AudioPlayer_WasPausedBeforeUpload = false;
+	if (requested) {
+		AudioPlayer_WasPausedBeforeUpload = gPlayProperties.pausePlay || gPlayProperties.playMode == NO_PLAYLIST || gPlayProperties.playMode == BUSY;
+		if (!AudioPlayer_WasPausedBeforeUpload && audio) {
+			audio->pauseResume();
+		}
+	} else if (!AudioPlayer_WasPausedBeforeUpload && audio) {
 		audio->pauseResume();
-	} else {
-		AudioPlayer_WasPausedBeforeUpload = true; // was already paused / idle
+	}
+	AudioPlayer_UploadActive.store(requested, std::memory_order_release);
+}
+
+static void AudioPlayer_RequestUploadState(bool active) {
+	AudioPlayer_UploadRequested.store(active, std::memory_order_release);
+	const uint32_t started = millis();
+	while (AudioPlayer_UploadActive.load(std::memory_order_acquire) != active && millis() - started < 2000u) {
+		vTaskDelay(pdMS_TO_TICKS(5));
+	}
+	if (AudioPlayer_UploadActive.load(std::memory_order_acquire) != active) {
+		Log_Println("Audio task did not acknowledge upload state", LOGLEVEL_ERROR);
 	}
 }
 
+void AudioPlayer_NotifyUploadStart(void) {
+	AudioPlayer_RequestUploadState(true);
+}
+
 void AudioPlayer_NotifyUploadEnd(void) {
-	if (!AudioPlayer_UploadActive) {
-		return;
-	}
-	if (!AudioPlayer_WasPausedBeforeUpload) {
-		audio->pauseResume();
-	}
-	AudioPlayer_UploadActive = false;
+	AudioPlayer_RequestUploadState(false);
 }
 
 // Set (from the audio task) once the decoder knows a trustworthy bitrate for the current
 // track: fired on the Xing/Info-header parse or once the measured average stabilizes. The
 // resume fallback-seek waits for this signal — earlier seeks race the library's own
 // connecttoFS seek and are computed from a still-swinging average bitrate.
-static volatile bool gAudioBitrateKnown = false;
+static std::atomic<bool> gAudioBitrateKnown {false};
+
+static size_t AudioPlayer_GetPlaylistSizeSnapshot(uint16_t *currentTrack = nullptr) {
+	size_t playlistSize = 0;
+	AudioPlayer_LockPlaylist();
+	if (gPlayProperties.playlist) {
+		playlistSize = gPlayProperties.playlist->size();
+	}
+	if (currentTrack) {
+		*currentTrack = gPlayProperties.currentTrackNumber;
+	}
+	AudioPlayer_UnlockPlaylist();
+	return playlistSize;
+}
+
+static String AudioPlayer_GetCurrentTrackPathSnapshot(void) {
+	String path;
+	AudioPlayer_LockPlaylist();
+	if (gPlayProperties.playlist && gPlayProperties.currentTrackNumber < gPlayProperties.playlist->size()) {
+		const char *entry = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
+		if (entry) {
+			path = entry;
+		}
+	}
+	AudioPlayer_UnlockPlaylist();
+	return path;
+}
+
+static bool AudioPlayer_SetStationLogoUrl(const String &url, bool onlyIfEmpty = false) {
+	bool changed = false;
+	if (gMetadataMutex) {
+		xSemaphoreTake(gMetadataMutex, portMAX_DELAY);
+	}
+	if (!onlyIfEmpty || AudioPlayer_StationLogoUrl.isEmpty()) {
+		AudioPlayer_StationLogoUrl = url;
+		changed = true;
+	}
+	if (gMetadataMutex) {
+		xSemaphoreGive(gMetadataMutex);
+	}
+	return changed;
+}
 
 void Audio_InfoCallback(Audio::msg_t m) {
 	switch (m.e) {
@@ -266,9 +324,8 @@ void Audio_InfoCallback(Audio::msg_t m) {
 		}
 		case Audio::evt_icyurl: {
 			Log_Printf(LOGLEVEL_INFO, "icy URL:      %s", m.msg);
-			if (m.msg && m.msg[0] != '\0' && AudioPlayer_StationLogoUrl.isEmpty()) {
+			if (m.msg && m.msg[0] != '\0' && AudioPlayer_SetStationLogoUrl("https://www.google.com/s2/favicons?sz=256&domain_url=" + String(m.msg), true)) {
 				// has station homepage, get favicon url
-				AudioPlayer_StationLogoUrl = "https://www.google.com/s2/favicons?sz=256&domain_url=" + String(m.msg);
 				// websocket and mqtt notify station logo has changed
 				Web_SendWebsocketData(0, WebsocketCodeType::CoverImg);
 			}
@@ -289,8 +346,10 @@ void Audio_InfoCallback(Audio::msg_t m) {
 				while (*titleVal == ' ') { // trim the leading space after "Title:"
 					titleVal++;
 				}
-				if (gPlayProperties.playlist->size() > 1) {
-					Audio_setTitle("(%u/%u): %s", gPlayProperties.currentTrackNumber + 1, gPlayProperties.playlist->size(), titleVal);
+				uint16_t currentTrack = 0;
+				const size_t playlistSize = AudioPlayer_GetPlaylistSizeSnapshot(&currentTrack);
+				if (playlistSize > 1) {
+					Audio_setTitle("(%u/%u): %s", currentTrack + 1, playlistSize, titleVal);
 				} else {
 					Audio_setTitle("%s", titleVal);
 				}
@@ -316,8 +375,10 @@ void Audio_InfoCallback(Audio::msg_t m) {
 		case Audio::evt_name: { // station name or icy-name
 			Log_Printf(LOGLEVEL_NOTICE, "station name: %s", m.msg);
 			if (m.msg && m.msg[0] != '\0') {
-				if (gPlayProperties.playlist->size() > 1) {
-					Audio_setTitle("(%u/%u): %s", gPlayProperties.currentTrackNumber + 1, gPlayProperties.playlist->size(), m.msg);
+				uint16_t currentTrack = 0;
+				const size_t playlistSize = AudioPlayer_GetPlaylistSizeSnapshot(&currentTrack);
+				if (playlistSize > 1) {
+					Audio_setTitle("(%u/%u): %s", currentTrack + 1, playlistSize, m.msg);
 				} else {
 					Audio_setTitle("%s", m.msg);
 				}
@@ -330,8 +391,10 @@ void Audio_InfoCallback(Audio::msg_t m) {
 			}
 			Log_Printf(LOGLEVEL_INFO, "stream title: %s", m.msg);
 			if (m.msg && m.msg[0] != '\0') {
-				if (gPlayProperties.playlist->size() > 1) {
-					Audio_setTitle("(%u/%u): %s", gPlayProperties.currentTrackNumber + 1, gPlayProperties.playlist->size(), m.msg);
+				uint16_t currentTrack = 0;
+				const size_t playlistSize = AudioPlayer_GetPlaylistSizeSnapshot(&currentTrack);
+				if (playlistSize > 1) {
+					Audio_setTitle("(%u/%u): %s", currentTrack + 1, playlistSize, m.msg);
 				} else {
 					Audio_setTitle("%s", m.msg);
 				}
@@ -341,20 +404,20 @@ void Audio_InfoCallback(Audio::msg_t m) {
 		case Audio::evt_icylogo: { // logo
 			Log_Printf(LOGLEVEL_INFO, "icy logo:     %s", m.msg);
 			if (m.msg && m.msg[0] != '\0') {
-				AudioPlayer_StationLogoUrl = m.msg;
+				AudioPlayer_SetStationLogoUrl(m.msg);
 				// websocket and mqtt notify station logo has changed
 				Web_SendWebsocketData(0, WebsocketCodeType::CoverImg);
 			}
 			break;
 		}
 		case Audio::evt_image: {
-			if (!gPlayProperties.playlist || gPlayProperties.currentTrackNumber >= gPlayProperties.playlist->size()) {
+			const String fileName = AudioPlayer_GetCurrentTrackPathSnapshot();
+			if (fileName.isEmpty()) {
 				break;
 			}
-			const char *fileName = gPlayProperties.playlist->at(gPlayProperties.currentTrackNumber);
 			File file = gFSystem.open(fileName, FILE_READ);
 			if (!file) {
-				Log_Printf(LOGLEVEL_ERROR, "Failed to open file: %s", fileName);
+				Log_Printf(LOGLEVEL_ERROR, "Failed to open file: %s", fileName.c_str());
 				break;
 			}
 			char fileType[4];
@@ -519,8 +582,9 @@ void AudioPlayer_Init(void) {
 	// guards the playlist pointer between the audio task and the web readers (created before the web server starts)
 	gPlaylistMutex = xSemaphoreCreateMutex();
 	gPendingPlaylistMutex = xSemaphoreCreateMutex();
-	if (!gPlaylistMutex || !gPendingPlaylistMutex) {
-		Log_Println("Audio: unable to allocate playlist mutex", LOGLEVEL_ERROR);
+	gMetadataMutex = xSemaphoreCreateMutex();
+	if (!gPlaylistMutex || !gPendingPlaylistMutex || !gMetadataMutex) {
+		Log_Println("Audio: unable to allocate state mutex", LOGLEVEL_ERROR);
 	}
 
 	// load playtime total from NVS
@@ -600,7 +664,7 @@ void AudioPlayer_Init(void) {
 	// clear title and cover image
 	gPlayProperties.title[0] = '\0';
 	gPlayProperties.coverFilePos = 0;
-	AudioPlayer_StationLogoUrl = "";
+	AudioPlayer_SetStationLogoUrl("");
 	gPlayProperties.playlist = allocatePlaylist();
 	gPlayProperties.SavePlayPosRfidChange = gPrefsSettings.getBool("savePosRfidChge", false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
 	gSavePosPeriodic = gPrefsSettings.getBool("savePosPeriodic", true); // periodic audiobook play-position checkpoint
@@ -734,7 +798,8 @@ static bool AudioPlayer_ResumePositionSettled(void) {
 }
 
 void AudioPlayer_Cyclic(void) {
-	if (AudioPlayer_UploadActive) {
+	AudioPlayer_ApplyUploadState();
+	if (AudioPlayer_UploadActive.load(std::memory_order_acquire)) {
 		return;
 	}
 
@@ -865,7 +930,15 @@ const char *AudioPlayer_GetCodecName(void) {
 }
 
 String AudioPlayer_GetStationLogoUrl(void) {
-	return AudioPlayer_StationLogoUrl;
+	String url;
+	if (gMetadataMutex) {
+		xSemaphoreTake(gMetadataMutex, portMAX_DELAY);
+	}
+	url = AudioPlayer_StationLogoUrl;
+	if (gMetadataMutex) {
+		xSemaphoreGive(gMetadataMutex);
+	}
+	return url;
 }
 
 void Audio_setTitle(const char *format, ...) {
@@ -1101,12 +1174,15 @@ void AudioPlayer_Loop() {
 		}
 	}
 
+	// Take exactly one command for this pass. A producer can publish the next command while this
+	// one is handled without having it erased by a later `NO_ACTION` assignment.
+	uint8_t currentTrackCommand = trackCommand.exchange(NO_ACTION, std::memory_order_acq_rel);
+
 	// A track-control keypress (play/pause, next, ...) during a running IP-/time-announcement
 	// aborts the announcement and resumes the audiobook, instead of acting on the speech
 	// audio-object. Clearing currentSpeechActive lets the speech-resume below re-inject the
 	// RFID-tag and continue the book from its saved position.
-	if (gPlayProperties.currentSpeechActive && trackCommand != NO_ACTION) {
-		trackCommand = NO_ACTION;
+	if (gPlayProperties.currentSpeechActive && currentTrackCommand != NO_ACTION) {
 		gPlayProperties.tellMode = TTS_NONE;
 		audio->stopSong();
 		gPlayProperties.currentSpeechActive = false;
@@ -1125,7 +1201,7 @@ void AudioPlayer_Loop() {
 		xSemaphoreGive(gPendingPlaylistMutex);
 	}
 
-	if (consumePendingPlaylist || gPlayProperties.trackFinished || trackCommand != NO_ACTION) {
+	if (consumePendingPlaylist || gPlayProperties.trackFinished || currentTrackCommand != NO_ACTION) {
 		if (consumePendingPlaylist) {
 			audio->stopSong();
 			if (AudioPlayer_ResumeFadeStartMs) {
@@ -1198,8 +1274,8 @@ void AudioPlayer_Loop() {
 		// Resolve smart-seek (SMARTFORWARD/SMARTBACKWARD): on a single long file it becomes a coalesced
 		// in-file seek (rapid presses accumulate into one jump -> one resync), otherwise it falls back to
 		// a normal next/previous track change. Reads the cached duration so it works from any caller context.
-		if (trackCommand == SMARTFORWARD || trackCommand == SMARTBACKWARD) {
-			const bool forward = (trackCommand == SMARTFORWARD);
+		if (currentTrackCommand == SMARTFORWARD || currentTrackCommand == SMARTBACKWARD) {
+			const bool forward = (currentTrackCommand == SMARTFORWARD);
 			const uint16_t step = AudioPlayer_GetSeekStep();
 			// A single-file playlist (audiobook) always smart-seeks in-file - even before the decoder
 			// has reported the duration (audioFileDuration is 0 for the first ~second after a card tap
@@ -1212,24 +1288,23 @@ void AudioPlayer_Loop() {
 				AudioPlayer_ResumeIfPaused(); // resume before seeking (mirrors the next/previous-track behavior)
 				gPlayProperties.smartSeekPendingSec += forward ? (int32_t) step : -(int32_t) step;
 				gPlayProperties.smartSeekRequestMs = millis();
-				trackCommand = NO_ACTION; // applied later (coalesced) in the seek-handling section
+				currentTrackCommand = NO_ACTION; // applied later (coalesced) in the seek-handling section
 				return; // exit before the switch/reconnect tail so the current file isn't restarted from 0
 			} else {
-				trackCommand = forward ? NEXTTRACK : PREVIOUSTRACK;
+				currentTrackCommand = forward ? NEXTTRACK : PREVIOUSTRACK;
 			}
 		}
 
-		if (gPlayProperties.playlistFinished && trackCommand != NO_ACTION) {
+		if (gPlayProperties.playlistFinished && currentTrackCommand != NO_ACTION) {
 			if (gPlayProperties.playMode != BUSY) { // Prevents from staying in mode BUSY forever when error occured (e.g. directory empty that should be played)
 				Log_Println(noPlaymodeChangeIfIdle, LOGLEVEL_NOTICE);
-				trackCommand = NO_ACTION;
 				System_IndicateError();
 				return;
 			}
 		}
 		/* Check if track-control was called
 		   (stop, start, next track, prev. track, last track, first track...) */
-		switch (trackCommand) {
+		switch (currentTrackCommand) {
 			case STOP:
 				// Persist the audiobook resume point *before* stopping (e.g. the card was pulled in
 				// stop-on-removal mode) so the next play continues exactly where it left off instead of
@@ -1243,7 +1318,6 @@ void AudioPlayer_Loop() {
 					AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
 				}
 				audio->stopSong();
-				trackCommand = NO_ACTION;
 				Log_Println(cmndStop, LOGLEVEL_INFO);
 				gPlayProperties.pausePlay = true;
 				gPlayProperties.playlistFinished = true;
@@ -1257,7 +1331,6 @@ void AudioPlayer_Loop() {
 				return;
 
 			case PAUSEPLAY:
-				trackCommand = NO_ACTION;
 				audio->pauseResume();
 				if (gPlayProperties.pausePlay) {
 					Log_Println(cmndResumeFromPause, LOGLEVEL_INFO);
@@ -1286,7 +1359,6 @@ void AudioPlayer_Loop() {
 				return;
 
 			case NEXTTRACK:
-				trackCommand = NO_ACTION;
 				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.repeatCurrentTrack) { // End loop if button was pressed
 					gPlayProperties.repeatCurrentTrack = false;
@@ -1315,7 +1387,6 @@ void AudioPlayer_Loop() {
 				break;
 
 			case PREVIOUSTRACK:
-				trackCommand = NO_ACTION;
 				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.repeatCurrentTrack) { // End loop if button was pressed
 					gPlayProperties.repeatCurrentTrack = false;
@@ -1369,7 +1440,6 @@ void AudioPlayer_Loop() {
 				}
 				break;
 			case FIRSTTRACK:
-				trackCommand = NO_ACTION;
 				AudioPlayer_ResumeIfPaused();
 				gPlayProperties.currentTrackNumber = 0;
 				AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber, true);
@@ -1380,7 +1450,6 @@ void AudioPlayer_Loop() {
 				break;
 
 			case LASTTRACK:
-				trackCommand = NO_ACTION;
 				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.currentTrackNumber + 1 < gPlayProperties.playlist->size()) {
 					gPlayProperties.currentTrackNumber = gPlayProperties.playlist->size() - 1;
@@ -1397,7 +1466,6 @@ void AudioPlayer_Loop() {
 				break;
 
 			case NEXTFOLDER: // Used for recursive playmodes
-				trackCommand = NO_ACTION;
 				if (gPlayProperties.pausePlay) {
 					audio->pauseResume();
 					gPlayProperties.pausePlay = false;
@@ -1415,7 +1483,6 @@ void AudioPlayer_Loop() {
 				break;
 
 			case PREVIOUSFOLDER: // Used for recursive playmodes
-				trackCommand = NO_ACTION;
 				if (gPlayProperties.pausePlay) {
 					audio->pauseResume();
 					gPlayProperties.pausePlay = false;
@@ -1436,7 +1503,6 @@ void AudioPlayer_Loop() {
 				break;
 
 			default:
-				trackCommand = NO_ACTION;
 				Log_Println(cmndDoesNotExist, LOGLEVEL_NOTICE);
 				System_IndicateError();
 				return;
@@ -2324,7 +2390,7 @@ void AudioPlayer_SetTrackControl(const uint8_t new_trackCommand) {
 			Sync_Cancel();
 		}
 	}
-	trackCommand = new_trackCommand;
+	trackCommand.store(new_trackCommand, std::memory_order_release);
 }
 
 // Knuth-Fisher-Yates-algorithm to randomize playlist
@@ -2385,7 +2451,7 @@ void AudioPlayer_SortPlaylist(Playlist *playlist) {
 void AudioPlayer_ClearCover(void) {
 	gPlayProperties.coverFilePos = 0;
 	gPlayProperties.audioFileSize = 0;
-	AudioPlayer_StationLogoUrl = "";
+	AudioPlayer_SetStationLogoUrl("");
 	// reset per-track metadata too (called at the start of every track), so artist/album from a
 	// previous track don't linger if the new one carries no ID3/Vorbis tags
 	gPlayProperties.artist[0] = '\0';

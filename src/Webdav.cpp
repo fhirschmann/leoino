@@ -11,6 +11,7 @@
 #include "Wlan.h"
 
 #include <WiFi.h>
+#include <atomic>
 #include <mbedtls/base64.h>
 
 // A compact, self-contained WebDAV/1,2 server over gFSystem (the sanitized SD filesystem). It
@@ -35,8 +36,8 @@ static constexpr int WEBDAV_WORKER_COUNT = 2;
 
 static WiFiServer *webdavServer = nullptr;
 static TaskHandle_t webdavTaskHandles[WEBDAV_WORKER_COUNT] = {nullptr};
-static volatile bool webdavShouldRun = false;
-static volatile bool webdavRunning = false; // true once the first worker has created+started the listener
+static std::atomic<bool> webdavShouldRun {false};
+static std::atomic<bool> webdavRunning {false}; // true once the first worker has created+started the listener
 static int webdavActiveWorkers = 0; // workers currently inside their accept loop; guarded by webdavStateMux
 // Enable/Disable/Exit are called from several tasks (web, MQTT, command, system-shutdown), and now
 // also guard the multi-worker startup/teardown handoff (first worker in creates the listener, last
@@ -45,12 +46,56 @@ static int webdavActiveWorkers = 0; // workers currently inside their accept loo
 // / double-free reboot. This mutex makes those decisions atomic; steady-state request handling
 // itself stays lock-free.
 static portMUX_TYPE webdavStateMux = portMUX_INITIALIZER_UNLOCKED;
+static SemaphoreHandle_t webdavConfigMutex = nullptr;
+static SemaphoreHandle_t webdavFsResourceMutex = nullptr;
+static SemaphoreHandle_t webdavFsReadersMutex = nullptr;
+static size_t webdavFsReaders = 0;
 
-static int webdavGetActiveWorkers(void) {
+static bool webdavAnyTaskAlive(void) {
+	bool alive = false;
 	portENTER_CRITICAL(&webdavStateMux);
-	const int count = webdavActiveWorkers;
+	for (int i = 0; i < WEBDAV_WORKER_COUNT; ++i) {
+		alive = alive || webdavTaskHandles[i] != nullptr;
+	}
 	portEXIT_CRITICAL(&webdavStateMux);
-	return count;
+	return alive;
+}
+
+// Multiple workers may stream different files concurrently, but a FAT mutation must exclude all
+// readers and other writers. This keeps Finder's parallel GET performance without allowing a PUT,
+// MOVE or DELETE to invalidate a directory/file that another worker is traversing.
+static void webdavFsReadLock(void) {
+	if (!webdavFsReadersMutex || !webdavFsResourceMutex) {
+		return;
+	}
+	xSemaphoreTake(webdavFsReadersMutex, portMAX_DELAY);
+	if (++webdavFsReaders == 1) {
+		xSemaphoreTake(webdavFsResourceMutex, portMAX_DELAY);
+	}
+	xSemaphoreGive(webdavFsReadersMutex);
+}
+
+static void webdavFsReadUnlock(void) {
+	if (!webdavFsReadersMutex || !webdavFsResourceMutex) {
+		return;
+	}
+	xSemaphoreTake(webdavFsReadersMutex, portMAX_DELAY);
+	if (webdavFsReaders > 0 && --webdavFsReaders == 0) {
+		xSemaphoreGive(webdavFsResourceMutex);
+	}
+	xSemaphoreGive(webdavFsReadersMutex);
+}
+
+static void webdavFsWriteLock(void) {
+	if (webdavFsResourceMutex) {
+		xSemaphoreTake(webdavFsResourceMutex, portMAX_DELAY);
+	}
+}
+
+static void webdavFsWriteUnlock(void) {
+	if (webdavFsResourceMutex) {
+		xSemaphoreGive(webdavFsResourceMutex);
+	}
 }
 
 String Webdav_User = "esp32"; // default; kept for compatibility but ignored for auth (any username is accepted)
@@ -65,14 +110,30 @@ static constexpr size_t WEBDAV_BUFFER_SIZE = 2048;
 // Auth is required only when a password is set. The username is ignored (any username is accepted),
 // so the check decodes the HTTP Basic header per request and compares only the password.
 static void webdavComputeAuth(void) {
+	if (webdavConfigMutex) {
+		xSemaphoreTake(webdavConfigMutex, portMAX_DELAY);
+	}
 	webdavAuthRequired = !Webdav_Password.isEmpty();
+	if (webdavConfigMutex) {
+		xSemaphoreGive(webdavConfigMutex);
+	}
 }
 
 // Returns true if the request may proceed: no password set (open drive), or the password part of the
 // "Authorization: Basic <base64(user:password)>" header matches the configured password. Any username
 // is accepted - only the password matters.
 static bool webdavCheckAuth(const String &authz) {
-	if (!webdavAuthRequired) {
+	bool authRequired = false;
+	String password;
+	if (webdavConfigMutex) {
+		xSemaphoreTake(webdavConfigMutex, portMAX_DELAY);
+	}
+	authRequired = webdavAuthRequired;
+	password = Webdav_Password;
+	if (webdavConfigMutex) {
+		xSemaphoreGive(webdavConfigMutex);
+	}
+	if (!authRequired) {
 		return true;
 	}
 	if (!authz.startsWith("Basic ")) {
@@ -90,7 +151,7 @@ static bool webdavCheckAuth(const String &authz) {
 	if (colon < 0) {
 		return false;
 	}
-	return cred.substring(colon + 1) == Webdav_Password;
+	return cred.substring(colon + 1) == password;
 }
 
 static int webdavFromHex(char c) {
@@ -819,10 +880,14 @@ static void webdavHandleClient(WiFiClient &client) {
 		client.print("Content-Length: 0\r\n\r\n");
 	} else if (method == "PROPFIND") {
 		consumeBody();
+		webdavFsReadLock();
 		webdavHandlePropfind(client, path, depth);
+		webdavFsReadUnlock();
 	} else if (method == "GET" || method == "HEAD") {
 		consumeBody();
+		webdavFsReadLock();
 		webdavHandleGet(client, path, method == "HEAD", range);
+		webdavFsReadUnlock();
 	} else if (method == "PUT") {
 		// A chunked body has no Content-Length, so we'd otherwise treat it as a 0-byte PUT and truncate
 		// the target to empty. We don't decode chunked transfer-encoding, so per RFC 7230 demand a length
@@ -834,17 +899,33 @@ static void webdavHandleClient(WiFiClient &client) {
 			// a negative length would skip the copy loop and leave the freshly-truncated target empty
 			webdavSendStatus(client, 400, "Bad Request");
 		} else {
+			webdavFsWriteLock();
+			System_PauseTasksDuringUpload(true);
 			webdavHandlePut(client, path, contentLength);
+			System_PauseTasksDuringUpload(false);
+			webdavFsWriteUnlock();
 		}
 	} else if (method == "DELETE") {
 		consumeBody();
+		webdavFsWriteLock();
+		System_PauseTasksDuringUpload(true);
 		webdavHandleDelete(client, path);
+		System_PauseTasksDuringUpload(false);
+		webdavFsWriteUnlock();
 	} else if (method == "MKCOL") {
 		consumeBody();
+		webdavFsWriteLock();
+		System_PauseTasksDuringUpload(true);
 		webdavHandleMkcol(client, path);
+		System_PauseTasksDuringUpload(false);
+		webdavFsWriteUnlock();
 	} else if (method == "MOVE" || method == "COPY") {
 		consumeBody();
+		webdavFsWriteLock();
+		System_PauseTasksDuringUpload(true);
 		webdavHandleMoveCopy(client, path, destination, method == "MOVE", overwriteFlag);
+		System_PauseTasksDuringUpload(false);
+		webdavFsWriteUnlock();
 	} else if (method == "LOCK") {
 		consumeBody();
 		webdavHandleLock(client, path);
@@ -875,6 +956,17 @@ static void webdavHandleClient(WiFiClient &client) {
 
 static void webdavTask(void *param) {
 	const int workerIndex = (int) (intptr_t) param;
+	// xTaskCreate may schedule this task before the caller has stored its returned handle. Wait for
+	// that registration so lifecycle checks never observe an untracked live worker.
+	bool registered = false;
+	while (!registered) {
+		portENTER_CRITICAL(&webdavStateMux);
+		registered = webdavTaskHandles[workerIndex] != nullptr;
+		portEXIT_CRITICAL(&webdavStateMux);
+		if (!registered) {
+			vTaskDelay(pdMS_TO_TICKS(1));
+		}
+	}
 
 	// First worker in creates the shared listener; later workers just wait for it. Backlog raised
 	// from the default of 4 to match CONFIG_LWIP_TCP_ACCEPTMBOX_SIZE (bumped alongside this in
@@ -887,16 +979,21 @@ static void webdavTask(void *param) {
 	portEXIT_CRITICAL(&webdavStateMux);
 	if (isFirst) {
 		webdavServer = new WiFiServer(webdavPort, 12);
-		webdavServer->begin();
-		webdavRunning = true;
-		Log_Printf(LOGLEVEL_NOTICE, "WebDAV server started on port %u (%d workers)", webdavPort, WEBDAV_WORKER_COUNT);
+		if (webdavServer) {
+			webdavServer->begin();
+			webdavRunning.store(true, std::memory_order_release);
+			Log_Printf(LOGLEVEL_NOTICE, "WebDAV server started on port %u (%d workers)", webdavPort, WEBDAV_WORKER_COUNT);
+		} else {
+			webdavShouldRun.store(false, std::memory_order_release);
+			Log_Println("WebDAV: unable to allocate server", LOGLEVEL_ERROR);
+		}
 	} else {
-		while (!webdavRunning && webdavShouldRun) {
+		while (!webdavRunning.load(std::memory_order_acquire) && webdavShouldRun.load(std::memory_order_acquire)) {
 			vTaskDelay(pdMS_TO_TICKS(5));
 		}
 	}
 
-	while (webdavShouldRun) {
+	while (webdavShouldRun.load(std::memory_order_acquire)) {
 		if (!Wlan_IsConnected()) {
 			vTaskDelay(pdMS_TO_TICKS(250));
 			continue;
@@ -906,7 +1003,7 @@ static void webdavTask(void *param) {
 		// client, which spins this loop at 100% CPU and wedges the server once Finder opens its burst
 		// of short-lived connections -- the drive then "disappears" mid-mount. Safe to call from
 		// several worker tasks concurrently (see the WEBDAV_WORKER_COUNT comment above).
-		WiFiClient client = webdavServer->accept();
+		WiFiClient client = webdavServer ? webdavServer->accept() : WiFiClient();
 		if (client) {
 			// NB: we deliberately do NOT refresh the inactivity timer here. A mounted drive makes
 			// Finder/Explorer poll (PROPFIND) constantly; refreshing on every request would keep the
@@ -931,14 +1028,28 @@ static void webdavTask(void *param) {
 			delete webdavServer;
 			webdavServer = nullptr;
 		}
-		webdavRunning = false;
+		webdavRunning.store(false, std::memory_order_release);
 		Log_Println("WebDAV server stopped", LOGLEVEL_NOTICE);
 	}
+	portENTER_CRITICAL(&webdavStateMux);
 	webdavTaskHandles[workerIndex] = nullptr;
+	portEXIT_CRITICAL(&webdavStateMux);
 	vTaskDelete(nullptr);
 }
 
 void Webdav_Init(void) {
+	if (!webdavConfigMutex) {
+		webdavConfigMutex = xSemaphoreCreateMutex();
+	}
+	if (!webdavFsResourceMutex) {
+		webdavFsResourceMutex = xSemaphoreCreateMutex();
+	}
+	if (!webdavFsReadersMutex) {
+		webdavFsReadersMutex = xSemaphoreCreateMutex();
+	}
+	if (!webdavConfigMutex || !webdavFsResourceMutex || !webdavFsReadersMutex) {
+		Log_Println("WebDAV: unable to allocate state mutex", LOGLEVEL_ERROR);
+	}
 	String nvsUser = gPrefsSettings.getString("webdavUser", "-1");
 	if (nvsUser == "-1") {
 		gPrefsSettings.putString("webdavUser", Webdav_User);
@@ -956,9 +1067,17 @@ void Webdav_Init(void) {
 }
 
 void Webdav_ReloadCredentials(void) {
-	Webdav_User = gPrefsSettings.getString("webdavUser", Webdav_User);
-	Webdav_Password = gPrefsSettings.getString("webdavPwd", Webdav_Password);
-	webdavComputeAuth(); // running task re-checks auth per request, so no restart needed
+	String user = gPrefsSettings.getString("webdavUser", Webdav_User);
+	String password = gPrefsSettings.getString("webdavPwd", Webdav_Password);
+	if (webdavConfigMutex) {
+		xSemaphoreTake(webdavConfigMutex, portMAX_DELAY);
+	}
+	Webdav_User = user;
+	Webdav_Password = password;
+	webdavAuthRequired = !Webdav_Password.isEmpty();
+	if (webdavConfigMutex) {
+		xSemaphoreGive(webdavConfigMutex);
+	}
 }
 
 void Webdav_Cyclic(void) {
@@ -1007,21 +1126,22 @@ void Webdav_EnableServer(void) {
 		return; // already running or mid-transition
 	}
 	for (int i = 0; i < WEBDAV_WORKER_COUNT; i++) {
-		if (xTaskCreatePinnedToCore(webdavTask, "webdav", 8192, (void *) (intptr_t) i, 1, &webdavTaskHandles[i], 0) != pdPASS) {
+		TaskHandle_t createdTask = nullptr;
+		if (xTaskCreatePinnedToCore(webdavTask, "webdav", 8192, (void *) (intptr_t) i, 1, &createdTask, 0) != pdPASS) {
 			Log_Println("WebDAV: failed to create worker task", LOGLEVEL_ERROR);
 			// Stop whichever workers already started and wait for them to unwind before giving up,
 			// so we don't leave a partially-started server (and its listener) behind.
-			webdavShouldRun = false;
+			webdavShouldRun.store(false, std::memory_order_release);
 			uint32_t start = millis();
-			while (webdavGetActiveWorkers() > 0 && (millis() - start < 9000)) {
+			while (webdavAnyTaskAlive() && (millis() - start < 9000)) {
 				vTaskDelay(pdMS_TO_TICKS(20));
-			}
-			for (int j = 0; j < WEBDAV_WORKER_COUNT; j++) {
-				webdavTaskHandles[j] = nullptr;
 			}
 			System_IndicateError();
 			return;
 		}
+		portENTER_CRITICAL(&webdavStateMux);
+		webdavTaskHandles[i] = createdTask;
+		portEXIT_CRITICAL(&webdavStateMux);
 	}
 	System_IndicateOk();
 }
@@ -1030,7 +1150,7 @@ void Webdav_DisableServer(void) {
 	if (!webdavShouldRun && !webdavRunning) {
 		return;
 	}
-	webdavShouldRun = false; // each worker closes the listener (the last one out) and self-deletes on its next iteration
+	webdavShouldRun.store(false, std::memory_order_release); // each worker closes the listener (the last one out) and self-deletes on its next iteration
 	System_IndicateOk();
 }
 
@@ -1040,9 +1160,9 @@ void Webdav_Exit(void) {
 	// enough (9 s) that every worker always finishes (the last one deletes webdavServer) before we
 	// return - a shorter cap let a worker outlive teardown and dereference a WiFi stack that was
 	// already being shut down.
-	webdavShouldRun = false;
+	webdavShouldRun.store(false, std::memory_order_release);
 	uint32_t start = millis();
-	while (webdavRunning && (millis() - start < 9000)) {
+	while (webdavAnyTaskAlive() && (millis() - start < 9000)) {
 		vTaskDelay(pdMS_TO_TICKS(20));
 	}
 }
@@ -1054,7 +1174,7 @@ bool Webdav_IsServerRunning(void) {
 	// the UI's on/off button then showed "on" although the server was already shutting down.
 	// For every consumer (web UI button, MQTT state topic, the command-188 toggle) the intent
 	// is the correct answer during that brief transition.
-	return webdavShouldRun;
+	return webdavShouldRun.load(std::memory_order_acquire);
 }
 
 #else // WEBDAV_ENABLE
