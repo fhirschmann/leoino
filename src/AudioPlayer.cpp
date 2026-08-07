@@ -28,6 +28,7 @@
 
 #include <ArduinoJson.h>
 #include <atomic>
+#include <cctype>
 #include <esp_task_wdt.h>
 #include <freertos/task.h>
 #include <random>
@@ -41,6 +42,18 @@ static std::atomic<int16_t> AudioPlayer_PendingSeekSeconds {0};
 
 void AudioPlayer_AddSeekOffset(const int16_t seconds) {
 	AudioPlayer_PendingSeekSeconds.fetch_add(seconds, std::memory_order_relaxed);
+}
+
+static bool AudioPlayer_IsPersistableRfid(const char *rfidTagId) {
+	if (!rfidTagId || strlen(rfidTagId) != 12 || strcmp(rfidTagId, "000000000000") == 0) {
+		return false;
+	}
+	for (size_t i = 0; i < 12; ++i) {
+		if (!isdigit(static_cast<unsigned char>(rfidTagId[i]))) {
+			return false;
+		}
+	}
+	return true;
 }
 
 // Playlist
@@ -94,6 +107,9 @@ public:
 	void *operator new(size_t size) {
 		return psramFound() ? ps_malloc(size) : malloc(size);
 	}
+	void operator delete(void *ptr) {
+		free(ptr);
+	}
 };
 
 Audio *audio = nullptr;
@@ -114,8 +130,22 @@ uint32_t AudioPlayer_ResumeFadeStartMs = 0u;
 // being ramped down ahead of the running sleep timer, so we know to restore full volume once
 // when the timer is cancelled/extended mid-fade.
 static bool AudioPlayer_SleepFadeApplied = false;
-Playlist *newPlayList = nullptr;
-std::atomic<bool> newPlayListAvailable {false}; // producer publishes newPlayList *before* setting this (handover flag)
+struct PendingPlaylist {
+	Playlist *playlist = nullptr;
+	uint32_t startAtFilePos = 0;
+	uint16_t currentTrackNumber = 0;
+	uint8_t playMode = NO_PLAYLIST;
+	bool repeatCurrentTrack = false;
+	bool repeatPlaylist = false;
+	bool sleepAfterCurrentTrack = false;
+	bool sleepAfterPlaylist = false;
+	bool saveLastPlayPosition = false;
+	char rfidTag[13] = "";
+};
+
+static PendingPlaylist gPendingPlaylist;
+static SemaphoreHandle_t gPendingPlaylistMutex = NULL;
+static std::atomic<bool> gPendingPlaylistAvailable {false};
 
 static bool AudioPlayer_UploadActive = false;
 static bool AudioPlayer_WasPausedBeforeUpload = false; // remember pre-upload pause state
@@ -124,6 +154,9 @@ static bool gResetOldRfidOnIdle = false; // release the "don't accept same rfid 
 // Remember an RFID-tag whose webstream could not be started because WiFi is not (yet) connected, so it can
 // be re-injected into the RFID-queue once WiFi is up (see handleWifiStateConnectionSuccess() in Wlan.cpp).
 static void AudioPlayer_RememberRfidForWifiRetry(const char *rfidTagId) {
+	if (!AudioPlayer_IsPersistableRfid(rfidTagId)) {
+		return; // web-started streams have no RFID to retry
+	}
 	strncpy(gRetryRfidTagId, rfidTagId, cardIdStringSize - 1);
 	gRetryRfidTagId[cardIdStringSize - 1] = '\0';
 	gRetryRfidOnWifiConnect = true;
@@ -485,6 +518,10 @@ void AudioPlayer_Init(void) {
 
 	// guards the playlist pointer between the audio task and the web readers (created before the web server starts)
 	gPlaylistMutex = xSemaphoreCreateMutex();
+	gPendingPlaylistMutex = xSemaphoreCreateMutex();
+	if (!gPlaylistMutex || !gPendingPlaylistMutex) {
+		Log_Println("Audio: unable to allocate playlist mutex", LOGLEVEL_ERROR);
+	}
 
 	// load playtime total from NVS
 	playTimeSecTotal = gPrefsSettings.getULong("playTimeTotal", 0);
@@ -647,6 +684,12 @@ void AudioPlayer_Exit(void) {
 	}
 	delete audio;
 	audio = nullptr;
+	if (gPendingPlaylistMutex) {
+		xSemaphoreTake(gPendingPlaylistMutex, portMAX_DELAY);
+		freePlaylist(gPendingPlaylist.playlist);
+		gPendingPlaylistAvailable.store(false, std::memory_order_release);
+		xSemaphoreGive(gPendingPlaylistMutex);
+	}
 }
 
 static uint32_t lastPlayingTimestamp = 0;
@@ -1070,17 +1113,50 @@ void AudioPlayer_Loop() {
 		return;
 	}
 
-	if (newPlayListAvailable || gPlayProperties.trackFinished || trackCommand != NO_ACTION) {
-		if (newPlayListAvailable) {
-			newPlayListAvailable = false;
+	PendingPlaylist pendingPlaylist;
+	bool consumePendingPlaylist = false;
+	if (gPendingPlaylistAvailable.load(std::memory_order_acquire) && gPendingPlaylistMutex) {
+		xSemaphoreTake(gPendingPlaylistMutex, portMAX_DELAY);
+		if (gPendingPlaylistAvailable.exchange(false, std::memory_order_acq_rel)) {
+			pendingPlaylist = gPendingPlaylist;
+			gPendingPlaylist.playlist = nullptr;
+			consumePendingPlaylist = (pendingPlaylist.playlist != nullptr);
+		}
+		xSemaphoreGive(gPendingPlaylistMutex);
+	}
+
+	if (consumePendingPlaylist || gPlayProperties.trackFinished || trackCommand != NO_ACTION) {
+		if (consumePendingPlaylist) {
 			audio->stopSong();
+			if (AudioPlayer_ResumeFadeStartMs) {
+				audio->setVolume(AudioPlayer_GetCurrentVolume());
+				AudioPlayer_ResumeFadeStartMs = 0;
+			}
+			gResumeSeekPending = false;
+			gResumeFallbackSeekDone = false;
+			gResumeLowTimeTicks = 0;
 
 			// destroy the old playlist and assign the new one (locked: a web reader may be mid-read)
 			AudioPlayer_LockPlaylist();
 			freePlaylist(gPlayProperties.playlist);
-			gPlayProperties.playlist = newPlayList;
-			newPlayList = nullptr; // consumed - drop our copy so a stale pointer can't be re-used
+			gPlayProperties.playlist = pendingPlaylist.playlist;
+			pendingPlaylist.playlist = nullptr;
 			AudioPlayer_UnlockPlaylist();
+			gPlayProperties.startAtFilePos = pendingPlaylist.startAtFilePos;
+			gPlayProperties.currentTrackNumber = pendingPlaylist.currentTrackNumber;
+			if (gPlayProperties.currentTrackNumber >= gPlayProperties.playlist->size()) {
+				Log_Printf(LOGLEVEL_NOTICE, "Saved track %u is outside playlist (%u); restarting at track 1", gPlayProperties.currentTrackNumber + 1, gPlayProperties.playlist->size());
+				gPlayProperties.currentTrackNumber = 0;
+				gPlayProperties.startAtFilePos = 0;
+			}
+			gPlayProperties.playMode = pendingPlaylist.playMode;
+			gPlayProperties.repeatCurrentTrack = pendingPlaylist.repeatCurrentTrack;
+			gPlayProperties.repeatPlaylist = pendingPlaylist.repeatPlaylist;
+			gPlayProperties.sleepAfterCurrentTrack = pendingPlaylist.sleepAfterCurrentTrack;
+			gPlayProperties.sleepAfterPlaylist = pendingPlaylist.sleepAfterPlaylist;
+			gPlayProperties.saveLastPlayPosition = pendingPlaylist.saveLastPlayPosition;
+			gPlayProperties.playUntilTrackNumber = 0;
+			snprintf(gPlayProperties.playRfidTag, sizeof(gPlayProperties.playRfidTag), "%s", pendingPlaylist.rfidTag);
 			Log_Printf(LOGLEVEL_NOTICE, newPlaylistReceived, gPlayProperties.playlist->size());
 			Log_Printf(LOGLEVEL_DEBUG, "Free heap: %u", ESP.getFreeHeap());
 			playbackTimeoutStart = millis();
@@ -1093,12 +1169,6 @@ void AudioPlayer_Loop() {
 			publishMqtt(topicPlaymode, static_cast<uint32_t>(gPlayProperties.playMode), false);
 			publishMqtt(topicRepeatMode, static_cast<uint32_t>(AudioPlayer_GetRepeatMode()), false);
 #endif
-
-			// If we're in audiobook-mode and apply a modification-card, we don't
-			// want to save lastPlayPosition for the mod-card but for the card that holds the playlist
-			if (strlen(gCurrentRfidTagId) > 0) {
-				strncpy(gPlayProperties.playRfidTag, gCurrentRfidTagId, sizeof(gPlayProperties.playRfidTag) / sizeof(gPlayProperties.playRfidTag[0]));
-			}
 		}
 		if (gPlayProperties.trackFinished) {
 			gPlayProperties.trackFinished = false;
@@ -1897,6 +1967,11 @@ void AudioPlayer_PlayReadyMsg(void) {
 // Receives de-serialized RFID-data (from NVS) and dispatches playlists for the given
 // playmode to the track-queue.
 void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPos, const uint32_t _playMode, const uint16_t _trackLastPlayed) {
+	char sourceRfidTag[13] = "";
+	if (AudioPlayer_IsPersistableRfid(gCurrentRfidTagId)) {
+		snprintf(sourceRfidTag, sizeof(sourceRfidTag), "%s", gCurrentRfidTagId);
+	}
+
 	// Daily listening-time limit (screentime): refuse to start a new playlist once today's limit
 	// is reached. Enforced only while the clock is valid (see AudioPlayer_DailyLimitReached), so
 	// a device without a trustworthy date never locks out. Checked first, before the running book
@@ -1921,8 +1996,6 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 		}
 	}
 
-	gPlayProperties.startAtFilePos = _lastPlayPos;
-	gPlayProperties.currentTrackNumber = _trackLastPlayed;
 	std::optional<Playlist *> musicFiles;
 	String folderPath = _itemToPlay;
 
@@ -1957,34 +2030,38 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 		return;
 	}
 
-	gPlayProperties.playMode = BUSY; // Show @Neopixel, if uC is busy with creating playlist
 	Playlist *list = musicFiles.value();
 	if (!list->size()) {
 		Log_Println(noMp3FilesInDir, LOGLEVEL_NOTICE);
 		System_IndicateError();
 		if (!gPlayProperties.pausePlay) {
 			AudioPlayer_SetTrackControl(STOP);
-			while (!gPlayProperties.pausePlay) {
+			// A running TTS announcement intentionally consumes the first control command. Never
+			// wait forever if that happens while an empty playlist is being rejected.
+			for (uint8_t i = 0; !gPlayProperties.pausePlay && i < 50u; ++i) {
 				AudioPlayer_Loop();
 				vTaskDelay(portTICK_PERIOD_MS * 10u);
 			}
+			if (!gPlayProperties.pausePlay) {
+				audio->stopSong();
+				gPlayProperties.pausePlay = true;
+				gPlayProperties.playlistFinished = true;
+				gPlayProperties.playMode = NO_PLAYLIST;
+			}
 		}
 
-		gPlayProperties.playMode = NO_PLAYLIST;
 		freePlaylist(list);
 		return;
 	}
 
-	// Set some default-values
-	gPlayProperties.repeatCurrentTrack = false;
-	gPlayProperties.repeatPlaylist = false;
-	gPlayProperties.sleepAfterCurrentTrack = false;
-	gPlayProperties.sleepAfterPlaylist = false;
-	gPlayProperties.saveLastPlayPosition = false;
-	gPlayProperties.playUntilTrackNumber = 0;
-
-	// Store last RFID-tag to NVS
-	gPrefsSettings.putString("lastRfid", gCurrentRfidTagId);
+	PendingPlaylist pending;
+	pending.playlist = list;
+	pending.startAtFilePos = _lastPlayPos;
+	pending.currentTrackNumber = _trackLastPlayed;
+	pending.playMode = _playMode;
+	if (sourceRfidTag[0] != '\0') {
+		snprintf(pending.rfidTag, sizeof(pending.rfidTag), "%s", sourceRfidTag);
+	}
 
 	bool error = false;
 	switch (_playMode) {
@@ -1995,15 +2072,14 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 		}
 
 		case SINGLE_TRACK_LOOP: {
-			gPlayProperties.repeatCurrentTrack = true;
-			gPlayProperties.repeatPlaylist = true;
+			pending.repeatCurrentTrack = true;
+			pending.repeatPlaylist = true;
 			Log_Println(modeSingleTrackLoop, LOGLEVEL_NOTICE);
 			break;
 		}
 
 		case SINGLE_TRACK_OF_DIR_RANDOM: {
-			gPlayProperties.sleepAfterCurrentTrack = true;
-			gPlayProperties.playUntilTrackNumber = 0;
+			pending.sleepAfterCurrentTrack = true;
 			Led_SetNightmode(true);
 			Log_Println(modeSingleTrackRandom, LOGLEVEL_NOTICE);
 			AudioPlayer_RandomizePlaylist(list);
@@ -2012,27 +2088,33 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 			list->at(0) = nullptr; // prevent our entry from being destroyed
 			freePlaylist(list); // this also scrapped our vector --> recreate it
 			list = allocatePlaylist();
+			if (!list) {
+				free(first);
+				Log_Println(unableToAllocateMemForLinearPlaylist, LOGLEVEL_ERROR);
+				return;
+			}
 			list->push_back(first);
+			pending.playlist = list;
 			break;
 		}
 
 		case AUDIOBOOK: { // Tracks need to be sorted!
-			gPlayProperties.saveLastPlayPosition = true;
+			pending.saveLastPlayPosition = AudioPlayer_IsPersistableRfid(pending.rfidTag);
 			Log_Println(modeSingleAudiobook, LOGLEVEL_NOTICE);
 			AudioPlayer_SortPlaylist(list);
 			break;
 		}
 
 		case AUDIOBOOK_LOOP: { // Tracks need to be sorted!
-			gPlayProperties.repeatPlaylist = true;
-			gPlayProperties.saveLastPlayPosition = true;
+			pending.repeatPlaylist = true;
+			pending.saveLastPlayPosition = AudioPlayer_IsPersistableRfid(pending.rfidTag);
 			Log_Println(modeSingleAudiobookLoop, LOGLEVEL_NOTICE);
 			AudioPlayer_SortPlaylist(list);
 			break;
 		}
 
 		case AUDIOBOOK_RECURSIVE: { // Tracks need to be sorted!
-			gPlayProperties.saveLastPlayPosition = true;
+			pending.saveLastPlayPosition = AudioPlayer_IsPersistableRfid(pending.rfidTag);
 			Log_Println(modeAudiobookRecursive, LOGLEVEL_NOTICE);
 			AudioPlayer_SortPlaylist(list);
 			break;
@@ -2065,14 +2147,14 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 		}
 
 		case ALL_TRACKS_OF_DIR_SORTED_LOOP: {
-			gPlayProperties.repeatPlaylist = true;
+			pending.repeatPlaylist = true;
 			Log_Println(modeAllTrackAlphSortedLoop, LOGLEVEL_NOTICE);
 			AudioPlayer_SortPlaylist(list);
 			break;
 		}
 
 		case ALL_TRACKS_OF_DIR_RANDOM_LOOP: {
-			gPlayProperties.repeatPlaylist = true;
+			pending.repeatPlaylist = true;
 			Log_Println(modeAllTrackRandomLoop, LOGLEVEL_NOTICE);
 			AudioPlayer_RandomizePlaylist(list);
 			break;
@@ -2083,7 +2165,7 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 			if (!Wlan_IsConnected()) {
 				Log_Println(webstreamNotAvailable, LOGLEVEL_ERROR);
 				// Remember this tag and retry automatically once WiFi is connected (e.g. webradio-tag applied at boot)
-				AudioPlayer_RememberRfidForWifiRetry(gCurrentRfidTagId);
+				AudioPlayer_RememberRfidForWifiRetry(sourceRfidTag);
 				error = true;
 			}
 			break;
@@ -2095,19 +2177,33 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 		}
 
 		default:
-			Log_Printf(LOGLEVEL_ERROR, modeInvalid, gPlayProperties.playMode);
+			Log_Printf(LOGLEVEL_ERROR, modeInvalid, _playMode);
 			error = true;
 	}
 
 	if (!error) {
-		gPlayProperties.playMode = _playMode;
-		newPlayList = list; // publish the payload *before* the flag so the consumer never sees a stale pointer
-		newPlayListAvailable = true;
+		if (!gPendingPlaylistMutex) {
+			Log_Println("Audio: pending-playlist mutex unavailable", LOGLEVEL_ERROR);
+			freePlaylist(list);
+			System_IndicateError();
+			return;
+		}
+		Playlist *supersededPlaylist = nullptr;
+		xSemaphoreTake(gPendingPlaylistMutex, portMAX_DELAY);
+		supersededPlaylist = gPendingPlaylist.playlist;
+		gPendingPlaylist = pending;
+		gPendingPlaylistAvailable.store(true, std::memory_order_release);
+		xSemaphoreGive(gPendingPlaylistMutex);
+		// A rapid second request supersedes a not-yet-consumed first request. Free it after
+		// releasing the mutex so playlist destruction never blocks the audio-task handover.
+		freePlaylist(supersededPlaylist);
+		if (pending.rfidTag[0] != '\0') {
+			gPrefsSettings.putString("lastRfid", pending.rfidTag);
+		}
 		return;
 	}
 
 	// we had an error, blink and destroy playlist
-	gPlayProperties.playMode = NO_PLAYLIST;
 	System_IndicateError();
 	freePlaylist(list);
 }
@@ -2118,6 +2214,11 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 	if (_playMode == NO_PLAYLIST) {
 		// writing back to NVS with NO_PLAYLIST seems to be a bug - Todo: Find the cause here
 		Log_Printf(LOGLEVEL_ERROR, modeInvalid, _playMode);
+		return 0;
+	}
+	if (!AudioPlayer_IsPersistableRfid(_rfidCardId) || !gPrefsRfid.isKey(_rfidCardId)) {
+		// Browser-started playback deliberately carries no RFID. Never manufacture a
+		// "000000000000" assignment while saving an audiobook checkpoint.
 		return 0;
 	}
 	Led_SetPause(true); // Workaround to prevent exceptions due to Neopixel-signalisation while NVS-write
@@ -2188,6 +2289,10 @@ void AudioPlayer_ResetRfidPos(const char *_rfidCardId, const uint8_t _playMode) 
 // Adds webstream to playlist; same like SdCard_ReturnPlaylist() but always only one entry
 std::optional<Playlist *> AudioPlayer_ReturnPlaylistFromWebstream(const char *_webUrl) {
 	Playlist *playlist = allocatePlaylist();
+	if (!playlist) {
+		Log_Println(unableToAllocateMemForLinearPlaylist, LOGLEVEL_ERROR);
+		return std::nullopt;
+	}
 	const size_t len = strlen(_webUrl) + 1;
 	char *entry = static_cast<char *>(x_malloc(len));
 	if (!entry) {
