@@ -207,7 +207,7 @@
 		return { status: status || 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(obj) };
 	}
 
-	function route(method, rawUrl) {
+	function route(method, rawUrl, requestBody) {
 		var u;
 		try { u = new URL(rawUrl, window.location.href); } catch (e) { return null; }
 		var p = u.pathname.replace(/\/+$/, "") || "/";
@@ -366,6 +366,29 @@
 		// acknowledges the start; /sdmaint (in the GET branch) then reports "done".
 		if (p === "/sdclean" || p === "/sdformat") { return jsonResp({ status: 1 }); }
 
+		// Match the firmware's bounded /Playlists-only playlist writer and keep the demo fixture
+		// mutable so create/edit can be exercised end-to-end without a device.
+		if (p === "/playlist" && method === "POST") {
+			var payload;
+			try { payload = JSON.parse(requestBody || "{}"); } catch (e) { return jsonResp({ error: "invalid json" }, 400); }
+			var playlistPath = String(payload.path || "").trim();
+			var tracks = payload.tracks;
+			if (playlistPath.charAt(0) !== "/") { playlistPath = "/" + playlistPath; }
+			if (!/\.m3u8?$/i.test(playlistPath)) { playlistPath += ".m3u"; }
+			var invalidTrack = !Array.isArray(tracks) || !tracks.length || tracks.length > 4096 || tracks.some(function (track) {
+				return typeof track !== "string" || !track.trim() || track.length > 2048 || /^\s*#/.test(track) || /[\r\n]/.test(track);
+			});
+			if (playlistPath.length > 240 || !/^\/Playlists\//i.test(playlistPath) || playlistPath.lastIndexOf("/") !== 10 || /\/\.|\.\./.test(playlistPath) || invalidTrack) {
+				return jsonResp({ error: "invalid playlist" }, 400);
+			}
+			PLAYLISTS[playlistPath] = tracks.map(function (track) { return track.trim(); });
+			var name = playlistPath.substring(11);
+			if (!FS["/Playlists"].some(function (entry) { return entry.name === name; })) {
+				FS["/Playlists"].push({ name: name });
+			}
+			return jsonResp({ ok: true, demo: true });
+		}
+
 		// Everything that writes / triggers an action on the device is a no-op in the demo.
 		if (/^\/(restart|shutdown|githubupdate|settings|sync|syncstop|rfidsync|backupupload|rfidnvserase|rfidresetpos|rfid|explorer|exploreraudio|playlist|playstats|sdclean|sdformat|rtc|homekit|security|wificonfig|eqrule|bluetoothscan|bluetoothconnect|upload|savedSSIDs|trackcontrol|volume|ftp|webdav|logout)\b/.test(p)) {
 			return jsonResp({ status: "ok", demo: true });
@@ -380,7 +403,7 @@
 	window.fetch = function (input, init) {
 		var url = (typeof input === "string") ? input : (input && input.url) || String(input);
 		var method = (init && init.method) || (input && input.method) || "GET";
-		var r = route(method, url);
+		var r = route(method, url, init && init.body);
 		if (r && r.passthrough && realFetch) {
 			var p = realFetch(r.passthrough, init);
 			// merge the demo banner strings into the locales file
@@ -455,7 +478,7 @@
 	MockXHR.prototype.abort = function () { this._aborted = true; };
 	MockXHR.prototype.send = function (body) {
 		var self = this;
-		var r = route(this._method, this._url);
+		var r = route(this._method, this._url, body);
 
 		// Unknown or passthrough URL -> use a real XHR so static assets still load.
 		if (!r || r.passthrough) {

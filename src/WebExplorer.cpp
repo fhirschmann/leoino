@@ -48,6 +48,21 @@ uint32_t index_buffer_read = 0;
 static SemaphoreHandle_t explorerFileUploadFinished;
 static TaskHandle_t fileStorageTaskHandle;
 static std::atomic<bool> uploadAborted = false;
+static std::atomic_flag playlistWriteLock = ATOMIC_FLAG_INIT;
+
+class PlaylistWriteGuard {
+public:
+	PlaylistWriteGuard() {
+		while (playlistWriteLock.test_and_set(std::memory_order_acquire)) {
+			vTaskDelay(pdMS_TO_TICKS(5));
+		}
+		System_PauseTasksDuringUpload(true);
+	}
+	~PlaylistWriteGuard() {
+		System_PauseTasksDuringUpload(false);
+		playlistWriteLock.clear(std::memory_order_release);
+	}
+};
 
 // Aborts a running upload storage task and waits (briefly) for it to release its file
 // handles. Called from Web_Exit during shutdown.
@@ -707,16 +722,40 @@ void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &js
 	JsonObject obj = json.as<JsonObject>();
 	String path = obj["path"] | "";
 	JsonArray tracks = obj["tracks"].as<JsonArray>();
-	if (path.length() == 0 || tracks.isNull()) {
+	path.trim();
+	if (path.length() == 0 || path.length() > 240 || tracks.isNull() || tracks.size() == 0 || tracks.size() > 4096) {
 		request->send(400, "text/plain", "missing path or tracks");
 		return;
 	}
 	if (!path.startsWith("/")) {
 		path = "/" + path;
 	}
-	if (!path.endsWith(".m3u")) {
+	String lowerPath = path;
+	lowerPath.toLowerCase();
+	if (!lowerPath.endsWith(".m3u") && !lowerPath.endsWith(".m3u8")) {
 		path += ".m3u";
 	}
+	lowerPath = path;
+	lowerPath.toLowerCase();
+	const String fileName = path.substring(11);
+	if (!lowerPath.startsWith("/playlists/") || path.lastIndexOf('/') != 10 || fileName.startsWith(".") || path.indexOf("..") >= 0 || path.indexOf('\r') >= 0 || path.indexOf('\n') >= 0) {
+		request->send(400, "text/plain", "invalid playlist path");
+		return;
+	}
+	for (JsonVariant track : tracks) {
+		if (!track.is<const char *>()) {
+			request->send(400, "text/plain", "invalid track");
+			return;
+		}
+		String line = track.as<String>();
+		line.trim();
+		if (line.isEmpty() || line.length() > 2048 || line.startsWith("#") || line.indexOf('\r') >= 0 || line.indexOf('\n') >= 0) {
+			request->send(400, "text/plain", "invalid track");
+			return;
+		}
+	}
+
+	PlaylistWriteGuard writeGuard;
 	System_UpdateActivityTimer();
 	// create the parent directory (one level, e.g. /Playlists) if it doesn't exist yet
 	const int slash = path.lastIndexOf('/');
@@ -726,22 +765,43 @@ void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &js
 			gFSystem.mkdir(dir);
 		}
 	}
-	File file = gFSystem.open(path, "w", true);
+	const String temporaryPath = path + ".tmp";
+	const String backupPath = path + ".bak";
+	gFSystem.remove(temporaryPath);
+	File file = gFSystem.open(temporaryPath, "w", true);
 	if (!file) {
-		Log_Printf(LOGLEVEL_ERROR, "PLAYLIST: cannot create %s", path.c_str());
+		Log_Printf(LOGLEVEL_ERROR, "PLAYLIST: cannot create temporary file for %s", path.c_str());
 		request->send(500, "text/plain", "cannot create file");
 		return;
 	}
-	file.print("#EXTM3U\n");
+	bool writeOk = file.print("#EXTM3U\n") == strlen("#EXTM3U\n");
 	for (JsonVariant t : tracks) {
 		String line = t.as<String>();
 		line.trim();
-		if (line.length() > 0) {
-			file.print(line);
-			file.print("\n");
-		}
+		writeOk = writeOk && file.print(line) == line.length();
+		writeOk = writeOk && file.print("\n") == 1;
 	}
+	file.flush();
 	file.close();
+	if (!writeOk) {
+		gFSystem.remove(temporaryPath);
+		Log_Printf(LOGLEVEL_ERROR, "PLAYLIST: short write for %s", path.c_str());
+		request->send(507, "text/plain", "insufficient storage");
+		return;
+	}
+
+	const bool existed = gFSystem.exists(path);
+	gFSystem.remove(backupPath);
+	if ((existed && !gFSystem.rename(path, backupPath)) || !gFSystem.rename(temporaryPath, path)) {
+		gFSystem.remove(temporaryPath);
+		if (existed && gFSystem.exists(backupPath)) {
+			gFSystem.rename(backupPath, path);
+		}
+		Log_Printf(LOGLEVEL_ERROR, "PLAYLIST: cannot replace %s", path.c_str());
+		request->send(500, "text/plain", "cannot replace file");
+		return;
+	}
+	gFSystem.remove(backupPath);
 	Log_Printf(LOGLEVEL_NOTICE, "PLAYLIST: wrote %s (%u entries)", path.c_str(), (unsigned) tracks.size());
 	request->send(200, "application/json", "{\"ok\":true}");
 }

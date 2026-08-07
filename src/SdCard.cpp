@@ -217,7 +217,7 @@ bool fileValid(const char *_fileItem) {
 	}
 
 	// check for streams
-	if (strncmp(_fileItem, "http://", strlen("http://")) == 0 || strncmp(_fileItem, "https://", strlen("https://")) == 0) {
+	if (strncasecmp(_fileItem, "http://", strlen("http://")) == 0 || strncasecmp(_fileItem, "https://", strlen("https://")) == 0) {
 		// this is a stream
 		return true;
 	}
@@ -323,9 +323,7 @@ static bool SdCard_allocAndSave(Playlist *playlist, const String &s) {
 	const size_t len = s.length() + 1;
 	char *entry = static_cast<char *>(x_malloc(len));
 	if (!entry) {
-		// OOM, free playlist and return
 		Log_Println(unableToAllocateMemForLinearPlaylist, LOGLEVEL_ERROR);
-		freePlaylist(playlist);
 		return false;
 	}
 	s.toCharArray(entry, len);
@@ -333,8 +331,53 @@ static bool SdCard_allocAndSave(Playlist *playlist, const String &s) {
 	return true;
 };
 
+static bool SdCard_IsWebstream(const String &entry) {
+	String scheme = entry.substring(0, std::min((size_t) 8, (size_t) entry.length()));
+	scheme.toLowerCase();
+	return scheme.startsWith("http://") || scheme.startsWith("https://");
+}
+
+// Resolve a local M3U entry against the playlist's folder and collapse '.'/'..' segments. Relative
+// entries are common in playlists copied from a PC; passing them straight to FS::open() made them
+// resolve against the SD root (or fail), while unchecked '..' segments could escape the SD root.
+static bool SdCard_ResolveM3UPath(String entry, const String &baseDir, String &resolved) {
+	entry.replace('\\', '/');
+	String lowerPrefix = entry.substring(0, std::min((size_t) 8, (size_t) entry.length()));
+	lowerPrefix.toLowerCase();
+	if (lowerPrefix.startsWith("file://")) {
+		entry.remove(0, 7);
+	}
+	String combined = entry.startsWith("/") ? entry : baseDir + "/" + entry;
+	resolved = "";
+	size_t cursor = 0;
+	while (cursor <= combined.length()) {
+		const int slash = combined.indexOf('/', cursor);
+		const size_t end = slash < 0 ? combined.length() : (size_t) slash;
+		const String segment = combined.substring(cursor, end);
+		if (segment == "..") {
+			const int previousSlash = resolved.lastIndexOf('/');
+			if (previousSlash < 0) {
+				return false;
+			}
+			resolved.remove(previousSlash);
+		} else if (segment.length() > 0 && segment != ".") {
+			resolved += "/";
+			resolved += segment;
+		}
+		if (slash < 0) {
+			break;
+		}
+		cursor = end + 1;
+	}
+	return !resolved.isEmpty();
+}
+
 static std::optional<Playlist *> SdCard_ParseM3UPlaylist(File file) {
 	Playlist *playlist = allocatePlaylist();
+	if (!playlist) {
+		Log_Println(unableToAllocateMemForLinearPlaylist, LOGLEVEL_ERROR);
+		return std::nullopt;
+	}
 
 	// reserve a sane amount of memory to reduce heap fragmentation
 	playlist->reserve(64);
@@ -342,16 +385,79 @@ static std::optional<Playlist *> SdCard_ParseM3UPlaylist(File file) {
 	// extended m3u file format can also include comments or special directives, prefaced by the "#" character
 	// -> ignore all lines starting with '#'
 
-	while (file.available()) {
-		String line = file.readStringUntil('\n');
-		if (!line.startsWith("#")) {
-			// this something we have to save
-			line.trim();
-			// save string
-			if (!SdCard_allocAndSave(playlist, line)) {
-				return std::nullopt;
+	static constexpr size_t maxLineLength = 2048;
+	static constexpr size_t maxEntries = 4096;
+	const String playlistPath = gFSystem.path(file);
+	const int lastSlash = playlistPath.lastIndexOf('/');
+	const String baseDir = lastSlash > 0 ? playlistPath.substring(0, lastSlash) : "/";
+	String line;
+	if (!line.reserve(256)) {
+		freePlaylist(playlist);
+		return std::nullopt;
+	}
+	bool lineTooLong = false;
+	bool firstLine = true;
+	bool parseFailed = false;
+	auto appendLine = [&]() {
+		if (lineTooLong) {
+			Log_Println("M3U: skipped over-long line", LOGLEVEL_ERROR);
+			line = "";
+			lineTooLong = false;
+			firstLine = false;
+			return;
+		}
+		if (firstLine && line.length() >= 3 && (uint8_t) line[0] == 0xEF && (uint8_t) line[1] == 0xBB && (uint8_t) line[2] == 0xBF) {
+			line.remove(0, 3); // UTF-8 BOM before #EXTM3U
+		}
+		firstLine = false;
+		line.trim();
+		if (line.isEmpty() || line.startsWith("#")) {
+			line = "";
+			return;
+		}
+		if (playlist->size() >= maxEntries) {
+			Log_Println("M3U: too many entries", LOGLEVEL_ERROR);
+			parseFailed = true;
+			return;
+		}
+		String entry;
+		if (SdCard_IsWebstream(line)) {
+			entry = line;
+		} else if (!SdCard_ResolveM3UPath(line, baseDir, entry)) {
+			Log_Printf(LOGLEVEL_ERROR, "M3U: rejected unsafe path %s", line.c_str());
+			line = "";
+			return;
+		}
+		if (!fileValid(entry.c_str())) {
+			Log_Printf(LOGLEVEL_ERROR, "M3U: skipped unsupported entry %s", entry.c_str());
+			line = "";
+			return;
+		}
+		if (!SdCard_allocAndSave(playlist, entry)) {
+			parseFailed = true;
+			return;
+		}
+		line = "";
+	};
+
+	while (file.available() && !parseFailed) {
+		const int value = file.read();
+		if (value == '\n') {
+			appendLine();
+		} else if (value >= 0 && value != '\r') {
+			if (line.length() < maxLineLength) {
+				line += (char) value;
+			} else {
+				lineTooLong = true;
 			}
 		}
+	}
+	if (!parseFailed && (line.length() > 0 || lineTooLong)) {
+		appendLine();
+	}
+	if (parseFailed) {
+		freePlaylist(playlist);
+		return std::nullopt;
 	}
 
 	// resize std::vector memory to fit our count
@@ -359,9 +465,39 @@ static std::optional<Playlist *> SdCard_ParseM3UPlaylist(File file) {
 	return playlist;
 }
 
+static bool SdCard_AppendDirectory(File &directory, Playlist *playlist, const uint8_t maxDepth, const uint8_t currentDepth, size_t &hiddenFiles) {
+	while (true) {
+		bool isDir = false;
+		const String name = gFSystem.nextFileName(directory, &isDir);
+		if (name.isEmpty()) {
+			break;
+		}
+		if (isDir) {
+			if (currentDepth < maxDepth) {
+				File child = gFSystem.open(name);
+				if (!child || !child.isDirectory() || !SdCard_AppendDirectory(child, playlist, maxDepth, currentDepth + 1, hiddenFiles)) {
+					child.close();
+					return false;
+				}
+				child.close();
+			}
+			continue; // a directory whose name ends in .mp3 is never an audio track
+		}
+		if (fileValid(name.c_str())) {
+			if (!SdCard_allocAndSave(playlist, name)) {
+				return false;
+			}
+		} else {
+			hiddenFiles++;
+		}
+	}
+	return true;
+}
+
 /* Puts SD-file(s) or directory into a playlist
 	First element of array always contains the number of payload-items. */
 std::optional<Playlist *> SdCard_ReturnPlaylist(const char *fileName, const uint32_t _playMode, const uint8_t _maxRecursionDepth, bool _recursionMode) {
+	(void) _recursionMode; // retained for source compatibility; recursion now carries explicit state
 	// Look if file/folder requested really exists. If not => break.
 	File fileOrDirectory = gFSystem.open(fileName);
 	if (!fileOrDirectory) {
@@ -371,28 +507,34 @@ std::optional<Playlist *> SdCard_ReturnPlaylist(const char *fileName, const uint
 
 	// Parse m3u-playlist and create linear-playlist out of it
 	if (_playMode == LOCAL_M3U) {
-		if (!fileOrDirectory.isDirectory() && fileOrDirectory.size() > 0) {
-			// function takes care of everything
-			return SdCard_ParseM3UPlaylist(fileOrDirectory);
+		String lowerName = fileName;
+		lowerName.toLowerCase();
+		if (fileOrDirectory.isDirectory() || (!lowerName.endsWith(".m3u") && !lowerName.endsWith(".m3u8"))) {
+			fileOrDirectory.close();
+			Log_Printf(LOGLEVEL_ERROR, "M3U: invalid playlist path %s", fileName);
+			return std::nullopt;
 		}
+		// Empty playlists intentionally parse to an empty vector; the player reports them instead of
+		// trying to decode the .m3u file itself as audio.
+		return SdCard_ParseM3UPlaylist(fileOrDirectory);
 	}
 
 	// if we reach this code, it was not a m3u
 
-	static Playlist *playlist = nullptr; // static because of possible recursion
-	if (_recursionMode == false) {
-		Log_Printf(LOGLEVEL_DEBUG, freeMemory, ESP.getFreeHeap());
-		playlist = allocatePlaylist();
-		Log_Printf(LOGLEVEL_NOTICE, playlistRecDepth, _maxRecursionDepth);
+	Log_Printf(LOGLEVEL_DEBUG, freeMemory, ESP.getFreeHeap());
+	Playlist *playlist = allocatePlaylist();
+	if (!playlist) {
+		fileOrDirectory.close();
+		Log_Println(unableToAllocateMemForLinearPlaylist, LOGLEVEL_ERROR);
+		return std::nullopt;
 	}
-
-	static uint8_t currentRecDepth = 0;
+	Log_Printf(LOGLEVEL_NOTICE, playlistRecDepth, _maxRecursionDepth);
 
 	// File-mode
 	if (!fileOrDirectory.isDirectory()) {
 		if (!SdCard_allocAndSave(playlist, gFSystem.path(fileOrDirectory))) {
 			fileOrDirectory.close();
-			// OOM, function already took care of house cleaning
+			freePlaylist(playlist);
 			return std::nullopt;
 		}
 		fileOrDirectory.close();
@@ -402,46 +544,15 @@ std::optional<Playlist *> SdCard_ReturnPlaylist(const char *fileName, const uint
 	// Directory-mode (linear-playlist)
 	playlist->reserve(64); // reserve a sane amount of memory to reduce the number of reallocs
 	size_t hiddenFiles = 0;
-	while (true) {
-		bool isDir;
-		const String name = gFSystem.nextFileName(fileOrDirectory, &isDir);
-		if (name.isEmpty()) {
-			break;
-		}
-		if (isDir) {
-			//  Jump into directory if recursion is allowed
-			if (currentRecDepth < _maxRecursionDepth) {
-				currentRecDepth++;
-				// Log_Printf(LOGLEVEL_DEBUG, "Added folder: %s, depth of recursion: %d\n", name.c_str(), currentRecDepth);
-				if (!SdCard_ReturnPlaylist(name.c_str(), _playMode, _maxRecursionDepth, true)) {
-					currentRecDepth--;
-					fileOrDirectory.close();
-					return std::nullopt;
-				}
-				currentRecDepth--;
-			} else {
-				continue;
-			}
-		}
-		// Don't support filenames that start with "." and only allow .mp3 and other supported audio file formats
-		if (fileValid(name.c_str())) {
-			// save it to the vector
-			if (!SdCard_allocAndSave(playlist, name)) {
-				// OOM, function already took care of house cleaning
-				fileOrDirectory.close();
-				return std::nullopt;
-			}
-		} else {
-			hiddenFiles++;
-		}
+	if (!SdCard_AppendDirectory(fileOrDirectory, playlist, _maxRecursionDepth, 0, hiddenFiles)) {
+		fileOrDirectory.close();
+		freePlaylist(playlist);
+		return std::nullopt;
 	}
 	playlist->shrink_to_fit();
 
-	// Only show sum up at last run (when no recursion is active)
-	if (!_recursionMode) {
-		Log_Printf(LOGLEVEL_NOTICE, numberOfValidFiles, playlist->size());
-		Log_Printf(LOGLEVEL_DEBUG, "Hidden files: %u", hiddenFiles);
-	}
+	Log_Printf(LOGLEVEL_NOTICE, numberOfValidFiles, playlist->size());
+	Log_Printf(LOGLEVEL_DEBUG, "Hidden files: %u", hiddenFiles);
 	fileOrDirectory.close();
 
 	return playlist;

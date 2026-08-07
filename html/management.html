@@ -8294,7 +8294,7 @@
 		let plCwd = "/";
 		let plEditOriginalPath = null; // set when editing an existing .m3u, null = brand-new playlist
 		function plJoin(dir, name) { return (dir === "/" ? "" : dir) + "/" + name; }
-		function plIsAudio(name) { return /\.(mp3|ogg|oga|wav|wma|acc|m4a|flac|opus)$/i.test(name); }
+		function plIsAudio(name) { return /\.(mp3|aac|m4a|wav|flac|ogg|oga|opus)$/i.test(name); }
 		function plUpdateCount() { $("#plCount").text($("#plTracks > li").length); }
 		function plEnsureSortable() {
 			// ordered, drag-sortable track list (jQuery UI)
@@ -8330,6 +8330,7 @@
 			fetch("http://" + host + "/explorerdownload?path=" + encodeURIComponent(path))
 				.then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
 				.then(text => {
+					text = text.replace(/^\uFEFF/, "");
 					text.split(/\r?\n/).forEach(function (line) {
 						line = line.trim();
 						if (!line || line.charAt(0) === "#") return; // skip blanks + #EXTM3U/#EXTINF

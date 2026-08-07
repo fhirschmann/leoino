@@ -971,6 +971,8 @@ paths:
       description: >-
         Writes an .m3u playlist to the SD card from the given ordered list of
         SD-file paths and/or webradio URLs (played interchangeably by LOCAL_M3U).
+        The target is restricted to a single file below /Playlists and is replaced
+        through a temporary file, so a short SD write does not truncate the previous playlist.
       requestBody:
         required: true
         content:
@@ -981,19 +983,25 @@ paths:
               properties:
                 path:
                   type: string
-                  description: Target path; ".m3u" is appended if missing (e.g. /Playlists/mix).
+                  maxLength: 240
+                  description: Target path directly below /Playlists; ".m3u" is appended if neither .m3u nor .m3u8 is present (e.g. /Playlists/mix).
                 tracks:
                   type: array
+                  minItems: 1
+                  maxItems: 4096
                   items:
                     type: string
+                    maxLength: 2048
                   description: Ordered track lines (SD paths or http(s) URLs).
       responses:
         "200":
           description: Playlist created.
         "400":
-          description: Missing path or tracks.
+          description: Invalid path, empty/oversized track list, or invalid track line.
         "500":
           description: File could not be created.
+        "507":
+          description: The SD card could not store the complete playlist.
   /githubupdate:
     get:
       tags: [Fork]
