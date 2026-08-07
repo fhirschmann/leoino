@@ -3016,7 +3016,7 @@
 											data-i18n="files.rfid.playmode.mode.14"></option>
 										<option class="option-stream" value="8" data-i18n="files.rfid.playmode.mode.8">
 										</option>
-										<option class="option-stream" value="11"
+										<option class="option-playlist" value="11"
 											data-i18n="files.rfid.playmode.mode.11"></option>
 									</select>
 								</div>
@@ -4737,11 +4737,12 @@
 			toaster.clear();
 			// change the language if we found it in the local storage
 			const lang = localStorage.getItem("language");
-			if (lang === null) {
-				i18next.changeLanguage(language.split("-")[0]);
-			} else {
-				i18next.changeLanguage(lang);
-			}
+			const selectedLanguage = lang === null ? language.split("-")[0] : lang;
+			i18next.changeLanguage(selectedLanguage, function () {
+				initHomeKit();
+				refreshSecurityStatus();
+				loadEqRules(updateEqIndicator);
+			});
 		});
 		i18next.on('languageChanged', (lng) => {
 			document.querySelector('#langSel').value = lng;
@@ -4754,6 +4755,7 @@
 						new bootstrap.Popover(popoverButton, { html: true, trigger: 'focus' })
 					});
 			}
+			if (currentHomeKitStatus !== null) renderHomeKitStatus(currentHomeKitStatus);
 			$('#navMenu').removeClass("show"); // Hide the menu again
 		});
 		document.querySelector('#langSel').addEventListener('change', (e) => {
@@ -4833,6 +4835,46 @@
 			}
 		}
 
+		function isPlayableNode(node) {
+			return !!node && (node.type === "sdcard" || node.type === "folder" || node.type === "audio" || node.type === "playlist");
+		}
+
+		function isDirectoryNode(node) {
+			return !!node && (node.type === "folder" || node.directory === true || (node.data && node.data.directory === true));
+		}
+
+		// Keep playback and RFID assignment defaults in one place. Playlist files must be
+		// parsed as playlists; treating one as a regular file/folder only plays the .m3u itself.
+		function defaultPlayModeForNode(node) {
+			if (node && node.type === "playlist") return 11;
+			return isDirectoryNode(node) ? 5 : 1;
+		}
+
+		function playModeOptionAppliesToNode(option, node) {
+			if (!option || !isPlayableNode(node)) return false;
+			if (node.type === "playlist") return option.classList.contains("option-playlist");
+			if (isDirectoryNode(node)) {
+				return option.classList.contains("option-folder") || option.classList.contains("option-file-and-folder");
+			}
+			return option.classList.contains("option-file") || option.classList.contains("option-file-and-folder");
+		}
+
+		function eachPlayModeForNode(node, callback) {
+			document.querySelectorAll('#playMode option').forEach(function (option) {
+				if (!playModeOptionAppliesToNode(option, node)) return;
+				callback(option.value, (option.textContent || "").trim() || ("Mode " + option.value));
+			});
+		}
+
+		function updatePlayModeSelectForNode(node) {
+			document.querySelectorAll('#playMode option').forEach(function (option) {
+				var enabled = playModeOptionAppliesToNode(option, node);
+				option.hidden = !enabled;
+				option.disabled = !enabled;
+			});
+			$('#playMode').val(String(defaultPlayModeForNode(node)));
+		}
+
 		// Click handler for the RFID-tab play button: when the highlighted file is the
 		// current one, toggle pause/resume; otherwise start playback of the highlighted
 		// file/folder/playlist.
@@ -4842,12 +4884,7 @@
 				sendControl(170); // toggle pause/resume of the running playback
 				return;
 			}
-			var playMode = 1;
-			if (rfidSelectedNode.directory) {
-				playMode = 5;
-			} else if ((/\.(m3u|m3u8|asx|pls)$/i).test(rfidSelectedNode.path)) {
-				playMode = 11;
-			}
+			var playMode = defaultPlayModeForNode(rfidSelectedNode);
 			postData("http://" + host + "/exploreraudio?path=" + encodeURIComponent(rfidSelectedNode.path) + "&playmode=" + playMode);
 			rfidPlayingPath = rfidSelectedNode.path;
 		}
@@ -4857,16 +4894,7 @@
 			if (ActiveSubTab !== 'rfid-music-tab') {
 				$('#SubTab.nav-tabs a[id="rfid-music-tab"]').tab('show');
 			}
-			if (data.node.type == "folder") {
-				$('.option-folder').show();
-				$('.option-file').hide();
-				$('#playMode option').removeAttr('selected').filter('[value=3]').attr('selected', true);
-			}
-			if ((data.node.type == "audio") || (data.node.type == "playlist")) {
-				$('.option-file').show();
-				$('.option-folder').hide();
-				$('#playMode option').removeAttr('selected').filter('[value=1]').attr('selected', true);
-			}
+			updatePlayModeSelectForNode(data.node);
 			// remember the highlighted node so the RFID-tab play button can play it
 			if (["folder", "audio", "playlist"].includes(data.node.type)) {
 				rfidSelectedNode = { path: data.node.data.path, directory: data.node.data.directory, type: data.node.type };
@@ -5508,14 +5536,7 @@
 							label: () => i18next.t("files.context.play"),
 							icon: "fas fa-play",
 							action: function (x) {
-								var playMode = 1;
-								if (node.data.directory) {
-									playMode = 5;
-								} else {
-									if ((/\.(m3u|m3u8|asx|pls)$/i).test(node.data.path)) {
-										playMode = 11;
-									}
-								}
+								var playMode = defaultPlayModeForNode(node);
 								postData("http://" + host + "/exploreraudio?path=" + encodeURIComponent(node.data.path) + "&playmode=" + playMode);
 							}
 						};
@@ -5566,18 +5587,7 @@
 							};
 						}
 						// Run fn(value, label) for every play mode that is valid for this node type.
-						var eachPlayMode = function (fn) {
-							$('#playMode option').each(function () {
-								var cls = this.className || "";
-								var ok = node.data.directory
-									? /option-folder|option-file-and-folder/.test(cls)
-									: (node.type === "playlist"
-										? /option-file\b|option-file-and-folder|option-stream/.test(cls)
-										: /option-file\b|option-file-and-folder/.test(cls));
-								if (!ok) return;
-								fn(this.value, (this.textContent || "").trim() || ("Mode " + this.value));
-							});
-						};
+						var eachPlayMode = function (fn) { eachPlayModeForNode(node, fn); };
 						if (curRfid.length) {
 							// Card already assigned: picking a mode rewrites the assignment in place.
 							eachPlayMode(function (val, label) {
@@ -6574,7 +6584,6 @@
 			// Auto-save the General + Buttons tabs on any change (delegated, so the dynamically
 			// populated button dropdowns are covered too). No submit button on these tabs.
 			$('#settings-general, #settings-buttons, #settings-rfid, #settings-leds, #settings-oled, #settings-power').on('change slideStop', 'input:not([data-no-autosave]), select:not([data-no-autosave]), textarea', autoSaveGeneralSettings);
-			initHomeKit();
 			initSettingsSearch();
 		});
 
@@ -6674,7 +6683,9 @@
 		}
 
 		// ---- Apple HomeKit settings section -------------------------------------
+		var currentHomeKitStatus = null;
 		function renderHomeKitStatus(hk) {
+			currentHomeKitStatus = hk;
 			const el = document.getElementById('homekitStatus');
 			if (!el) return;
 			el.innerHTML = hk && hk.paired
@@ -8395,7 +8406,7 @@
 		}
 
 		function savePlaylist() {
-			let name = ($("#plName").val() || "").trim().replace(/[\/\\]/g, "").replace(/\.m3u$/i, "");
+			let name = ($("#plName").val() || "").trim().replace(/[\/\\]/g, "").replace(/\.m3u8?$/i, "");
 			if (!name) { toaster.error(i18next.t("playlist.noName")); return; }
 			const tracks = $("#plTracks > li").map(function () { return $(this).attr("data-path"); }).get();
 			if (!tracks.length) { toaster.error(i18next.t("playlist.empty")); return; }
@@ -8409,7 +8420,10 @@
 				if (!r.ok) throw new Error("HTTP " + r.status);
 				// edited + renamed -> drop the old file so we don't leave a duplicate behind
 				if (oldPath && oldPath !== path) {
-					return fetch("http://" + host + "/explorer?path=" + encodeURIComponent(oldPath), { method: "DELETE" });
+					return fetch("http://" + host + "/explorer?path=" + encodeURIComponent(oldPath), { method: "DELETE" })
+						.then(deleteResponse => {
+							if (!deleteResponse.ok) throw new Error("HTTP " + deleteResponse.status);
+						});
 				}
 			}).then(() => {
 				plEditOriginalPath = null;
@@ -9040,14 +9054,28 @@
 				completeRfidLearn(scannedId, path, String(playMode), nodeId);
 			});
 		}
+		async function fetchOrThrow(url, options) {
+			var response = await fetch(url, options);
+			if (!response.ok) throw new Error("HTTP " + response.status);
+			return response;
+		}
+
+		function showRequestError(error) {
+			toaster.error(i18next.t("toast.error") + ": " + error.message);
+		}
+
 		async function completeRfidLearn(scannedId, path, playMode, nodeId) {
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ rfidAssign: { rfidIdMusic: scannedId, fileOrUrl: removeTrSlash(path), playMode: playMode } })
-			});
-			toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
-			refreshRfidBadgesAround(nodeId);
+			try {
+				await fetchOrThrow("http://" + host + "/settings", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ rfidAssign: { rfidIdMusic: scannedId, fileOrUrl: removeTrSlash(path), playMode: playMode } })
+				});
+				toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
+				refreshRfidBadgesAround(nodeId);
+			} catch (error) {
+				showRequestError(error);
+			}
 		}
 		// Learn a modification card (RFID settings tab): pick a modification action, then lay a card.
 		function learnModCard() {
@@ -9057,39 +9085,51 @@
 			});
 		}
 		async function completeModLearn(scannedId, modId) {
-			await fetch("http://" + host + "/settings", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ rfidMod: { rfidIdMod: scannedId, modId: modId } })
-			});
-			toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
-			// The full learned-cards list lives in the Tools tab; refresh it and the explorer badges.
-			rebuildRFIDList();
-			loadRfidPaths(updateSelectedNodeBadges);
+			try {
+				await fetchOrThrow("http://" + host + "/settings", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ rfidMod: { rfidIdMod: scannedId, modId: modId } })
+				});
+				toaster.info(i18next.t("files.rfid.learn.done", { rfidId: scannedId }));
+				// The full learned-cards list lives in the Tools tab; refresh it and the explorer badges.
+				rebuildRFIDList();
+				loadRfidPaths(updateSelectedNodeBadges);
+			} catch (error) {
+				showRequestError(error);
+			}
 		}
 		// Change the play mode of the card(s) already assigned to this path, in place (no re-scan).
 		// Reuses POST /rfid with the existing fileOrUrl; a saved audiobook play-position is reset.
 		async function changeRfidModeForPath(path, playMode, nodeId) {
 			var entries = (window.rfidPathInfo && window.rfidPathInfo[path]) || [];
 			if (!entries.length) { return; }
-			for (var i = 0; i < entries.length; i++) {
-				await fetch("http://" + host + "/rfid", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ id: entries[i].id, fileOrUrl: removeTrSlash(path), playMode: Number(playMode) })
-				});
+			try {
+				for (var i = 0; i < entries.length; i++) {
+					await fetchOrThrow("http://" + host + "/rfid", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ id: entries[i].id, fileOrUrl: removeTrSlash(path), playMode: Number(playMode) })
+					});
+				}
+				toaster.info(i18next.t("files.rfid.modeChanged", { mode: i18next.t("files.rfid.playmode.mode." + playMode) }));
+			} catch (error) {
+				showRequestError(error);
 			}
-			toaster.info(i18next.t("files.rfid.modeChanged", { mode: i18next.t("files.rfid.playmode.mode." + playMode) }));
 			refreshRfidBadgesAround(nodeId);
 		}
 		// Remove every RFID tag assigned to this exact path (usually one) straight from the explorer.
 		async function removeRfidForPath(path, nodeId) {
 			var ids = (window.rfidPathIds && window.rfidPathIds[path]) || [];
 			if (!ids.length) { return; }
-			for (var i = 0; i < ids.length; i++) {
-				await fetch("http://" + host + "/rfid?id=" + encodeURIComponent(ids[i]), { method: "DELETE" });
+			try {
+				for (var i = 0; i < ids.length; i++) {
+					await fetchOrThrow("http://" + host + "/rfid?id=" + encodeURIComponent(ids[i]), { method: "DELETE" });
+				}
+				flashActionOk();
+			} catch (error) {
+				showRequestError(error);
 			}
-			flashActionOk();
 			refreshRfidBadgesAround(nodeId);
 		}
 		// Reload the RFID cache and re-render the affected explorer level so badges reflect the change.
@@ -9268,8 +9308,6 @@
 		$(document).ready(function () {
 			connect();
 			buildFileSystemTree("/");
-			refreshSecurityStatus();
-			loadEqRules(updateEqIndicator);
 			// insert MQTT topics preview if not present
 			if ($('#mqttTopicsPreview').length === 0) {
 				var preview = $('<fieldset class="mb-3"><legend data-i18n="mqtt.topics.preview"></legend><pre id="mqttTopicsPreview" style="white-space:pre-wrap;"></pre></fieldset>');
