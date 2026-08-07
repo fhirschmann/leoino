@@ -330,7 +330,9 @@ static void Display_DrawTitle(const char *rawTitle, const char *rawArtist, uint8
         char artist[160];
         utf8ToLatin1(rawArtist, artist, sizeof(artist));
         if (titleOnly[0] != '\0') {
-            snprintf(title, sizeof(title), "%s - %s", artist, titleOnly);
+            strlcpy(title, artist, sizeof(title));
+            strlcat(title, " - ", sizeof(title));
+            strlcat(title, titleOnly, sizeof(title));
         } else {
             snprintf(title, sizeof(title), "%s", artist);
         }
@@ -863,18 +865,21 @@ void Display_Cyclic(void) {
     if (s_cfgShowTime) {
         uint32_t elapsed  = AudioPlayer_GetCurrentTime();
         uint32_t duration = AudioPlayer_GetFileDuration();
-        char timeBuf[16];
+        char timeBuf[24];
         if (gPlayProperties.isWebstream || duration == 0) {
-            snprintf(timeBuf, sizeof(timeBuf), "%d:%02d", elapsed / 60, elapsed % 60);
+            snprintf(timeBuf, sizeof(timeBuf), "%lu:%02lu",
+                     static_cast<unsigned long>(elapsed / 60), static_cast<unsigned long>(elapsed % 60));
         } else if (s_cfgTimeMode == 1) {
             uint32_t rem = (duration > elapsed) ? (duration - elapsed) : 0u;
-            snprintf(timeBuf, sizeof(timeBuf), "-%d:%02d", rem / 60, rem % 60);
+            snprintf(timeBuf, sizeof(timeBuf), "-%lu:%02lu",
+                     static_cast<unsigned long>(rem / 60), static_cast<unsigned long>(rem % 60));
         } else if (s_cfgTimeMode == 2) {
-            snprintf(timeBuf, sizeof(timeBuf), "%d:%02d", elapsed / 60, elapsed % 60);
+            snprintf(timeBuf, sizeof(timeBuf), "%lu:%02lu",
+                     static_cast<unsigned long>(elapsed / 60), static_cast<unsigned long>(elapsed % 60));
         } else {
-            snprintf(timeBuf, sizeof(timeBuf), "%d:%02d/%d:%02d",
-                     elapsed / 60, elapsed % 60,
-                     duration / 60, duration % 60);
+            snprintf(timeBuf, sizeof(timeBuf), "%lu:%02lu/%lu:%02lu",
+                     static_cast<unsigned long>(elapsed / 60), static_cast<unsigned long>(elapsed % 60),
+                     static_cast<unsigned long>(duration / 60), static_cast<unsigned long>(duration % 60));
         }
         s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(timeBuf)) / 2), 60, timeBuf);
     }

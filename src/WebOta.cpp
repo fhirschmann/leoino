@@ -54,9 +54,10 @@ static bool githubOtaIsUpToDate() {
 	http.setTimeout(8000); // read timeout, so a half-open connection can't hang the check
 	bool upToDate = false;
 	if (http.begin(client, githubVersionUrl)) {
+		http.useHTTP10(true); // expose a decoded identity stream to ArduinoJson (no chunk framing)
 		if (http.GET() == 200) {
 			JsonDocument doc;
-			if (deserializeJson(doc, http.getString()) == DeserializationError::Ok) {
+			if (deserializeJson(doc, http.getStream()) == DeserializationError::Ok) {
 				String latest = doc["describe"].as<String>();
 				// gitRevShort is the quoted `git describe` output, e.g. "\"abc1234\""
 				String current = String(gitRevShort);
@@ -212,9 +213,10 @@ static void versionCheckTask(void *parameter) {
 	http.setConnectTimeout(8000);
 	http.setTimeout(8000); // read timeout, so a half-open connection can't pin this task (and its ~40 KB TLS context)
 	if (http.begin(client, githubVersionUrl)) {
+		http.useHTTP10(true); // expose a decoded identity stream to ArduinoJson (no chunk framing)
 		if (http.GET() == 200) {
 			JsonDocument doc;
-			if (deserializeJson(doc, http.getString()) == DeserializationError::Ok) {
+			if (deserializeJson(doc, http.getStream()) == DeserializationError::Ok) {
 				String latest = doc["describe"].as<String>();
 				String latestBuild = doc["build"].as<String>();
 				String current = String(gitRevShort);

@@ -53,16 +53,31 @@ struct RfidPushItem {
 	uint8_t op;
 };
 static QueueHandle_t gRfidPushQueue = NULL;
+static TaskHandle_t gRfidPushTaskHandle = NULL;
 static void rfidPushTask(void *param);
 static bool rfidSyncConfigured(void);
 // Lazily create the push queue + task (idempotent). The idle task holds an 8 KB stack, so on the
 // tight "complete" board (~22 KB free internal DRAM) we only pay for it once RFID-sync is actually
 // configured/enabled — an unconfigured device that never enqueues anything must not carry it.
-static void rfidEnsurePushTask(void) {
-	if (!gRfidPushQueue) {
-		gRfidPushQueue = xQueueCreate(16, sizeof(RfidPushItem));
-		xTaskCreatePinnedToCore(rfidPushTask, "rfidPush", 8192, NULL, 1, NULL, 1);
+static bool rfidEnsurePushTask(void) {
+	// This is reachable from the web, MQTT and full-sync tasks. Serialize the lazy initialization so
+	// two cores cannot create competing queues/tasks. Keep the queue when task creation fails: a later
+	// call can retry creating the worker instead of leaving a permanently undrained queue behind.
+	static SemaphoreHandle_t initMutex = xSemaphoreCreateMutex();
+	if (initMutex == NULL || xSemaphoreTake(initMutex, portMAX_DELAY) != pdTRUE) {
+		return false;
 	}
+	if (gRfidPushQueue == NULL) {
+		gRfidPushQueue = xQueueCreate(16, sizeof(RfidPushItem));
+	}
+	if (gRfidPushQueue != NULL && gRfidPushTaskHandle == NULL) {
+		if (xTaskCreatePinnedToCore(rfidPushTask, "rfidPush", 8192, NULL, 1, &gRfidPushTaskHandle, 1) != pdPASS) {
+			gRfidPushTaskHandle = NULL;
+		}
+	}
+	const bool ready = (gRfidPushQueue != NULL && gRfidPushTaskHandle != NULL);
+	xSemaphoreGive(initMutex);
+	return ready;
 }
 
 uint8_t RfidSync_GetStatus(void) {
@@ -112,6 +127,8 @@ static uint32_t rfidNowEpoch(void) {
 	return (now > 1577836800L) ? (uint32_t) now : 0u;
 }
 
+static uint32_t rfidLocalNewest(const char *tagId);
+
 uint32_t RfidSync_GetTagTimestamp(const char *tagId) {
 	RfidSync_Init();
 	return gPrefsRfidTs.getULong(tagId, 0);
@@ -123,11 +140,21 @@ void RfidSync_SetTagTimestamp(const char *tagId, uint32_t ts) {
 void RfidSync_NoteLocalChange(const char *tagId) {
 	uint32_t ts = rfidNowEpoch();
 	if (ts > 0) {
+		const uint32_t previous = rfidLocalNewest(tagId);
+		// The wire format only has whole seconds. Preserve ordering when a tag is changed twice in the
+		// same second; otherwise the server's strict newest-wins comparison would discard the second edit.
+		if (ts <= previous && previous < UINT32_MAX) {
+			ts = previous + 1;
+		}
 		RfidSync_SetTagTimestamp(tagId, ts);
+	} else {
+		// Do not retain an older assignment timestamp for an edit made while offline. Mark it unknown so
+		// the online healing pass recognizes this as a fresh local change and stamps it before merging.
+		RfidSync_SetTagTimestamp(tagId, 0);
 	}
-	// (re)learning a card revives it: clear any older delete tombstone
-	RfidSync_Init();
-	gPrefsRfidDel.remove(tagId);
+	// Even without a valid clock, a deliberate local re-learn revives the card. Its zero assignment
+	// timestamp is healed on the next online full sync, but an older tombstone must stop winning now.
+	RfidSync_ClearDeleteTimestamp(tagId);
 }
 uint32_t RfidSync_GetDeleteTimestamp(const char *tagId) {
 	RfidSync_Init();
@@ -135,7 +162,22 @@ uint32_t RfidSync_GetDeleteTimestamp(const char *tagId) {
 }
 void RfidSync_SetDeleteTimestamp(const char *tagId, uint32_t ts) {
 	RfidSync_Init();
+	// Timestamp 0 denotes a local/legacy delete without a usable source timestamp. Give it a current,
+	// monotonic timestamp when the clock is valid so it cannot be immediately resurrected by any old
+	// assignment. Keep 0 while offline; the full-sync healing pass stamps it after NTP becomes valid.
+	if (ts == 0) {
+		ts = rfidNowEpoch();
+		const uint32_t previous = rfidLocalNewest(tagId);
+		if (ts > 0 && ts <= previous && previous < UINT32_MAX) {
+			ts = previous + 1;
+		}
+	}
+	gPrefsRfidTs.remove(tagId); // a deletion supersedes the assignment timestamp
 	gPrefsRfidDel.putULong(tagId, ts);
+}
+void RfidSync_ClearDeleteTimestamp(const char *tagId) {
+	RfidSync_Init();
+	gPrefsRfidDel.remove(tagId);
 }
 // Most recent local "touch" of a tag (assignment or deletion), used for newest-wins comparisons.
 static uint32_t rfidLocalNewest(const char *tagId) {
@@ -186,6 +228,7 @@ static void rfidWriteTag(const String &tagId, const String &fileOrUrl, uint32_t 
 	snprintf(rfidString, sizeof(rfidString), "%s%s%s0%s%u%s0", stringDelimiter, f, stringDelimiter, stringDelimiter, (unsigned) mode, stringDelimiter);
 	gPrefsRfid.putString(tagId.c_str(), rfidString);
 	RfidSync_SetTagTimestamp(tagId.c_str(), ts ? ts : rfidNowEpoch());
+	RfidSync_ClearDeleteTimestamp(tagId.c_str());
 }
 
 // Fill a JSON object with one tag in the server's wire format (modId vs playMode + timestamp).
@@ -235,7 +278,7 @@ static void rfidCollectLocal(JsonArray arr) {
 }
 
 // POST a JSON body to a URL (optionally with Basic Auth and/or an X-API-Key header).
-static int rfidHttpPostJson(const String &url, const String &user, const String &pass, const String &apiKey, const String &body) {
+static int rfidHttpPostJson(const String &url, const String &user, const String &pass, const String &apiKey, const uint8_t *body, size_t bodyLen) {
 	std::unique_ptr<WiFiClient> client = Net_MakeClient(url);
 	HTTPClient http;
 	Net_SetupHttp(http, user, pass);
@@ -246,9 +289,13 @@ static int rfidHttpPostJson(const String &url, const String &user, const String 
 	if (apiKey.length() > 0) {
 		http.addHeader("X-API-Key", apiKey);
 	}
-	int code = http.POST((uint8_t *) body.c_str(), body.length());
+	int code = http.POST(const_cast<uint8_t *>(body), bodyLen);
 	http.end();
 	return code;
+}
+
+static int rfidHttpPostJson(const String &url, const String &user, const String &pass, const String &apiKey, const String &body) {
+	return rfidHttpPostJson(url, user, pass, apiKey, reinterpret_cast<const uint8_t *>(body.c_str()), body.length());
 }
 
 // A peer ESPuino: base URL + the X-API-Key (its web password) used to authenticate to it.
@@ -421,13 +468,11 @@ static void rfidPushTask(void *param) {
 
 // Enqueue a just-learned tag for the push task (fire-and-forget). The async caller never blocks on HTTP.
 void RfidSync_OnLearn(const char *tagId) {
-	if (!gPrefsSettings.getBool("rfidSyncLearn", true)) {
+	if (!gPrefsSettings.getBool("rfidSyncLearn", true) || !rfidSyncConfigured()) {
 		return;
 	}
 	RfidSync_Init();
-	if (rfidSyncConfigured()) {
-		rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
-	}
+	rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
 	RfidPushItem item;
 	snprintf(item.id, sizeof(item.id), "%s", tagId);
 	item.op = RFID_PUSH_LEARN;
@@ -439,23 +484,21 @@ void RfidSync_OnLearn(const char *tagId) {
 // Record a local deletion (tombstone) synchronously, then hand the HTTP propagation to the push task
 // so the web DELETE handler returns immediately instead of blocking on offline peers.
 bool RfidSync_OnDelete(const char *tagId) {
-	uint32_t ts = rfidNowEpoch();
 	// Remove the tag AND stamp its deletion tombstone under a single lock acquisition. Doing the remove in
 	// the web handler and the tombstone here (two separate locks) left a window where a concurrent full-sync
 	// observed the tag as locally gone with no tombstone yet and resurrected it from the server.
 	RfidSync_Lock();
 	const bool removed = gPrefsRfid.remove(tagId);
+	uint32_t ts = 0;
 	if (removed) {
-		gPrefsRfidTs.remove(tagId); // the assignment is gone
-		RfidSync_SetDeleteTimestamp(tagId, ts);
+		RfidSync_SetDeleteTimestamp(tagId, 0); // 0 requests a fresh monotonic local timestamp
+		ts = RfidSync_GetDeleteTimestamp(tagId);
 	}
 	RfidSync_Unlock();
-	if (!removed || !gPrefsSettings.getBool("rfidSyncLearn", true) || ts == 0) {
+	if (!removed || !gPrefsSettings.getBool("rfidSyncLearn", true) || !rfidSyncConfigured() || ts == 0) {
 		return removed; // pushed on the next full sync (also heals ts==0)
 	}
-	if (rfidSyncConfigured()) {
-		rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
-	}
+	rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
 	RfidPushItem item;
 	snprintf(item.id, sizeof(item.id), "%s", tagId);
 	item.op = RFID_PUSH_DELETE;
@@ -481,6 +524,7 @@ static void rfidFullSyncTask(void *param) {
 	const String serverUrl = rfidServerUrl();
 	uint32_t merged = 0, pushed = 0;
 	bool serverOk = true; // cleared if the server pull/push fails so the status reports "failed" not "done"
+	bool peersOk = true;
 
 	// 0) Heal offline learns: cards assigned while the clock was invalid (e.g. used outdoors with
 	// no WiFi/NTP) have timestamp 0 and would lose every conflict. Now that we are online with a
@@ -570,7 +614,6 @@ static void rfidFullSyncTask(void *param) {
 					// Do NOT resurrect on `!localExists` alone -- that ignored a fresh delete tombstone and let a
 					// still-present server copy undo a local deletion on the next sync.
 					rfidWriteTag(id, t["fileOrUrl"].as<String>(), rfidModeFromJson(t), inTs);
-					gPrefsRfidDel.remove(id.c_str());
 					merged++;
 					// Each merged tag costs several NVS flash writes; pace them so a large
 					// catch-up sync right after boot can't monopolize the flash (every write
@@ -587,15 +630,28 @@ static void rfidFullSyncTask(void *param) {
 		SpiRamAllocator allocator;
 		JsonDocument doc(&allocator);
 		JsonArray arr = doc["rfid"].to<JsonArray>();
+		RfidSync_Lock();
 		rfidCollectLocal(arr);
+		RfidSync_Unlock();
 		pushed = arr.size();
-		String body;
-		serializeJson(doc, body);
 		String syncUser, syncPwd;
 		Net_GetSyncCreds(syncUser, syncPwd);
-		int code = rfidHttpPostJson(serverUrl, syncUser, syncPwd, "", body);
-		if (code < 200 || code >= 300) {
+		// The full list can be tens of kilobytes. Serialize it directly into PSRAM instead of first
+		// duplicating the PSRAM-backed JSON tree into an internal-heap Arduino String.
+		const size_t bodyLen = measureJson(doc);
+		uint8_t *body = static_cast<uint8_t *>(ps_malloc(bodyLen + 1));
+		if (body == nullptr) {
+			body = static_cast<uint8_t *>(malloc(bodyLen + 1)); // compatibility fallback for boards without PSRAM
+		}
+		if (body == nullptr) {
 			serverOk = false;
+		} else {
+			serializeJson(doc, body, bodyLen + 1);
+			const int code = rfidHttpPostJson(serverUrl, syncUser, syncPwd, "", body, bodyLen);
+			free(body);
+			if (code < 200 || code >= 300) {
+				serverOk = false;
+			}
 		}
 	}
 
@@ -604,23 +660,40 @@ static void rfidFullSyncTask(void *param) {
 		std::vector<RfidPeer> peers;
 		rfidGetPeers(peers);
 		if (!peers.empty()) {
-			std::vector<String> keys;
-			listNVSKeys("rfidTags", &keys, rfidCollectCallback);
-			for (const String &id : keys) {
-				String fileOrUrl;
-				uint32_t mode;
-				if (rfidParseTag(id, fileOrUrl, mode)) {
-					rfidPushTagToPeers(id, fileOrUrl, mode, RfidSync_GetTagTimestamp(id.c_str()));
+			// Take one consistent local snapshot under the NVS lock, then release it before any HTTP.
+			// rfidCollectLocal includes current deletion tombstones as well as assignments; previously a
+			// full peer sync omitted tombstones, so a peer that was offline during the original delete
+			// kept (and could later resurrect) the stale assignment forever.
+			SpiRamAllocator allocator;
+			JsonDocument doc(&allocator);
+			JsonArray entries = doc.to<JsonArray>();
+			RfidSync_Lock();
+			rfidCollectLocal(entries);
+			RfidSync_Unlock();
+			if (serverUrl.length() == 0) {
+				pushed = entries.size();
+			}
+			for (JsonObject entry : entries) {
+				String body;
+				serializeJson(entry, body);
+				const String id = entry["id"].as<String>();
+				for (const RfidPeer &peer : peers) {
+					const int code = rfidHttpPostJson(peer.url + "/rfid", "", "", peer.key, body);
+					if (code < 200 || code >= 300) {
+						peersOk = false;
+					}
+					Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: pushed %s%s to peer %s (HTTP %d)", entry["deleted"].as<bool>() ? "delete " : "", id.c_str(), peer.url.c_str(), code);
 				}
 			}
 		}
 	}
 
 	char done[StatusMessage::Capacity];
-	if (serverUrl.length() > 0 && !serverOk) {
-		// the server was configured but unreachable/unparseable: report failure instead of the
-		// misleading "done" the task used to set unconditionally
-		snprintf(done, sizeof(done), "sync failed: server unreachable (peers: %u pushed)", (unsigned) pushed);
+	if ((serverUrl.length() > 0 && !serverOk) || !peersOk) {
+		// A configured destination was unreachable/unparseable: report failure instead of the
+		// misleading "done" the task used to set unconditionally.
+		const char *failedTarget = (!serverOk && !peersOk) ? "server/peer" : (!serverOk ? "server" : "peer");
+		snprintf(done, sizeof(done), "sync failed: %s unreachable (%u queued)", failedTarget, (unsigned) pushed);
 		rfidSyncSetMsg(done);
 		gRfidSyncStatus = 3;
 		Log_Printf(LOGLEVEL_ERROR, "RFID-sync full failed: %s", done);
@@ -681,7 +754,11 @@ void RfidSync_Cyclic(void) {
 	if (!Wlan_IsConnected() || rfidNowEpoch() == 0 || !rfidSyncConfigured()) {
 		return;
 	}
-	gCatchupDone = true;
-	Log_Println("RFID-sync: running catch-up sync after coming online", LOGLEVEL_NOTICE);
 	RfidSync_TriggerFull();
+	// A busy global network slot defers the trigger and resets the status to idle. Only mark the
+	// one-shot catch-up complete after its worker was actually launched, otherwise it is lost forever.
+	if (gRfidSyncStatus == 1) {
+		gCatchupDone = true;
+		Log_Println("RFID-sync: running catch-up sync after coming online", LOGLEVEL_NOTICE);
+	}
 }

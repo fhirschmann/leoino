@@ -32,7 +32,7 @@ void Rfid_PreferenceLookupHandler(void) {
 	rfidStatus = xQueueReceive(gRfidCardQueue, &rfidTagId, 0);
 	if (rfidStatus == pdPASS) {
 		System_UpdateActivityTimer();
-		strncpy(gCurrentRfidTagId, rfidTagId, cardIdStringSize - 1);
+		snprintf(gCurrentRfidTagId, sizeof(gCurrentRfidTagId), "%s", rfidTagId);
 		Log_Printf(LOGLEVEL_INFO, "%s: %s", rfidTagReceived, gCurrentRfidTagId);
 		Web_SendWebsocketData(0, WebsocketCodeType::CurrentRfid); // Push new rfidTagId to all websocket-clients
 		String s = "-1";
@@ -47,25 +47,8 @@ void Rfid_PreferenceLookupHandler(void) {
 			return;
 		}
 
-		char *token;
-		uint8_t i = 1;
-		token = strtok((char *) s.c_str(), stringDelimiter);
-		while (token != NULL) { // Try to extract data from string after lookup
-			if (i == 1) {
-				strncpy(_file, token, sizeof(_file) - 1);
-				_file[sizeof(_file) - 1] = '\0';
-			} else if (i == 2) {
-				_lastPlayPos = strtoul(token, NULL, 10);
-			} else if (i == 3) {
-				_playMode = strtoul(token, NULL, 10);
-			} else if (i == 4) {
-				_trackLastPlayed = strtoul(token, NULL, 10);
-			}
-			i++;
-			token = strtok(NULL, stringDelimiter);
-		}
-
-		if (i != 5) {
+		// Parse a private copy instead of casting away const and letting strtok() modify String::c_str().
+		if (!Rfid_ParseAssignment(s.c_str(), _file, sizeof(_file), &_lastPlayPos, &_playMode, &_trackLastPlayed)) {
 			Log_Println(errorOccuredNvs, LOGLEVEL_ERROR);
 			System_IndicateError();
 		} else {
@@ -86,7 +69,7 @@ void Rfid_PreferenceLookupHandler(void) {
 						// System_IndicateError(); // Enable to have shown error @neopixel every time
 						return;
 					} else {
-						strncpy(gOldRfidTagId, gCurrentRfidTagId, 12);
+						snprintf(gOldRfidTagId, sizeof(gOldRfidTagId), "%s", gCurrentRfidTagId);
 						// Arm the lock-reset now that a new tag was accepted. This must not depend on playback
 						// actually starting, otherwise a tag whose first track fails immediately stays locked forever.
 						AudioPlayer_ArmRfidResetOnIdle();
@@ -126,8 +109,8 @@ void Rfid_PreferenceLookupHandler(void) {
 
 void Rfid_ResetOldRfid() {
 	Log_Println("RFID: Resetting old card state", LOGLEVEL_INFO);
-	strncpy(gCurrentRfidTagId, "000000000000", cardIdStringSize - 1);
-	strncpy(gOldRfidTagId, "X", cardIdStringSize - 1);
+	snprintf(gCurrentRfidTagId, sizeof(gCurrentRfidTagId), "%s", "000000000000");
+	snprintf(gOldRfidTagId, sizeof(gOldRfidTagId), "%s", "X");
 	Rfid_TaskReset();
 }
 
@@ -168,7 +151,7 @@ bool Rfid_ParseAssignment(const char *stored, char *fileOut, size_t fileLen, uin
 			*trackOut = (uint16_t) strtoul(token, NULL, 10);
 		}
 	}
-	return true;
+	return i == 5; // exactly four tokens are required by the persisted assignment format
 }
 
 // Convert a raw card id into the 12-digit "%03d"-per-byte string used as the RFID-queue key

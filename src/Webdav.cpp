@@ -37,7 +37,7 @@ static WiFiServer *webdavServer = nullptr;
 static TaskHandle_t webdavTaskHandles[WEBDAV_WORKER_COUNT] = {nullptr};
 static volatile bool webdavShouldRun = false;
 static volatile bool webdavRunning = false; // true once the first worker has created+started the listener
-static volatile int webdavActiveWorkers = 0; // workers currently inside their accept loop
+static int webdavActiveWorkers = 0; // workers currently inside their accept loop; guarded by webdavStateMux
 // Enable/Disable/Exit are called from several tasks (web, MQTT, command, system-shutdown), and now
 // also guard the multi-worker startup/teardown handoff (first worker in creates the listener, last
 // worker out destroys it). Without serialization, a start racing the previous run's self-teardown
@@ -45,6 +45,13 @@ static volatile int webdavActiveWorkers = 0; // workers currently inside their a
 // / double-free reboot. This mutex makes those decisions atomic; steady-state request handling
 // itself stays lock-free.
 static portMUX_TYPE webdavStateMux = portMUX_INITIALIZER_UNLOCKED;
+
+static int webdavGetActiveWorkers(void) {
+	portENTER_CRITICAL(&webdavStateMux);
+	const int count = webdavActiveWorkers;
+	portEXIT_CRITICAL(&webdavStateMux);
+	return count;
+}
 
 String Webdav_User = "esp32"; // default; kept for compatibility but ignored for auth (any username is accepted)
 String Webdav_Password = "esp32"; // the shared device password (set on the Security tab)
@@ -1006,7 +1013,7 @@ void Webdav_EnableServer(void) {
 			// so we don't leave a partially-started server (and its listener) behind.
 			webdavShouldRun = false;
 			uint32_t start = millis();
-			while (webdavActiveWorkers > 0 && (millis() - start < 9000)) {
+			while (webdavGetActiveWorkers() > 0 && (millis() - start < 9000)) {
 				vTaskDelay(pdMS_TO_TICKS(20));
 			}
 			for (int j = 0; j < WEBDAV_WORKER_COUNT; j++) {

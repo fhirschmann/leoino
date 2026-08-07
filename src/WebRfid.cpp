@@ -34,7 +34,9 @@ static bool tagIdToJSON(const String tagId, JsonObject entry) {
 	uint32_t _lastPlayPos = 0;
 	uint16_t _trackLastPlayed = 0;
 	uint32_t _mode = 0;
-	Rfid_ParseAssignment(s.c_str(), _file, sizeof(_file), &_lastPlayPos, &_mode, &_trackLastPlayed);
+	if (!Rfid_ParseAssignment(s.c_str(), _file, sizeof(_file), &_lastPlayPos, &_mode, &_trackLastPlayed)) {
+		return false;
+	}
 	entry["id"] = tagId;
 	if (_mode >= 100) {
 		entry["modId"] = _mode;
@@ -99,10 +101,17 @@ void handleGetRFIDRequest(AsyncWebServerRequest *request) {
 		tagId = request->getParam("id")->value();
 	}
 
-	if ((tagId != "") && gPrefsRfid.isKey(tagId.c_str())) {
-		// return single RFID entry with details
-		String json = tagIdToJsonStr(tagId.c_str(), false);
-		request->send(200, "application/json", json);
+	if (tagId != "") {
+		// A requested ID is a lookup, not a filter fallback. Returning every assignment for an unknown
+		// ID was surprising to API callers and exposed the complete list after a simple typo.
+		if (gPrefsRfid.isKey(tagId.c_str())) {
+			String json = tagIdToJsonStr(tagId.c_str(), false);
+			if (json.length() > 0) {
+				request->send(200, "application/json", json);
+				return;
+			}
+		}
+		request->send(404, "application/json", "{\"error\":\"unknown tag\"}");
 		return;
 	}
 	// get tag details or just an array of id's
@@ -119,34 +128,45 @@ void handleGetRFIDRequest(AsyncWebServerRequest *request) {
 	}
 	// construct chunked repsonse
 	AsyncWebServerResponse *response = request->beginChunkedResponse("application/json",
-		[nvsKeys = std::move(nvsKeys), idsOnly, nvsIndex = size_t(0)](uint8_t *buffer, size_t maxLen, size_t index) mutable -> size_t {
+		[nvsKeys = std::move(nvsKeys), idsOnly, nvsIndex = size_t(0), started = false, sentAny = false, finished = false](uint8_t *buffer, size_t maxLen, size_t index) mutable -> size_t {
+			(void) index;
+			if (finished) {
+				return 0;
+			}
 			maxLen = maxLen >> 1; // some sort of bug with actual size available, reduce the len
 			size_t len = 0;
-			String json;
-
-			if (nvsIndex == 0) {
-				// start, write first tag
-				json = tagIdToJsonStr(nvsKeys[nvsIndex].c_str(), idsOnly);
-				if (json.length() >= maxLen) {
-					Log_Println("/rfid: Buffer too small", LOGLEVEL_ERROR);
-					return len;
-				}
-				len += snprintf(((char *) buffer), maxLen - len, "[%s", json.c_str());
-				nvsIndex++;
+			if (!started) {
+				buffer[len++] = '[';
+				started = true;
 			}
 			while (nvsIndex < nvsKeys.size()) {
-				// write tags as long we have enough room
-				json = tagIdToJsonStr(nvsKeys[nvsIndex].c_str(), idsOnly);
-				if ((len + json.length()) >= maxLen) {
+				// A tag can disappear after the key snapshot was taken. Skip it instead of emitting an empty
+				// element ("[,"), which made the whole chunked response invalid JSON during concurrent deletes.
+				String json = tagIdToJsonStr(nvsKeys[nvsIndex].c_str(), idsOnly);
+				if (json.length() == 0) {
+					nvsIndex++;
+					continue;
+				}
+				const size_t needed = json.length() + (sentAny ? 1u : 0u);
+				if (needed > maxLen) {
+					Log_Println("/rfid: entry exceeds response buffer", LOGLEVEL_ERROR);
+					nvsIndex++; // preserve valid JSON even if a corrupt/oversized NVS entry is encountered
+					continue;
+				}
+				if (len + needed > maxLen) {
 					break;
 				}
-				len += snprintf(((char *) buffer + len), maxLen - len, ",%s", json.c_str());
+				if (sentAny) {
+					buffer[len++] = ',';
+				}
+				memcpy(buffer + len, json.c_str(), json.length());
+				len += json.length();
+				sentAny = true;
 				nvsIndex++;
 			}
-			if (nvsIndex == nvsKeys.size()) {
-				// finish
-				len += snprintf(((char *) buffer + len), maxLen - len, "]");
-				nvsIndex++;
+			if (nvsIndex == nvsKeys.size() && len < maxLen) {
+				buffer[len++] = ']';
+				finished = true;
 			}
 			return len;
 		});
@@ -175,7 +195,6 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 			if (gPrefsRfid.isKey(tagId.c_str())) {
 				gPrefsRfid.remove(tagId.c_str());
 			}
-			RfidSync_SetTagTimestamp(tagId.c_str(), 0);
 			RfidSync_SetDeleteTimestamp(tagId.c_str(), inTs);
 			RfidSync_Unlock();
 			Web_DumpNvsToSd("rfidTags", backupFile);
@@ -210,9 +229,24 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 	uint32_t pos = isModId ? 0 : (jsonObj["lastPlayPos"] | 0);
 	uint16_t track = isModId ? 0 : (jsonObj["trackLastPlayed"] | 0);
 	char rfidString[275];
-	snprintf(rfidString, sizeof(rfidString) / sizeof(rfidString[0]), "%s%s%s%lu%s%u%s%u", stringDelimiter, _fileOrUrlAscii, stringDelimiter, (unsigned long) pos, stringDelimiter, _playModeOrModId, stringDelimiter, track);
+	const int rfidLen = snprintf(rfidString, sizeof(rfidString), "%s%s%s%lu%s%u%s%u", stringDelimiter, _fileOrUrlAscii, stringDelimiter, (unsigned long) pos, stringDelimiter, _playModeOrModId, stringDelimiter, track);
+	if (rfidLen < 0 || static_cast<size_t>(rfidLen) >= sizeof(rfidString)) {
+		request->send(400, "application/json", "{\"error\":\"assignment too long\"}");
+		return;
+	}
 	// serialize the write + timestamp against a concurrent full-sync merge (cross-core RMW)
 	RfidSync_Lock();
+	const uint32_t incomingTs = jsonObj["timestamp"].is<uint32_t>() ? jsonObj["timestamp"].as<uint32_t>() : 0;
+	const uint32_t localAssign = RfidSync_GetTagTimestamp(tagId.c_str());
+	const uint32_t localDelete = RfidSync_GetDeleteTimestamp(tagId.c_str());
+	const uint32_t localNewest = (localAssign > localDelete) ? localAssign : localDelete;
+	if (incomingTs > 0 && incomingTs <= localNewest) {
+		// Peer pushes carry their source timestamp. Ignore stale/equal assignments so an offline peer
+		// cannot overwrite a newer local edit or resurrect a tag protected by a newer tombstone.
+		RfidSync_Unlock();
+		request->send(200, "text/plain; charset=utf-8", "ok");
+		return;
+	}
 	gPrefsRfid.putString(tagId.c_str(), rfidString);
 	String s = gPrefsRfid.getString(tagId.c_str(), "-1");
 	const bool saveOk = (s.compareTo(rfidString) == 0);
@@ -220,8 +254,9 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 		// Record the sync timestamp: use an incoming "timestamp" if provided (a peer push preserves
 		// the origin timestamp), else stamp now. This endpoint is the peer-push target, so it must
 		// NOT re-push (no RfidSync_OnLearn here) to avoid sync loops between devices.
-		if (jsonObj["timestamp"].is<uint32_t>() && jsonObj["timestamp"].as<uint32_t>() > 0) {
-			RfidSync_SetTagTimestamp(tagId.c_str(), jsonObj["timestamp"].as<uint32_t>());
+		if (incomingTs > 0) {
+			RfidSync_SetTagTimestamp(tagId.c_str(), incomingTs);
+			RfidSync_ClearDeleteTimestamp(tagId.c_str());
 		} else {
 			RfidSync_NoteLocalChange(tagId.c_str());
 		}

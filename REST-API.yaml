@@ -401,6 +401,8 @@ paths:
                   type: object
                   # Include your RFID-tag assignment properties here.
                   additionalProperties: true
+        "404":
+          description: The requested RFID tag ID does not exist.
     post:
       summary: Save or overwrite RFID-tag assignment.
       description: Save a new RFID-tag assignment or overwrite an existing one.
@@ -426,6 +428,8 @@ paths:
       responses:
         "200":
           description: Successful RFID-tag assignment save.
+        "400":
+          description: The serialized assignment exceeds the device's supported length.
     delete:
       summary: Delete an RFID-tag assignment.
       description: Delete an RFID-tag assignment by providing its ID.

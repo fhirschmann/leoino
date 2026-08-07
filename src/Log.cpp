@@ -6,11 +6,22 @@
 #include "LogRingBuffer.h"
 #include "MemX.h"
 
+#include <new>
+
 static LogRingBuffer *Log_RingBuffer = NULL;
 
 void Log_Init(void) {
 	Serial.begin(115200);
-	Log_RingBuffer = new LogRingBuffer();
+	// LogRingBuffer defines a malloc/PSRAM-backed class-specific operator new but no matching delete,
+	// which makes constructor-failure cleanup undefined and triggers -Wmismatched-new-delete. Allocate
+	// the storage explicitly, retain an internal-heap fallback, and construct it in place.
+	void *storage = psramFound() ? ps_malloc(sizeof(LogRingBuffer)) : nullptr;
+	if (storage == nullptr) {
+		storage = malloc(sizeof(LogRingBuffer));
+	}
+	if (storage != nullptr) {
+		Log_RingBuffer = ::new (storage) LogRingBuffer();
+	}
 }
 
 String getLoglevel(const uint8_t logLevel) {
@@ -39,8 +50,10 @@ void Log_Println(const char *_logBuffer, const uint8_t _minLogLevel) {
 		const String sLogLevel = getLoglevel(_minLogLevel);
 		Serial.printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
 		Serial.println(_logBuffer);
-		Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
-		Log_RingBuffer->println(_logBuffer);
+		if (Log_RingBuffer != nullptr) {
+			Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+			Log_RingBuffer->println(_logBuffer);
+		}
 	}
 }
 
@@ -52,11 +65,15 @@ void Log_Print(const char *_logBuffer, const uint8_t _minLogLevel, bool printTim
 			const String sLogLevel = getLoglevel(_minLogLevel);
 			Serial.printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
 			Serial.print(_logBuffer);
-			Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+			if (Log_RingBuffer != nullptr) {
+				Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+			}
 		} else {
 			Serial.print(_logBuffer);
 		}
-		Log_RingBuffer->print(_logBuffer);
+		if (Log_RingBuffer != nullptr) {
+			Log_RingBuffer->print(_logBuffer);
+		}
 	}
 }
 
@@ -83,5 +100,5 @@ int Log_Printf(const uint8_t _minLogLevel, const char *format, ...) {
 }
 
 String Log_GetRingBuffer(void) {
-	return Log_RingBuffer->get();
+	return Log_RingBuffer != nullptr ? Log_RingBuffer->get() : String();
 }

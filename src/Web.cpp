@@ -1706,17 +1706,24 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		const char *_rfidIdModId = doc["rfidMod"]["rfidIdMod"];
 		uint8_t _modId = doc["rfidMod"]["modId"];
 		if (_modId <= 0) {
-			gPrefsRfid.remove(_rfidIdModId);
+			// Use the same atomic delete+tombstone path as DELETE /rfid so a full sync cannot
+			// resurrect a modification card removed through the websocket learn dialog.
+			RfidSync_OnDelete(_rfidIdModId);
 		} else {
 			char rfidString[12];
 			snprintf(rfidString, sizeof(rfidString) / sizeof(rfidString[0]), "%s0%s0%s%u%s0", stringDelimiter, stringDelimiter, stringDelimiter, _modId, stringDelimiter);
+			RfidSync_Lock();
 			gPrefsRfid.putString(_rfidIdModId, rfidString);
 
 			String s = gPrefsRfid.getString(_rfidIdModId, "-1");
-			if (s.compareTo(rfidString)) {
+			const bool saveOk = (s.compareTo(rfidString) == 0);
+			if (saveOk) {
+				RfidSync_NoteLocalChange(_rfidIdModId); // stamp the freshly learned modification card
+			}
+			RfidSync_Unlock();
+			if (!saveOk) {
 				return WebsocketCodeType::Error;
 			}
-			RfidSync_NoteLocalChange(_rfidIdModId); // stamp + sync the freshly learned modification card
 			RfidSync_OnLearn(_rfidIdModId);
 		}
 		Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
@@ -1729,15 +1736,24 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			return WebsocketCodeType::Error;
 		}
 		char rfidString[275];
-		snprintf(rfidString, sizeof(rfidString) / sizeof(rfidString[0]), "%s%s%s0%s%u%s0", stringDelimiter, _fileOrUrlAscii, stringDelimiter, stringDelimiter, _playMode, stringDelimiter);
-		gPrefsRfid.putString(_rfidIdAssinId, rfidString);
-		Rfid_ResetOldRfid(); // Reset reader task so it can immediately recognize the tag if it's already present
-
-		String s = gPrefsRfid.getString(_rfidIdAssinId, "-1");
-		if (s.compareTo(rfidString)) {
+		const int rfidLen = snprintf(rfidString, sizeof(rfidString), "%s%s%s0%s%u%s0", stringDelimiter, _fileOrUrlAscii, stringDelimiter, stringDelimiter, _playMode, stringDelimiter);
+		if (rfidLen < 0 || static_cast<size_t>(rfidLen) >= sizeof(rfidString)) {
+			Log_Println("rfidAssign: Assignment too long", LOGLEVEL_ERROR);
 			return WebsocketCodeType::Error;
 		}
-		RfidSync_NoteLocalChange(_rfidIdAssinId); // stamp + sync the freshly learned music card
+		RfidSync_Lock();
+		gPrefsRfid.putString(_rfidIdAssinId, rfidString);
+
+		String s = gPrefsRfid.getString(_rfidIdAssinId, "-1");
+		const bool saveOk = (s.compareTo(rfidString) == 0);
+		if (saveOk) {
+			RfidSync_NoteLocalChange(_rfidIdAssinId); // stamp the freshly learned music card
+		}
+		RfidSync_Unlock();
+		if (!saveOk) {
+			return WebsocketCodeType::Error;
+		}
+		Rfid_ResetOldRfid(); // Reset reader task so it can immediately recognize the tag if it's already present
 		RfidSync_OnLearn(_rfidIdAssinId);
 		Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 		Web_SendWebsocketData(0, WebsocketCodeType::Ok);
@@ -1759,7 +1775,8 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (irObj["map"].is<JsonArray>()) {
 			IrMapping mappings[IR_MAX_MAPPINGS];
 			uint8_t count = 0;
-			for (JsonVariant entry : irObj["map"].as<JsonArray>()) {
+			JsonArray map = irObj["map"].as<JsonArray>();
+			for (JsonVariant entry : map) {
 				if (count >= IR_MAX_MAPPINGS) {
 					break;
 				}
