@@ -790,6 +790,8 @@
 		"save": "Speichern",
 		"saved": "Playlist gespeichert: {{path}}",
 		"noName": "Bitte einen Dateinamen eingeben",
+		"invalidName": "Der Playlist-Name ist ungültig",
+		"invalidUrl": "Bitte eine HTTP(S)-Webradio-URL eingeben",
 		"empty": "Die Playlist ist leer"
 	},
 	"bt": {

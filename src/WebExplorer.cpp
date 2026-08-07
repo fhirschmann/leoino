@@ -749,7 +749,13 @@ void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &js
 		}
 		String line = track.as<String>();
 		line.trim();
-		if (line.isEmpty() || line.length() > 2048 || line.startsWith("#") || line.indexOf('\r') >= 0 || line.indexOf('\n') >= 0) {
+		String lowerLine = line;
+		lowerLine.toLowerCase();
+		const bool isAudio = lowerLine.endsWith(".mp3") || lowerLine.endsWith(".aac") || lowerLine.endsWith(".m4a") || lowerLine.endsWith(".wav") || lowerLine.endsWith(".flac") || lowerLine.endsWith(".ogg") || lowerLine.endsWith(".oga") || lowerLine.endsWith(".opus");
+		const bool isStream = lowerLine.startsWith("http://") || lowerLine.startsWith("https://");
+		const int lastSlash = line.lastIndexOf('/');
+		const bool isHidden = !isStream && lastSlash + 1 < (int) line.length() && line[lastSlash + 1] == '.';
+		if (line.isEmpty() || line.length() > 2048 || line.startsWith("#") || line.indexOf('\r') >= 0 || line.indexOf('\n') >= 0 || isHidden || (!isAudio && !isStream)) {
 			request->send(400, "text/plain", "invalid track");
 			return;
 		}

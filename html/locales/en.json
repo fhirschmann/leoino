@@ -790,6 +790,8 @@
 		"save": "Save",
 		"saved": "Playlist saved: {{path}}",
 		"noName": "Please enter a file name",
+		"invalidName": "The playlist name is invalid",
+		"invalidUrl": "Please enter an HTTP(S) webradio URL",
 		"empty": "The playlist is empty"
 	},
 	"bt": {

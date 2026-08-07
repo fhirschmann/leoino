@@ -783,6 +783,8 @@
 		"save": "Enregistrer",
 		"saved": "Playlist enregistrée : {{path}}",
 		"noName": "Veuillez saisir un nom de fichier",
+		"invalidName": "Le nom de la playlist n’est pas valide",
+		"invalidUrl": "Veuillez saisir une URL de webradio HTTP(S)",
 		"empty": "La playlist est vide"
 	},
 	"bt": {

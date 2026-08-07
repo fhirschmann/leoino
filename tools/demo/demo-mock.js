@@ -376,7 +376,8 @@
 			if (playlistPath.charAt(0) !== "/") { playlistPath = "/" + playlistPath; }
 			if (!/\.m3u8?$/i.test(playlistPath)) { playlistPath += ".m3u"; }
 			var invalidTrack = !Array.isArray(tracks) || !tracks.length || tracks.length > 4096 || tracks.some(function (track) {
-				return typeof track !== "string" || !track.trim() || track.length > 2048 || /^\s*#/.test(track) || /[\r\n]/.test(track);
+				return typeof track !== "string" || !track.trim() || track.length > 2048 || /^\s*#/.test(track) || /[\r\n]/.test(track)
+					|| (!/^https?:\/\//i.test(track.trim()) && !/\.(mp3|aac|m4a|wav|flac|ogg|oga|opus)$/i.test(track.trim()));
 			});
 			if (playlistPath.length > 240 || !/^\/Playlists\//i.test(playlistPath) || playlistPath.lastIndexOf("/") !== 10 || /\/\.|\.\./.test(playlistPath) || invalidTrack) {
 				return jsonResp({ error: "invalid playlist" }, 400);
