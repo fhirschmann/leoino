@@ -922,6 +922,7 @@ void webserverStart(void) {
 			// make a backup first
 			Web_DumpNvsToSd("rfidTags", backupFile);
 			if (gPrefsRfid.clear()) {
+				Rfid_ResetLastTag(); // Every tag means something else now (namely: nothing)
 				request->send(200);
 			} else {
 				request->send(500);
@@ -1258,7 +1259,16 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 	if (doc["general"].is<JsonObject>()) {
 		// general settings
 		JsonObject generalObj = doc["general"];
+		// A minimum volume that is not strictly below both maximums would leave no usable volume range,
+		// so reject it before writing anything. The HTML input already constrains this, but a direct
+		// REST/websocket POST could bypass that.
+		const uint8_t minVolume = generalObj["minVolume"].as<uint8_t>();
+		if (minVolume >= generalObj["maxVolumeSp"].as<uint8_t>() || minVolume >= generalObj["maxVolumeHp"].as<uint8_t>()) {
+			Log_Println(webSaveSettingsVolumeMinMaxError, LOGLEVEL_ERROR);
+			return WebsocketCodeType::Error;
+		}
 		bool success = (gPrefsSettings.putUInt("initVolume", generalObj["initVolume"].as<uint8_t>()) != 0);
+		success = success && (gPrefsSettings.putUInt("minVolume", minVolume) != 0);
 		success = success && (gPrefsSettings.putUInt("maxVolumeSp", generalObj["maxVolumeSp"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUInt("maxVolumeHp", generalObj["maxVolumeHp"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUInt("mInactiviyT", generalObj["sleepInactivity"].as<uint8_t>()) != 0);
@@ -1339,7 +1349,14 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			}
 		}
 		success = success && (gPrefsRfid.putUChar("mfrc522Gain", generalObj["mfrc522Gain"].as<uint8_t>()) != 0);
-		success = success && (gPrefsRfid.putUShort("pn5180Debounce", generalObj["pn5180Debounce"].as<uint16_t>()) != 0);
+		// Guarded: an older cached GUI page (or a partial REST POST) without these fields must not
+		// silently persist 0, which would break the reader poll loop / removal debounce.
+		if (generalObj["mfrc522ScanInterval"].is<uint16_t>() && generalObj["mfrc522ScanInterval"].as<uint16_t>() > 0) {
+			success = success && (gPrefsRfid.putUShort("rfidScanIntv", generalObj["mfrc522ScanInterval"].as<uint16_t>()) != 0);
+		}
+		if (generalObj["pn5180Debounce"].is<uint16_t>() && generalObj["pn5180Debounce"].as<uint16_t>() > 0) {
+			success = success && (gPrefsRfid.putUShort("pn5180Debounce", generalObj["pn5180Debounce"].as<uint16_t>()) != 0);
+		}
 		if (!success) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "general");
 			return WebsocketCodeType::Error;
@@ -1352,7 +1369,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		gPlayProperties.stopIfRfidRemoved = generalObj["stopIfRfidRemoved"].as<bool>();
 		gPlayProperties.resumeOnSameRfid = generalObj["resumeOnSameRfid"].as<bool>();
 		if (gPlayProperties.pauseIfRfidRemoved) {
-			// ignore feature silently if PAUSE_WHEN_RFID_REMOVED is active
+			// ignore feature silently if pauseIfRfidRemoved is active
 			Log_Println("pauseIfRfidRemoved is enabled -> deactivate dontAcceptRfidTwice", LOGLEVEL_NOTICE);
 			gPlayProperties.dontAcceptRfidTwice = false;
 		} else {
@@ -1394,6 +1411,12 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 	if (doc["led"].is<JsonObject>()) {
 		// Neopixel settings
 		JsonObject ledObj = doc["led"];
+		if (ledObj["dimStates"].as<uint8_t>() == 0) {
+			// used as a divisor throughout Led.cpp's animations - a stored 0 would only surface as a
+			// crash on the next boot (Led_Init() self-heals it, but only then), so reject it here instead.
+			Log_Println("Invalid dimStates (must not be 0)", LOGLEVEL_ERROR);
+			return WebsocketCodeType::Error;
+		}
 		bool success = (gPrefsSettings.putUChar("iLedBrightness", ledObj["initBrightness"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUChar("nLedBrightness", ledObj["nightBrightness"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUChar("aLedBrightness", ledObj["atmoBrightness"].as<uint8_t>()) != 0);
@@ -1550,11 +1573,23 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "rotary");
 			return WebsocketCodeType::Error;
 		}
+		// CMD_SEEK_PREVIEW tuning: guarded (not hard-erroring like "reverse" above) so an older cached
+		// web-UI page that doesn't send these yet can't blank an already-saved value.
+		if (doc["rotary"]["seekPrevDelay"].is<uint16_t>()) {
+			gPrefsSettings.putUShort("seekPrevDelay", doc["rotary"]["seekPrevDelay"].as<uint16_t>());
+		}
+		if (doc["rotary"]["seekPrevSweep"].is<uint8_t>()) {
+			uint8_t seekPrevSweep = doc["rotary"]["seekPrevSweep"].as<uint8_t>();
+			if (seekPrevSweep < 1) {
+				seekPrevSweep = 1; // must be >= 1 to avoid divide-by-zero in seek-preview
+			}
+			gPrefsSettings.putUChar("seekPrevSweep", seekPrevSweep);
+		}
 		RotaryEncoder_Init();
 	}
 	if (doc["battery"].is<JsonObject>()) {
 		// Battery settings
-		if (gPrefsSettings.putFloat("wLowVoltage", doc["battery"]["warnLowVoltage"].as<float>()) == 0 || gPrefsSettings.putFloat("vIndicatorLow", doc["battery"]["indicatorLow"].as<float>()) == 0 || gPrefsSettings.putFloat("vIndicatorHigh", doc["battery"]["indicatorHi"].as<float>()) == 0 || gPrefsSettings.putFloat("wCritVoltage", doc["battery"]["criticalVoltage"].as<float>()) == 0 || gPrefsSettings.putUInt("vCheckIntv", doc["battery"]["voltageCheckInterval"].as<uint8_t>()) == 0) {
+		if (gPrefsSettings.putFloat("wLowVoltage", doc["battery"]["warnLowVoltage"].as<float>()) == 0 || gPrefsSettings.putFloat("vIndicatorLow", doc["battery"]["indicatorLow"].as<float>()) == 0 || gPrefsSettings.putFloat("vIndicatorHigh", doc["battery"]["indicatorHi"].as<float>()) == 0 || gPrefsSettings.putFloat("wCritVoltage", doc["battery"]["criticalVoltage"].as<float>()) == 0 || gPrefsSettings.putBool("shutdownBatCrit", doc["battery"]["shutdownOnCritical"].as<bool>()) == 0 || gPrefsSettings.putUInt("vCheckIntv", doc["battery"]["voltageCheckInterval"].as<uint8_t>()) == 0) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "battery");
 			return WebsocketCodeType::Error;
 		}
@@ -1726,6 +1761,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			}
 			RfidSync_OnLearn(_rfidIdModId);
 		}
+		Rfid_ResetLastTag(); // The tag means something else now: make sure re-applying it is not deduped away
 		Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 	} else if (doc["rfidAssign"].is<JsonObject>()) {
 		const char *_rfidIdAssinId = doc["rfidAssign"]["rfidIdMusic"];
@@ -1748,6 +1784,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		const bool saveOk = (s.compareTo(rfidString) == 0);
 		if (saveOk) {
 			RfidSync_NoteLocalChange(_rfidIdAssinId); // stamp the freshly learned music card
+			Rfid_ResetLastTag(); // The tag means something else now: make sure re-applying it is not deduped away
 		}
 		RfidSync_Unlock();
 		if (!saveOk) {

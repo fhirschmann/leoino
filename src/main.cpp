@@ -277,11 +277,7 @@ void loop() {
 	// during the post-boot recovery window. An NVS lookup every loop forever was pure waste.
 	static int8_t playLastRfidAfterReboot = -1;
 	if (playLastRfidAfterReboot < 0) {
-#ifdef PLAY_LAST_RFID_AFTER_REBOOT
-		playLastRfidAfterReboot = gPrefsSettings.getBool("playLastOnBoot", true) ? 1 : 0;
-#else
 		playLastRfidAfterReboot = gPrefsSettings.getBool("playLastOnBoot", false) ? 1 : 0;
-#endif
 	}
 
 	if (playLastRfidAfterReboot) {

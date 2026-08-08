@@ -92,6 +92,7 @@
 #define CMD_SMART_FORWARDS		 190 // Command: smart forward (in-file seek on a single long file, else next track), coalesces rapid presses; step via web setting "seekStep"
 #define CMD_SMART_BACKWARDS		 191 // Command: smart backward (in-file seek on a single long file, else previous track), coalesces rapid presses; step via web setting "seekStep"
 #define CMD_MUTE				 192 // Command: toggle mute (sets volume to 0, restores the previous volume on the next press)
+#define CMD_SEEK_PREVIEW		 193 // Command: rotary-gesture-only. Turning previews a target position (LED cursor); commits on release/idle instead of jumping immediately
 
 #define CMD_VIRTUAL_RFID_CARD_01 241 // Command: Virtual RFID-Card 900000000001
 #define CMD_VIRTUAL_RFID_CARD_02 242 // Command: Virtual RFID-Card 900000000002

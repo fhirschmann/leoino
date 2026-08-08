@@ -102,13 +102,13 @@ bool Led_LoadSettings(LedSettings &settings) {
 	}
 
 	// Get the number of indicator LEDs from NVS
-	settings.numIndicatorLeds = gPrefsSettings.getUChar("numIndicator", NUM_INDICATOR_LEDS);
+	settings.numIndicatorLeds = gPrefsSettings.getUChar("numIndicator", 24); // NUM_INDICATOR_LEDS
 
 	// Get the number of control LEDs from NVS
-	settings.numControlLeds = gPrefsSettings.getUChar("numControl", NUM_CONTROL_LEDS);
+	settings.numControlLeds = gPrefsSettings.getUChar("numControl", 0); // NUM_CONTROL_LEDS
 
 	// Get the number of Led idle dots from NVS
-	settings.numIdleDots = gPrefsSettings.getUChar("numIdleDots", NUM_LEDS_IDLE_DOTS);
+	settings.numIdleDots = gPrefsSettings.getUChar("numIdleDots", 4); // NUM_LEDS_IDLE_DOTS
 	if (settings.numIdleDots == 0) {
 		// avoid division by zero
 		settings.numIdleDots = 4;
@@ -122,26 +122,25 @@ bool Led_LoadSettings(LedSettings &settings) {
 	settings.idleAnimation = gPrefsSettings.getUChar("idleAnim", 0);
 
 	// Get offset LED pause from NVS
-	settings.offsetLedPause = gPrefsSettings.getBool("offsetPause", OFFSET_PAUSE_LEDS);
+	settings.offsetLedPause = gPrefsSettings.getBool("offsetPause", false); // OFFSET_PAUSE_LEDS
 
 	// get dimmableStates from NVS
-	settings.dimmableStates = gPrefsSettings.getUChar("dimStates", DIMMABLE_STATES);
+	settings.dimmableStates = gPrefsSettings.getUChar("dimStates", 50); // DIMMABLE_STATES
+	if (settings.dimmableStates == 0) {
+		// avoid division by zero (used as a divisor throughout Led.cpp's animations)
+		settings.dimmableStates = 50;
+	}
 
 	// get progress colors from NVS
 	settings.progressColorStart = gPrefsSettings.getUInt("progColorStart", PROGRESS_COLOR_START);
 	settings.progressColorEnd = gPrefsSettings.getUInt("progColorEnd", PROGRESS_COLOR_END);
 
 	// get atmo light from NVS
-	settings.atmoHue = gPrefsSettings.getShort("hueAtmo", ATMO_HUE);
-	settings.atmoSaturation = gPrefsSettings.getShort("satAtmo", ATMO_SATURATION);
+	settings.atmoHue = gPrefsSettings.getShort("hueAtmo", 10); // ATMO_HUE
+	settings.atmoSaturation = gPrefsSettings.getShort("satAtmo", 180); // ATMO_SATURATION
 
 	// get reverse rotation from NVS
-	#ifdef NEOPIXEL_REVERSE_ROTATION
-	const bool defReverseRotation = true;
-	#else
-	const bool defReverseRotation = false;
-	#endif
-	settings.neopixelReverseRotation = gPrefsSettings.getBool("ledReverseRot", defReverseRotation);
+	settings.neopixelReverseRotation = gPrefsSettings.getBool("ledReverseRot", false); // NEOPIXEL_REVERSE_ROTATION
 
 	// get LED offset from NVS
 	#ifdef LED_OFFSET
@@ -160,7 +159,7 @@ bool Led_LoadSettings(LedSettings &settings) {
 		settings.ledOffset %= settings.numIndicatorLeds;
 	}
 	// load control colors from NVS
-	settings.controlLedColors = CONTROL_LEDS_COLORS;
+	settings.controlLedColors = {}; // CONTROL_LEDS_COLORS
 	if ((settings.numControlLeds > 0) && gPrefsSettings.isKey("controlColors")) {
 		size_t keySize = gPrefsSettings.getBytesLength("controlColors");
 		if (keySize == (settings.numControlLeds * sizeof(uint32_t))) {
@@ -1171,18 +1170,36 @@ AnimationReturnType Animation_Progress(const bool startNewAnimation, CRGBSet &le
 	int32_t animationDelay = 0;
 	// static values
 	static double lastPos = 0.0f;
+	static bool lastPreviewActive = false;
+	static uint8_t lastPreviewTarget = 0;
 
-	if (gPlayProperties.currentRelPos != lastPos || startNewAnimation) {
+	// CMD_SEEK_PREVIEW rotary gesture (RotaryEncoder.cpp/AudioPlayer.cpp): while active, the ring shows
+	// a not-yet-committed target instead of the actual (unchanged) playback position -- read via these
+	// accessors rather than gPlayProperties.currentRelPos, which must not reflect the preview before commit.
+	const bool previewActive = AudioPlayer_IsSeekPreviewActive();
+	const uint8_t previewTarget = AudioPlayer_GetSeekPreviewTargetPercent();
+
+	if (gPlayProperties.currentRelPos != lastPos || previewActive != lastPreviewActive || (previewActive && (previewTarget != lastPreviewTarget)) || startNewAnimation) {
 		lastPos = gPlayProperties.currentRelPos;
+		lastPreviewActive = previewActive;
+		lastPreviewTarget = previewTarget;
 		leds = CRGB::Black;
 		if (gLedSettings.numIndicatorLeds == 1) {
-			leds[0] = blend((CRGB) gLedSettings.progressColorStart, (CRGB) gLedSettings.progressColorEnd, (uint8_t) (gPlayProperties.currentRelPos * 255 / 100));
+			if (previewActive) {
+				// A single LED can't show ring-position and cursor separately -- solid blue is an
+				// unambiguous "preview active" signal, at the cost of not showing the target itself.
+				leds[0] = CRGB::Blue;
+			} else {
+				leds[0] = blend((CRGB) gLedSettings.progressColorStart, (CRGB) gLedSettings.progressColorEnd, (uint8_t) (gPlayProperties.currentRelPos * 255 / 100));
+			}
 		} else {
 			uint8_t fullLeds, lastLed;
 			Led_QuantizeToBar(gPlayProperties.currentRelPos, 98, leds.size(), fullLeds, lastLed);
 			for (uint8_t led = 0; led < fullLeds; led++) {
 				if (System_AreControlsLocked()) {
 					leds[Led_Address(led)] = CRGB::Red;
+				} else if (previewActive) {
+					leds[Led_Address(led)] = CRGB::Yellow;
 				} else if (!gPlayProperties.pausePlay) {
 					leds[Led_Address(led)] = blend((CRGB) gLedSettings.progressColorStart, (CRGB) gLedSettings.progressColorEnd, (led * 255) / (leds.size() - 1));
 				}
@@ -1190,10 +1207,19 @@ AnimationReturnType Animation_Progress(const bool startNewAnimation, CRGBSet &le
 			if (lastLed > 0) {
 				if (System_AreControlsLocked()) {
 					leds[Led_Address(fullLeds)] = CRGB::Red;
+				} else if (previewActive) {
+					leds[Led_Address(fullLeds)] = CRGB::Yellow;
 				} else {
 					leds[Led_Address(fullLeds)] = blend((CRGB) gLedSettings.progressColorStart, (CRGB) gLedSettings.progressColorEnd, (fullLeds * 255) / (leds.size() - 1));
 				}
 				leds[Led_Address(fullLeds)] = Led_DimColor(leds[Led_Address(fullLeds)], lastLed);
+			}
+			if (previewActive) {
+				// Cursor is drawn last so it overrides whatever the ring fill just put at that position.
+				const uint32_t cursorValue = std::clamp<uint32_t>(map(previewTarget, 0, 100, 0, leds.size() * gLedSettings.dimmableStates), 0, leds.size() * gLedSettings.dimmableStates);
+				const uint8_t cursorLed = std::min<uint8_t>(cursorValue / gLedSettings.dimmableStates, leds.size() - 1);
+				const uint8_t cursorSub = cursorValue % gLedSettings.dimmableStates;
+				leds[Led_Address(cursorLed)] = (cursorSub > 0) ? Led_DimColor(CRGB::Blue, cursorSub) : CRGB::Blue;
 			}
 		}
 		animationDelay = 10;
@@ -1216,7 +1242,11 @@ AnimationReturnType Animation_Volume(const bool startNewAnimation, CRGBSet &leds
 
 	// wait for further volume changes within next 20ms for 50 cycles = 1s
 	uint8_t fullLeds, lastLed;
-	Led_QuantizeToBar(AudioPlayer_GetCurrentVolume(), AudioPlayer_GetMaxVolume(), leds.size(), fullLeds, lastLed);
+	// Scale the bar from the configurable minimum volume (not 0) up to max volume.
+	const uint8_t minVol = AudioPlayer_GetMinVolume();
+	const uint32_t volSpan = std::max<int32_t>(1, (int32_t) AudioPlayer_GetMaxVolume() - minVol);
+	const uint32_t volAboveMin = (AudioPlayer_GetCurrentVolume() > minVol) ? (AudioPlayer_GetCurrentVolume() - minVol) : 0;
+	Led_QuantizeToBar(volAboveMin, volSpan, leds.size(), fullLeds, lastLed);
 
 	leds = CRGB::Black;
 

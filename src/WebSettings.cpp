@@ -48,6 +48,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		// general settings
 		JsonObject generalObj = obj["general"].to<JsonObject>();
 		generalObj["initVolume"].set(gPrefsSettings.getUInt("initVolume", 3));
+		generalObj["minVolume"].set(gPrefsSettings.getUInt("minVolume", AUDIOPLAYER_VOLUME_MIN));
 		generalObj["maxVolumeSp"].set(gPrefsSettings.getUInt("maxVolumeSp", 21));
 		generalObj["maxVolumeHp"].set(gPrefsSettings.getUInt("maxVolumeHp", 21));
 		generalObj["sleepInactivity"].set(gPrefsSettings.getUInt("mInactiviyT", 10));
@@ -70,6 +71,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		generalObj["pn5180Lpcd"].set(gPrefsRfid.getBool("pn5180Lpcd", false)); // PN5180 LPCD
 		generalObj["slix2Password"].set(gPrefsRfid.getString("slix2Pwd", "")); // SLIX2 Password
 		generalObj["mfrc522Gain"].set(gPrefsRfid.getUChar("mfrc522Gain", 7)); // MFRC522_GAIN
+		generalObj["mfrc522ScanInterval"].set(gPrefsRfid.getUShort("rfidScanIntv", 100)); // MFRC522 scan interval (ms)
+		generalObj["pn5180Debounce"].set(gPrefsRfid.getUShort("pn5180Debounce", 500)); // PN5180 removal debounce (ms)
 		generalObj["pauseOnMinVol"].set(gPrefsSettings.getBool("pauseOnMinVol", false)); // PAUSE_ON_MIN_VOLUME
 		generalObj["recoverVolBoot"].set(gPrefsSettings.getBool("recoverVolBoot", false)); // USE_LAST_VOLUME_AFTER_REBOOT
 		generalObj["volumeCurve"].set(gPrefsSettings.getUChar("volumeCurve", 0)); // VOLUMECURVE
@@ -232,6 +235,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		// Rotary encoder
 		JsonObject rotaryObj = obj["rotary"].to<JsonObject>();
 		rotaryObj["reverse"].set(gPrefsSettings.getBool("rotaryReverse", false));
+		rotaryObj["seekPrevDelay"].set(gPrefsSettings.getUShort("seekPrevDelay", 2000)); // ms idle before a CMD_SEEK_PREVIEW gesture auto-commits
+		rotaryObj["seekPrevSweep"].set(gPrefsSettings.getUChar("seekPrevSweep", 40)); // encoder detents for a full 0->100% sweep
 	}
 	// playlist
 	if ((section == "") || (section == "playlist")) {
@@ -247,9 +252,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		batteryObj["warnLowVoltage"].set(gPrefsSettings.getFloat("wLowVoltage", s_warningLowVoltage));
 		batteryObj["indicatorLow"].set(gPrefsSettings.getFloat("vIndicatorLow", s_voltageIndicatorLow));
 		batteryObj["indicatorHi"].set(gPrefsSettings.getFloat("vIndicatorHigh", s_voltageIndicatorHigh));
-		#ifdef SHUTDOWN_ON_BAT_CRITICAL
 		batteryObj["criticalVoltage"].set(gPrefsSettings.getFloat("wCritVoltage", s_warningCriticalVoltage));
-		#endif
+		batteryObj["shutdownOnCritical"].set(gPrefsSettings.getBool("shutdownBatCrit", false)); // shutdown when battery is critical (runtime toggle)
 	#endif
 
 		batteryObj["voltageCheckInterval"].set(gPrefsSettings.getUInt("vCheckIntv", s_batteryCheckInterval));
@@ -260,6 +264,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		JsonObject defaultsObj = obj["defaults"].to<JsonObject>();
 		JsonObject genSettings = defaultsObj["general"].to<JsonObject>();
 		genSettings["initVolume"].set(AUDIOPLAYER_VOLUME_INIT);
+		genSettings["minVolume"].set(AUDIOPLAYER_VOLUME_MIN);
 		genSettings["maxVolumeSp"].set(AUDIOPLAYER_VOLUME_MAX);
 		genSettings["maxVolumeHp"].set(18u); // gPrefsSettings.getUInt("maxVolumeHp", 0));
 		genSettings["sleepInactivity"].set(10u); // System_MaxInactivityTime
@@ -285,6 +290,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		genSettings["rfidReaderType"].set(0u); // RFID_READER_TYPE_RUNTIME (auto-detect)
 		genSettings["pn5180Lpcd"].set(false); // PN5180 LPCD disabled
 		genSettings["mfrc522Gain"].set(7u); // MFRC522_GAIN default (max gain)
+		genSettings["mfrc522ScanInterval"].set(100u); // MFRC522 scan interval default (ms)
+		genSettings["pn5180Debounce"].set(500u); // PN5180 removal debounce default (ms)
 		JsonObject eqSettings = defaultsObj["equalizer"].to<JsonObject>();
 		eqSettings["gainHighPass"].set(0);
 		eqSettings["gainBandPass"].set(0);
@@ -374,6 +381,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 #ifdef USEROTARY_ENABLE
 		JsonObject rotarySettings = defaultsObj["rotary"].to<JsonObject>();
 		rotarySettings["reverse"].set(false); // REVERSE_ROTARY
+		rotarySettings["seekPrevDelay"].set(2000u); // seek-preview auto-commit delay (ms)
+		rotarySettings["seekPrevSweep"].set(40u); // seek-preview detents for a full sweep
 #endif
 		JsonObject playlistSettings = defaultsObj["playlist"].to<JsonObject>();
 		playlistSettings["sortMode"].set(EnumUtils::underlying_value(AUDIOPLAYER_PLAYLIST_SORT_MODE_DEFAULT));
@@ -384,9 +393,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		batSettings["warnLowVoltage"].set(s_warningLowVoltage);
 		batSettings["indicatorLow"].set(s_voltageIndicatorLow);
 		batSettings["indicatorHi"].set(s_voltageIndicatorHigh);
-		#ifdef SHUTDOWN_ON_BAT_CRITICAL
 		batSettings["criticalVoltage"].set(s_warningCriticalVoltage);
-		#endif
+		batSettings["shutdownOnCritical"].set(false);
 	#endif
 		batSettings["voltageCheckInterval"].set(s_batteryCheckInterval);
 #endif

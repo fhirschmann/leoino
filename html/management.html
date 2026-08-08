@@ -3103,6 +3103,20 @@
 									<i class="col-auto fas fa-volume-up fa-2x icon-pos"></i>
 							</div>
 							</div>
+							<label for="minVolume" data-i18n="[prepend]general.volume.min">:</label>
+							<div class="slider-container">
+								<div class="float-end" style="padding-left: 30px">
+									<i class="col-auto fas fa-volume-off fa-2x icon-pos"></i>
+								</div>
+								<div class="slider-container-inner">
+									<input data-provide="slider" type="number" data-slider-min="0" data-slider-max="21"
+										min="0" max="21" class="form-control" id="minVolume" name="minVolume"
+										data-slider-value="" value="" required>
+								</div>
+								<div class="float-end" style="padding-left: 10px">
+									<i class="col-auto fas fa-volume-up fa-2x icon-pos"></i>
+								</div>
+							</div>
 							<label for="maxVolumeSpeaker" data-i18n="[prepend]general.volume.speakerMax">:</label>
 							<div class="slider-container">
 								<div class="float-end" style="padding-left: 30px">
@@ -3267,6 +3281,32 @@
 								<legend class="w-auto" data-i18n="settingsex.rotary.title"></legend><br>
 								<input type="checkbox" id="rotaryReverse" name="rotaryReverse" value="false">&nbsp;
 								<label for="rotaryReverse" data-i18n="settingsex.rotary.reverse"></label>
+								<div class="row gx-3 mt-2">
+									<div class="col-12 col-md-6 mb-2">
+										<label for="seekPrevDelay" data-i18n="settingsex.rotary.seekPrevDelay"></label>
+										<div class="input-group">
+											<input type="number" class="form-control" id="seekPrevDelay" name="seekPrevDelay"
+												min="0" max="3000" step="100">
+											<span class="input-group-text bg-transparent border-0">
+												<a href="#" class="link-secondary" data-bs-toggle="popover"
+													data-i18n="[data-bs-content]settingsex.rotary.seekPrevDelayExp" tabindex="0">
+													<i class="fas fa-circle-question"></i></a>
+											</span>
+										</div>
+									</div>
+									<div class="col-12 col-md-6 mb-2">
+										<label for="seekPrevSweep" data-i18n="settingsex.rotary.seekPrevSweep"></label>
+										<div class="input-group">
+											<input type="number" class="form-control" id="seekPrevSweep" name="seekPrevSweep"
+												min="1" max="200">
+											<span class="input-group-text bg-transparent border-0">
+												<a href="#" class="link-secondary" data-bs-toggle="popover"
+													data-i18n="[data-bs-content]settingsex.rotary.seekPrevSweepExp" tabindex="0">
+													<i class="fas fa-circle-question"></i></a>
+											</span>
+										</div>
+									</div>
+								</div>
 							</fieldset>
 						</div>
 					</span>
@@ -3438,6 +3478,30 @@
 							<span class="input-group-text bg-transparent border-0">
 								<a href="#" class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.rfid.mfrc522GainExp" tabindex="0">
+									<i class="fas fa-circle-question"></i></a>
+							</span>
+						</div>
+					</div>
+					<div class="mb-3">
+						<label for="mfrc522ScanInterval" data-i18n="general.rfid.mfrc522ScanInterval"></label>
+						<div class="input-group">
+							<input type="number" class="form-control" id="mfrc522ScanInterval" name="mfrc522ScanInterval"
+								min="20" max="2000" step="10">
+							<span class="input-group-text bg-transparent border-0">
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.rfid.mfrc522ScanIntervalExp" tabindex="0">
+									<i class="fas fa-circle-question"></i></a>
+							</span>
+						</div>
+					</div>
+					<div class="mb-3">
+						<label for="pn5180Debounce" data-i18n="general.rfid.pn5180Debounce"></label>
+						<div class="input-group">
+							<input type="number" class="form-control" id="pn5180Debounce" name="pn5180Debounce"
+								min="100" max="5000" step="100">
+							<span class="input-group-text bg-transparent border-0">
+								<a href="#" class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.rfid.pn5180DebounceExp" tabindex="0">
 									<i class="fas fa-circle-question"></i></a>
 							</span>
 						</div>
@@ -3912,7 +3976,16 @@
 									<i class="fas fa-battery-three-quarters fa-2x icon-pos"></i>
 								</div>
 							</div>
-							<div id="criticalVoltageSection" data-visible="false">
+							<div class="form-check form-switch mb-2">
+							<input class="form-check-input" type="checkbox" role="switch" id="shutdownOnCritical"
+								name="shutdownOnCritical" value="false">
+							<label class="form-check-label" for="shutdownOnCritical"
+								data-i18n="general.battery.shutdownOnCritical"></label>
+							<a href="#" class="link-secondary" data-bs-toggle="popover"
+								data-i18n="[data-bs-content]general.battery.shutdownOnCriticalExp" tabindex="0"><i
+									class="fas fa-circle-question"></i></a>
+						</div>
+						<div id="criticalVoltageSection" data-visible="false">
 								<label class="form-label" for="criticalVoltage"
 									data-i18n="[prepend]general.battery.criticalShutoff">:</label>
 								<div class="slider-container mb-3">
@@ -6283,6 +6356,9 @@
 			let genSettings = settings.general;
 			if (genSettings) {
 				$('#initialVolume').bootstrapSlider('setValue', genSettings.initVolume);
+				if (genSettings.minVolume !== undefined) {
+					$('#minVolume').bootstrapSlider('setValue', genSettings.minVolume);
+				}
 				$('#maxVolumeSpeaker').bootstrapSlider('setValue', genSettings.maxVolumeSp);
 				$('#maxVolumeHeadphone').bootstrapSlider('setValue', genSettings.maxVolumeHp);
 				$('#inactivityTime').bootstrapSlider('setValue', genSettings.sleepInactivity);
@@ -6341,6 +6417,12 @@
 				}
 				if (genSettings.slix2Password !== undefined) {
 					$('#slix2Password').val(genSettings.slix2Password);
+				}
+				if (genSettings.mfrc522ScanInterval !== undefined) {
+					document.getElementById('mfrc522ScanInterval').value = genSettings.mfrc522ScanInterval;
+				}
+				if (genSettings.pn5180Debounce !== undefined) {
+					document.getElementById('pn5180Debounce').value = genSettings.pn5180Debounce;
 				}
 				if (genSettings.mfrc522Gain !== undefined) {
 					document.getElementById('mfrc522Gain').value = genSettings.mfrc522Gain;
@@ -6448,6 +6530,12 @@
 			if (rotarySettings) {
 				document.getElementById("rotaryConfig").style.display = null;
 				$('#rotaryReverse').prop('checked', rotarySettings.reverse);
+				if (rotarySettings.seekPrevDelay !== undefined) {
+					$('#seekPrevDelay').val(rotarySettings.seekPrevDelay);
+				}
+				if (rotarySettings.seekPrevSweep !== undefined) {
+					$('#seekPrevSweep').val(rotarySettings.seekPrevSweep);
+				}
 			}
 			// buttons
 			let buttonSettings = settings.buttons;
@@ -6495,8 +6583,9 @@
 				$('#warningLowVoltage').bootstrapSlider('setValue', batSettings.warnLowVoltage);
 				$('#voltageIndicatorLow').bootstrapSlider('setValue', batSettings.indicatorLow);
 				$('#voltageIndicatorHigh').bootstrapSlider('setValue', batSettings.indicatorHi);
+				$('#shutdownOnCritical').prop('checked', !!batSettings.shutdownOnCritical);
 				if (batSettings.criticalVoltage) {
-					document.getElementById('criticalVoltageSection').setAttribute('data-visible', true);
+					document.getElementById('criticalVoltageSection').setAttribute('data-visible', !!batSettings.shutdownOnCritical);
 					$('#criticalVoltage').bootstrapSlider('setValue', batSettings.criticalVoltage);
 				} else {
 					document.getElementById('criticalVoltageSection').setAttribute('data-visible', false);
@@ -7110,6 +7199,7 @@
 			var myObj = {
 				"general": {
 					initVolume: Number($('#initialVolume').val()),
+					minVolume: Number($('#minVolume').val()),
 					maxVolumeSp: Number($('#maxVolumeSpeaker').val()),
 					maxVolumeHp: Number($('#maxVolumeHeadphone').val()),
 					sleepInactivity: Number($('#inactivityTime').val()),
@@ -7138,6 +7228,8 @@
 					pn5180Lpcd: $('#pn5180Lpcd').prop('checked'),
 					slix2Password: $('#slix2Password').val(),
 					mfrc522Gain: Number($('#mfrc522Gain').val()),
+					mfrc522ScanInterval: Number($('#mfrc522ScanInterval').val()),
+					pn5180Debounce: Number($('#pn5180Debounce').val()),
 					readyPath: document.getElementById('readyPath').value,
 					playStartupSnd: $('#playStartupSound').prop('checked')
 				},
@@ -7194,6 +7286,7 @@
 					indicatorLow: Number($('#voltageIndicatorLow').val()),
 					indicatorHi: Number($('#voltageIndicatorHigh').val()),
 					criticalVoltage: Number($('#criticalVoltage').val()),
+					shutdownOnCritical: $('#shutdownOnCritical').prop('checked'),
 					voltageCheckInterval: Number($('#voltageCheckInterval').val())
 				},
 				"playlist": {
@@ -7238,7 +7331,9 @@
 					multi56: Number(document.getElementById("cmdselect_multi_56").value),
 				},
 				"rotary": {
-					reverse: $('#rotaryReverse').prop('checked')
+					reverse: $('#rotaryReverse').prop('checked'),
+					seekPrevDelay: Number($('#seekPrevDelay').val()),
+					seekPrevSweep: Number($('#seekPrevSweep').val())
 				}
 			};
 			// fill LED control colors and functions
@@ -9567,6 +9662,16 @@
 
 			/* Disable dontAcceptRfidTwice if pauseIfRfidRemoved enabled.
 			   The stop-instead-of-pause option only applies while pauseIfRfidRemoved is on. */
+			/* Reveal the critical-voltage threshold slider only when the shutdown feature is enabled.
+			   bootstrap-slider mismeasures its width while display:none, so relayout it now that it's visible. */
+			$('#shutdownOnCritical').on('change', function () {
+				const checked = $(this).prop('checked');
+				document.getElementById('criticalVoltageSection').setAttribute('data-visible', checked);
+				if (checked) {
+					$('#criticalVoltage').bootstrapSlider('relayout');
+				}
+			});
+
 			$('#pauseIfRfidRemoved').on('change', function () {
 				const dontAcceptRfidTwice = $('#dontAcceptRfidTwice');
 				const stopIfRfidRemoved = $('#stopIfRfidRemoved');
@@ -9697,7 +9802,7 @@
 
 			/* The <select /> that houses all commands for the modification selectors */
 			const modElem = document.createElement('select');
-			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 110, 111, 120, 121, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 156, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
+			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 110, 111, 120, 121, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 156, 157, 158, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 176, 177, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
 			for (const mod of mods) {
 				const opt = addOption(modElem, mod);
 				if ([140, 141, 142, 143, 144].includes(mod)) {

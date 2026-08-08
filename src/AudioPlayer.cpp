@@ -27,8 +27,10 @@
 #include "strnatcmp.h"
 
 #include <ArduinoJson.h>
+#include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cmath>
 #include <esp_task_wdt.h>
 #include <freertos/task.h>
 #include <random>
@@ -54,6 +56,66 @@ static bool AudioPlayer_IsPersistableRfid(const char *rfidTagId) {
 		}
 	}
 	return true;
+}
+
+// Seek-preview (rotary gesture, CMD_SEEK_PREVIEW): turning moves a not-yet-committed target position
+// instead of jumping immediately; committed via the existing SEEK_POS_PERCENT path once the encoder is
+// idle for a configurable delay, or immediately on release (see RotaryEncoder.cpp). currentRelPos must
+// never be touched before the commit -- it also drives the LED progress ring, and writing the preview
+// target into it early would make played-back position look like it already jumped.
+static std::atomic<bool> AudioPlayer_SeekPreviewActive {false};
+static std::atomic<uint8_t> AudioPlayer_SeekPreviewTargetPercent {0};
+static double AudioPlayer_SeekPreviewTargetExact = 0.0; // full precision; only ever touched by the loop() task
+static uint32_t AudioPlayer_SeekPreviewLastInputMs = 0; // only ever touched by the loop() task
+// Cached once per gesture (in Start()), not re-read from NVS on every AudioPlayer_Loop() iteration/detent:
+// the idle-commit check below runs on every single loop() cycle for as long as a gesture is held, and a
+// NVS getUShort/getUChar still costs a mutex lock + key lookup each time even though it's RAM-cached.
+static uint16_t AudioPlayer_SeekPreviewDelayMsCached = 2000;
+static uint8_t AudioPlayer_SeekPreviewSweepCached = 40;
+
+void AudioPlayer_SeekPreviewStart(void) {
+	if (gPlayProperties.audioFileDuration == 0) {
+		return; // no meaningful target for webstreams / unknown-length content
+	}
+	AudioPlayer_SeekPreviewDelayMsCached = gPrefsSettings.getUShort("seekPrevDelay", 2000);
+	AudioPlayer_SeekPreviewSweepCached = gPrefsSettings.getUChar("seekPrevSweep", 40);
+	if (AudioPlayer_SeekPreviewSweepCached < 1) {
+		AudioPlayer_SeekPreviewSweepCached = 1; // guard against divide-by-zero in AudioPlayer_SeekPreviewAdjust
+	}
+	AudioPlayer_SeekPreviewTargetExact = gPlayProperties.currentRelPos; // start from where playback is, not 0
+	AudioPlayer_SeekPreviewTargetPercent.store(static_cast<uint8_t>(std::lround(AudioPlayer_SeekPreviewTargetExact)), std::memory_order_relaxed);
+	AudioPlayer_SeekPreviewLastInputMs = millis();
+	AudioPlayer_SeekPreviewActive.store(true, std::memory_order_relaxed);
+}
+
+void AudioPlayer_SeekPreviewAdjust(const int32_t detents) {
+	if (!AudioPlayer_SeekPreviewActive.load(std::memory_order_relaxed)) {
+		return;
+	}
+	AudioPlayer_SeekPreviewTargetExact = std::clamp(AudioPlayer_SeekPreviewTargetExact + (detents * 100.0 / AudioPlayer_SeekPreviewSweepCached), 0.0, 100.0);
+	AudioPlayer_SeekPreviewTargetPercent.store(static_cast<uint8_t>(std::lround(AudioPlayer_SeekPreviewTargetExact)), std::memory_order_relaxed);
+	AudioPlayer_SeekPreviewLastInputMs = millis();
+}
+
+void AudioPlayer_SeekPreviewCommit(void) {
+	if (!AudioPlayer_SeekPreviewActive.load(std::memory_order_relaxed)) {
+		return;
+	}
+	gPlayProperties.currentRelPos = AudioPlayer_SeekPreviewTargetPercent.load(std::memory_order_relaxed);
+	gPlayProperties.seekmode = SEEK_POS_PERCENT;
+	AudioPlayer_SeekPreviewActive.store(false, std::memory_order_relaxed);
+}
+
+void AudioPlayer_SeekPreviewCancel(void) {
+	AudioPlayer_SeekPreviewActive.store(false, std::memory_order_relaxed);
+}
+
+bool AudioPlayer_IsSeekPreviewActive(void) {
+	return AudioPlayer_SeekPreviewActive.load(std::memory_order_relaxed);
+}
+
+uint8_t AudioPlayer_GetSeekPreviewTargetPercent(void) {
+	return AudioPlayer_SeekPreviewTargetPercent.load(std::memory_order_relaxed);
 }
 
 // Playlist
@@ -164,7 +226,7 @@ static void AudioPlayer_RememberRfidForWifiRetry(const char *rfidTagId) {
 	gRetryRfidOnWifiConnect = true;
 }
 
-// "Arm" the release of the DONT_ACCEPT_SAME_RFID_TWICE-lock: called by the RFID-handler the moment a new
+// "Arm" the release of the dontAcceptRfidTwice-lock: called by the RFID-handler the moment a new
 // tag is accepted, it records that this playback-attempt happened. The lock is then actually released the
 // next time the player becomes idle (see AudioPlayer_Cyclic()), which re-allows the same tag to be applied
 // again. Arming on acceptance - rather than on playback becoming active - is deliberate: it ensures the
@@ -631,6 +693,12 @@ void AudioPlayer_Init(void) {
 		Log_Println(wroteMaxLoudnessForSpeakerToNvs, LOGLEVEL_ERROR);
 	}
 
+	// Get minimum volume from NVS. Unlike the max values, 0 (= AUDIOPLAYER_VOLUME_MIN) is a perfectly
+	// valid setting and in fact the default, so a plain read-with-default is used instead of the
+	// "0 means unset, write default" pattern above. AudioPlayer_SetVolume() clamps every volume change
+	// to this floor, so a non-zero value takes effect for all volume sources (rotary, buttons, BT, web).
+	AudioPlayer_SetMinVolume(gPrefsSettings.getUInt("minVolume", AUDIOPLAYER_VOLUME_MIN));
+
 #ifdef HEADPHONE_ADJUST_ENABLE
 	#if (HP_DETECT >= 0 && HP_DETECT <= MAX_GPIO)
 	pinMode(HP_DETECT, INPUT_PULLUP);
@@ -691,7 +759,7 @@ void AudioPlayer_Init(void) {
 	gPlayProperties.resumeOnSameRfid = gPrefsSettings.getBool("p2pSameRfid", false);
 #endif
 	if (gPlayProperties.pauseIfRfidRemoved) {
-		// ignore feature silently if PAUSE_WHEN_RFID_REMOVED is active
+		// ignore feature silently if pauseIfRfidRemoved is active
 		Log_Println("pauseIfRfidRemoved is enabled -> deactivate dontAcceptRfidTwice", LOGLEVEL_NOTICE);
 		gPlayProperties.dontAcceptRfidTwice = false;
 	}
@@ -700,7 +768,10 @@ void AudioPlayer_Init(void) {
 	audio->setI2SCommFMT_LSB(true);
 #endif
 
-	AudioPlayer_CurrentVolume = AudioPlayer_GetInitVolume();
+	// Raise the boot volume to the configured minimum if it sits below it: the init/remembered volume is
+	// applied directly here (not via AudioPlayer_SetVolume(), which is where the min-clamp lives), so
+	// without this the box could start below its own floor until the first volume change.
+	AudioPlayer_CurrentVolume = std::max(AudioPlayer_GetInitVolume(), AudioPlayer_GetMinVolume());
 	// DMA-settings must be adjusted before setting the pinout
 	// (ESP32-audioI2S v3.4.7h defaults to 16-bit output, so the former setOutput16Bit(true) is gone.)
 	// 48 descriptors x 256 frames ~= 279 ms of buffered output at 44.1 kHz (~17 KB more
@@ -1619,6 +1690,7 @@ void AudioPlayer_Loop() {
 				audio->setVolume(0);
 				AudioPlayer_ResumeFadeStartMs = millis();
 			}
+			AudioPlayer_SeekPreviewCancel(); // a preview from the previous track must never commit onto this one
 			if (gPlayProperties.currentTrackNumber) {
 				Led_Indicate(LedIndicatorType::PlaylistProgress);
 			}
@@ -1688,9 +1760,18 @@ void AudioPlayer_Loop() {
 		}
 	}
 
+	// Seek-preview (CMD_SEEK_PREVIEW rotary gesture): commit once the encoder has been idle for the
+	// configured delay. A release-triggered commit happens directly from RotaryEncoder.cpp instead of
+	// waiting for this -- this is only the "held but stopped turning" case.
+	if (AudioPlayer_SeekPreviewActive.load(std::memory_order_relaxed)) {
+		if (millis() - AudioPlayer_SeekPreviewLastInputMs >= AudioPlayer_SeekPreviewDelayMsCached) {
+			AudioPlayer_SeekPreviewCommit();
+		}
+	}
+
 	// Handle seekmodes
 	if (gPlayProperties.seekmode != SEEK_NORMAL) {
-		if ((gPlayProperties.seekmode == SEEK_POS_PERCENT) && (gPlayProperties.currentRelPos > 0) && (gPlayProperties.currentRelPos < 100)) {
+		if ((gPlayProperties.seekmode == SEEK_POS_PERCENT) && (gPlayProperties.currentRelPos >= 0) && (gPlayProperties.currentRelPos < 100)) {
 			uint32_t newFileTime = uint32_t((gPlayProperties.currentRelPos / 100.0f) * audio->getAudioFileDuration());
 			if (audio->setAudioPlayTime(newFileTime)) {
 				Log_Printf(LOGLEVEL_NOTICE, JumpToPosition, newFileTime, audio->getAudioFileDuration());

@@ -121,6 +121,7 @@
 		},
 		"led": {
 			"title": "LED settings",
+			"hueTitle": "Hue settings",
 			"numindicator": "Number of indicator LEDs",
 			"numcontrol": "Number of control LEDs",
 			"controlled": "Control-LED",
@@ -212,6 +213,7 @@
 		},
 		"buttons": {
 			"title": "Button assignments",
+			"titleExp": "Assigns each button an action for a short press and one for a long press.",
 			"short": "short press",
 			"long": "long press",
 			"noaction": "--",
@@ -225,6 +227,7 @@
 		},
 		"multibuttons": {
 			"title": "Multi-Button Assignments",
+			"titleExp": "Triggers an action when two buttons are pressed at the same time.",
 			"01": "0+1 (Next + Prev)",
 			"02": "0+2 (Next + Play/Pause)",
 			"03": "0+3 (Next + Encoder)",
@@ -254,7 +257,13 @@
 			"gestures": "Hold button + turn encoder",
 			"gesturesExp": "While one of these buttons is held down, turning the encoder triggers the assigned action instead of changing the volume. 'Turn right' is the direction that raises the volume. The long-press action of such a button fires when it is released - and not at all if the encoder was turned.",
 			"ccw": "turn left",
-			"cw": "turn right"
+			"cw": "turn right",
+			"seekPreviewTitle": "Seek preview settings",
+			"seekPreviewTitleExp": "Fine-tuning for the 🎯 seek preview gesture (see table above): how long to wait before a preview auto-commits, and how finely the target position can be steered by turning.",
+			"seekPrevDelay": "Auto-commit delay [ms]",
+			"seekPrevDelayExp": "How long (in ms) the encoder must stay idle before a 🎯 seek-preview gesture jumps to the previewed position on its own. Releasing the held button always commits immediately, regardless of this delay. 0-3000, default 2000.",
+			"seekPrevSweep": "Turns for full sweep",
+			"seekPrevSweepExp": "How many encoder detents move the seek-preview target from 0% to 100% (blue LED) of the track. Lower = coarser/faster scrubbing, higher = finer control. Default 40."
 		},
 		"autosaveHint": "Changes are saved automatically",
 		"rfid": {
@@ -582,7 +591,9 @@
 					"248": "Play virtual RFID-card 08",
 					"249": "Play virtual RFID-card 09",
 					"250": "Play virtual RFID-card 10",
-					"155": "🔅 LED brightness down"
+					"155": "Sync clock to RTC",
+					"157": "🔆 LED brightness up",
+					"158": "🔅 LED brightness down"
 				}
 			},
 			"learn": {
@@ -847,9 +858,11 @@
 		"volume": {
 			"title": "Volume",
 			"restart": "After restart",
+			"min": "Minimum",
 			"speakerMax": "Max. volume (speaker)",
 			"headphoneMax": "Max. volume (headphones)",
 			"restartExp": "Volume ESPuino starts with after power-up (unless 'Remember last volume' is enabled).",
+			"minExp": "Lowest selectable volume. Prevents ESPuino from being muted entirely - e.g. so children cannot accidentally turn it silent. Must be lower than both maximum volumes. Takes effect after a restart.",
 			"speakerMaxExp": "Maximum volume allowed when playing back through the speaker.",
 			"headphoneMaxExp": "Maximum volume allowed when playing back through headphones."
 		},
@@ -889,6 +902,8 @@
 			},
 			"mfrc522Gain": "MFRC522 Gain",
 			"mfrc522GainExp": "Sets the sensitivity of the MFRC522 RFID reader. Possible values are 0 (lowest sensitivity) to 7 (highest sensitivity). Default is 7.",
+			"mfrc522ScanInterval": "MFRC522 scan interval",
+			"mfrc522ScanIntervalExp": "Time in milliseconds between two polls of the MFRC522 RFID reader. A restart is required for a change to take effect. Default is 100ms.",
 			"pn5180Debounce": "PN5180 debounce",
 			"pn5180DebounceExp": "Time in milliseconds a card must go undetected before it's considered removed. Prevents brief read dropouts (e.g. with a larger gap between card and reader) from being mistaken for card removal. A restart is required for a change to take effect. Default is 500ms."
 		},
@@ -923,7 +938,7 @@
 			"blockWebPlayTag": "Lock web playback while an RFID tag is applied",
 			"blockWebPlayTagExp": "While an RFID tag physically sits on the reader, playback cannot be started from the web interface's file browser. Prevents confusing states: web playback would replace the tag's playback, and the tag-removal logic (pause/stop, position saving) would then act on content that doesn't belong to the applied tag. Requires a PN5180 reader (tag-presence detection). Fork feature.",
 			"playLastRfidOnReboot": "Play last RFID tag on restart",
-			"playLastRfidOnRebootExp": "Play last RFID tag on restart. More information <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>here</a> under <code>PLAY_LAST_RFID_ON_REBOOT</code>.",
+			"playLastRfidOnRebootExp": "Play last RFID tag on restart.",
 			"pauseOnMinVolume": "Pause at minimum volume",
 			"pauseOnMinVolumeExp": "Playback is paused when the volume reaches the minimum level. More information <a href='https://forum.espuino.de/t/lautstaerke-0-pause/1631' target='_blank'>here</a>",
 			"recoverVolBoot": "Use last volume at restart",
@@ -957,17 +972,18 @@
 		},
 		"battery": {
 			"title": "Battery",
-			"desc": "Show voltage-status via Neopixel",
 			"lowWarning": "Show warning below this threshold (in volt)",
 			"lowCritical": "Lowest voltage (in volt), that is indicated by one LED",
 			"criticalShutoff": "Below this voltage (in volt), ESPuino turns off",
 			"high": "Voltage (in volt), that is indicated by all LEDs",
 			"measureInterval": "Interval between measurements (in minutes)",
+			"shutdownOnCritical": "Automatically shut down on critical voltage",
 			"lowWarningExp": "Voltage below which a visual (LED) low-battery warning is triggered.",
 			"lowCriticalExp": "Voltage that is shown as 0% battery charge (empty battery).",
 			"highExp": "Voltage that is shown as 100% battery charge (full battery).",
 			"criticalShutoffExp": "Voltage at which ESPuino automatically shuts down to protect the battery from deep discharge.",
-			"measureIntervalExp": "Time interval in minutes at which the battery voltage is measured."
+			"measureIntervalExp": "Time interval in minutes at which the battery voltage is measured.",
+			"shutdownOnCriticalExp": "Automatically shuts ESPuino down once the battery voltage drops below the critical threshold set below. Can help protect the battery from deep discharge to some extent, but does not replace a battery management system! Recommended values are: LFP: 2.7 V, LiPo: 3.0 V."
 		},
 		"playlist": {
 			"title": "Playlist",

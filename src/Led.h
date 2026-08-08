@@ -70,8 +70,8 @@ enum class LedControlFunction : uint8_t {
 };
 
 struct LedSettings {
-	uint8_t numIndicatorLeds = NUM_INDICATOR_LEDS;
-	uint8_t numControlLeds = NUM_CONTROL_LEDS;
+	uint8_t numIndicatorLeds = 24;
+	uint8_t numControlLeds = 0;
 	std::vector<uint32_t> controlLedColors;
 	std::vector<uint8_t> controlLedFunctions; // per control LED: LedControlFunction
 	bool controlLedsEnabled = true; // master switch to mute all control LEDs (e.g. at night)

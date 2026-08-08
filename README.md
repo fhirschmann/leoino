@@ -399,8 +399,20 @@ The fork follows upstream/`dev`. The remote is already set up:
 
 ```bash
 git fetch upstream
-git rebase upstream/dev
+git merge upstream/dev
 ```
+
+Last sync: August 2026. Notable upstream features inherited with that merge:
+
+- **Deterministic RFID presence detection** (WUPA-based polling for MFRC522 and PN5180, plus a
+  silent re-init sweep to tell a wedged reader apart from a removed card — see
+  `docs/rfid-presence-detection.md`). Replaces the previous miss-counter/grace heuristics.
+- **Minimum volume** as a web setting (childproof: the box can no longer be turned fully silent).
+- **MFRC522 scan interval** and **PN5180 removal debounce** as web settings.
+- **Critical-battery shutdown** as a runtime toggle in the web interface (previously compile-time).
+- **Seek preview** (`CMD_SEEK_PREVIEW`, remapped to command 193 in this fork): a rotary gesture that
+  scrubs a target position on the LED ring and commits on release/idle. Tunable via web settings.
+- **Volume/brightness step commands** available as RFID modification cards.
 
 ## // License
 

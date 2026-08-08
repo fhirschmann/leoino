@@ -121,6 +121,7 @@
 		},
 		"led": {
 			"title": "LED-Einstellungen",
+			"hueTitle": "Farbtöne",
 			"numindicator": "Anzahl Anzeige-LEDs",
 			"numcontrol": "Anzahl Kontroll-LEDs",
 			"controlled": "Kontroll-LED",
@@ -212,6 +213,7 @@
 		},
 		"buttons": {
 			"title": "Taster-Zuordnungen",
+			"titleExp": "Weist jedem Taster eine Aktion für kurzen und eine für langen Druck zu.",
 			"short": "kurz",
 			"long": "lang",
 			"noaction": "--",
@@ -224,7 +226,8 @@
 			"button6": "Btn6-Taste"
 		},
 		"multibuttons": {
-			"title": "Multi-Taster Zuordnungen",
+			"title": "Multi-Taster-Zuordnungen",
+			"titleExp": "Löst eine Aktion aus, wenn zwei Taster gleichzeitig gedrückt werden.",
 			"01": "0+1 (Next + Prev)",
 			"02": "0+2 (Next + Play/Pause)",
 			"03": "0+3 (Next + Drehimpulsgeber)",
@@ -254,7 +257,13 @@
 			"gestures": "Taste halten + drehen",
 			"gesturesExp": "Solange eine dieser Tasten gehalten wird, löst Drehen am Drehimpulsgeber die zugewiesene Aktion aus, statt die Lautstärke zu ändern. 'Rechts drehen' ist die Richtung, die sonst lauter stellt. Die Lang-Aktion einer solchen Taste wird erst beim Loslassen ausgelöst - und gar nicht, wenn gedreht wurde.",
 			"ccw": "links drehen",
-			"cw": "rechts drehen"
+			"cw": "rechts drehen",
+			"seekPreviewTitle": "Positionsvorschau-Einstellungen",
+			"seekPreviewTitleExp": "Feineinstellungen für die 🎯 Positionsvorschau-Geste (siehe Tabelle oben): wie lange gewartet wird, bis eine Vorschau automatisch übernommen wird, und wie fein sich die Zielposition per Drehung steuern lässt.",
+			"seekPrevDelay": "Verzögerung bis zur Übernahme [ms]",
+			"seekPrevDelayExp": "Wie lange (in ms) der Drehimpulsgeber stillstehen muss, bevor eine 🎯 Positionsvorschau-Geste von selbst zur vorgeschauten Position springt. Loslassen der gehaltenen Taste übernimmt die Position immer sofort, unabhängig von dieser Verzögerung. 0-3000, Standard 2000.",
+			"seekPrevSweep": "Anzahl Rasterungen für 0 bis 100 %",
+			"seekPrevSweepExp": "Wie viele Encoder-Rasterungen das Positionsvorschau-Ziel von 0% auf 100% (blaue LED) des Titels bewegen. Niedriger = grober/schnelleres Positionieren, höher = feinere Kontrolle. Standard 40."
 		},
 		"autosaveHint": "Änderungen werden automatisch gespeichert",
 		"rfid": {
@@ -582,7 +591,9 @@
 					"248": "Spiele virtuelle RFID-Karte 08",
 					"249": "Spiele virtuelle RFID-Karte 09",
 					"250": "Spiele virtuelle RFID-Karte 10",
-					"155": "🔅 LED-Helligkeit verringern"
+					"155": "Uhrzeit in RTC schreiben",
+					"157": "🔆 LED-Helligkeit erhöhen",
+					"158": "🔅 LED-Helligkeit verringern"
 				}
 			},
 			"learn": {
@@ -847,9 +858,11 @@
 		"volume": {
 			"title": "Lautstärke",
 			"restart": "Nach dem Einschalten",
+			"min": "Minimal",
 			"speakerMax": "Maximal (Lautsprecher)",
 			"headphoneMax": "Maximal (Kopfhörer)",
 			"restartExp": "Lautstärke, mit der ESPuino nach dem Einschalten startet (sofern 'Letzte Lautstärke merken' nicht aktiviert ist).",
+			"minExp": "Kleinste einstellbare Lautstärke. Verhindert, dass ESPuino ganz stummgeschaltet werden kann - z. B. damit Kinder ihn nicht versehentlich lautlos drehen. Muss kleiner als beide Maximallautstärken sein. Wird erst nach einem Neustart wirksam.",
 			"speakerMaxExp": "Maximal erlaubte Lautstärke bei Wiedergabe über den Lautsprecher.",
 			"headphoneMaxExp": "Maximal erlaubte Lautstärke bei Wiedergabe über Kopfhörer."
 		},
@@ -878,7 +891,7 @@
 				"mfrc522_spi": "MFRC522 (SPI)",
 				"mfrc522_i2c": "MFRC522 (I2C)",
 				"pn5180": "PN5180",
-				"description": "Wähle den Typ des RFID readers. Auto-detect wird versuchen den Reader automatisch zu erkennen."
+				"description": "Wähle den Typ des RFID-Readers. Auto-detect wird versuchen, den Reader automatisch zu erkennen."
 			},
 			"description": "Wähle den Typ des RFID readers. Auto-detect wird versuchen den Reader automatisch zu erkennen.",
 			"pn5180Lpcd": "PN5180 LPCD aktivieren",
@@ -888,7 +901,9 @@
 				"description": "8-stelliges Passwort in Hexadezimal-Format (z.B. 01020304) zum Auslesen von SLIX2-Tags."
 			},
 			"mfrc522Gain": "MFRC522 Gain",
-			"mfrc522GainExp": "Stellt die Empfindlichkeit des MFRC522 RFID Readers ein. Mögliche Werte sind 0 (niedrigste Empfindlichkeit) bis 7 (höchste Empfindlichkeit). Standard ist 7.",
+			"mfrc522GainExp": "Stellt die Empfindlichkeit des MFRC522 RFID-Readers ein. Mögliche Werte sind 0 (niedrigste Empfindlichkeit) bis 7 (höchste Empfindlichkeit). Standard ist 7.",
+			"mfrc522ScanInterval": "MFRC522 Scan-Intervall",
+			"mfrc522ScanIntervalExp": "Zeit in Millisekunden zwischen zwei Abfragen des MFRC522 RFID-Readers. Ein Neustart ist nötig, damit eine Änderung wirksam wird. Standard ist 100ms.",
 			"pn5180Debounce": "PN5180 Debounce",
 			"pn5180DebounceExp": "Zeit in Millisekunden, die eine Karte ununterbrochen nicht erkannt werden muss, bevor sie als entfernt gilt. Verhindert, dass kurze Leseaussetzer (z.B. bei größerem Abstand zwischen Karte und Leser) fälschlich als Kartenentfernung gewertet werden. Ein Neustart ist nötig, damit eine Änderung wirksam wird. Standard ist 500ms."
 		},
@@ -923,7 +938,7 @@
 			"blockWebPlayTag": "Web-Wiedergabe sperren solange RFID aufliegt",
 			"blockWebPlayTagExp": "Solange eine RFID-Karte physisch auf dem Leser liegt, kann aus dem Datei-Browser der Weboberfläche keine Wiedergabe gestartet werden. Verhindert verwirrende Zustände: Web-Wiedergabe würde die Karten-Wiedergabe ersetzen, und die Abzieh-Logik (Pause/Stopp, Positions-Speicherung) würde dann auf Inhalte wirken, die gar nicht zur aufgelegten Karte gehören. Benötigt einen PN5180-Leser (Kartenpräsenz-Erkennung). Fork-Funktion.",
 			"playLastRfidOnReboot": "Letzten RFID-Tag nach Neustart abspielen",
-			"playLastRfidOnRebootExp": "Letzten RFID-Tag nach Neustart wieder abspielen. Mehr Infos <a href='https://forum.espuino.de/t/welche-optionen-beim-kompilieren-gibt-es/120' target='_blank'>hier</a> unter <code>PLAY_LAST_RFID_ON_REBOOT</code>.",
+			"playLastRfidOnRebootExp": "Letzten RFID-Tag nach Neustart wieder abspielen.",
 			"pauseOnMinVolume": "Pause bei minimaler Lautstärke",
 			"pauseOnMinVolumeExp": "Die Wiedergabe wird pausiert, wenn die Lautstärke das Minimum erreicht. Mehr Infos <a href='https://forum.espuino.de/t/lautstaerke-0-pause/1631' target='_blank'>hier</a>.",
 			"recoverVolBoot": "Letzte Lautstärke bei Neustart verwenden",
@@ -957,17 +972,18 @@
 		},
 		"battery": {
 			"title": "Batterie",
-			"desc": "Status über Neopixel anzeigen",
 			"lowWarning": "Unter dieser Spannung (in Volt) wird eine Warnung angezeigt",
 			"lowCritical": "Eine LED leuchtet bei dieser Spannung (in Volt)",
 			"criticalShutoff": "Unter dieser Spannung (in Volt) schaltet der ESPuino ab",
 			"high": "Alle LEDs leuchten bei dieser Spannung (in Volt)",
 			"measureInterval": "Zeitabstand der Messung (in Minuten)",
+			"shutdownOnCritical": "Bei kritischer Spannung automatisch abschalten",
 			"lowWarningExp": "Spannung, unterhalb derer eine optische Warnung (LED) für niedrigen Akkustand ausgelöst wird.",
 			"lowCriticalExp": "Spannung, die als 0% Akkuladung in der Anzeige gilt (leerer Akku).",
 			"highExp": "Spannung, die als 100% Akkuladung in der Anzeige gilt (voller Akku).",
 			"criticalShutoffExp": "Spannung, bei der ESPuino automatisch herunterfährt, um den Akku vor Tiefentladung zu schützen.",
-			"measureIntervalExp": "Zeitabstand in Minuten, in dem die Akkuspannung gemessen wird."
+			"measureIntervalExp": "Zeitabstand in Minuten, in dem die Akkuspannung gemessen wird.",
+			"shutdownOnCriticalExp": "Schaltet ESPuino automatisch ab, sobald die Akkuspannung den unten eingestellten kritischen Wert unterschreitet. Kann den Akku ein Stück weit vor Tiefentladung schützen, ersetzt jedoch kein Batterie-Management-System! Empfohlene Werte sind: LFP: 2,7 V, LiPo: 3,0 V."
 		},
 		"playlist": {
 			"title": "Wiedergabeliste",
