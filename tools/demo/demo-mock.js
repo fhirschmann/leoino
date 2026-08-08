@@ -122,12 +122,12 @@
 		return {
 			current: { volume: DEMO_VOLUME, rfidTagId: "0009094506" },
 			general: {
-				initVolume: 3, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10,
+				initVolume: 3, minVolume: 0, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10,
 				playMono: false, savePosShutdown: false, savePosRfidChge: false,
 				savePosPeriodic: true, restartFreshHrs: 24, minResumeSec: 20, shortTrackSec: 300, seekStep: 300, sleepFadeSec: 30, dailyLimitMin: 90, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
 				stopIfRfidRemoved: false,
 				dontAcceptRfidTwice: false, blockWebPlayTag: false, rfidReaderType: 0, pn5180Lpcd: false, slix2Password: "",
-				mfrc522Gain: 7, pauseOnMinVol: false, recoverVolBoot: false, volumeCurve: 0,
+				mfrc522Gain: 7, mfrc522ScanInterval: 100, pn5180Debounce: 500, pauseOnMinVol: false, recoverVolBoot: false, volumeCurve: 0,
 				readyPath: "/ready.mp3", playStartupSnd: true, noSleepWhenPowered: false,
 				poweredVoltage: 3.5, brandText: ""
 			},
@@ -151,9 +151,9 @@
 				["01", "02", "03", "04", "05", "06", "12", "13", "14", "15", "16", "23", "24", "25", "26", "34", "35", "36", "45", "46", "56"].forEach(function (i) { b["multi" + i] = 0; });
 				return b;
 			})(),
-			rotary: { reverse: false },
+			rotary: { reverse: false, seekPrevDelay: 2000, seekPrevSweep: 40 },
 			playlist: { sortMode: 0, recDepth: 2 },
-			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, voltageCheckInterval: 10 },
+			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, shutdownOnCritical: false, voltageCheckInterval: 10 },
 			ftp: { username: "esp32", password: "esp32", maxUserLength: 31, maxPwdLength: 31, enable: false },
 			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
 			sync: { url: "", username: "", password: "", abortOnButton: true, deleteRemoved: false, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
