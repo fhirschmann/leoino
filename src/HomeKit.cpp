@@ -27,6 +27,7 @@
 // mirrored back to the Home app from there too, so manual changes (buttons,
 // RFID) show up on the iPhone.
 
+	#include "esp_heap_caps.h"
 	#include "esp_random.h"
 
 // Setup ID baked into the pairing QR code. Must match the value handed to
@@ -389,8 +390,12 @@ void HomeKit_Init(void) {
 	tv->addLink(new HKTvSpeaker());
 
 	// Own task on core 0 (WiFi side), low priority -- the audio task on core 1
-	// can always preempt it, so the I2S DMA buffer never underruns.
-	homeSpan.autoPoll(8192, 1, 0);
+	// can always preempt it, so the I2S DMA buffer never underruns. 6 KB stack:
+	// this task plus its TCB is the single largest always-internal cost of HomeKit
+	// (8 KB left the box with ~2 KB of internal heap and a dead web UI). HomeSpan's
+	// heavy pairing math (SRP) lives on the heap (PSRAM via HS_MALLOC/mbedTLS), not
+	// on this stack.
+	homeSpan.autoPoll(6144, 1, 0);
 
 	gInitMillis = millis();
 	Log_Println("HomeKit: HomeSpan started (autoPoll on core 0)", LOGLEVEL_NOTICE);
@@ -405,12 +410,13 @@ void HomeKit_Cyclic(void) {
 	static bool initialized = false;
 	if (!initialized) {
 		// Defer HomeSpan's bring-up until WiFi -- and with it ESPuino's own mDNS
-		// announce -- has settled. Starting HomeSpan fires its HAP mDNS probe and
-		// TLS setup; when that races ESPuino's mDNS announce during boot the internal
-		// heap briefly hits ~0 and the mDNS task aborts() (OOM, in create_answer ->
-		// the log path can't even allocate its lock). Holding HomeKit back a few
-		// seconds keeps the two heavy startup allocations apart. An absolute fallback
-		// still brings HomeKit up if WiFi never connects (HomeSpan handles that case).
+		// announce and the webserver -- have settled. HomeSpan's begin + HAP mDNS
+		// announce transiently need ~25-30 KB of internal heap; when that lands in
+		// the boot trough the internal heap hits ~1 KB and the mDNS task aborts()
+		// (OOM in create_answer -> the log path can't even allocate its lock), which
+		// reboot-loops the box. The heap gate checks the headroom is really there;
+		// the absolute fallback still brings HomeKit up if the threshold is never
+		// met or WiFi never connects (HomeSpan handles that case itself).
 		const uint32_t now = millis();
 		static uint32_t wifiUpSince = 0;
 		static uint32_t firstCyclic = 0;
@@ -424,9 +430,14 @@ void HomeKit_Cyclic(void) {
 		} else {
 			wifiUpSince = 0;
 		}
+		// Threshold: HomeSpan's bring-up costs ~9 KB of internal DRAM (autoPoll stack
+		// + begin), and ~4 KB must stay free afterwards for lwip/web to keep serving.
+		// The settled pre-HomeKit level on the complete board is ~15 KB, so 13 KB is
+		// reachable a few seconds after the webserver is up (25+ KB never is).
 		const bool wifiSettled = (wifiUpSince != 0) && (now - wifiUpSince) > 4000u;
-		const bool fallback = (now - firstCyclic) > 20000u;
-		if (!wifiSettled && !fallback) {
+		const bool heapReady = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) > 13000u;
+		const bool fallback = (now - firstCyclic) > 45000u;
+		if (!(wifiSettled && heapReady) && !fallback) {
 			return;
 		}
 		initialized = true;

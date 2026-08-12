@@ -329,6 +329,14 @@ unsigned long lastCleanupClientsTimestamp;
 
 void Web_Cyclic(void) {
 	webserverStart();
+	// One-shot version-badge check, deliberately in the gap between webserver start
+	// (~5 s, DNS not reliable yet) and HomeSpan's bring-up (~11 s, after which the
+	// heap guard in Web_CheckForUpdate() blocks the TLS transient for good).
+	static bool versionCheckKicked = false;
+	if (!versionCheckKicked && webserverStarted && millis() > 7000u) {
+		versionCheckKicked = true;
+		Web_CheckForUpdate();
+	}
 	if ((millis() - lastCleanupClientsTimestamp) > 1000u) {
 		// cleanup closed/deserted websocket clients once per second
 		lastCleanupClientsTimestamp = millis();
@@ -1239,12 +1247,21 @@ void webserverStart(void) {
 		DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization");
 		DefaultHeaders::Instance().addHeader("Access-Control-Allow-Credentials", "true");
 		DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+		Log_Printf(LOGLEVEL_NOTICE, "webserver begin: free internal %u, largest block %u",
+			heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+			heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 		wServer.begin();
 		webserverStarted = true;
-		Web_CheckForUpdate(); // populate the version badge in the background
+		// The version-badge check is NOT kicked here: at this point (right after the WiFi
+		// link came up) DNS is often not usable yet and the failed attempt would arm the
+		// 60 s rate limit, after which the heap guard in Web_CheckForUpdate() blocks all
+		// retries once HomeSpan owns the remaining internal heap. Web_Cyclic() kicks the
+		// one-shot a couple of seconds later instead (after DNS/NTP, before HomeKit).
 		Log_Println(httpReady, LOGLEVEL_NOTICE);
-		// start a first WiFi scan (to get a WiFi list more quickly in webview)
-		WiFi.scanNetworks(true, false, true, 120);
+		// No eager boot-time WiFi scan here (upstream kicks one off "to get a WiFi list
+		// more quickly in webview"): the scan plus its retained results hold several KB
+		// of internal heap exactly in the window in which HomeSpan's bring-up needs
+		// every byte (see HomeKit_Cyclic). The WLAN tab triggers a scan on demand.
 	}
 }
 

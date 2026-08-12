@@ -247,6 +247,16 @@ void Web_CheckForUpdate(void) {
 	if (gVersionCheckRunning) {
 		return;
 	}
+	// Only check when there is real internal-heap headroom: the task needs an 8 KB stack plus
+	// working memory, and once HomeSpan is up the complete board sits at ~6 KB free internal --
+	// spawning the check there starves lwip and the web UI dies. In practice this means the
+	// check runs in the boot window right after webserverStart (~15 KB free, before HomeKit's
+	// heap gate lets HomeSpan claim the rest) and is silently skipped afterwards; the badge
+	// keeps the boot-time result (rate-limited /version polls retry, and succeed again
+	// whenever HomeKit is disabled or not yet started).
+	if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) < 14000u) {
+		return;
+	}
 	uint32_t now = millis();
 	if (gLastVersionCheckMs != 0 && (now - gLastVersionCheckMs) < 60000u) {
 		return;

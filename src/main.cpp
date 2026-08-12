@@ -36,6 +36,7 @@
 #include "gitrevision.h"
 
 #include <Wire.h>
+#include <esp_log.h>
 
 bool gRetryRfidOnWifiConnect = false;
 char gRetryRfidTagId[cardIdStringSize] = "";
@@ -121,6 +122,17 @@ void recoverLastRfidPlayedFromNvs(bool force) {
 
 void setup() {
 	Log_Init();
+	// Silence the IDF mDNS component's own logging (one tag per source file). Its announce
+	// and TXT paths log an ERROR when an allocation fails under memory pressure -- and if
+	// that is the calling task's first ever print, newlib lazily allocates the task's stdio
+	// lock, which is another malloc at the exact moment the heap is empty and abort()s the
+	// whole box (observed twice in the boot trough: in the mdns task's announce and in
+	// HomeSpan's poll task setting HAP TXT records). Without the log line mDNS just drops
+	// that one packet / retries the record later; the box stays up.
+	static const char *mdnsLogTags[] = {"mdns", "mdns_browser", "mdns_netif", "mdns_networking", "mdns_pcb", "mdns_querier", "mdns_receive", "mdns_responder", "mdns_send", "mdns_service", "mdns_utils"};
+	for (const char *tag : mdnsLogTags) {
+		esp_log_level_set(tag, ESP_LOG_NONE);
+	}
 	Queues_Init();
 
 	// Make sure all wakeups can be enabled *before* initializing RFID, which can enter sleep immediately

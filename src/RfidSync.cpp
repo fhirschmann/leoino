@@ -71,7 +71,14 @@ static bool rfidEnsurePushTask(void) {
 		gRfidPushQueue = xQueueCreate(16, sizeof(RfidPushItem));
 	}
 	if (gRfidPushQueue != NULL && gRfidPushTaskHandle == NULL) {
-		if (xTaskCreatePinnedToCore(rfidPushTask, "rfidPush", 8192, NULL, 1, &gRfidPushTaskHandle, 1) != pdPASS) {
+		// Stack sized by transport: the push path is queue-wait + HTTPClient. Plain-HTTP pushes
+		// measured ~1 KB of stack, so 4 KB is generous there and internal DRAM is the scarcest
+		// resource on the complete board. A https:// sync-server/peer runs the mbedTLS handshake
+		// on this stack, which needs far more (the full-sync task uses 16 KB for the same
+		// reason), so only then keep the old 8 KB.
+		const bool tlsPush = gPrefsSettings.getString("rfidSyncUrl", "").startsWith("https://")
+			|| gPrefsSettings.getString("rfidPeers", "").indexOf("https://") >= 0;
+		if (xTaskCreatePinnedToCore(rfidPushTask, "rfidPush", tlsPush ? 8192 : 4096, NULL, 1, &gRfidPushTaskHandle, 1) != pdPASS) {
 			gRfidPushTaskHandle = NULL;
 		}
 	}
