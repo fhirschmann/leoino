@@ -327,6 +327,11 @@ static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
 
 unsigned long lastCleanupClientsTimestamp;
 
+// Timestamp of the last incoming HTTP request, updated by the auth middleware (which runs
+// on every request). Web_Cyclic() uses it to disable WiFi modem power-save while the web
+// interface is actually in use -- see there.
+static volatile uint32_t gLastWebActivityMs = 0;
+
 void Web_Cyclic(void) {
 	webserverStart();
 	Web_OtaCyclic(webserverStarted);
@@ -350,7 +355,8 @@ void Web_Cyclic(void) {
 		static uint32_t lastPsAssert = 0;
 		if ((millis() - lastPsAssert) > 250u) {
 			lastPsAssert = millis();
-			const bool webActive = (ws.count() > 0) || ((millis() - gLastWebActivityMs) < 900000u);
+			const bool recentRequest = (gLastWebActivityMs != 0) && ((millis() - gLastWebActivityMs) < 900000u);
+			const bool webActive = (ws.count() > 0) || recentRequest;
 			Wlan_SetPowerSave(!webActive);
 		}
 	}
@@ -592,11 +598,6 @@ static void Web_SendStatusJson(AsyncWebServerRequest *request, uint8_t status, i
 	}
 	request->send(200, "application/json", buf);
 }
-
-// Timestamp of the last incoming HTTP request, updated by the auth middleware (which runs
-// on every request). Web_Cyclic() uses it to disable WiFi modem power-save while the web
-// interface is actually in use -- see there.
-static volatile uint32_t gLastWebActivityMs = 0;
 
 void webserverStart(void) {
 	if (!webserverStarted && (Wlan_IsConnected() || (WiFi.getMode() == WIFI_AP))) {

@@ -54,23 +54,23 @@ struct RfidPushItem {
 };
 static QueueHandle_t gRfidPushQueue = NULL;
 static TaskHandle_t gRfidPushTaskHandle = NULL;
+static SemaphoreHandle_t gRfidPushInitMutex = NULL;
 static void rfidPushTask(void *param);
 static bool rfidSyncConfigured(void);
-// Lazily create the push queue + task (idempotent). The idle task holds an 8 KB stack, so on the
-// tight "complete" board (~22 KB free internal DRAM) we only pay for it once RFID-sync is actually
-// configured/enabled — an unconfigured device that never enqueues anything must not carry it.
-static bool rfidEnsurePushTask(void) {
-	// This is reachable from the web, MQTT and full-sync tasks. Serialize the lazy initialization so
-	// two cores cannot create competing queues/tasks. Keep the queue when task creation fails: a later
-	// call can retry creating the worker instead of leaving a permanently undrained queue behind.
-	static SemaphoreHandle_t initMutex = xSemaphoreCreateMutex();
-	if (initMutex == NULL || xSemaphoreTake(initMutex, portMAX_DELAY) != pdTRUE) {
+
+// Queue a push and start its worker atomically. The worker deletes itself as soon as the queue is
+// drained: an HTTPS-capable worker otherwise pins an 8 KB internal stack forever even though RFID
+// learns/deletes are rare, leaving too little headroom for parallel web-interface connections.
+static bool rfidEnqueuePush(const RfidPushItem &item) {
+	RfidSync_Init();
+	if (gRfidPushInitMutex == NULL || xSemaphoreTake(gRfidPushInitMutex, portMAX_DELAY) != pdTRUE) {
 		return false;
 	}
 	if (gRfidPushQueue == NULL) {
 		gRfidPushQueue = xQueueCreate(16, sizeof(RfidPushItem));
 	}
-	if (gRfidPushQueue != NULL && gRfidPushTaskHandle == NULL) {
+	const bool queued = (gRfidPushQueue != NULL) && (xQueueSend(gRfidPushQueue, &item, 0) == pdTRUE);
+	if (queued && gRfidPushTaskHandle == NULL) {
 		// Stack sized by transport: the push path is queue-wait + HTTPClient. Plain-HTTP pushes
 		// measured ~1 KB of stack, so 4 KB is generous there and internal DRAM is the scarcest
 		// resource on the complete board. A https:// sync-server/peer runs the mbedTLS handshake
@@ -82,8 +82,8 @@ static bool rfidEnsurePushTask(void) {
 			gRfidPushTaskHandle = NULL;
 		}
 	}
-	const bool ready = (gRfidPushQueue != NULL && gRfidPushTaskHandle != NULL);
-	xSemaphoreGive(initMutex);
+	const bool ready = queued && (gRfidPushTaskHandle != NULL);
+	xSemaphoreGive(gRfidPushInitMutex);
 	return ready;
 }
 
@@ -106,10 +106,8 @@ void RfidSync_Init(void) {
 	if (!gRfidNvsMutex) {
 		gRfidNvsMutex = xSemaphoreCreateMutex();
 	}
-	// Only spawn the background push task when RFID-sync is actually configured; enabling it later
-	// creates it on demand (RfidSync_OnLearn/OnDelete/TriggerFull), so no reboot is needed.
-	if (rfidSyncConfigured()) {
-		rfidEnsurePushTask();
+	if (!gRfidPushInitMutex) {
+		gRfidPushInitMutex = xSemaphoreCreateMutex();
 	}
 	gTsReady = true;
 }
@@ -470,6 +468,18 @@ static void rfidPushTask(void *param) {
 				rfidDoDeletePush(item.id);
 			}
 		}
+
+		// Serialize the empty check with producers. A producer either leaves an item for this
+		// task, or observes the NULL handle after we release the mutex and starts a new worker.
+		if (gRfidPushInitMutex != NULL && xSemaphoreTake(gRfidPushInitMutex, portMAX_DELAY) == pdTRUE) {
+			if (uxQueueMessagesWaiting(gRfidPushQueue) == 0) {
+				gRfidPushTaskHandle = NULL;
+				xSemaphoreGive(gRfidPushInitMutex);
+				vTaskDelete(NULL);
+				return;
+			}
+			xSemaphoreGive(gRfidPushInitMutex);
+		}
 	}
 }
 
@@ -478,12 +488,10 @@ void RfidSync_OnLearn(const char *tagId) {
 	if (!gPrefsSettings.getBool("rfidSyncLearn", true) || !rfidSyncConfigured()) {
 		return;
 	}
-	RfidSync_Init();
-	rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
 	RfidPushItem item;
 	snprintf(item.id, sizeof(item.id), "%s", tagId);
 	item.op = RFID_PUSH_LEARN;
-	if (!gRfidPushQueue || xQueueSend(gRfidPushQueue, &item, 0) != pdTRUE) {
+	if (!rfidEnqueuePush(item)) {
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: push queue full, %s will propagate on the next full sync", tagId);
 	}
 }
@@ -505,11 +513,10 @@ bool RfidSync_OnDelete(const char *tagId) {
 	if (!removed || !gPrefsSettings.getBool("rfidSyncLearn", true) || !rfidSyncConfigured() || ts == 0) {
 		return removed; // pushed on the next full sync (also heals ts==0)
 	}
-	rfidEnsurePushTask(); // start the push task on first use if sync was enabled without a reboot
 	RfidPushItem item;
 	snprintf(item.id, sizeof(item.id), "%s", tagId);
 	item.op = RFID_PUSH_DELETE;
-	if (!gRfidPushQueue || xQueueSend(gRfidPushQueue, &item, 0) != pdTRUE) {
+	if (!rfidEnqueuePush(item)) {
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: push queue full, delete %s will propagate on the next full sync", tagId);
 	}
 	return removed;
@@ -736,7 +743,6 @@ void RfidSync_TriggerFull(void) {
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: another network job is running, deferring");
 		return;
 	}
-	rfidEnsurePushTask(); // a full sync means sync is active — have the push task ready for later learns/deletes
 	if (xTaskCreatePinnedToCore(rfidFullSyncTask, "rfidSync", 16384, NULL, 1, NULL, 1) != pdPASS) {
 		Net_ReleaseBgJob(); // task never started -> hand the slot back before releasing the status
 		gRfidSyncStatus = 3; // couldn't spawn -> release the slot as failed

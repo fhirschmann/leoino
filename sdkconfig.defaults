@@ -207,7 +207,11 @@ CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
 #
 # Heap memory debugging
 #
-CONFIG_HEAP_POISONING_LIGHT=y
+# Light poisoning adds a 12-byte canary header/trailer (plus alignment) to every
+# allocation. On the IDF-5 complete build, the accumulated internal-heap overhead
+# is enough to starve parallel web requests. Stack watchpoints remain enabled; use
+# poisoning only in a dedicated debug build when investigating heap corruption.
+CONFIG_HEAP_POISONING_DISABLED=y
 # end of Heap memory debugging
 
 #
