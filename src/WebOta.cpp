@@ -178,7 +178,7 @@ void Web_TriggerGithubOta(void) {
 			return;
 		}
 		// Serialize against the other heavy net tasks (Sync/RfidSync/Backup/version-check): the OTA task
-		// needs a 16 KB stack plus a TLS client, so it must not run concurrently. Claim the shared slot
+		// needs an 8 KB stack plus a TLS client, so it must not run concurrently. Claim the shared slot
 		// AFTER the local idle->running claim (so a double-start doesn't grab the global slot only to bail);
 		// if another net job holds it, reset our status back to idle and defer — the caller (web/CMD/MQTT)
 		// retries, so a deferred OTA must not look "running" forever.
@@ -191,9 +191,15 @@ void Web_TriggerGithubOta(void) {
 		}
 		gGithubOtaProgress = 0;
 		gGithubOtaMsg.set("");
-		if (xTaskCreatePinnedToCore(githubOtaTask, "githubOta", 16384, NULL, 1, NULL, 1) != pdPASS) {
+		// 8 KB stack: the largest free internal block on the complete board is ~10 KB even in the
+		// held-back-HomeKit OTA window, so the former 16 KB could never be allocated and the OTA
+		// silently failed at task creation. The TLS + HTTP path runs proven on 8 KB (same depth
+		// as versionCheckTask); mbedTLS's buffers live on the PSRAM heap, not on this stack.
+		if (xTaskCreatePinnedToCore(githubOtaTask, "githubOta", 8192, NULL, 1, NULL, 1) != pdPASS) {
 			Net_ReleaseBgJob(); // task never started, so it can't release the slot -> do it here
 			gGithubOtaStatus = 3; // couldn't spawn -> release the slot as failed
+			gGithubOtaMsg.set("task start failed (out of memory)");
+			Log_Println("GitHub OTA: could not create the flasher task (out of internal memory)", LOGLEVEL_ERROR);
 		}
 	}
 #else
