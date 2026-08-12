@@ -11,6 +11,7 @@
 	#include "Led.h"
 	#include "Log.h"
 	#include "System.h"
+	#include "Web.h"
 	#include "Wlan.h"
 	#include "values.h"
 
@@ -409,6 +410,12 @@ void HomeKit_Cyclic(void) {
 	// animation and the main loop is already running.
 	static bool initialized = false;
 	if (!initialized) {
+		// An OTA-after-reboot attempt owns this boot (see WebOta.cpp): the download needs the
+		// internal heap HomeSpan would claim, so hold HomeSpan back until the attempt resolves.
+		// On success the flasher reboots; on failure the flag drops and we start right here.
+		if (Web_OtaBootPending()) {
+			return;
+		}
 		// Defer HomeSpan's bring-up until WiFi -- and with it ESPuino's own mDNS
 		// announce and the webserver -- have settled. HomeSpan's begin + HAP mDNS
 		// announce transiently need ~25-30 KB of internal heap; when that lands in

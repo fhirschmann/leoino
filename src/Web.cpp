@@ -329,11 +329,13 @@ unsigned long lastCleanupClientsTimestamp;
 
 void Web_Cyclic(void) {
 	webserverStart();
+	Web_OtaCyclic(webserverStarted);
 	// One-shot version-badge check, deliberately in the gap between webserver start
 	// (~5 s, DNS not reliable yet) and HomeSpan's bring-up (~11 s, after which the
-	// heap guard in Web_CheckForUpdate() blocks the TLS transient for good).
+	// heap guard in Web_CheckForUpdate() blocks the TLS transient for good). Skipped
+	// while an OTA-after-reboot attempt owns the boot (it needs the net slot + heap).
 	static bool versionCheckKicked = false;
-	if (!versionCheckKicked && webserverStarted && millis() > 7000u) {
+	if (!versionCheckKicked && webserverStarted && millis() > 7000u && !Web_OtaBootPending()) {
 		versionCheckKicked = true;
 		Web_CheckForUpdate();
 	}

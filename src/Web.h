@@ -31,6 +31,10 @@ void Web_Exit(void);
 void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code);
 void Web_NotifyIrCode(uint16_t code); // broadcast a freshly received IR code to the web UI (learn mode)
 void Web_TriggerGithubOta(void);
+// OTA-after-reboot flow (see WebOta.cpp): true while a rebooted-into OTA attempt owns this
+// boot -- HomeKit_Cyclic() then holds HomeSpan back so the download has enough internal heap.
+bool Web_OtaBootPending(void);
+void Web_OtaCyclic(bool webserverUp);
 const char *Web_GetGithubOtaStatusText(void);
 // GitHub OTA / passive version-check state (implemented in WebOta.cpp).
 uint8_t Web_GetGithubOtaStatus(void);

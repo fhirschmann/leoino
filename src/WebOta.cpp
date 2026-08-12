@@ -26,6 +26,14 @@ static const char *githubVersionUrl = "https://github.com/fhirschmann/leoino/rel
 // State of the GitHub OTA, polled by the web interface via GET /githubupdate.
 // 0 = idle, 1 = running/downloading, 2 = already up to date, 3 = failed
 static volatile uint8_t gGithubOtaStatus = 0;
+// OTA-after-reboot flow: a running HomeSpan leaves too little internal heap for the 16 KB OTA
+// task + TLS download (the attempt starves lwip and can hang the box until reset). When the
+// trigger detects that, it persists a one-shot NVS flag and reboots; on the next boot
+// HomeKit_Cyclic() holds HomeSpan back while Web_OtaBootPending() is true and Web_OtaCyclic()
+// restarts the download in that roomy window. On success the flasher reboots again (normal
+// boot, HomeKit back); on failure/give-up the flag is dropped and HomeKit starts right away.
+static bool gOtaAfterReboot = false;
+static volatile uint32_t gOtaRebootAtMs = 0; // deferred restart, lets the HTTP response out first
 static volatile uint8_t gGithubOtaProgress = 0; // download progress in percent
 // gGithubOtaMsg is written by the OTA task (core 1) and read by the web server (core 0);
 // StatusMessage's spinlock keeps the web server from ever reading a half-written string.
@@ -159,6 +167,16 @@ void Web_TriggerGithubOta(void) {
 	}
 	portEXIT_CRITICAL(&mux);
 	if (claim) {
+		// See gOtaAfterReboot above: with HomeKit running there is not enough internal heap left
+		// for the download -- persist the one-shot flag and reboot into a held-back-HomeKit boot.
+		if (!gOtaAfterReboot && heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) < 24000u) {
+			gPrefsSettings.putBool("otaPending", true);
+			gGithubOtaProgress = 0;
+			gGithubOtaMsg.set("rebooting into update window...");
+			Log_Println("GitHub OTA: not enough internal heap next to HomeKit -- rebooting into an OTA window", LOGLEVEL_NOTICE);
+			gOtaRebootAtMs = millis() + 800u; // Web_OtaCyclic() performs the restart
+			return;
+		}
 		// Serialize against the other heavy net tasks (Sync/RfidSync/Backup/version-check): the OTA task
 		// needs a 16 KB stack plus a TLS client, so it must not run concurrently. Claim the shared slot
 		// AFTER the local idle->running claim (so a double-start doesn't grab the global slot only to bail);
@@ -273,5 +291,63 @@ void Web_CheckForUpdate(void) {
 		Net_ReleaseBgJob(); // task never started, so it can't release the slot -> do it here
 		gVersionCheckRunning = false;
 	}
+#endif
+}
+
+// True while a rebooted-into OTA attempt owns this boot: HomeKit_Cyclic() then holds HomeSpan
+// back so the download gets the internal heap HomeSpan would otherwise claim. Reads (and
+// immediately clears) the one-shot NVS flag on first call, so a crashed or failed attempt can
+// never keep HomeKit disabled beyond a single boot.
+bool Web_OtaBootPending(void) {
+#ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
+	static bool checked = false;
+	if (!checked) {
+		checked = true;
+		gOtaAfterReboot = gPrefsSettings.getBool("otaPending", false);
+		if (gOtaAfterReboot) {
+			gPrefsSettings.remove("otaPending");
+			Log_Println("GitHub OTA: pending after reboot -- holding HomeKit back for this attempt", LOGLEVEL_NOTICE);
+		}
+	}
+	return gOtaAfterReboot;
+#else
+	return false;
+#endif
+}
+
+// Called from Web_Cyclic(): performs the deferred pre-OTA restart and, on the boot after it,
+// (re)starts the download once the webserver is up. Gives up after a few tries or on a failed
+// download and releases HomeKit for this boot.
+void Web_OtaCyclic(bool webserverUp) {
+#ifdef BOARD_HAS_16MB_FLASH_AND_OTA_SUPPORT
+	if (gOtaRebootAtMs != 0 && millis() > gOtaRebootAtMs) {
+		System_Restart();
+	}
+	if (!Web_OtaBootPending() || !webserverUp || millis() < 8000u) {
+		return;
+	}
+	if (gGithubOtaStatus == 1) {
+		return; // download running
+	}
+	if (gGithubOtaStatus == 2 || gGithubOtaStatus == 3) {
+		// nothing to flash / failed: this boot's OTA window is over, let HomeKit come up
+		gOtaAfterReboot = false;
+		return;
+	}
+	static uint32_t lastTry = 0;
+	static uint8_t tries = 0;
+	if (lastTry != 0 && (millis() - lastTry) < 3000u) {
+		return;
+	}
+	lastTry = millis();
+	if (tries >= 5) {
+		gOtaAfterReboot = false;
+		Log_Println("GitHub OTA: could not start in the OTA window -- releasing HomeKit", LOGLEVEL_ERROR);
+		return;
+	}
+	tries++;
+	Web_TriggerGithubOta();
+#else
+	(void) webserverUp;
 #endif
 }
