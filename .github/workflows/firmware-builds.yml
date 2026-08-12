@@ -65,10 +65,12 @@ jobs:
           python-version: "3.13"
 
       - name: Install PlatformIO Core
+        # Stable core only, like release-firmware.yml. "pio upgrade --dev" switched to the
+        # development core, which started shipping a SCons without SCons.Tool.FortranCommon
+        # (ModuleNotFoundError at link time, 2026-08-12); "pio pkg update --global" additionally
+        # bypassed the version pins in platformio.ini.
         run: |
           pip install -U setuptools platformio
-          pio upgrade --dev
-          pio pkg update --global
           mkdir binaries
 
       - name: Build ${{ matrix.variant }} (${{ matrix.language }})
