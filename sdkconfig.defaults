@@ -118,21 +118,17 @@ CONFIG_SPIRAM_BANKSWITCH_ENABLE=n
 # end of SPI RAM config
 # end of ESP PSRAM
 
-# Prefer PSRAM for WiFi/LWIP bookkeeping allocations (DMA'd RX buffers stay internal
-# automatically). Frees ~10-20 KB of internal DRAM; needed since HomeSpan's HAP server
-# plus the async webserver together outgrew the internal heap (web UI died once
-# HomeKit was fully up). Slight WiFi throughput cost, acceptable next to a dead UI.
-CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
-
-# Internal-DRAM diet for the Arduino-3/IDF-5 base system. The IDF-5 migration (July
-# upstream merge) raised the framework's internal-RAM floor by ~20 KB compared to the
-# IDF-4 build this board demonstrably ran with, and web server + HomeSpan + audio no
-# longer fit (~2 KB free internal after HomeKit start, dead web UI). DMA'd WiFi RX
-# buffers 8 -> 6 and a smaller aggregation window trade a little peak WiFi throughput
-# for ~4 KB of always-internal DRAM; audio playback is SD-first on this box.
-CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
-CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
-CONFIG_ESP_WIFI_RX_BA_WIN=4
+# NOTE: deliberately NOT setting CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP. It sounds like a
+# win, but with it kconfig force-selects STATIC WiFi TX buffers (16 x 1.6 KB permanently
+# allocated internal DMA memory) because lwip pbufs may then live in PSRAM -- a net LOSS
+# of ~25 KB internal DRAM. With dynamic TX buffers (the stock choice, spelled out below
+# so a regen can never flip it back to static) that memory only exists while frames are
+# actually in flight, which restores the pre-IDF-5 internal-heap headroom.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8
+# CONFIG_ESP_WIFI_STATIC_TX_BUFFER is not set
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER=y
+CONFIG_ESP_WIFI_TX_BUFFER_TYPE=1
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32
 # The mDNS task peaks at ~2 KB of its 4 KB stack (measured via /debug taskstats).
 CONFIG_MDNS_TASK_STACK_SIZE=3072
 
