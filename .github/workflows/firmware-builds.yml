@@ -33,10 +33,10 @@ jobs:
           - FR
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Cache pip
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -44,7 +44,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.platformio
           key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini', '**/dependencies.lock') }}
@@ -52,15 +52,17 @@ jobs:
             ${{ runner.os }}-pio-
 
       - name: Cache Build State
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .pio
-          key: ${{ runner.os }}-pio-build-${{ github.sha }}
+          # Each matrix job mutates src/settings.h for its language. Sharing one
+          # build-state key made the jobs race while saving incompatible .pio trees.
+          key: ${{ runner.os }}-pio-build-${{ matrix.variant }}-${{ matrix.language }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-pio-build-
+            ${{ runner.os }}-pio-build-${{ matrix.variant }}-${{ matrix.language }}-
 
       - name: Setup Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -83,7 +85,7 @@ jobs:
           cp .pio/build/${{ matrix.variant }}/partitions.bin binaries/partitions.bin
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.variant }}-${{ matrix.language }}
           path: binaries/
@@ -94,7 +96,7 @@ jobs:
     needs: test_builds
     steps:
       - name: Checkout target repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: biologist79/ESPuino-Firmware
           token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
@@ -102,7 +104,7 @@ jobs:
           persist-credentials: true
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: target-repo/Firmwares/${{ github.ref_name }}
           merge-multiple: true
