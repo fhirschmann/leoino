@@ -20,7 +20,7 @@
 
 // HomeKit accessory (control + Siri) via HomeSpan.
 //
-// Threading model: HomeSpan's poll task runs on core 0 (see autoPoll below),
+// Threading model: the HomeSpan poll task runs on core 0 (see HomeKit_PollTask),
 // the audio decoder + everything else on core 1. To avoid cross-core races on
 // the audio object / ADC, the HomeKit update() handlers (core 0) only record an
 // *intent*; HomeKit_Cyclic() runs from the main loop (core 1, like Button/Ir)
@@ -107,6 +107,18 @@ static String gHkDeviceName;
 static String gHkTvName;
 static String gHkControlsName;
 	#define HOMEKIT_DEFAULT_NAME "ESPuino"
+
+// HomeSpan's stock autoPoll task immediately starts its next pass whenever no
+// HAP work is pending. On the complete build that busy polling alone consumes
+// around 10% CPU while idle. A 3 ms pause still gives HomeKit imperceptible
+// response latency, but returns that time to WiFi and background services.
+static void HomeKit_PollTask(void *parameter) {
+	(void) parameter;
+	for (;;) {
+		homeSpan.poll();
+		vTaskDelay(pdMS_TO_TICKS(3));
+	}
+}
 
 static inline bool HomeKit_IsPlaying(void) {
 	return gPlayProperties.pausePlay == false;
@@ -390,16 +402,20 @@ void HomeKit_Init(void) {
 	tv->addLink(new HKTvInput());
 	tv->addLink(new HKTvSpeaker());
 
-	// Own task on core 0 (WiFi side), low priority -- the audio task on core 1
+	// Own paced task on core 0 (WiFi side), low priority -- the audio task on core 1
 	// can always preempt it, so the I2S DMA buffer never underruns. Hardware task
 	// statistics show a 2.6 KB peak including paired-controller traffic; 5 KB keeps
 	// about 2.5 KB of guard while returning 1 KB of always-internal DRAM. HomeSpan's
 	// heavy pairing math (SRP) lives on the heap (PSRAM via HS_MALLOC/mbedTLS), not
-	// on this stack.
-	homeSpan.autoPoll(5120, 1, 0);
+	// on this stack. Fall back to HomeSpan's own task if FreeRTOS cannot create the
+	// paced wrapper; functionality is more important than the idle-CPU saving.
+	if (xTaskCreatePinnedToCore(HomeKit_PollTask, "pollTask", 5120, nullptr, 1, nullptr, 0) != pdPASS) {
+		Log_Println("HomeKit: paced poll task allocation failed; using autoPoll", LOGLEVEL_ERROR);
+		homeSpan.autoPoll(5120, 1, 0);
+	}
 
 	gInitMillis = millis();
-	Log_Println("HomeKit: HomeSpan started (autoPoll on core 0)", LOGLEVEL_NOTICE);
+	Log_Println("HomeKit: HomeSpan started (paced polling on core 0)", LOGLEVEL_NOTICE);
 }
 
 void HomeKit_Cyclic(void) {
