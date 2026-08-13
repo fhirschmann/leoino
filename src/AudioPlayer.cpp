@@ -784,10 +784,10 @@ void AudioPlayer_Init(void) {
 	AudioPlayer_CurrentVolume = std::max(AudioPlayer_GetInitVolume(), AudioPlayer_GetMinVolume());
 	// DMA-settings must be adjusted before setting the pinout
 	// (ESP32-audioI2S v3.4.7h defaults to 16-bit output, so the former setOutput16Bit(true) is gone.)
-	// 48 descriptors x 256 frames ~= 279 ms of buffered output at 44.1 kHz (~17 KB more
-	// internal RAM than the previous 32/186 ms). The extra cushion absorbs the cache
-	// freezes that NVS flash writes/erases inflict on both cores mid-playback.
-	audio->settings.DMA_DESC_NUM = 48;
+	// 40 descriptors x 256 frames ~= 232 ms of buffered output at 44.1 kHz. This keeps
+	// about 46 ms more protection against NVS flash stalls than the former 32-descriptor
+	// setup while returning roughly 8 KB of scarce internal RAM compared with 48.
+	audio->settings.DMA_DESC_NUM = 40;
 	audio->settings.DMA_FRAME_NUM = 256; // not too high, so safe SRAM
 	if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
 		audio->setOutputSampleRate(Audio::OutputSR_t::SR_44100);
