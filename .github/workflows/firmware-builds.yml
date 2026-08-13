@@ -10,6 +10,7 @@ on:
     paths:
       - "src/*"
       - "html/*"
+      - "test/*"
       - "**.ini"
       - "**.py"
       - "**.csv"
@@ -61,10 +62,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pio-build-${{ matrix.variant }}-${{ matrix.language }}-
 
-      - name: Setup Python 3.13
+      - name: Setup Python 3.12
         uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.12"
 
       - name: Install PlatformIO Core
         # Stable core only, like release-firmware.yml. "pio upgrade --dev" switched to the
