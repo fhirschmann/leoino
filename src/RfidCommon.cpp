@@ -206,11 +206,10 @@ void Rfid_HandleCardDetected(const byte *uid, byte *lastValidcardId, const char 
 			// an audiobook where it left off; non-position-saving content simply starts over.
 			xQueueSend(gRfidCardQueue, cardIdString, 0);
 		} else {
-#ifdef ACCEPT_SAME_RFID_AFTER_TRACK_END
-			if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) { // Don't allow to send card to queue if it's the same card again if track or playlist is unfnished
-#else
-			if (!sameCardReapplied) { // Don't allow to send card to queue if it's the same card again...
-#endif
+			// A naturally finished track/playlist must be restartable with the same card. This
+			// used to depend on ACCEPT_SAME_RFID_AFTER_TRACK_END, but that compile-time option
+			// was removed when pause-on-removal became a runtime setting.
+			if (!sameCardReapplied || gPlayProperties.trackFinished || gPlayProperties.playlistFinished) {
 				xQueueSend(gRfidCardQueue, cardIdString, 0);
 			} else {
 				// If pause-button was pressed while card was not applied, playback could be active. If so: don't pause when card is reapplied again as the desired functionality would be reversed in this case.

@@ -327,37 +327,20 @@ static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
 
 unsigned long lastCleanupClientsTimestamp;
 
-// Timestamp of the last incoming HTTP request, updated by the auth middleware (which runs
-// on every request). Web_Cyclic() uses it to disable WiFi modem power-save while the web
-// interface is actually in use -- see there.
-static volatile uint32_t gLastWebActivityMs = 0;
-
 void Web_Cyclic(void) {
 	webserverStart();
 	Web_OtaCyclic(webserverStarted);
-	// WiFi modem power-save (on by default for battery life) inflates every TCP round-trip
-	// by the AP's DTIM interval -- measured 70-120 ms ping RTT on LAN instead of <10 ms.
-	// The asset-heavy web UI then crawls, and a browser page load (4-6 parallel downloads)
-	// piles its connections into timeouts. Disable power-save while the interface is in
-	// use (recent HTTP request or an open websocket) and restore it once the UI is idle.
-	// System_PauseTasksDuringUpload() toggles power-save too; this check runs every loop
-	// iteration, so it re-asserts the wanted state right after an upload ends.
+	// Keep modem power-save off for as long as the HTTP server is available. Enabling it
+	// until the first request creates a bootstrap deadlock: the TCP handshake can stall in
+	// power-save before the request reaches the middleware that would wake WiFi. It also
+	// turns the asset-heavy web UI into a sequence of DTIM-delayed round-trips. Deep sleep
+	// remains the battery-saving idle state; while the device is awake, the web server must
+	// be immediately reachable. Re-assert after upload helpers temporarily change the mode.
 	if (webserverStarted) {
-		// Re-assert frequently (not edge-triggered): System_PauseTasksDuringUpload() and
-		// friends also toggle power-save, and an edge-only version silently lost against
-		// them. Wlan_SetPowerSave() dedupes, so the repeated call is free. 250 ms keeps
-		// the window small in which a page load hitting an idle box still runs against
-		// power-save (measured: connections started under power-save can stall for tens
-		// of seconds, while the same load completes in ~1.5 s with it off). The generous
-		// 15-minute activity window means an open UI session never falls back into the
-		// tarpit mid-use; the box still reaches power-save (and later deep-sleep) when
-		// nobody is using the interface.
 		static uint32_t lastPsAssert = 0;
 		if ((millis() - lastPsAssert) > 250u) {
 			lastPsAssert = millis();
-			const bool recentRequest = (gLastWebActivityMs != 0) && ((millis() - gLastWebActivityMs) < 900000u);
-			const bool webActive = (ws.count() > 0) || recentRequest;
-			Wlan_SetPowerSave(!webActive);
+			Wlan_SetPowerSave(false);
 		}
 	}
 	// One-shot version-badge check, deliberately in the gap between webserver start
@@ -604,7 +587,6 @@ void webserverStart(void) {
 		// password protection (no-op when no password is set or in accesspoint-mode)
 		Web_RefreshSessionToken();
 		wServer.addMiddleware([](AsyncWebServerRequest *request, ArMiddlewareNext next) {
-			gLastWebActivityMs = millis();
 			if ((wwwSessionToken.length() == 0) || (WiFi.getMode() == WIFI_AP)) {
 				return next();
 			}
