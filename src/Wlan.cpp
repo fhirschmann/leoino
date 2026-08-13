@@ -1056,8 +1056,15 @@ bool Wlan_IsConnected(void) {
 // when idle but inflates latency and cripples TCP throughput - so it is temporarily disabled during
 // bulk transfers (e.g. web-uploads, see System_PauseTasksDuringUpload()) and re-enabled afterwards.
 void Wlan_SetPowerSave(bool enabled) {
+	// Callers re-assert the wanted state periodically (Web_Cyclic) -- only touch the
+	// driver and log on actual changes, so the re-asserts are free and the log stays clean.
+	static int8_t lastState = -1;
+	if (lastState == (int8_t) enabled) {
+		return;
+	}
+	lastState = (int8_t) enabled;
 	WiFi.setSleep(enabled);
-	Log_Printf(LOGLEVEL_DEBUG, "WiFi power-save %s", enabled ? "on" : "off");
+	Log_Printf(LOGLEVEL_NOTICE, "WiFi power-save %s", enabled ? "on" : "off");
 }
 
 std::optional<std::vector<uint8_t>> WiFiSettings::serialize() const {

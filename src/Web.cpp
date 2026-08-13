@@ -330,6 +330,30 @@ unsigned long lastCleanupClientsTimestamp;
 void Web_Cyclic(void) {
 	webserverStart();
 	Web_OtaCyclic(webserverStarted);
+	// WiFi modem power-save (on by default for battery life) inflates every TCP round-trip
+	// by the AP's DTIM interval -- measured 70-120 ms ping RTT on LAN instead of <10 ms.
+	// The asset-heavy web UI then crawls, and a browser page load (4-6 parallel downloads)
+	// piles its connections into timeouts. Disable power-save while the interface is in
+	// use (recent HTTP request or an open websocket) and restore it once the UI is idle.
+	// System_PauseTasksDuringUpload() toggles power-save too; this check runs every loop
+	// iteration, so it re-asserts the wanted state right after an upload ends.
+	if (webserverStarted) {
+		// Re-assert frequently (not edge-triggered): System_PauseTasksDuringUpload() and
+		// friends also toggle power-save, and an edge-only version silently lost against
+		// them. Wlan_SetPowerSave() dedupes, so the repeated call is free. 250 ms keeps
+		// the window small in which a page load hitting an idle box still runs against
+		// power-save (measured: connections started under power-save can stall for tens
+		// of seconds, while the same load completes in ~1.5 s with it off). The generous
+		// 15-minute activity window means an open UI session never falls back into the
+		// tarpit mid-use; the box still reaches power-save (and later deep-sleep) when
+		// nobody is using the interface.
+		static uint32_t lastPsAssert = 0;
+		if ((millis() - lastPsAssert) > 250u) {
+			lastPsAssert = millis();
+			const bool webActive = (ws.count() > 0) || ((millis() - gLastWebActivityMs) < 900000u);
+			Wlan_SetPowerSave(!webActive);
+		}
+	}
 	// One-shot version-badge check, deliberately in the gap between webserver start
 	// (~5 s, DNS not reliable yet) and HomeSpan's bring-up (~11 s, after which the
 	// heap guard in Web_CheckForUpdate() blocks the TLS transient for good). Skipped
@@ -569,11 +593,17 @@ static void Web_SendStatusJson(AsyncWebServerRequest *request, uint8_t status, i
 	request->send(200, "application/json", buf);
 }
 
+// Timestamp of the last incoming HTTP request, updated by the auth middleware (which runs
+// on every request). Web_Cyclic() uses it to disable WiFi modem power-save while the web
+// interface is actually in use -- see there.
+static volatile uint32_t gLastWebActivityMs = 0;
+
 void webserverStart(void) {
 	if (!webserverStarted && (Wlan_IsConnected() || (WiFi.getMode() == WIFI_AP))) {
 		// password protection (no-op when no password is set or in accesspoint-mode)
 		Web_RefreshSessionToken();
 		wServer.addMiddleware([](AsyncWebServerRequest *request, ArMiddlewareNext next) {
+			gLastWebActivityMs = millis();
 			if ((wwwSessionToken.length() == 0) || (WiFi.getMode() == WIFI_AP)) {
 				return next();
 			}
