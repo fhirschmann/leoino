@@ -195,9 +195,9 @@
 	// namespace so the banner follows the language picked in the UI (the firmware
 	// locale files stay untouched).
 	var DEMO_I18N = {
-		de: { label: "DEMO", text: "Statische Vorschau des ESPuino-Webinterface – kein Gerät verbunden, Aktionen ohne Wirkung.", link: "Projekt auf GitHub" },
-		en: { label: "DEMO", text: "Static preview of the ESPuino web interface – no device connected, actions have no effect.", link: "Project on GitHub" },
-		fr: { label: "DÉMO", text: "Aperçu statique de l'interface web ESPuino – aucun appareil connecté, les actions n'ont aucun effet.", link: "Projet sur GitHub" }
+		de: { label: "DEMO", text: "Statische Vorschau des ESPuino-Webinterface – kein Gerät verbunden, Aktionen ohne Wirkung.", back: "Zur Projektseite", link: "Projekt auf GitHub" },
+		en: { label: "DEMO", text: "Static preview of the ESPuino web interface – no device connected, actions have no effect.", back: "Back to the project page", link: "Project on GitHub" },
+		fr: { label: "DÉMO", text: "Aperçu statique de l'interface web ESPuino – aucun appareil connecté, les actions n'ont aucun effet.", back: "Retour à la page du projet", link: "Projet sur GitHub" }
 	};
 
 	// ---------------------------------------------------------------

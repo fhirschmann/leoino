@@ -1,0 +1,1038 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>LEO INDUSTRIES AT-1 // RFID Audio Player</title>
+	<meta name="description"
+		content="LEO INDUSTRIES AT-1 — an ESP32 RFID audio player with a cyberpunk web interface. Try the full UI in your browser, no hardware required.">
+	<meta name="color-scheme" content="dark">
+	<link rel="icon" href="logo.svg" type="image/svg+xml">
+	<meta property="og:title" content="LEO INDUSTRIES AT-1">
+	<meta property="og:description" content="RFID audio player :: ESP32 :: cyberpunk edition. Live browser demo, no hardware needed.">
+	<meta property="og:type" content="website">
+	<style>
+		/* ---- bundled fonts (same faces the device UI uses) ---- */
+		@font-face {
+			font-family: 'Orbitron';
+			font-style: normal;
+			font-weight: 500 900;
+			font-display: swap;
+			src: url(fonts/orbitron-500-latin-yMJRMIlzdpvBhQQL_Qq7dy0.woff2) format('woff2');
+		}
+
+		@font-face {
+			font-family: 'Rajdhani';
+			font-style: normal;
+			font-weight: 400;
+			font-display: swap;
+			src: url(fonts/rajdhani-400-latin-LDIxapCSOBg7S-QT7p4HM-Y.woff2) format('woff2');
+		}
+
+		@font-face {
+			font-family: 'Rajdhani';
+			font-style: normal;
+			font-weight: 600;
+			font-display: swap;
+			src: url(fonts/rajdhani-600-latin-LDI2apCSOBg7S-QT7pbYF_Oreec.woff2) format('woff2');
+		}
+
+		@font-face {
+			font-family: 'Rajdhani';
+			font-style: normal;
+			font-weight: 700;
+			font-display: swap;
+			src: url(fonts/rajdhani-700-latin-LDI2apCSOBg7S-QT7pa8FvOreec.woff2) format('woff2');
+		}
+
+		@font-face {
+			font-family: 'Share Tech Mono';
+			font-style: normal;
+			font-weight: 400;
+			font-display: swap;
+			src: url(fonts/sharetechmono-400-latin-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2) format('woff2');
+		}
+
+		:root {
+			--cyan: #00f0ff;
+			--magenta: #ff2a6d;
+			--yellow: #fcee0a;
+			--green: #0aff9d;
+			--bg: #05070d;
+			--panel: #0a101e;
+			--surface: #0e1626;
+			--border: #1e2c4a;
+			--text: #c5d4f2;
+			--dim: #67779c;
+			--mono: "Share Tech Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+			--display: "Orbitron", "Rajdhani", system-ui, sans-serif;
+			--body: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+			--maxw: 1140px;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		html {
+			scroll-behavior: smooth;
+		}
+
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--text);
+			font-family: var(--body);
+			font-size: 18px;
+			line-height: 1.55;
+			-webkit-font-smoothing: antialiased;
+			overflow-x: hidden;
+		}
+
+		/* ---- ambient background: grid + horizon glow + scanlines ---- */
+		.bg {
+			position: fixed;
+			inset: 0;
+			z-index: -2;
+			pointer-events: none;
+			background:
+				radial-gradient(70rem 40rem at 78% -10%, rgba(255, 42, 109, .16), transparent 65%),
+				radial-gradient(60rem 36rem at 8% 4%, rgba(0, 240, 255, .16), transparent 62%),
+				linear-gradient(180deg, #060a14 0%, var(--bg) 55%, #04060c 100%);
+		}
+
+		.bg::after {
+			content: "";
+			position: absolute;
+			inset: 0;
+			background-image:
+				linear-gradient(rgba(0, 240, 255, .07) 1px, transparent 1px),
+				linear-gradient(90deg, rgba(0, 240, 255, .07) 1px, transparent 1px);
+			background-size: 46px 46px;
+			mask-image: linear-gradient(180deg, rgba(0, 0, 0, .85), transparent 78%);
+			-webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, .85), transparent 78%);
+		}
+
+		.scan {
+			position: fixed;
+			inset: 0;
+			z-index: -1;
+			pointer-events: none;
+			background: repeating-linear-gradient(180deg, rgba(0, 0, 0, .22) 0 1px, transparent 1px 3px);
+			opacity: .5;
+			mix-blend-mode: multiply;
+		}
+
+		.wrap {
+			width: min(100% - 2.5rem, var(--maxw));
+			margin-inline: auto;
+		}
+
+		a {
+			color: var(--cyan);
+			text-decoration: none;
+		}
+
+		a:hover {
+			text-decoration: underline;
+		}
+
+		:focus-visible {
+			outline: 2px solid var(--yellow);
+			outline-offset: 3px;
+		}
+
+		/* ---- top bar ---- */
+		header.top {
+			position: sticky;
+			top: 0;
+			z-index: 20;
+			backdrop-filter: blur(10px);
+			background: rgba(5, 7, 13, .72);
+			border-bottom: 1px solid var(--border);
+		}
+
+		.top .wrap {
+			display: flex;
+			align-items: center;
+			gap: 1rem;
+			min-height: 62px;
+		}
+
+		.brand {
+			display: flex;
+			align-items: center;
+			gap: .7rem;
+			color: var(--text);
+			text-decoration: none;
+			font-family: var(--display);
+			font-weight: 700;
+			letter-spacing: .12em;
+			font-size: .8rem;
+			text-transform: uppercase;
+			white-space: nowrap;
+		}
+
+		.brand:hover {
+			text-decoration: none;
+			color: var(--cyan);
+		}
+
+		.brand img {
+			width: 30px;
+			height: 30px;
+			display: block;
+		}
+
+		.top nav {
+			margin-left: auto;
+			display: flex;
+			align-items: center;
+			gap: 1.4rem;
+			font-family: var(--mono);
+			font-size: .82rem;
+			letter-spacing: .08em;
+			text-transform: uppercase;
+		}
+
+		.top nav a {
+			color: var(--dim);
+		}
+
+		.top nav a:hover {
+			color: var(--cyan);
+			text-decoration: none;
+		}
+
+		.top nav .ghost {
+			white-space: nowrap;
+			color: var(--text);
+			border: 1px solid var(--border);
+			padding: .35rem .8rem;
+			clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+		}
+
+		.top nav .ghost:hover {
+			border-color: var(--cyan);
+			color: var(--cyan);
+		}
+
+		@media (max-width: 720px) {
+			.top nav .hide-sm {
+				display: none;
+			}
+		}
+
+		@media (max-width: 430px) {
+			.brand {
+				font-size: .68rem;
+				letter-spacing: .08em;
+				gap: .5rem;
+			}
+
+			.brand img {
+				width: 26px;
+				height: 26px;
+			}
+
+			.kicker {
+				font-size: .7rem;
+				letter-spacing: .18em;
+			}
+
+			.lede {
+				font-size: 1.08rem;
+			}
+		}
+
+		/* ---- hero ---- */
+		.hero {
+			padding: 5.5rem 0 3.5rem;
+			position: relative;
+		}
+
+		.kicker {
+			font-family: var(--mono);
+			font-size: .82rem;
+			letter-spacing: .28em;
+			text-transform: uppercase;
+			color: var(--cyan);
+			margin: 0 0 1.2rem;
+			display: flex;
+			align-items: center;
+			gap: .7rem;
+		}
+
+		.kicker::before {
+			content: "";
+			width: 34px;
+			height: 1px;
+			background: var(--magenta);
+			box-shadow: 0 0 10px var(--magenta);
+		}
+
+		h1 {
+			font-family: var(--display);
+			font-weight: 900;
+			font-size: clamp(2.6rem, 8.5vw, 5.6rem);
+			line-height: .96;
+			letter-spacing: .02em;
+			margin: 0;
+			color: #eaf6ff;
+			text-shadow: 0 0 28px rgba(0, 240, 255, .28);
+		}
+
+		h1 .lo {
+			display: block;
+			color: var(--cyan);
+			text-shadow: 0 0 34px rgba(0, 240, 255, .5);
+		}
+
+		/* middle line is tracked out at roughly half the height, so the three
+		   lines end up about the same width whatever the viewport is */
+		h1 .ind {
+			display: block;
+			font-size: .42em;
+			letter-spacing: .155em;
+			color: #dfeaff;
+			margin: .18em 0 .1em;
+		}
+
+		h1 .at {
+			display: block;
+			color: var(--magenta);
+			text-shadow: 0 0 34px rgba(255, 42, 109, .45);
+		}
+
+		/* glitch layers on the wordmark */
+		.glitch {
+			position: relative;
+		}
+
+		.glitch::before,
+		.glitch::after {
+			content: attr(data-text);
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+			opacity: .55;
+		}
+
+		.glitch::before {
+			color: var(--magenta);
+			transform: translate(-2px, 0);
+			animation: gl1 5.5s infinite steps(1);
+		}
+
+		.glitch::after {
+			color: var(--cyan);
+			transform: translate(2px, 0);
+			animation: gl2 6.3s infinite steps(1);
+		}
+
+		@keyframes gl1 {
+
+			0%,
+			92%,
+			100% {
+				clip-path: inset(100% 0 0 0);
+			}
+
+			93% {
+				clip-path: inset(12% 0 62% 0);
+			}
+
+			95% {
+				clip-path: inset(58% 0 22% 0);
+			}
+
+			97% {
+				clip-path: inset(30% 0 48% 0);
+			}
+		}
+
+		@keyframes gl2 {
+
+			0%,
+			90%,
+			100% {
+				clip-path: inset(100% 0 0 0);
+			}
+
+			91% {
+				clip-path: inset(66% 0 12% 0);
+			}
+
+			94% {
+				clip-path: inset(22% 0 58% 0);
+			}
+
+			96% {
+				clip-path: inset(44% 0 34% 0);
+			}
+		}
+
+		.lede {
+			max-width: 46ch;
+			margin: 1.7rem 0 0;
+			font-size: 1.2rem;
+			color: #a8bce0;
+		}
+
+		.lede strong {
+			color: var(--text);
+			font-weight: 600;
+		}
+
+		.cta {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem;
+			margin-top: 2.3rem;
+		}
+
+		.btn {
+			--accent: var(--cyan);
+			display: inline-flex;
+			align-items: center;
+			gap: .7rem;
+			font-family: var(--mono);
+			font-size: .95rem;
+			letter-spacing: .14em;
+			text-transform: uppercase;
+			padding: .9rem 1.6rem;
+			color: var(--bg);
+			background: var(--accent);
+			border: 1px solid var(--accent);
+			clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+			transition: box-shadow .18s ease, transform .18s ease;
+		}
+
+		.btn:hover {
+			text-decoration: none;
+			box-shadow: 0 0 26px -4px var(--accent);
+			transform: translateY(-2px);
+		}
+
+		.btn.ghost {
+			background: transparent;
+			color: var(--accent);
+		}
+
+		.btn.ghost:hover {
+			background: rgba(0, 240, 255, .08);
+		}
+
+		.btn.magenta {
+			--accent: var(--magenta);
+		}
+
+		.hero-grid {
+			display: grid;
+			grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+			gap: 3.5rem;
+			align-items: center;
+		}
+
+		@media (max-width: 940px) {
+			.hero-grid {
+				grid-template-columns: 1fr;
+				gap: 2.5rem;
+			}
+
+			.hero {
+				padding-top: 3.5rem;
+			}
+		}
+
+		/* ---- terminal card ---- */
+		.term {
+			background: linear-gradient(180deg, rgba(14, 22, 38, .92), rgba(8, 13, 24, .92));
+			border: 1px solid var(--border);
+			box-shadow: 0 0 0 1px rgba(0, 240, 255, .06), 0 26px 70px -30px rgba(0, 240, 255, .55);
+			clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+		}
+
+		.term-bar {
+			display: flex;
+			align-items: center;
+			gap: .55rem;
+			padding: .6rem .95rem;
+			border-bottom: 1px solid var(--border);
+			font-family: var(--mono);
+			font-size: .74rem;
+			letter-spacing: .12em;
+			color: var(--dim);
+			text-transform: uppercase;
+		}
+
+		.dot {
+			width: 9px;
+			height: 9px;
+			border-radius: 50%;
+			background: var(--magenta);
+		}
+
+		.dot.c {
+			background: var(--yellow);
+		}
+
+		.dot.g {
+			background: var(--green);
+		}
+
+		.term-bar span {
+			margin-left: auto;
+		}
+
+		.term pre {
+			margin: 0;
+			padding: 1.1rem 1.2rem 1.3rem;
+			font-family: var(--mono);
+			font-size: .88rem;
+			line-height: 1.75;
+			color: #9fb4d8;
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+
+		.term .ok {
+			color: var(--green);
+		}
+
+		.term .k {
+			color: var(--cyan);
+		}
+
+		.term .m {
+			color: var(--magenta);
+		}
+
+		.term .y {
+			color: var(--yellow);
+		}
+
+		.cursor {
+			display: inline-block;
+			width: .55em;
+			height: 1em;
+			background: var(--green);
+			vertical-align: -.13em;
+			animation: blink 1.05s steps(1) infinite;
+		}
+
+		@keyframes blink {
+
+			0%,
+			50% {
+				opacity: 1;
+			}
+
+			51%,
+			100% {
+				opacity: 0;
+			}
+		}
+
+		/* ---- spec strip ---- */
+		.specs {
+			display: grid;
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+			gap: 1px;
+			background: var(--border);
+			border: 1px solid var(--border);
+			margin: 4rem 0 0;
+		}
+
+		.specs div {
+			background: var(--panel);
+			padding: 1.1rem 1.2rem;
+		}
+
+		.specs dt {
+			font-family: var(--mono);
+			font-size: .72rem;
+			letter-spacing: .18em;
+			text-transform: uppercase;
+			color: var(--dim);
+		}
+
+		.specs dd {
+			margin: .25rem 0 0;
+			font-family: var(--display);
+			font-weight: 700;
+			font-size: 1.05rem;
+			color: var(--cyan);
+		}
+
+		@media (max-width: 780px) {
+			.specs {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+		}
+
+		/* ---- sections ---- */
+		section {
+			padding: 5rem 0;
+		}
+
+		.sec-head {
+			margin-bottom: 2.6rem;
+		}
+
+		.sec-head h2 {
+			font-family: var(--display);
+			font-weight: 700;
+			font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+			letter-spacing: .04em;
+			margin: .4rem 0 .5rem;
+			color: #e6f2ff;
+		}
+
+		.sec-head p {
+			margin: 0;
+			color: var(--dim);
+			max-width: 62ch;
+		}
+
+		.tag {
+			font-family: var(--mono);
+			font-size: .76rem;
+			letter-spacing: .26em;
+			text-transform: uppercase;
+			color: var(--magenta);
+		}
+
+		hr.rule {
+			border: 0;
+			height: 1px;
+			background: linear-gradient(90deg, var(--cyan), transparent 70%);
+			opacity: .4;
+			margin: 0;
+		}
+
+		/* ---- feature cards ---- */
+		.cards {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+			gap: 1.2rem;
+		}
+
+		.card {
+			position: relative;
+			background: linear-gradient(180deg, rgba(14, 22, 38, .8), rgba(10, 16, 30, .8));
+			border: 1px solid var(--border);
+			padding: 1.5rem 1.4rem 1.6rem;
+			clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+			transition: border-color .18s ease, transform .18s ease;
+		}
+
+		.card:hover {
+			border-color: rgba(0, 240, 255, .5);
+			transform: translateY(-3px);
+		}
+
+		.card .num {
+			font-family: var(--mono);
+			font-size: .74rem;
+			letter-spacing: .2em;
+			color: var(--magenta);
+		}
+
+		.card h3 {
+			font-family: var(--display);
+			font-weight: 700;
+			font-size: 1.02rem;
+			letter-spacing: .03em;
+			margin: .55rem 0 .5rem;
+			color: #e6f2ff;
+		}
+
+		.card p {
+			margin: 0;
+			font-size: .98rem;
+			color: #9fb0d2;
+		}
+
+		/* ---- gallery ---- */
+		.shots {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+			gap: 1.2rem;
+		}
+
+		figure.shot {
+			margin: 0;
+			border: 1px solid var(--border);
+			background: var(--panel);
+			overflow: hidden;
+			clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+		}
+
+		figure.shot img {
+			display: block;
+			width: 100%;
+			height: 240px;
+			object-fit: cover;
+			object-position: top center;
+			filter: saturate(1.05);
+		}
+
+		figure.shot figcaption {
+			font-family: var(--mono);
+			font-size: .78rem;
+			letter-spacing: .16em;
+			text-transform: uppercase;
+			color: var(--dim);
+			padding: .6rem .9rem .7rem;
+			border-top: 1px solid var(--border);
+		}
+
+		/* ---- hardware split ---- */
+		.split {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			gap: 3rem;
+			align-items: center;
+		}
+
+		@media (max-width: 900px) {
+			.split {
+				grid-template-columns: 1fr;
+				gap: 2rem;
+			}
+		}
+
+		.split img {
+			width: 100%;
+			display: block;
+			border: 1px solid var(--border);
+			clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+		}
+
+		ul.ticks {
+			list-style: none;
+			padding: 0;
+			margin: 1.5rem 0 0;
+		}
+
+		ul.ticks li {
+			position: relative;
+			padding-left: 1.6rem;
+			margin-bottom: .6rem;
+			color: #a8bce0;
+		}
+
+		ul.ticks li::before {
+			content: "";
+			position: absolute;
+			left: 0;
+			top: .62em;
+			width: 9px;
+			height: 9px;
+			background: var(--cyan);
+			box-shadow: 0 0 9px var(--cyan);
+			clip-path: polygon(0 0, 100% 0, 100% 60%, 60% 100%, 0 100%);
+		}
+
+		/* ---- demo banner block ---- */
+		.launch {
+			position: relative;
+			border: 1px solid rgba(0, 240, 255, .35);
+			background:
+				linear-gradient(120deg, rgba(255, 42, 109, .12), transparent 45%),
+				linear-gradient(180deg, rgba(14, 22, 38, .95), rgba(8, 13, 24, .95));
+			padding: 2.6rem 2rem;
+			text-align: center;
+			clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px);
+		}
+
+		.launch h2 {
+			font-family: var(--display);
+			font-weight: 900;
+			font-size: clamp(1.4rem, 4vw, 2.2rem);
+			margin: .3rem 0 .6rem;
+			color: #eaf6ff;
+		}
+
+		.launch p {
+			margin: 0 auto;
+			max-width: 54ch;
+			color: #9fb0d2;
+		}
+
+		.launch .cta {
+			justify-content: center;
+			margin-top: 2rem;
+		}
+
+		/* ---- footer ---- */
+		footer {
+			border-top: 1px solid var(--border);
+			padding: 2.6rem 0 3.4rem;
+			font-family: var(--mono);
+			font-size: .82rem;
+			color: var(--dim);
+		}
+
+		footer .wrap {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem 2rem;
+			align-items: center;
+		}
+
+		footer .right {
+			margin-left: auto;
+			display: flex;
+			gap: 1.4rem;
+			flex-wrap: wrap;
+		}
+
+		.note {
+			font-family: var(--body);
+			font-size: .98rem;
+			color: var(--dim);
+			border-left: 2px solid var(--magenta);
+			padding-left: 1rem;
+			margin: 2.4rem 0 0;
+			max-width: 70ch;
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+
+			html {
+				scroll-behavior: auto;
+			}
+
+			.glitch::before,
+			.glitch::after,
+			.cursor {
+				animation: none;
+			}
+
+			.glitch::before,
+			.glitch::after {
+				display: none;
+			}
+
+			.btn:hover,
+			.card:hover {
+				transform: none;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<div class="bg"></div>
+	<div class="scan"></div>
+
+	<header class="top">
+		<div class="wrap">
+			<a class="brand" href="#top"><img src="logo.svg" alt="">LEO INDUSTRIES AT-1</a>
+			<nav>
+				<a class="hide-sm" href="#features">Features</a>
+				<a class="hide-sm" href="#themes">Themes</a>
+				<a class="hide-sm" href="#hardware">Hardware</a>
+				<a class="ghost" href="https://github.com/fhirschmann/leoino">GitHub ↗</a>
+			</nav>
+		</div>
+	</header>
+
+	<main id="top">
+		<div class="wrap hero">
+			<div class="hero-grid">
+				<div>
+					<p class="kicker">RFID Audio Player :: ESP32 :: Cyberpunk Edition</p>
+					<h1><span class="lo glitch" data-text="LEO">LEO</span><span class="ind glitch"
+							data-text="INDUSTRIES">INDUSTRIES</span><span class="at glitch" data-text="AT-1">AT-1</span></h1>
+					<p class="lede">A hand-built RFID audio player for kids — <strong>ESP32 firmware</strong>,
+						<strong>PN5180 RFID</strong>, and a web interface rebuilt from the ground up in neon.
+						A private fork of ESPuino.
+					</p>
+					<div class="cta">
+						<a class="btn" href="demo/">▶ Launch live demo</a>
+						<a class="btn ghost magenta" href="https://github.com/fhirschmann/leoino">Source on GitHub</a>
+					</div>
+				</div>
+
+				<div class="term" aria-hidden="true">
+					<div class="term-bar">
+						<i class="dot"></i><i class="dot c"></i><i class="dot g"></i>
+						<span>at1@leoino :: serial 115200</span>
+					</div>
+					<pre><span class="k">[boot]</span>  LEO INDUSTRIES AT-1
+<span class="k">[wifi]</span>  connected  <span class="ok">ok</span>
+<span class="k">[sd  ]</span>  mounted    <span class="ok">ok</span>
+<span class="k">[rfid]</span>  PN5180     <span class="ok">ok</span>
+<span class="k">[web ]</span>  http://leoino.local
+<span class="m">[tag ]</span>  0455-2130-6B80
+<span class="y">[play]</span>  /Music/Bibi Blocksberg
+        [#########-----]  04:12 / 07:38
+<span class="ok">[ok  ]</span>  have fun <span class="cursor"></span></pre>
+				</div>
+			</div>
+
+			<dl class="specs">
+				<div>
+					<dt>Interface</dt>
+					<dd>6 themes</dd>
+				</div>
+				<div>
+					<dt>Languages</dt>
+					<dd>DE / EN / FR</dd>
+				</div>
+				<div>
+					<dt>Control</dt>
+					<dd>RFID · IR · MQTT</dd>
+				</div>
+				<div>
+					<dt>Enclosure</dt>
+					<dd>Printable STL</dd>
+				</div>
+			</dl>
+		</div>
+
+		<section id="features">
+			<div class="wrap">
+				<div class="sec-head">
+					<hr class="rule">
+					<p class="tag" style="margin-top:1rem">// Highlights</p>
+					<h2>What this fork adds</h2>
+					<p>The features that stand out most against stock ESPuino. The full, commit-by-commit list
+						lives in the repository README.</p>
+				</div>
+				<div class="cards">
+					<article class="card">
+						<div class="num">01</div>
+						<h3>Cyberpunk web interface</h3>
+						<p>Management and access-point pages rebuilt in neon, with six switchable looks — from
+							Cyberpunk to kid-friendly Waldhaus, Wölkchen, Pixelheld, Robo and Kreidetafel.</p>
+					</article>
+					<article class="card">
+						<div class="num">02</div>
+						<h3>Fully offline &amp; installable</h3>
+						<p>Every library and font is vendored and served gzipped straight off the ESP32. No CDN,
+							no internet — and it installs as a PWA.</p>
+					</article>
+					<article class="card">
+						<div class="num">03</div>
+						<h3>RFID that keeps up</h3>
+						<p>Presence detection, SLIX2 support, learn-mode straight from the browser and resume
+							positions that survive a reboot.</p>
+					</article>
+					<article class="card">
+						<div class="num">04</div>
+						<h3>Apple HomeKit</h3>
+						<p>The player shows up as a native HomeKit accessory — pair it with a QR code and control
+							it from the Home app or Siri.</p>
+					</article>
+					<article class="card">
+						<div class="num">05</div>
+						<h3>Backup &amp; sync</h3>
+						<p>Export and restore the whole configuration, sync RFID assignments between devices, and
+							keep listening statistics per tag.</p>
+					</article>
+					<article class="card">
+						<div class="num">06</div>
+						<h3>Equalizer &amp; per-path rules</h3>
+						<p>A real EQ with rules that stick to a folder, so the loud audiobook and the quiet radio
+							play stay at the same level.</p>
+					</article>
+				</div>
+			</div>
+		</section>
+
+		<section id="themes" style="padding-top:1rem">
+			<div class="wrap">
+				<div class="sec-head">
+					<hr class="rule">
+					<p class="tag" style="margin-top:1rem">// Themes</p>
+					<h2>Six looks, one interface</h2>
+					<p>The theme is remembered per browser — neon for the workshop, something softer for the
+						kids' tablet.</p>
+				</div>
+				<div class="shots">
+					<figure class="shot"><img src="img/theme-cyberpunk.png" alt="Cyberpunk theme" loading="lazy">
+						<figcaption>Cyberpunk</figcaption>
+					</figure>
+					<figure class="shot"><img src="img/theme-waldhaus.png" alt="Waldhaus theme" loading="lazy">
+						<figcaption>Waldhaus</figcaption>
+					</figure>
+					<figure class="shot"><img src="img/theme-wolkchen.png" alt="Wölkchen theme" loading="lazy">
+						<figcaption>Wölkchen</figcaption>
+					</figure>
+					<figure class="shot"><img src="img/theme-pixelheld.png" alt="Pixelheld theme" loading="lazy">
+						<figcaption>Pixelheld</figcaption>
+					</figure>
+					<figure class="shot"><img src="img/theme-robo.png" alt="Robo theme" loading="lazy">
+						<figcaption>Robo</figcaption>
+					</figure>
+					<figure class="shot"><img src="img/theme-kreidetafel.png" alt="Kreidetafel theme" loading="lazy">
+						<figcaption>Kreidetafel</figcaption>
+					</figure>
+				</div>
+			</div>
+		</section>
+
+		<section id="hardware" style="padding-top:1rem">
+			<div class="wrap">
+				<div class="sec-head">
+					<hr class="rule">
+					<p class="tag" style="margin-top:1rem">// Hardware</p>
+					<h2>The box it lives in</h2>
+				</div>
+				<div class="split">
+					<img src="img/at1-front.jpg" alt="The AT-1 player, front view" loading="lazy">
+					<div>
+						<p style="margin-top:0">The enclosure was drawn by hand in CAD — no AI involved — and prints
+							on any FDM machine. RFID cartridges snap onto the top plate and start a playlist the
+							moment they touch down.</p>
+						<ul class="ticks">
+							<li>ESP32 with PN5180 RFID reader and an SH1106 OLED</li>
+							<li>Rotary encoder, mechanical keycaps, Neopixel ring</li>
+							<li>Battery powered with a real-time clock for wake-ups</li>
+							<li>Printable STL files for case, panels, handle and cartridges</li>
+						</ul>
+						<div class="cta" style="margin-top:1.8rem">
+							<a class="btn ghost" href="https://github.com/fhirschmann/leoino/tree/master/stl">Get the STLs</a>
+						</div>
+					</div>
+				</div>
+				<p class="note"><strong>Full disclosure:</strong> the firmware and web interface in this fork are
+					largely vibe-coded (AI-assisted). The hardware is not.</p>
+			</div>
+		</section>
+
+		<section style="padding-top:1rem">
+			<div class="wrap">
+				<div class="launch">
+					<p class="tag">// No hardware required</p>
+					<h2>Try the whole interface in your browser</h2>
+					<p>A device-free build of the management page with a mocked WebSocket and REST layer — browse
+						the file tree, assign tags, flip themes, poke at every setting. Nothing you click leaves
+						your browser.</p>
+					<div class="cta">
+						<a class="btn" href="demo/">▶ Launch live demo</a>
+						<a class="btn ghost" href="https://github.com/fhirschmann/leoino#readme">Read the docs</a>
+					</div>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<footer>
+		<div class="wrap">
+			<span>LEO INDUSTRIES AT-1 // GPL-3.0</span>
+			<span class="right">
+				<a href="https://github.com/fhirschmann/leoino">Repository</a>
+				<a href="demo/">Demo</a>
+				<a href="https://github.com/biologist79/ESPuino">Upstream: ESPuino</a>
+			</span>
+		</div>
+	</footer>
+</body>
+
+</html>

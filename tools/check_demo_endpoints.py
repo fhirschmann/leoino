@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard against GitHub-Pages demo drift.
 
-The browser demo (https://fhirschmann.github.io/leoino/) ships a mock REST/WebSocket layer in
+The browser demo (https://fhirschmann.github.io/leoino/demo/) ships a mock REST/WebSocket layer in
 tools/demo/demo-mock.js. Whenever a new HTTP endpoint is added to the firmware but not to the mock,
 the demo silently breaks for that feature. This check compares the endpoints registered in
 src/Web*.cpp against what the mock answers, and fails if a firmware endpoint is neither mocked nor

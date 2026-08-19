@@ -2,7 +2,7 @@ name: Demo-mock endpoint check
 
 # Fails if a firmware HTTP endpoint (src/Web*.cpp) is added without a matching handler in the
 # GitHub-Pages demo mock (tools/demo/demo-mock.js) or an explicit allow-list entry, so the live
-# demo (https://fhirschmann.github.io/leoino/) can't silently break.
+# demo (https://fhirschmann.github.io/leoino/demo/) can't silently break.
 
 on:
   push:

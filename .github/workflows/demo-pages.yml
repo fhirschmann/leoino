@@ -1,14 +1,16 @@
-name: Deploy Web-UI demo to GitHub Pages
+name: Deploy project page + Web-UI demo to GitHub Pages
 
-# Builds a self-contained, device-free demo of the management web interface
-# (mock WebSocket + REST, copyright-free content) and publishes it to GitHub
-# Pages so the UI can be tried out in the browser without any hardware.
+# Builds the GitHub-Pages site: the project landing page at the root and, under
+# /demo/, a self-contained device-free build of the management web interface
+# (mock WebSocket + REST, copyright-free content) so the UI can be tried out in
+# the browser without any hardware.
 
 on:
   push:
     branches: [master]
     paths:
       - "html/**"
+      - "docs/img/**"
       - "tools/demo/**"
       - "tools/build_demo.py"
       - ".github/workflows/demo-pages.yml"
@@ -32,7 +34,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
-      - name: Build demo
+      - name: Build site
         run: python3 tools/build_demo.py demo_dist
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

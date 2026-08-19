@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Build a self-contained ESPuino Web-UI demo for GitHub Pages.
+"""Build the GitHub-Pages site: landing page + self-contained Web-UI demo.
 
-Takes the regular firmware UI in ``html/`` and turns it into a static
-site that needs no ESP32: a mock layer (``tools/demo/demo-mock.js``)
+The published site has two parts:
+
+  ``/``      the project landing page (``tools/demo/landing.html``)
+  ``/demo/`` a device-free build of the management UI
+
+The demo takes the regular firmware UI in ``html/`` and turns it into a
+static site that needs no ESP32: a mock layer (``tools/demo/demo-mock.js``)
 fakes the WebSocket and every REST endpoint. The result is written to an
 output directory (default ``demo_dist/``) that can be published as the
 Pages artifact.
@@ -10,7 +15,7 @@ Pages artifact.
 Transformations applied to ``management.html`` -> ``index.html``:
   * absolute asset paths (``/css``, ``/js``, ``/logo.svg`` ...) are made
     document-relative so the site works from a project sub-path
-    (``user.github.io/leoino/``);
+    (``user.github.io/leoino/demo/``);
   * the service worker is disabled (it caches device endpoints);
   * the cover-image URL is pointed at the bundled demo SVG;
   * the mock script is injected first in <head>;
@@ -25,6 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 HTML = ROOT / "html"
+DOCS_IMG = ROOT / "docs" / "img"
 DEMO = ROOT / "tools" / "demo"
 
 # Static asset trees/files copied verbatim from html/ into the demo.
@@ -35,6 +41,26 @@ COPY_ITEMS = [
 
 # Extra demo-only assets.
 DEMO_ASSETS = ["demo-mock.js", "demo-cover.svg", "demo-homekit-qr.svg", "demo.css"]
+
+# Sub-directory of the published site the device-free UI demo lives in.
+DEMO_SUBDIR = "demo"
+
+# Fonts the landing page declares itself (@font-face with relative paths), copied
+# out of html/fonts/ so the site stays free of any external request.
+LANDING_FONTS = [
+    "orbitron-500-latin-yMJRMIlzdpvBhQQL_Qq7dy0.woff2",
+    "rajdhani-400-latin-LDIxapCSOBg7S-QT7p4HM-Y.woff2",
+    "rajdhani-600-latin-LDI2apCSOBg7S-QT7pbYF_Oreec.woff2",
+    "rajdhani-700-latin-LDI2apCSOBg7S-QT7pa8FvOreec.woff2",
+    "sharetechmono-400-latin-J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2",
+]
+
+# Screenshots/photos the landing page shows, copied from docs/img/ into img/.
+LANDING_IMAGES = [
+    "theme-cyberpunk.png", "theme-waldhaus.png", "theme-wolkchen.png",
+    "theme-pixelheld.png", "theme-robo.png", "theme-kreidetafel.png",
+    "at1-front.jpg",
+]
 
 
 def transform_html(src: str) -> str:
@@ -49,6 +75,7 @@ def transform_html(src: str) -> str:
         'href="/css/vendor.min.css"': 'href="css/vendor.min.css"',
         'src="/js/vendor.min.js"': 'src="js/vendor.min.js"',
         'src="/logo"': 'src="logo.svg"',
+        'src="/cover"': 'src="demo-cover.svg"',
     }
     for a, b in replacements.items():
         out = out.replace(a, b)
@@ -81,6 +108,7 @@ def transform_html(src: str) -> str:
         '\n\t<div id="demoBanner">\n'
         '\t\t<span class="demo-pill" data-i18n="demo.label">DEMO</span>\n'
         '\t\t<span data-i18n="demo.text">Statische Vorschau des ESPuino-Webinterface &ndash; kein Gerät verbunden, Aktionen ohne Wirkung.</span>\n'
+        '\t\t<a href="../" data-i18n="demo.back">Zur Projektseite</a>\n'
         '\t\t<a href="https://github.com/fhirschmann/leoino" target="_blank" rel="noopener" data-i18n="demo.link">Projekt auf GitHub</a>\n'
         '\t</div>\n'
     )
@@ -89,13 +117,30 @@ def transform_html(src: str) -> str:
     return out
 
 
-def main() -> int:
-    out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "demo_dist"
-    out_dir = out_dir.resolve()
+def build_landing(out_dir: Path) -> None:
+    """Write the project landing page and its assets into the site root."""
+    shutil.copy2(HTML / "logo.svg", out_dir / "logo.svg")
 
-    if out_dir.exists():
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True)
+    fonts_dir = out_dir / "fonts"
+    fonts_dir.mkdir(exist_ok=True)
+    for name in LANDING_FONTS:
+        shutil.copy2(HTML / "fonts" / name, fonts_dir / name)
+
+    img_dir = out_dir / "img"
+    img_dir.mkdir(exist_ok=True)
+    for name in LANDING_IMAGES:
+        src = DOCS_IMG / name
+        if not src.exists():
+            print(f"  skip (missing image): {name}")
+            continue
+        shutil.copy2(src, img_dir / name)
+
+    shutil.copy2(DEMO / "landing.html", out_dir / "index.html")
+
+
+def build_demo(out_dir: Path) -> None:
+    """Write the device-free management-UI demo into ``out_dir``."""
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     # copy static assets
     for item in COPY_ITEMS:
@@ -109,16 +154,17 @@ def main() -> int:
         else:
             shutil.copy2(src, dst)
 
-    # The bundled CSS references fonts with absolute paths (url(/webfonts/...),
-    # url(/fonts/...)) which 404 on a project sub-path (user.github.io/leoino/).
-    # Rewrite them relative to the css/ folder so the icons + fonts load.
+    # The bundled CSS references assets from the server root (url(/webfonts/...),
+    # url("/jstree/..."), ...) which 404 on a project sub-path such as
+    # user.github.io/leoino/demo/. Every one of those trees is a sibling of css/,
+    # so rewriting the leading slash to ../ makes icons, fonts and the jstree
+    # sprites load. data: URIs keep their own scheme and are left alone.
     css_dir = out_dir / "css"
     if css_dir.is_dir():
+        root_url = re.compile(r'url\((["\']?)/')
         for css in css_dir.glob("*.css"):
             text = css.read_text(encoding="utf-8")
-            text = text.replace("url(/webfonts/", "url(../webfonts/")
-            text = text.replace("url(/fonts/", "url(../fonts/")
-            css.write_text(text, encoding="utf-8")
+            css.write_text(root_url.sub(r"url(\1../", text), encoding="utf-8")
 
     # demo-only assets
     for item in DEMO_ASSETS:
@@ -128,10 +174,24 @@ def main() -> int:
     html = (HTML / "management.html").read_text(encoding="utf-8")
     (out_dir / "index.html").write_text(transform_html(html), encoding="utf-8")
 
+
+def main() -> int:
+    out_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "demo_dist"
+    out_dir = out_dir.resolve()
+
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True)
+
+    build_landing(out_dir)
+    build_demo(out_dir / DEMO_SUBDIR)
+
     # disable Jekyll so files/dirs starting with "_" are served untouched
     (out_dir / ".nojekyll").write_text("", encoding="utf-8")
 
-    print(f"Demo built -> {out_dir}")
+    print(f"Site built -> {out_dir}")
+    print(f"  landing page : {out_dir / 'index.html'}")
+    print(f"  Web-UI demo  : {out_dir / DEMO_SUBDIR / 'index.html'}")
     return 0
 
 

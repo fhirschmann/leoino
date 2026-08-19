@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/License-GPL--3.0-ff2a6d?style=flat-square&labelColor=05070d)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-ESP32%20%2B%20PN5180-0e7490?style=flat-square&labelColor=05070d)](platformio.ini)
 
-<a href="https://fhirschmann.github.io/leoino/"><img src="docs/img/demo-button.svg" alt="▶ Launch the live web demo — runs in your browser, no hardware needed" width="380"></a>
+<a href="https://fhirschmann.github.io/leoino/demo/"><img src="docs/img/demo-button.svg" alt="▶ Launch the live web demo — runs in your browser, no hardware needed" width="380"></a>
 
 </div>
 
@@ -39,7 +39,7 @@ commit-by-commit list lives further down under
   straight to the matching control.
 - ⚡ **Fully offline & installable** — all libs and fonts vendored and served gzipped from
   flash, so the UI loads fast and works without internet (incl. AP mode); installable as a PWA.
-- ▶️ **Try it with no hardware** — a [live browser demo](https://fhirschmann.github.io/leoino/)
+- ▶️ **Try it with no hardware** — a [live browser demo](https://fhirschmann.github.io/leoino/demo/)
   of the real management page on GitHub Pages, auto-deployed on every push.
 - 📺 **OLED display** — optional 128×64 SH1106/SSD1306 screen: boot splash, idle screen with
   IP + clock + battery, scrolling now-playing title (with the **ID3 artist**) and a
@@ -146,9 +146,9 @@ Try the web interface in your browser — **no hardware required**:
 
 <div align="center">
 
-<a href="https://fhirschmann.github.io/leoino/"><img src="docs/img/demo-button.svg" alt="▶ Launch the live web demo — runs in your browser, no hardware needed" width="380"></a>
+<a href="https://fhirschmann.github.io/leoino/demo/"><img src="docs/img/demo-button.svg" alt="▶ Launch the live web demo — runs in your browser, no hardware needed" width="380"></a>
 
-<sub>↗ opens <strong>fhirschmann.github.io/leoino</strong></sub>
+<sub>↗ opens <strong>fhirschmann.github.io/leoino/demo</strong></sub>
 
 </div>
 
@@ -204,7 +204,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | **Selectable UI themes** (menu → 🎨): switch the whole interface between the default **Cyberpunk** look and five kid-friendly designs — **Waldhaus** (cosy cream/forest, rounded), **Wölkchen** (soft marshmallow pastel), **Pixelheld** (dark 8-bit retro: squared corners, monospace, lime/pink), **Robo** (dark steel robot panel: aqua/orange, monospace) and **Kreidetafel** (a dark slate chalkboard drawn on in chalk: handwritten font, wobbly hand-sketched borders and boxless tabs with a hand-drawn underline). Each theme carries its own shape/typography "family" (neon / playful / pixel / chalk) and pins its colour mode (Cyberpunk stays dark/light-togglable, the bright ones pin light, the dark retro ones pin dark). Themes are a pure client-side CSS-variable + family swap (zero extra load on the ESP32 — the device still serves one static page) and the choice is remembered per browser in `localStorage` | [`6bb0097`](../../commit/6bb0097) · [`32a4d9b`](../../commit/32a4d9b) |
 | **Fully offline web interface**: all third-party libs + fonts are vendored and served gzipped from flash (one JS + one CSS bundle), so the UI loads fast and works without internet (incl. AP mode) — fixes the ~2-min first-load hang and the browser stalls caused by too many parallel requests to the ESP32. Font Awesome is reproducibly subsetted to the 88 icon classes the UI actually uses: its three main fonts shrink from 300 KB to 12 KB and unused icon mappings are removed from the CSS, cutting the initial CSS + icon-font transfer by about 307 KB (84%). While the HTTP server is available, WiFi modem-sleep stays off: otherwise the first TCP handshake after boot/idle can stall before its request reaches the code intended to wake WiFi. The normal inactivity deep-sleep still provides the battery-saving idle state | [`c618191`](../../commit/c618191) · [`bug fix`](../../commits/master) · [`performance`](../../commits/master) |
 | **PWA**: installable web-app manifest + icon ("add to home screen"), plus an offline fallback page with auto-reconnect when launched while the player is powered off | [`b4287b9`](../../commit/b4287b9) · [`bd07a7c`](../../commit/bd07a7c) |
-| **Browser demo on GitHub Pages** ([live](https://fhirschmann.github.io/leoino/)): a device-free static build of the management page with a mock WebSocket/REST layer and copyright-free content, auto-deployed on every push so the UI can be tried without hardware. A CI check (`tools/check_demo_endpoints.py`) fails the build if a new firmware HTTP endpoint is added without a matching demo-mock handler (or an explicit allow-list entry), so the demo can't silently break | [`8bf93da`](../../commit/8bf93da) |
+| **Project page + browser demo on GitHub Pages** ([live](https://fhirschmann.github.io/leoino/)): a cyberpunk landing page at the site root and, under [`/demo/`](https://fhirschmann.github.io/leoino/demo/), a device-free static build of the management page with a mock WebSocket/REST layer and copyright-free content, auto-deployed on every push so the UI can be tried without hardware. A CI check (`tools/check_demo_endpoints.py`) fails the build if a new firmware HTTP endpoint is added without a matching demo-mock handler (or an explicit allow-list entry), so the demo can't silently break | [`8bf93da`](../../commit/8bf93da) |
 | **Consolidated, auto-saving Settings tab**: WiFi/MQTT/FTP/Bluetooth merged with the general settings into one tab; the sub-tabs are a **vertical UniFi-style sidebar** (icon-only on mobile; stays pinned while scrolling) with flat, consistent sections, split into General / **Buttons** / **LEDs** / **Power** / **RFID** / … . General/Buttons/LEDs/Power/RFID auto-save (debounced); the credential tabs keep an explicit submit on purpose | [`8b01876`](../../commit/8b01876) · [`1944cf4`](../../commit/1944cf4) · [`c284d0e`](../../commit/c284d0e) · [`32aabfd`](../../commit/32aabfd) |
 | **Configurable branding**: re-brand the navbar header *and* footer from a single **Brand name** field (General → Branding) with a live preview as you type — empty keeps the "Leo Industries" default, so the fork is easy to re-brand | [`fd57fcb`](../../commit/fd57fcb) |
 | **Tools tab as a left-nav sidebar**: the Tools tab now uses the same **vertical UniFi-style sidebar** as Settings — Command / File sync / RFID sync / NVS / EQ rules / Backup / Firmware are individual sub-panes (icon-only on mobile, pinned while scrolling) instead of one long stacked scroll | [`dd3b4d7`](../../commit/dd3b4d7) |
