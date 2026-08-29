@@ -24,8 +24,7 @@ uint8_t Port_ExpanderPortsInputChannelStatus[2];
 static uint8_t Port_ExpanderPortsOutputChannelStatus[2]; // Stores current configuration of output-channels locally
 void Port_ExpanderHandler(void);
 uint8_t Port_ChannelToBit(const uint8_t _channel);
-void Port_WriteInitMaskForOutputChannels(void);
-void Port_Test(void);
+bool Port_WriteInitMaskForOutputChannels(void);
 
 	#if (PE_INTERRUPT_PIN >= 0 && PE_INTERRUPT_PIN <= MAX_GPIO)
 		#define PE_INTERRUPT_PIN_ENABLE
@@ -34,10 +33,30 @@ volatile bool Port_AllowReadFromPortExpander = false;
 	#endif
 #endif
 
-void Port_Init(void) {
+bool Port_Init(void) {
 #ifdef PORT_EXPANDER_ENABLE
-	Port_Test();
-	Port_WriteInitMaskForOutputChannels();
+	// On the complete board the PCA9555 controls the switched peripheral rail. An external I2C
+	// breakout must not pull SDA/SCL up to that initially-off rail: a load on the rail can otherwise
+	// hold the bus down and create a hardware startup deadlock. Even with correct wiring, use the
+	// first available I2C window to force the active-low peripheral gate OFF. Avoid a separate
+	// probe/read here so the output latch reaches a defined state as early as possible.
+	constexpr uint32_t portExpanderStartupTimeoutMs = 2000;
+	constexpr uint32_t portExpanderRetryDelayMs = 50;
+	const uint32_t startedAt = millis();
+	bool ready = false;
+	do {
+		if (Port_WriteInitMaskForOutputChannels()) {
+			ready = true;
+			break;
+		}
+		delay(portExpanderRetryDelayMs);
+	} while (millis() - startedAt < portExpanderStartupTimeoutMs);
+
+	if (!ready) {
+		Log_Println(portExpanderNotFound, LOGLEVEL_ERROR);
+		return false;
+	}
+	Log_Println(portExpanderFound, LOGLEVEL_NOTICE);
 #endif
 
 #ifdef PE_INTERRUPT_PIN_ENABLE
@@ -50,6 +69,7 @@ void Port_Init(void) {
 	Port_AllowReadFromPortExpander = true;
 	Port_ExpanderHandler();
 #endif
+	return true;
 }
 
 void Port_Cyclic(void) {
@@ -81,7 +101,7 @@ bool Port_Read(const uint8_t _channel) {
 
 // Configures OUTPUT-mode for GPIOs (non port-expander)
 // Output-mode for port-channels is done via Port_WriteInitMaskForOutputChannels()
-void Port_Write(const uint8_t _channel, const bool _newState, const bool _initGpio) {
+bool Port_Write(const uint8_t _channel, const bool _newState, const bool _initGpio) {
 #ifdef GPIO_PA_EN
 	if (_channel == GPIO_PA_EN) {
 		if (_newState) {
@@ -112,7 +132,7 @@ void Port_Write(const uint8_t _channel, const bool _newState, const bool _initGp
 	switch (_channel) {
 		case 0 ... MAX_GPIO: { // GPIO
 			digitalWrite(_channel, _newState);
-			break;
+			return true;
 		}
 
 #ifdef PORT_EXPANDER_ENABLE
@@ -122,31 +142,30 @@ void Port_Write(const uint8_t _channel, const bool _newState, const bool _initGp
 				portOffset = 1;
 			}
 
-			uint8_t newPortBitmask;
-
 			I2cBusTwo_Lock();
 			// Snapshot the shared output-state cache INSIDE the lock so the read-modify-write can't
 			// race another writer (recursive mutex, so nested callers are still fine).
-			uint8_t oldPortBitmask = Port_ExpanderPortsOutputChannelStatus[portOffset];
+			uint8_t newPortStatus[2] = {Port_ExpanderPortsOutputChannelStatus[0], Port_ExpanderPortsOutputChannelStatus[1]};
 			i2cBusTwo.beginTransmission(expanderI2cAddress);
 			i2cBusTwo.write(0x02); // Pointer to output configuration-register
 			if (_newState) {
-				newPortBitmask = (oldPortBitmask | (1 << Port_ChannelToBit(_channel)));
-				Port_ExpanderPortsOutputChannelStatus[portOffset] = newPortBitmask; // Write back new status
+				newPortStatus[portOffset] |= (1 << Port_ChannelToBit(_channel));
 			} else {
-				newPortBitmask = (oldPortBitmask & ~(1 << Port_ChannelToBit(_channel)));
-				Port_ExpanderPortsOutputChannelStatus[portOffset] = newPortBitmask; // Write back new status
+				newPortStatus[portOffset] &= ~(1 << Port_ChannelToBit(_channel));
 			}
-			i2cBusTwo.write(Port_ExpanderPortsOutputChannelStatus[0]);
-			i2cBusTwo.write(Port_ExpanderPortsOutputChannelStatus[1]);
-			i2cBusTwo.endTransmission();
+			i2cBusTwo.write(newPortStatus, sizeof(newPortStatus));
+			const bool written = (i2cBusTwo.endTransmission() == 0);
+			if (written) {
+				Port_ExpanderPortsOutputChannelStatus[0] = newPortStatus[0];
+				Port_ExpanderPortsOutputChannelStatus[1] = newPortStatus[1];
+			}
 			I2cBusTwo_Unlock();
-			break;
+			return written;
 		}
 #endif
 
 		default: {
-			break;
+			return false;
 		}
 	}
 }
@@ -175,22 +194,17 @@ static inline void Port_MarkOutput(uint8_t ch, uint8_t (&inout)[2]) {
 // Writes initial port-configuration (I/O) for port-expander PCA9555
 // If no output-channel is necessary, nothing has to be configured as all channels are in input-mode as per default (255)
 // So every bit representing an output-channel needs to be set to 0.
-void Port_WriteInitMaskForOutputChannels(void) {
+bool Port_WriteInitMaskForOutputChannels(void) {
 	const uint8_t portBaseValueBitMask = 255;
 	const uint8_t portsToWrite = 2;
 	uint8_t OutputBitMaskInOutAsPerPort[portsToWrite] = {portBaseValueBitMask, portBaseValueBitMask}; // 255 => all channels set to input; [0]: port0, [1]: port1
 
-	// init status cache with values from HW
+	// At PCA9555 power-on all pins are inputs, so output-latch contents cannot affect the pins until
+	// the direction transaction below. Build the complete known-safe output image locally instead
+	// of spending the first usable cold-start I2C window on a register read.
 	I2cBusTwo_Lock();
-	i2cBusTwo.beginTransmission(expanderI2cAddress);
-	i2cBusTwo.write(0x02); // Pointer to first output-register
-	i2cBusTwo.endTransmission(false);
-	i2cBusTwo.requestFrom(expanderI2cAddress, static_cast<size_t>(portsToWrite), true); // ...and read the contents
-	if (i2cBusTwo.available() == portsToWrite) {
-		for (uint8_t i = 0; i < portsToWrite; i++) {
-			Port_ExpanderPortsOutputChannelStatus[i] = i2cBusTwo.read();
-		}
-	}
+	Port_ExpanderPortsOutputChannelStatus[0] = portBaseValueBitMask;
+	Port_ExpanderPortsOutputChannelStatus[1] = portBaseValueBitMask;
 
 	#ifdef GPIO_PA_EN // Set as output to enable/disable amp for loudspeaker
 	Port_MarkOutput(GPIO_PA_EN, OutputBitMaskInOutAsPerPort);
@@ -210,9 +224,33 @@ void Port_WriteInitMaskForOutputChannels(void) {
 
 	// Only change port-config if necessary (at least bitmask changed from base-default for one port)
 	if ((OutputBitMaskInOutAsPerPort[0] != portBaseValueBitMask) || (OutputBitMaskInOutAsPerPort[1] != portBaseValueBitMask)) {
-		// all outputs to LOW
+		// Prepare the safe inactive state while the pins are still inputs. Most outputs are inactive
+		// LOW, but the complete board's POWER gate is active-low and must therefore start HIGH. The
+		// previous all-LOW initialization briefly enabled the complete peripheral rail in the middle
+		// of PCA9555 setup, exactly when a cold USB start is most sensitive to peripheral inrush.
 		Port_ExpanderPortsOutputChannelStatus[0] &= OutputBitMaskInOutAsPerPort[0];
 		Port_ExpanderPortsOutputChannelStatus[1] &= OutputBitMaskInOutAsPerPort[1];
+	#ifdef INVERT_POWER
+		if (POWER >= 100 && POWER <= 107) {
+			Port_ExpanderPortsOutputChannelStatus[0] |= (1 << Port_ChannelToBit(POWER));
+		} else if (POWER >= 108 && POWER <= 115) {
+			Port_ExpanderPortsOutputChannelStatus[1] |= (1 << Port_ChannelToBit(POWER));
+		}
+	#endif
+
+		// A slow clock gives the expander the widest cold-start timing margin. Program output
+		// latches before changing direction so no output can glitch active between the direction and
+		// value transactions. Restore the normal bus rate immediately afterwards.
+		i2cBusTwo.setClock(10000UL);
+		i2cBusTwo.beginTransmission(expanderI2cAddress);
+		i2cBusTwo.write(0x02); // Pointer to configuration of output-channels (high/low)
+		i2cBusTwo.write(Port_ExpanderPortsOutputChannelStatus, static_cast<size_t>(portsToWrite));
+		const bool outputsWritten = (i2cBusTwo.endTransmission() == 0);
+		if (!outputsWritten) {
+			i2cBusTwo.setClock(100000UL);
+			I2cBusTwo_Unlock();
+			return false;
+		}
 
 		i2cBusTwo.beginTransmission(expanderI2cAddress);
 		i2cBusTwo.write(0x06); // Pointer to configuration of input/output
@@ -220,15 +258,13 @@ void Port_WriteInitMaskForOutputChannels(void) {
 			i2cBusTwo.write(OutputBitMaskInOutAsPerPort[i]);
 			// Serial.printf("Register %u - Mask: %u\n", 0x06+i, OutputBitMaskInOutAsPerPort[i]);
 		}
-		i2cBusTwo.endTransmission();
-
-		// Write low/high-config to all output-channels. Channels that are configured as input are silently/automatically ignored by PCA9555
-		i2cBusTwo.beginTransmission(expanderI2cAddress);
-		i2cBusTwo.write(0x02); // Pointer to configuration of output-channels (high/low)
-		i2cBusTwo.write(Port_ExpanderPortsOutputChannelStatus, static_cast<size_t>(portsToWrite));
-		i2cBusTwo.endTransmission();
+		const bool directionWritten = (i2cBusTwo.endTransmission() == 0);
+		i2cBusTwo.setClock(100000UL);
+		I2cBusTwo_Unlock();
+		return outputsWritten && directionWritten;
 	}
 	I2cBusTwo_Unlock();
+	return true;
 }
 
 // Some channels are configured as output before shutdown in order to avoid unwanted interrupts while ESP32 sleeps
@@ -376,20 +412,6 @@ void Port_Exit(void) {
 		}
 	}
 	I2cBusTwo_Unlock();
-}
-
-// Tests if port-expander can be detected at address configured
-void Port_Test(void) {
-	I2cBusTwo_Lock();
-	i2cBusTwo.beginTransmission(expanderI2cAddress);
-	i2cBusTwo.write(0x02);
-	const bool found = !i2cBusTwo.endTransmission();
-	I2cBusTwo_Unlock();
-	if (found) {
-		Log_Println(portExpanderFound, LOGLEVEL_NOTICE);
-	} else {
-		Log_Println(portExpanderNotFound, LOGLEVEL_ERROR);
-	}
 }
 
 	#ifdef PE_INTERRUPT_PIN_ENABLE

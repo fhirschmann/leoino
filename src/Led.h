@@ -106,6 +106,10 @@ bool Led_GetAmbientLight();
 #endif
 
 void Led_Init(void);
+// Hold the Neopixel data line low from the first instructions in setup() until FastLED takes over.
+// On the complete board an unpowered strip can otherwise be partially back-powered through DIN
+// while the switched peripheral rail and its PCA9555 controller are still starting.
+void Led_PrepareForBoot(void);
 void Led_Exit(void);
 void Led_Indicate(LedIndicatorType value);
 void Led_SetPause(boolean value);

@@ -14,14 +14,19 @@ void Power_Init(void) {
 }
 
 // Switch on peripherals. Please note: meaning of POWER_ON is HIGH per default. But is LOW in case of INVERT_POWER is enabled.
-void Power_PeripheralOn(void) {
+bool Power_PeripheralOn(void) {
+	bool success = true;
 #ifdef POWER
-	Port_Write(POWER, POWER_ON, false);
+	success = Port_Write(POWER, POWER_ON, false);
 	#ifdef BUTTONS_LED
-	Port_Write(BUTTONS_LED, HIGH, false);
+	const bool buttonsLedPowered = Port_Write(BUTTONS_LED, HIGH, false);
+	success = buttonsLedPowered && success;
 	#endif
-	delay(50); // Give peripherals some time to settle down
+	// The SD card and Neopixels share the switched peripheral power-up event on the complete board.
+	// Allow the rail and the SD card's own controller to settle before either is accessed.
+	delay(200);
 #endif
+	return success;
 }
 
 // Switch off peripherals. Please note: meaning of POWER_OFF is LOW per default. But is HIGH in case of INVERT_POWER is enabled.

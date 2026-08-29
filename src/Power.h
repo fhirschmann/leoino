@@ -9,5 +9,5 @@
 #endif
 
 void Power_Init(void);
-void Power_PeripheralOn(void);
+bool Power_PeripheralOn(void);
 void Power_PeripheralOff(void);

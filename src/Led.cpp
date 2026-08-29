@@ -184,6 +184,16 @@ bool Led_LoadSettings(LedSettings &settings) {
 }
 #endif
 
+void Led_PrepareForBoot(void) {
+#ifdef NEOPIXEL_ENABLE
+	// LED_PIN is a strapping pin on the classic ESP32, but setup() only runs after the ROM has
+	// latched the strap value. Driving it low here is therefore safe and prevents the powered-down
+	// WS2812 chain from being back-powered through DIN before PE114 enables the peripheral rail.
+	pinMode(LED_PIN, OUTPUT);
+	digitalWrite(LED_PIN, LOW);
+#endif
+}
+
 void Led_Init(void) {
 #ifdef NEOPIXEL_ENABLE
 

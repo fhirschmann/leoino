@@ -121,6 +121,9 @@ void recoverLastRfidPlayedFromNvs(bool force) {
 }
 
 void setup() {
+	// Keep the unpowered WS2812 chain from loading/back-powering the complete board while its
+	// PCA9555-controlled peripheral rail is still coming up. FastLED takes over this pin later.
+	Led_PrepareForBoot();
 	Log_Init();
 	// Silence the IDF mDNS component's own logging (one tag per source file). Its announce
 	// and TXT paths log an ERROR when an allocation fails under memory pressure -- and if
@@ -155,15 +158,23 @@ void setup() {
 	Log_Println(rfidScannerReady, LOGLEVEL_DEBUG);
 #endif
 
-	// Init RTC early (needs i2cBusTwo) so the system clock is correct before WiFi/NTP
+	// Needs i2c first if port-expander is used
+	// The complete board cannot enable its peripheral rail without the PCA9555. Never continue into
+	// an apparent SD-card failure after a missed cold-start probe. Claim the expander before talking
+	// to RTC/OLED devices on this same bus, reducing traffic during the cold-start window. Hardware
+	// must still avoid I2C pull-ups to the initially-off switched rail, which can hold the bus down
+	// when that rail also supplies a connected Neopixel chain.
+	while (!Port_Init()) {
+		delay(250);
+	}
+
+	// Init RTC after PE114 is in a defined safe-OFF state, but still early enough to seed the system
+	// clock before WiFi/NTP.
 	Rtc_Init();
 
 #ifdef HALLEFFECT_SENSOR_ENABLE
 	gHallEffectSensor.init();
 #endif
-
-	// Needs i2c first if port-expander is used
-	Port_Init();
 
 	// If port-expander is used, port_init has to be called first, as power can be (possibly) done by port-expander
 	Power_Init();
@@ -176,12 +187,21 @@ void setup() {
 	RfidSync_Init(); // open the RFID-sync NVS namespaces + mutex/push-task once, single-threaded (avoids the lazy-init race)
 
 	// All checks that could send us to sleep are done, power up fully
-	Power_PeripheralOn();
-
-	Led_Init();
+	while (!Power_PeripheralOn()) {
+		Log_Println("Unable to enable peripheral power via port-expander; retrying", LOGLEVEL_ERROR);
+		delay(250);
+		while (!Port_Init()) {
+			delay(250);
+		}
+	}
 
 	// Needs power first
 	SdCard_Init();
+
+	// Do not start the comparatively high-current Neopixel boot animation until the SD card is
+	// mounted. On a full USB cold start the LED inrush otherwise overlaps the peripheral rail and
+	// SD power-up, which can leave the PCA9555/SD path in an unrecoverable state.
+	Led_Init();
 
 	// OLED on the ext-I2C bus (i2cBusTwo). Initialised after SdCard_Init so the SD comes up first
 	// (ext-I2C shares pins with the SD-MMC D1/D3 lines).
