@@ -13,6 +13,7 @@
 #include "System.h"
 #include "Web.h"
 #include "Webdav.h"
+#include "esp_mac.h"
 #include "esp_sntp.h"
 #include "main.h"
 
@@ -899,7 +900,13 @@ const String Wlan_GetHostname() {
 }
 
 const String Wlan_GetMacAddress() {
-	return WiFi.macAddress();
+	// WiFi.macAddress() is all zeros before the WiFi driver starts, while MQTT resolves
+	// the <MAC> device-id token during early boot. Read the STA MAC directly from eFuse.
+	uint8_t mac[6] = {0};
+	esp_read_mac(mac, ESP_MAC_WIFI_STA);
+	char buf[18];
+	snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	return String(buf);
 }
 
 bool Wlan_DeleteNetwork(String ssid) {

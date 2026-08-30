@@ -915,7 +915,7 @@
 			},
 			"description": "Select the type of RFID reader connected to your ESPuino. Auto-detect will try to determine the connected reader type automatically.",
 			"pn5180Lpcd": "Enable PN5180 LPCD",
-			"pn5180LpcdExp": "Enables Low Power Card Detection for PN5180 RFID reader. Only possible if solder jumpers are set correctly.",
+			"pn5180LpcdExp": "Enables Low Power Card Detection for the PN5180 RFID reader. PN5180 firmware version 4.0 or newer is required, and the required solder bridges must be configured correctly. More information <a href='https://forum.espuino.de/t/was-ist-lpcd-und-wie-funktioniert-es/1664' target='_blank'>here</a>.",
 			"slix2Password": {
 				"title": "SLIX2 Password",
 				"description": "8-digit password in hexadecimal format (e.g. 01020304) for reading SLIX2 tags."

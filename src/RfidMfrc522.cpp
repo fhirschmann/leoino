@@ -85,16 +85,17 @@ void RfidMfrc522_TaskReset(void) {
 
 // Deterministic "is a card still on the antenna?" poll used by pauseIfRfidRemoved
 // mode. The card is kept parked in the ISO-14443 HALT state between polls; WUPA
-// (PICC_WakeupA, 0x52) is the only REQ-family command that wakes a HALTed card,
-// so each poll is a clean yes/no. This replaces the old REQA-based detection
-// (PICC_IsNewCardPresent sends REQA, 0x26, which only invites cards in the IDLE
-// state) whose non-deterministic misses on a perfectly stationary card forced an
-// ever-growing miss debounce. Templated because Reader is either the SPI MFRC522
+// (PICC_WakeupA, 0x52) is the only REQ-family command that wakes a HALTed card.
+// Return the raw status: STATUS_TIMEOUT means the field is empty, while another
+// transmission error means a card answered but the frame was corrupted.
+// This replaces the old REQA-based detection (PICC_IsNewCardPresent sends REQA,
+// 0x26, which only invites cards in the IDLE state) whose non-deterministic misses
+// on a stationary card forced an ever-growing debounce. Reader is either MFRC522
 // or the I2C MFRC522_I2C class; the Reader:: register/status constants and the
 // PICC_WakeupA return type both differ between the two libraries, so we let the
 // compiler pick the right ones per instantiation.
 template <typename Reader>
-static bool RfidMfrc522_CardStillPresent(Reader &reader) {
+static uint8_t RfidMfrc522_PollCardPresence(Reader &reader) {
 	byte bufferATQA[2];
 	byte bufferSize = sizeof(bufferATQA);
 	// Reset baud-rate / modulation-width registers exactly like
@@ -107,7 +108,7 @@ static bool RfidMfrc522_CardStillPresent(Reader &reader) {
 	auto result = reader.PICC_WakeupA(bufferATQA, &bufferSize);
 	// Immediately park the card back in HALT so the next WUPA is meaningful.
 	reader.PICC_HaltA();
-	return (result == Reader::STATUS_OK || result == Reader::STATUS_COLLISION);
+	return static_cast<uint8_t>(result);
 }
 
 template <typename Reader>
@@ -167,7 +168,7 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 				// presence poll below can wake it deterministically. Without this the
 				// card is left ACTIVE and only REQA (which ignores ACTIVE/HALT cards)
 				// was available, causing the notorious pause/resume flap on stationary
-				// cards. See RfidMfrc522_CardStillPresent().
+				// cards. See RfidMfrc522_PollCardPresence().
 				I2cBusTwo_Lock();
 				reader.PICC_HaltA();
 				reader.PCD_StopCrypto1();
@@ -178,7 +179,9 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 				// dropped poll (RF noise) without the old REQA "voodoo". Set to 1 to
 				// test raw WUPA reliability with zero tolerance for a missed poll.
 				constexpr uint8_t removalDebounceCycles = 2;
+				constexpr uint32_t noAnswerTimeoutMs = 1500;
 				uint8_t consecutiveMisses = 0;
+				uint32_t lastAnswerAt = millis();
 				while (true) {
 					if (rfidScanInterval / 2 >= 20) {
 						vTaskDelay(portTICK_PERIOD_MS * (rfidScanInterval / 2));
@@ -186,11 +189,18 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 						vTaskDelay(portTICK_PERIOD_MS * 20);
 					}
 					I2cBusTwo_Lock();
-					const bool stillPresent = RfidMfrc522_CardStillPresent(reader);
+					const uint8_t wupaStatus = RfidMfrc522_PollCardPresence(reader);
 					I2cBusTwo_Unlock();
-					if (stillPresent) {
+					if (wupaStatus == static_cast<uint8_t>(Reader::STATUS_OK) || wupaStatus == static_cast<uint8_t>(Reader::STATUS_COLLISION)) {
 						consecutiveMisses = 0;
+						lastAnswerAt = millis();
+					} else if (wupaStatus != static_cast<uint8_t>(Reader::STATUS_TIMEOUT)) {
+						// A parity/protocol/CRC error means a card did answer; do not count it
+						// as an empty-field miss. The timeout below remains the backstop.
 					} else if (++consecutiveMisses >= removalDebounceCycles) {
+						break;
+					}
+					if ((millis() - lastAnswerAt) >= noAnswerTimeoutMs) {
 						break;
 					}
 				}
@@ -206,6 +216,12 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 				I2cBusTwo_Lock();
 				reader.PICC_HaltA();
 				reader.PCD_StopCrypto1();
+				// A false removal can leave a still-present card HALTed, while the next
+				// PICC_IsNewCardPresent() uses REQA and cannot see HALTed cards. Cycle the
+				// field so such a card returns to IDLE and can be detected again.
+				reader.PCD_AntennaOff();
+				vTaskDelay(portTICK_PERIOD_MS * 10);
+				reader.PCD_AntennaOn();
 				I2cBusTwo_Unlock();
 			}
 		}

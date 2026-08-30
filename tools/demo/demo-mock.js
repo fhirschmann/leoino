@@ -126,7 +126,8 @@
 				playMono: false, savePosShutdown: false, savePosRfidChge: false,
 				savePosPeriodic: true, restartFreshHrs: 24, minResumeSec: 20, shortTrackSec: 300, seekStep: 300, sleepFadeSec: 30, dailyLimitMin: 90, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
 				stopIfRfidRemoved: false,
-				dontAcceptRfidTwice: false, blockWebPlayTag: false, rfidReaderType: 0, pn5180Lpcd: false, slix2Password: "",
+				// Use PN5180 in the demo so reader-specific settings visibly hide the unrelated MFRC522 controls.
+				dontAcceptRfidTwice: false, blockWebPlayTag: false, rfidReaderType: 3, pn5180Lpcd: false, slix2Password: "0F0F0F0F",
 				mfrc522Gain: 7, mfrc522ScanInterval: 100, pn5180Debounce: 500, pauseOnMinVol: false, recoverVolBoot: false, volumeCurve: 0,
 				readyPath: "/ready.mp3", playStartupSnd: true, noSleepWhenPowered: false,
 				poweredVoltage: 3.5, brandText: ""

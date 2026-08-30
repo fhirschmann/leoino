@@ -259,17 +259,26 @@ uint8_t System_GetSleepTimer(void) {
 }
 
 uint32_t System_GetSleepTimerRemainingSeconds(void) {
-	uint32_t start = System_SleepTimerStartTimestamp.load();
+	const uint32_t start = System_SleepTimerStartTimestamp.load();
 	if (start == 0u) {
 		return 0u;
 	}
-	uint32_t m = millis();
-	uint32_t totalMs = (uint32_t) System_SleepTimer * 60000u;
-	if (m >= start) {
-		uint32_t elapsedMs = m - start;
-		return (totalMs > elapsedMs) ? (totalMs - elapsedMs) / 1000u : 0u;
+	const uint32_t totalMs = static_cast<uint32_t>(System_SleepTimer) * 60000u;
+	const uint32_t elapsedMs = millis() - start;
+	return (totalMs > elapsedMs) ? (totalMs - elapsedMs) / 1000u : 0u;
+}
+
+uint8_t System_GetSleepTimerRemainingMinutes(void) {
+	const uint32_t start = System_SleepTimerStartTimestamp.load();
+	if (start == 0u) {
+		return 0u;
 	}
-	return 0u;
+	const uint32_t totalMs = static_cast<uint32_t>(System_SleepTimer) * 60000u;
+	const uint32_t elapsedMs = millis() - start;
+	if (elapsedMs >= totalMs) {
+		return 0u;
+	}
+	return static_cast<uint8_t>((totalMs - elapsedMs + 59999u) / 60000u);
 }
 
 void System_SetLockControls(bool value) {
@@ -355,6 +364,11 @@ void System_SleepHandler(void) {
 			System_RequestSleep();
 		}
 	}
+
+#ifdef MQTT_ENABLE
+	// Self-deduplicating; keeps minute/track countdowns current for every timer source.
+	Mqtt_PublishSleepTimerState();
+#endif
 }
 
 // Turn the cancellable countdown into the existing irreversible deep-sleep path. No subsystem is

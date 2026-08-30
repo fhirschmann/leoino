@@ -915,7 +915,7 @@
 			},
 			"description": "Wähle den Typ des RFID readers. Auto-detect wird versuchen den Reader automatisch zu erkennen.",
 			"pn5180Lpcd": "PN5180 LPCD aktivieren",
-			"pn5180LpcdExp": "Aktiviert Low Power Card Detection für PN5180 RFID Reader. Nur möglich, wenn Lötbrücken richtig gesetzt sind.",
+			"pn5180LpcdExp": "Aktiviert Low Power Card Detection für den PN5180 RFID-Reader. Dafür muss die PN5180-Firmware mindestens Version 4.0 sein und die erforderlichen Lötbrücken müssen korrekt gesetzt sein. Mehr Infos <a href='https://forum.espuino.de/t/was-ist-lpcd-und-wie-funktioniert-es/1664' target='_blank'>hier</a>.",
 			"slix2Password": {
 				"title": "SLIX2 Passwort",
 				"description": "8-stelliges Passwort in Hexadezimal-Format (z.B. 01020304) zum Auslesen von SLIX2-Tags."

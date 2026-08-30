@@ -485,9 +485,9 @@ void Audio_InfoCallback(Audio::msg_t m) {
 			char fileType[4];
 			if (file.readBytes(fileType, 4) == 4) {
 				if (strncmp(fileType, "OggS", 4) == 0) {
-					audio_oggimage(file, m.vec);
+					audio_oggimage(file, m.vec1);
 				} else {
-					audio_id3image(file, m.vec[0], m.vec[1]);
+					audio_id3image(file, m.vec1[0], m.vec1[1]);
 				}
 			}
 			file.close();
@@ -783,22 +783,24 @@ void AudioPlayer_Init(void) {
 	// without this the box could start below its own floor until the first volume change.
 	AudioPlayer_CurrentVolume = std::max(AudioPlayer_GetInitVolume(), AudioPlayer_GetMinVolume());
 	// DMA-settings must be adjusted before setting the pinout
-	// (ESP32-audioI2S v3.4.7h defaults to 16-bit output, so the former setOutput16Bit(true) is gone.)
+	// ESP32-audioI2S v4 supplies 32-bit left-aligned PCM to audio_process_i2s().
 	// 40 descriptors x 256 frames ~= 232 ms of buffered output at 44.1 kHz. This keeps
 	// about 46 ms more protection against NVS flash stalls than the former 32-descriptor
 	// setup while returning roughly 8 KB of scarce internal RAM compared with 48.
 	audio->settings.DMA_DESC_NUM = 40;
 	audio->settings.DMA_FRAME_NUM = 256; // not too high, so safe SRAM
-	if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
-		audio->setOutputSampleRate(Audio::OutputSR_t::SR_44100);
-		audio->settings.DMA_FRAME_NUM = 192; // not too high, to safe some SRAM
-	} else if (System_GetOperationMode() == OPMODE_BLUETOOTH_SINK) {
+	if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE || System_GetOperationMode() == OPMODE_BLUETOOTH_SINK) {
 		audio->settings.DMA_FRAME_NUM = 192; // not too high, to safe some SRAM
 	} else {
 		// just use default-values
 	}
 
 	audio->setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
+
+	// Must be called after setPinout() to take effect with ESP32-audioI2S v4.
+	if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
+		audio->setOutputSampleRate(Audio::OutputSR_t::SR_44100);
+	}
 	audio->setVolumeSteps(AUDIOPLAYER_VOLUME_MAX);
 	audio->setVolumeCurve(Audio_GetVolume);
 	audio->setVolume(AudioPlayer_CurrentVolume);
@@ -814,6 +816,7 @@ void AudioPlayer_Init(void) {
 	// ESPuino never reads the audio library's VU level, so skip its per-sample computation entirely
 	// (frees CPU on the shared core -- see AudioPlayer_ApplyTone() and forum thread #4675).
 	audio->settings.VU_LEVEL = false;
+	audio->settings.SPECTRUM = false;
 
 	audio->setAudioTaskCore(1);
 	audio->audio_info_callback = Audio_InfoCallback;
@@ -967,6 +970,22 @@ uint8_t AudioPlayer_GetMaxVolumeSpeaker(void) {
 
 void AudioPlayer_SetMaxVolumeSpeaker(uint8_t value) {
 	AudioPlayer_MaxVolumeSpeaker = value;
+}
+
+void AudioPlayer_ApplyMaxVolumes(uint8_t speaker, uint8_t headphone) {
+	AudioPlayer_MaxVolumeSpeaker = speaker;
+
+#ifdef HEADPHONE_ADJUST_ENABLE
+	AudioPlayer_MaxVolumeHeadphone = headphone;
+	AudioPlayer_MaxVolume = AudioPlayer_IsHeadphoneModeActive() ? AudioPlayer_MaxVolumeHeadphone : AudioPlayer_MaxVolumeSpeaker;
+#else
+	(void) headphone;
+	AudioPlayer_MaxVolume = AudioPlayer_MaxVolumeSpeaker;
+#endif
+
+	if (AudioPlayer_CurrentVolume > AudioPlayer_MaxVolume) {
+		AudioPlayer_SetVolume(AudioPlayer_MaxVolume);
+	}
 }
 
 uint8_t AudioPlayer_GetMinVolume(void) {
@@ -2645,10 +2664,11 @@ void audio_oggimage(File &file, std::vector<uint32_t> v) {
 // record audiodata or send via BT
 void audio_process_i2s(int32_t *outBuff, int16_t validSamples, bool *continueI2S) {
 	if ((System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) && Bluetooth_Device_Connected()) {
-		// do downsamling to 16bit and send via BT
+		// audioI2S provides signed 32-bit, left-aligned PCM; A2DP expects interleaved signed 16-bit PCM.
 		int16_t *outBuff16 = reinterpret_cast<int16_t *>(outBuff);
-		for (int16_t i = 0; i < validSamples * 2; i++) {
-			outBuff16[i] = outBuff16[i * 2 + 1];
+		for (int16_t i = 0; i < validSamples; i++) {
+			const int32_t sample = outBuff[i];
+			outBuff16[i] = static_cast<int16_t>(sample >> 16);
 		}
 
 		Bluetooth_Source_SendAudioData(outBuff16, validSamples);

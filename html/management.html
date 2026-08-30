@@ -3471,6 +3471,7 @@
 						</select>
 						<small class="form-text text-muted" data-i18n="general.rfid.description"></small>
 					</div>
+					<div id="mfrc522Settings">
 					<div class="mb-3">
 						<label for="mfrc522Gain" data-i18n="general.rfid.mfrc522Gain"></label>
 						<div class="input-group">
@@ -3494,6 +3495,8 @@
 							</span>
 						</div>
 					</div>
+					</div>
+					<div id="pn5180Settings">
 					<div class="mb-3">
 						<label for="pn5180Debounce" data-i18n="general.rfid.pn5180Debounce"></label>
 						<div class="input-group">
@@ -3524,6 +3527,7 @@
 									<i class="fas fa-circle-question"></i></a>
 							</span>
 						</div>
+					</div>
 					</div>
 				</fieldset>
 				<fieldset id="rfidBehaviorConfig">
@@ -6422,6 +6426,19 @@
 			}, 600);
 		}
 
+		function updateRfidReaderSettings() {
+			const readerType = Number($('#rfidReaderType').val());
+			const isAutoDetect = readerType === 0;
+			const isMfrc522 = readerType === 1 || readerType === 2;
+			const isPn5180 = readerType === 3;
+
+			$('#mfrc522Settings').toggle(isAutoDetect || isMfrc522);
+			$('#pn5180Settings').toggle(isAutoDetect || isPn5180);
+			if (isMfrc522) {
+				$('#pn5180Lpcd').prop('checked', false);
+			}
+		}
+
 		async function fillSettings(settings) {
 			if (!settings) {
 				return false;
@@ -6511,6 +6528,7 @@
 				if (genSettings.mfrc522Gain !== undefined) {
 					document.getElementById('mfrc522Gain').value = genSettings.mfrc522Gain;
 				}
+				updateRfidReaderSettings();
 				if (genSettings.readyPath !== undefined) {
 					document.getElementById('readyPath').value = genSettings.readyPath;
 				}
@@ -8066,7 +8084,7 @@
 
 			// Static list of known topics (mirrors firmware settings.h)
 			var commandTopics = ['sleep', 'rfid', 'trackcontrol', 'loudness', 'sleep_timer', 'lock_controls', 'repeatmode', 'led_brightness', 'ambient_light', 'equalizer', 'firmware_update'];
-			var stateTopics = ['track', 'cover_changed', 'state', 'ipv4', 'pauseplay', 'playmode', 'wifi_rssi', 'software_revision', 'battery_voltage', 'battery_soc'];
+			var stateTopics = ['track', 'cover_changed', 'state', 'ipv4', 'pauseplay', 'playmode', 'sleep_timer_state', 'wifi_rssi', 'software_revision', 'battery_voltage', 'battery_soc'];
 
 			// Combine command and state topics
 			var allTopics = commandTopics.concat(stateTopics);
@@ -9817,6 +9835,8 @@
 				}
 			});
 
+			$('#rfidReaderType').on('change', updateRfidReaderSettings);
+
 			$('#noSleepWhenPowered').on('change', function () {
 				$('#noSleepWhenPoweredWarn').toggleClass('d-none', !$(this).prop('checked'));
 			});
@@ -9935,7 +9955,7 @@
 
 			/* The <select /> that houses all commands for the modification selectors */
 			const modElem = document.createElement('select');
-			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 110, 111, 120, 121, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 156, 157, 158, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 176, 177, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
+			const mods = [100, 179, 101, 102, 103, 104, 105, 106, 107, 110, 111, 120, 121, 130, 140, 141, 142, 143, 144, 150, 151, 152, 153, 154, 156, 157, 158, 0, 170, 171, 172, 173, 174, 184, 185, 180, 181, 176, 177, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250];
 			for (const mod of mods) {
 				const opt = addOption(modElem, mod);
 				if ([140, 141, 142, 143, 144].includes(mod)) {

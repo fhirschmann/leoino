@@ -1342,14 +1342,16 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		// so reject it before writing anything. The HTML input already constrains this, but a direct
 		// REST/websocket POST could bypass that.
 		const uint8_t minVolume = generalObj["minVolume"].as<uint8_t>();
-		if (minVolume >= generalObj["maxVolumeSp"].as<uint8_t>() || minVolume >= generalObj["maxVolumeHp"].as<uint8_t>()) {
+		const uint8_t maxVolumeSp = generalObj["maxVolumeSp"].as<uint8_t>();
+		const uint8_t maxVolumeHp = generalObj["maxVolumeHp"].as<uint8_t>();
+		if (minVolume >= maxVolumeSp || minVolume >= maxVolumeHp) {
 			Log_Println(webSaveSettingsVolumeMinMaxError, LOGLEVEL_ERROR);
 			return WebsocketCodeType::Error;
 		}
 		bool success = (gPrefsSettings.putUInt("initVolume", generalObj["initVolume"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putUInt("minVolume", minVolume) != 0);
-		success = success && (gPrefsSettings.putUInt("maxVolumeSp", generalObj["maxVolumeSp"].as<uint8_t>()) != 0);
-		success = success && (gPrefsSettings.putUInt("maxVolumeHp", generalObj["maxVolumeHp"].as<uint8_t>()) != 0);
+		success = success && (gPrefsSettings.putUInt("maxVolumeSp", maxVolumeSp) != 0);
+		success = success && (gPrefsSettings.putUInt("maxVolumeHp", maxVolumeHp) != 0);
 		success = success && (gPrefsSettings.putUInt("mInactiviyT", generalObj["sleepInactivity"].as<uint8_t>()) != 0);
 		if (generalObj["rotSeekStep"].is<uint8_t>()) {
 			success = success && (gPrefsSettings.putUChar("rotSeekStep", generalObj["rotSeekStep"].as<uint8_t>()) != 0);
@@ -1440,6 +1442,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "general");
 			return WebsocketCodeType::Error;
 		}
+		AudioPlayer_ApplyMaxVolumes(maxVolumeSp, maxVolumeHp);
 		gPlayProperties.newPlayMono = generalObj["playMono"].as<bool>();
 		gPlayProperties.SavePlayPosRfidChange = generalObj["savePosRfidChge"].as<bool>();
 		AudioPlayer_SetSavePosPeriodic(generalObj["savePosPeriodic"].as<bool>());

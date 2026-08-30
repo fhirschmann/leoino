@@ -148,16 +148,19 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 
 			gPlayProperties.sleepAfterCurrentTrack = false;
 			gPlayProperties.sleepAfterPlaylist = false;
-			gPlayProperties.sleepAfter5Tracks = !gPlayProperties.sleepAfter5Tracks;
 
-			if (gPlayProperties.sleepAfter5Tracks) {
-				if (gPlayProperties.currentTrackNumber + 5 >= playlistSize) {
-					// execute a sleep after end of playlist
-					Cmd_Action(CMD_SLEEP_AFTER_END_OF_PLAYLIST);
-					break;
-				}
+			// playUntilTrackNumber is the flag AudioPlayer_Loop() actually evaluates for
+			// "sleep after N tracks". Reapplying the modification card toggles it off.
+			if (gPlayProperties.playUntilTrackNumber > 0) {
+				gPlayProperties.playUntilTrackNumber = 0;
+			} else if ((playlistSize - 1) >= (gPlayProperties.currentTrackNumber + 5)) {
+				gPlayProperties.playUntilTrackNumber = gPlayProperties.currentTrackNumber + 5;
+			} else {
+				// Fewer than five tracks remain: sleep at the end of the playlist instead.
+				Cmd_Action(CMD_SLEEP_AFTER_END_OF_PLAYLIST);
+				break;
 			}
-			Cmd_HandleSleepAction(gPlayProperties.sleepAfter5Tracks, sleepTimerEO5, "EO5T");
+			Cmd_HandleSleepAction(gPlayProperties.playUntilTrackNumber > 0, sleepTimerEO5, "EO5T");
 			System_IndicateOk();
 			break;
 		}
