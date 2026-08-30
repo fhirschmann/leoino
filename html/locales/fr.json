@@ -197,10 +197,7 @@
 				"timeout": "Fermer le menu après inactivité (s)",
 				"remember": "Mémoriser la dernière sélection à la réouverture",
 				"items": {
-					"status": "État de lecture et du réseau",
-					"ip": "Adresse IP",
-					"battery": "Batterie",
-					"sysinfo": "Informations système",
+					"status": "État (lecture, IP, batterie, système)",
 					"equalizer": "Égaliseur",
 					"nightmode": "Mode nuit",
 					"webdav": "WebDAV",

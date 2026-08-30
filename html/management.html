@@ -6346,8 +6346,8 @@
 		var settingsAutoSaveTimer = null;
 		var settingsAutoSaveSuppressedUntil = 0;
 		var settingsAutoSavePopulating = false;
-		const OLED_MENU_ITEMS_DEFAULT = "status,ip,battery,sysinfo,equalizer,nightmode,webdav,fwupdate,shutdown";
-		const OLED_MENU_ITEM_DEFS = ["status", "ip", "battery", "sysinfo", "equalizer", "nightmode", "webdav", "fwupdate", "shutdown"];
+		const OLED_MENU_ITEMS_DEFAULT = "status,equalizer,nightmode,webdav,fwupdate,shutdown";
+		const OLED_MENU_ITEM_DEFS = ["status", "equalizer", "nightmode", "webdav", "fwupdate", "shutdown"];
 
 		function syncOledMenuItems(triggerSave) {
 			const list = document.getElementById('oled_menuList');

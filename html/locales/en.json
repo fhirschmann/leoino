@@ -197,10 +197,7 @@
 				"timeout": "Close menu after inactivity (s)",
 				"remember": "Remember the last selection when reopening",
 				"items": {
-					"status": "Playback and network status",
-					"ip": "IP address",
-					"battery": "Battery",
-					"sysinfo": "System information",
+					"status": "Status (playback, IP, battery, system)",
 					"equalizer": "Equalizer",
 					"nightmode": "Night mode",
 					"webdav": "WebDAV",

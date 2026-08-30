@@ -197,10 +197,7 @@
 				"timeout": "Menü schließt nach Inaktivität (Sek.)",
 				"remember": "Letzte Auswahl beim nächsten Öffnen merken",
 				"items": {
-					"status": "Wiedergabe- und Netzwerkstatus",
-					"ip": "IP-Adresse",
-					"battery": "Akku",
-					"sysinfo": "Systeminformationen",
+					"status": "Status (Wiedergabe, IP, Akku, System)",
 					"equalizer": "Equalizer",
 					"nightmode": "Nachtmodus",
 					"webdav": "WebDAV",

@@ -10,6 +10,7 @@
 #include "Log.h"
 #include "SdCard.h"
 #include "System.h"
+#include "Web.h"
 #include "Webdav.h"
 #include "Wlan.h"
 #include "gitrevision.h"
@@ -25,7 +26,7 @@ extern TwoWire i2cBusTwo;
 // Startup-animation selector for the idle/attract screen.
 enum class StartupAnim : uint8_t { None = 0, Boot = 1, Login = 2, Full = 3 };
 
-enum class QuickMenuView : uint8_t { Closed, List, Status, IpAddress, Battery, SystemInfo, Confirm };
+enum class QuickMenuView : uint8_t { Closed, List, Status, FirmwareUpdate, Confirm };
 
 struct QuickMenuItem {
     const char *id;
@@ -37,9 +38,6 @@ struct QuickMenuItem {
 
 static constexpr QuickMenuItem kQuickMenuItems[] = {
     {"status", "STATUS", QuickMenuView::Status, CMD_NOTHING, false},
-    {"ip", "IP ADDRESS", QuickMenuView::IpAddress, CMD_NOTHING, false},
-    {"battery", "BATTERY", QuickMenuView::Battery, CMD_NOTHING, false},
-    {"sysinfo", "SYSTEM INFO", QuickMenuView::SystemInfo, CMD_NOTHING, false},
     {"equalizer", "EQUALIZER", QuickMenuView::Closed, CMD_TOGGLE_EQUALIZER, false},
     {"nightmode", "NIGHT MODE", QuickMenuView::Closed, CMD_DIMM_LEDS_NIGHTMODE, false},
     {"webdav", "WEBDAV", QuickMenuView::Closed, CMD_TOGGLE_WEBDAV_SERVER, false},
@@ -195,12 +193,13 @@ static bool s_displayOk = false;
 
 // -------- OLED quick menu --------
 // One press of a button mapped to CMD_OLED_MENU opens the list; the encoder moves the selection and
-// the same command confirms it. Informational pages return to the list on the next press, while real
-// commands close the menu before Cmd.cpp dispatches them. Any menu interaction restarts the timeout.
+// the same command confirms it. Informational/result pages return to the list on the next press;
+// firmware progress stays visible while Cmd.cpp dispatches the OTA. Any interaction restarts the timeout.
 static QuickMenuView s_quickMenuView = QuickMenuView::Closed;
 static uint8_t s_quickMenuSelection = 0;
 static uint32_t s_quickMenuTouchedAt = 0;
 static uint16_t s_quickMenuPendingCommand = CMD_NOTHING;
+static uint8_t s_quickMenuLastOtaStatus = 0;
 
 static void Display_LoadQuickMenuConfig(void) {
     const String configured = gPrefsSettings.getString("oledMenuItems", OLED_MENU_ITEMS_DEFAULT);
@@ -664,6 +663,16 @@ bool Display_IsEnabled(void) {
 
 bool Display_MenuIsActive(void) {
     if (s_quickMenuView == QuickMenuView::Closed) return false;
+    if (s_quickMenuView == QuickMenuView::FirmwareUpdate) {
+        const uint8_t otaStatus = Web_GetGithubOtaStatus();
+        if (otaStatus != s_quickMenuLastOtaStatus) {
+            s_quickMenuLastOtaStatus = otaStatus;
+            s_quickMenuTouchedAt = millis();
+        }
+        // Keep progress visible for the whole download/check. A terminal result then remains on
+        // screen for the configured menu timeout before returning to the normal display.
+        if (otaStatus == 1) return true;
+    }
     if (millis() - s_quickMenuTouchedAt >= s_cfgQuickMenuTimeoutMs) {
         s_quickMenuView = QuickMenuView::Closed;
         s_quickMenuPendingCommand = CMD_NOTHING;
@@ -688,8 +697,10 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
 
     s_quickMenuTouchedAt = now;
     if (s_quickMenuView == QuickMenuView::Confirm) {
-        s_quickMenuView = QuickMenuView::Closed;
-        if (selectedCommand != nullptr) *selectedCommand = s_quickMenuPendingCommand;
+        const uint16_t pendingCommand = s_quickMenuPendingCommand;
+        s_quickMenuView = pendingCommand == CMD_FIRMWARE_UPDATE ? QuickMenuView::FirmwareUpdate : QuickMenuView::Closed;
+        s_quickMenuLastOtaStatus = Web_GetGithubOtaStatus();
+        if (selectedCommand != nullptr) *selectedCommand = pendingCommand;
         s_quickMenuPendingCommand = CMD_NOTHING;
         return true;
     }
@@ -701,6 +712,15 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
     const QuickMenuItem &item = kQuickMenuItems[s_cfgQuickMenuOrder[s_quickMenuSelection]];
     if (item.infoView != QuickMenuView::Closed) {
         s_quickMenuView = item.infoView;
+        return true;
+    }
+
+    const int8_t firmwareUpToDate = Web_GetFirmwareUpToDate();
+    const uint8_t otaStatus = Web_GetGithubOtaStatus();
+    if (item.command == CMD_FIRMWARE_UPDATE &&
+        (otaStatus == 1 || firmwareUpToDate == 1 || (firmwareUpToDate < 0 && otaStatus == 2))) {
+        s_quickMenuLastOtaStatus = otaStatus;
+        s_quickMenuView = QuickMenuView::FirmwareUpdate;
         return true;
     }
 
@@ -719,8 +739,8 @@ void Display_MenuRotate(int32_t detents) {
     if (!Display_MenuIsActive() || detents == 0) return;
 
     if (s_quickMenuView != QuickMenuView::List) {
-        // Turning from an info/confirmation page cancels it and returns to the list; the same detent
-        // continues from there, so browsing never needs an extra button press.
+        // Turning from an info/confirmation/result page returns to the list; the same detent continues
+        // from there, so browsing never needs an extra button press. An already-started OTA continues.
         s_quickMenuView = QuickMenuView::List;
         s_quickMenuPendingCommand = CMD_NOTHING;
     }
@@ -760,17 +780,6 @@ static void Display_FormatQuickMenuLabel(uint8_t definitionIndex, char *buf, siz
     const QuickMenuItem &item = kQuickMenuItems[definitionIndex];
     if (item.infoView == QuickMenuView::Status) {
         snprintf(buf, n, "STATUS: %s", Display_QuickMenuPlayState());
-    } else if (item.infoView == QuickMenuView::IpAddress) {
-        String ip = Wlan_GetIpAddress();
-        snprintf(buf, n, "IP: %s", ip.length() > 0 ? ip.c_str() : "OFFLINE");
-    } else if (item.infoView == QuickMenuView::Battery) {
-#ifdef BATTERY_MEASURE_ENABLE
-        snprintf(buf, n, "BATTERY: %d%%", static_cast<int>(Battery_EstimateLevel() * 100.0f));
-#else
-        snprintf(buf, n, "BATTERY: N/A");
-#endif
-    } else if (item.infoView == QuickMenuView::SystemInfo) {
-        snprintf(buf, n, "SYSTEM INFO");
     } else if (item.command == CMD_TOGGLE_EQUALIZER) {
         String eq = AudioPlayer_GetEqualizerProfile();
         eq.toUpperCase();
@@ -783,6 +792,16 @@ static void Display_FormatQuickMenuLabel(uint8_t definitionIndex, char *buf, siz
 #endif
     } else if (item.command == CMD_TOGGLE_WEBDAV_SERVER) {
         snprintf(buf, n, "WEBDAV: %s", Webdav_IsServerRunning() ? "ON" : "OFF");
+    } else if (item.command == CMD_FIRMWARE_UPDATE) {
+        const int8_t upToDate = Web_GetFirmwareUpToDate();
+        const uint8_t otaStatus = Web_GetGithubOtaStatus();
+        const bool confirmedCurrent = upToDate == 1 || (upToDate < 0 && otaStatus == 2);
+        if (otaStatus == 1) {
+            snprintf(buf, n, "FW: UPDATING %u%%", Web_GetGithubOtaProgress());
+        } else {
+            snprintf(buf, n, "%s", confirmedCurrent ? "FW: UP TO DATE" :
+                                upToDate == 0 ? "FW: UPDATE AVAILABLE" : "FIRMWARE UPDATE");
+        }
     } else {
         snprintf(buf, n, "%s", item.label);
     }
@@ -804,7 +823,7 @@ static void Display_DrawQuickMenuList(uint32_t now) {
     s_u8g2.drawHLine(0, 9, 128);
 
     // Four entries fit below the header. Keep one neighbouring entry visible while possible and
-    // pin the window at the beginning/end; this also avoids a nearly empty final page with 9 items.
+    // pin the window at the beginning/end; this also avoids a nearly empty final page.
     const uint8_t visible = s_cfgQuickMenuItemCount < 4u ? s_cfgQuickMenuItemCount : 4u;
     uint8_t first = 0;
     if (s_cfgQuickMenuItemCount > visible) {
@@ -832,80 +851,88 @@ static void Display_DrawQuickMenuList(uint32_t now) {
     Display_DrawQuickMenuTimeout(now);
 }
 
-static void Display_DrawQuickMenuInfo(QuickMenuView view) {
+static void Display_DrawQuickMenuStatus(void) {
+    s_u8g2.setFont(u8g2_font_5x7_tf);
+    const char *header = "SYSTEM STATUS";
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 7, header);
+    s_u8g2.drawHLine(0, 9, 128);
+
+    char audio[32];
+    char ip[32];
+    char battery[32];
+    char firmware[32];
+    char uptime[32];
+    char sd[32];
+    snprintf(audio, sizeof(audio), "AUDIO:%s V:%u/%u", Display_QuickMenuPlayState(),
+             AudioPlayer_GetCurrentVolume(), AudioPlayer_GetMaxVolume());
+    const String ipAddress = Wlan_GetIpAddress();
+    snprintf(ip, sizeof(ip), "IP:%s", ipAddress.length() > 0 ? ipAddress.c_str() : "NO WIFI");
+#ifdef BATTERY_MEASURE_ENABLE
+    const int percent = static_cast<int>(Battery_EstimateLevel() * 100.0f);
+    const char *batteryState = Battery_IsCritical() ? "CRIT" : Battery_IsLow() ? "LOW" : "OK";
+    snprintf(battery, sizeof(battery), "BAT:%d%% %.2fV %s", percent, Battery_GetVoltage(), batteryState);
+#else
+    snprintf(battery, sizeof(battery), "BAT:N/A");
+#endif
+    snprintf(firmware, sizeof(firmware), "FW:%s", softwareRevisionShort);
+    const uint32_t uptimeMinutes = millis() / 60000u;
+    snprintf(uptime, sizeof(uptime), "UP:%lud %02lu:%02lu H:%luK",
+             static_cast<unsigned long>(uptimeMinutes / 1440u),
+             static_cast<unsigned long>((uptimeMinutes / 60u) % 24u),
+             static_cast<unsigned long>(uptimeMinutes % 60u),
+             static_cast<unsigned long>(ESP.getFreeHeap() / 1024u));
+    const SdCardHealth &sdHealth = SdCard_GetHealth();
+    snprintf(sd, sizeof(sd), "SD:%s %luKHZ", sdHealth.mounted ? "OK" : "ERROR",
+             static_cast<unsigned long>(sdHealth.frequencyKhz));
+
+    s_u8g2.drawStr(1, 17, audio);
+    s_u8g2.drawStr(1, 26, ip);
+    s_u8g2.drawStr(1, 35, battery);
+    s_u8g2.drawStr(1, 44, firmware);
+    s_u8g2.drawStr(1, 53, uptime);
+    s_u8g2.drawStr(1, 62, sd);
+}
+
+static void Display_DrawQuickMenuFirmwareUpdate(uint32_t now) {
     s_u8g2.setFont(u8g2_font_6x13_tf);
-    const char *header = (view == QuickMenuView::Status) ? "STATUS" :
-                         (view == QuickMenuView::IpAddress) ? "IP ADDRESS" :
-                         (view == QuickMenuView::Battery) ? "BATTERY" : "SYSTEM INFO";
+    const char *header = "FIRMWARE";
     s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 13, header);
     s_u8g2.drawHLine(0, 16, 128);
 
-    if (view == QuickMenuView::IpAddress) {
-        String ip = Wlan_GetIpAddress();
-        const char *ipText = ip.length() > 0 ? ip.c_str() : "NO WIFI";
-        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(ipText)) / 2), 38, ipText);
+    const uint8_t otaStatus = Web_GetGithubOtaStatus();
+    if (otaStatus == 2 || Web_GetFirmwareUpToDate() == 1) {
+        const char *result = "UP TO DATE";
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(result)) / 2), 36, result);
         s_u8g2.setFont(u8g2_font_5x7_tf);
-        String host = Wlan_GetHostname();
-        if (host.length() > 18) host = host.substring(0, 18);
-        char hostBuf[32];
-        snprintf(hostBuf, sizeof(hostBuf), "%s.local", host.c_str());
-        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(hostBuf)) / 2), 55, hostBuf);
-        return;
-    }
-
-    s_u8g2.setFont(u8g2_font_5x7_tf);
-    if (view == QuickMenuView::Battery) {
-#ifdef BATTERY_MEASURE_ENABLE
-        char level[24];
-        char voltage[24];
-        const int percent = static_cast<int>(Battery_EstimateLevel() * 100.0f);
-        snprintf(level, sizeof(level), "LEVEL: %d%%", percent);
-        snprintf(voltage, sizeof(voltage), "VOLTAGE: %.2f V", Battery_GetVoltage());
-        const char *condition = Battery_IsCritical() ? "STATE: CRITICAL" : Battery_IsLow() ? "STATE: LOW" : "STATE: OK";
-        s_u8g2.drawStr(3, 30, level);
-        s_u8g2.drawStr(3, 43, voltage);
-        s_u8g2.drawStr(3, 56, condition);
-#else
-        s_u8g2.drawStr(3, 36, "NO BATTERY SENSOR");
-#endif
-        return;
-    }
-
-    if (view == QuickMenuView::SystemInfo) {
-        char firmware[28];
-        char uptime[28];
-        char heap[28];
-        char sd[28];
-        const uint32_t uptimeMinutes = millis() / 60000u;
+        char firmware[32];
         snprintf(firmware, sizeof(firmware), "FW: %s", softwareRevisionShort);
-        snprintf(uptime, sizeof(uptime), "UP: %lud %02lu:%02lu",
-                 static_cast<unsigned long>(uptimeMinutes / 1440u),
-                 static_cast<unsigned long>((uptimeMinutes / 60u) % 24u),
-                 static_cast<unsigned long>(uptimeMinutes % 60u));
-        snprintf(heap, sizeof(heap), "HEAP: %lu KB", static_cast<unsigned long>(ESP.getFreeHeap() / 1024u));
-        const SdCardHealth &sdHealth = SdCard_GetHealth();
-        snprintf(sd, sizeof(sd), "SD: %s %lu KHZ", sdHealth.mounted ? "OK" : "ERROR",
-                 static_cast<unsigned long>(sdHealth.frequencyKhz));
-        s_u8g2.drawStr(3, 27, firmware);
-        s_u8g2.drawStr(3, 38, uptime);
-        s_u8g2.drawStr(3, 49, heap);
-        s_u8g2.drawStr(3, 60, sd);
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(firmware)) / 2), 52, firmware);
+        const char *detail = "NO UPDATE NEEDED";
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(detail)) / 2), 61, detail);
+        Display_DrawQuickMenuTimeout(now);
         return;
     }
 
-    char playLine[24];
-    char wifiLine[24];
-    char volumeLine[24];
-    char eqLine[24];
-    snprintf(playLine, sizeof(playLine), "AUDIO: %s", Display_QuickMenuPlayState());
-    snprintf(wifiLine, sizeof(wifiLine), "WIFI: %s", Wlan_IsConnected() ? "ONLINE" : "OFFLINE");
-    snprintf(volumeLine, sizeof(volumeLine), "VOLUME: %u/%u", AudioPlayer_GetCurrentVolume(), AudioPlayer_GetMaxVolume());
-    String eq = AudioPlayer_GetEqualizerProfile();
-    snprintf(eqLine, sizeof(eqLine), "EQ: %s", eq.c_str());
-    s_u8g2.drawStr(3, 27, playLine);
-    s_u8g2.drawStr(3, 38, wifiLine);
-    s_u8g2.drawStr(3, 49, volumeLine);
-    s_u8g2.drawStr(3, 60, eqLine);
+    if (otaStatus == 1) {
+        const uint8_t progress = Web_GetGithubOtaProgress();
+        const char *state = progress > 0 ? "DOWNLOADING" : "CHECKING...";
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(state)) / 2), 34, state);
+        s_u8g2.drawFrame(9, 41, 110, 10);
+        if (progress > 0) s_u8g2.drawBox(11, 43, static_cast<uint8_t>(progress * 106u / 100u), 6);
+        s_u8g2.setFont(u8g2_font_5x7_tf);
+        char percent[8];
+        snprintf(percent, sizeof(percent), "%u%%", progress);
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(percent)) / 2), 61, percent);
+        return;
+    }
+
+    const char *result = otaStatus == 3 ? "UPDATE FAILED" : "BUSY - TRY AGAIN";
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(result)) / 2), 37, result);
+    s_u8g2.setFont(u8g2_font_5x7_tf);
+    char message[26];
+    Web_GetGithubOtaMessage(message, sizeof(message));
+    if (message[0] != '\0') s_u8g2.drawStr(2, 54, message);
+    Display_DrawQuickMenuTimeout(now);
 }
 
 static void Display_DrawQuickMenuConfirm(uint32_t now) {
@@ -1029,8 +1056,10 @@ void Display_Cyclic(void) {
             Display_DrawQuickMenuList(now);
         } else if (s_quickMenuView == QuickMenuView::Confirm) {
             Display_DrawQuickMenuConfirm(now);
+        } else if (s_quickMenuView == QuickMenuView::FirmwareUpdate) {
+            Display_DrawQuickMenuFirmwareUpdate(now);
         } else {
-            Display_DrawQuickMenuInfo(s_quickMenuView);
+            Display_DrawQuickMenuStatus();
         }
         Display_Send();
         return;

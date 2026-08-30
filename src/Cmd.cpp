@@ -511,8 +511,8 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 			if (!Display_MenuPress(&selectedCommand)) {
 				System_IndicateError();
 			} else if (selectedCommand != CMD_NOTHING) {
-				// The menu closes before returning an action. Dispatch through the normal command path so
-				// shutdown countdowns, OTA, MQTT side effects and lock handling remain exactly the same.
+				// Dispatch through the normal command path so shutdown countdowns, OTA, MQTT side effects
+				// and lock handling remain exactly the same. The OLED may keep an OTA result page visible.
 				Cmd_Action(selectedCommand, bypassLock);
 			}
 #else
