@@ -55,6 +55,7 @@ bool gButtonInitComplete = false;
 EXT_RAM_BSS_ATTR t_button gButtons[8]; // next + prev + pplay + rotEnc + button4 + button5 + button6 + dummy-button
 uint8_t gShutdownButton = 99; // Helper used for Neopixel: stores button-number of shutdown-button
 uint16_t gLongPressTime = 0;
+static constexpr uint16_t smartHoldRepeatIntervalMs = 200; // match the IR remote's repeat cadence
 
 #ifdef PORT_EXPANDER_ENABLE
 extern volatile bool Port_AllowReadFromPortExpander;
@@ -205,6 +206,8 @@ static void Button_UpdateState(uint8_t i, t_button &btn, unsigned long currentTi
 			// the edge so NEXT/PREV/etc. does not also alter playback as the normal screen returns.
 			btn.isPressed = !System_CancelSleep();
 			btn.lastPressedTimestamp = currentTimestamp;
+			btn.lastRepeatTimestamp = currentTimestamp;
+			btn.holdRepeatFired = false;
 			if (!btn.firstPressedTimestamp) {
 				btn.firstPressedTimestamp = currentTimestamp;
 			}
@@ -329,6 +332,14 @@ static void Button_HandleSinglePress(uint8_t i, unsigned long currentTimestamp) 
 
 	// Handle button release (short or long press completed)
 	if (wasReleased) {
+		// A held Smart forward/backward has already emitted one or more commands. Do not add another
+		// short/long action on release, otherwise releasing after scrolling would skip one extra track.
+		if (gButtons[i].holdRepeatFired) {
+			gButtons[i].isPressed = false;
+			gButtons[i].holdRepeatFired = false;
+			return;
+		}
+
 		unsigned long const releaseDuration = gButtons[i].lastReleasedTimestamp - gButtons[i].lastPressedTimestamp;
 		bool const wasShortPress = releaseDuration < intervalToLongPress;
 
@@ -341,6 +352,18 @@ static void Button_HandleSinglePress(uint8_t i, unsigned long currentTimestamp) 
 		}
 
 		gButtons[i].isPressed = false;
+		return;
+	}
+
+	// Smart forward/backward may be assigned as the long action to make a physical NEXT/PREV button
+	// scroll continuously while held, just like repeat frames from the IR remote. Rotary gestures still
+	// win as soon as the encoder moves (usedAsModifier is handled at the top of this function).
+	if ((Cmd_Long == CMD_SMART_FORWARDS || Cmd_Long == CMD_SMART_BACKWARDS) && pressDuration >= intervalToLongPress) {
+		if (!gButtons[i].holdRepeatFired || (currentTimestamp - gButtons[i].lastRepeatTimestamp >= smartHoldRepeatIntervalMs)) {
+			Cmd_Action(Cmd_Long);
+			gButtons[i].holdRepeatFired = true;
+			gButtons[i].lastRepeatTimestamp = currentTimestamp;
+		}
 		return;
 	}
 
