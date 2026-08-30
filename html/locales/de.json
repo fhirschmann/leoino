@@ -200,7 +200,7 @@
 					"status": "Status (Wiedergabe, IP, Akku, System)",
 					"equalizer": "Equalizer",
 					"nightmode": "Nachtmodus",
-					"webdav": "WebDAV",
+					"bluetooth": "Bluetooth",
 					"fwupdate": "Firmware-Update",
 					"shutdown": "Herunterfahren"
 				}

@@ -72,7 +72,7 @@ static bool Web_IsValidOledMenuItems(const char *value) {
 		return false;
 	}
 
-	static constexpr const char *knownItems[] = {"status", "equalizer", "nightmode", "webdav", "fwupdate", "shutdown"};
+	static constexpr const char *knownItems[] = {"status", "equalizer", "nightmode", "bluetooth", "fwupdate", "shutdown"};
 	bool seen[sizeof(knownItems) / sizeof(knownItems[0])] = {};
 	char copy[128];
 	strncpy(copy, value, sizeof(copy) - 1);
@@ -82,9 +82,11 @@ static bool Web_IsValidOledMenuItems(const char *value) {
 		if (token[0] == '-') {
 			token++;
 		}
+		// Accept cached/legacy clients and treat their retired WebDAV slot as Bluetooth.
+		const char *canonicalToken = strcmp(token, "webdav") == 0 ? "bluetooth" : token;
 		bool found = false;
 		for (size_t i = 0; i < sizeof(knownItems) / sizeof(knownItems[0]); i++) {
-			if (!seen[i] && strcmp(token, knownItems[i]) == 0) {
+			if (!seen[i] && strcmp(canonicalToken, knownItems[i]) == 0) {
 				seen[i] = true;
 				found = true;
 				break;

@@ -11,7 +11,6 @@
 #include "SdCard.h"
 #include "System.h"
 #include "Web.h"
-#include "Webdav.h"
 #include "Wlan.h"
 #include "gitrevision.h"
 #include "values.h"
@@ -26,7 +25,7 @@ extern TwoWire i2cBusTwo;
 // Startup-animation selector for the idle/attract screen.
 enum class StartupAnim : uint8_t { None = 0, Boot = 1, Login = 2, Full = 3 };
 
-enum class QuickMenuView : uint8_t { Closed, List, Status, Equalizer, FirmwareUpdate, Confirm };
+enum class QuickMenuView : uint8_t { Closed, List, Status, Equalizer, Bluetooth, FirmwareUpdate, Confirm };
 
 struct QuickMenuItem {
     const char *id;
@@ -40,7 +39,7 @@ static constexpr QuickMenuItem kQuickMenuItems[] = {
     {"status", "STATUS", QuickMenuView::Status, CMD_NOTHING, false},
     {"equalizer", "EQUALIZER", QuickMenuView::Equalizer, CMD_TOGGLE_EQUALIZER, false},
     {"nightmode", "NIGHT MODE", QuickMenuView::Closed, CMD_DIMM_LEDS_NIGHTMODE, false},
-    {"webdav", "WEBDAV", QuickMenuView::Closed, CMD_TOGGLE_WEBDAV_SERVER, false},
+    {"bluetooth", "BLUETOOTH", QuickMenuView::Bluetooth, CMD_NOTHING, false},
     {"fwupdate", "FIRMWARE UPDATE", QuickMenuView::Closed, CMD_FIRMWARE_UPDATE, true},
     {"shutdown", "SHUTDOWN", QuickMenuView::Closed, CMD_SLEEPMODE, true},
 };
@@ -58,6 +57,19 @@ static constexpr QuickMenuEqProfile kQuickMenuEqProfiles[] = {
     {"voiceBoost", "VOICE BOOST"},
 };
 static constexpr uint8_t kQuickMenuEqProfileCount = sizeof(kQuickMenuEqProfiles) / sizeof(kQuickMenuEqProfiles[0]);
+
+struct QuickMenuBluetoothMode {
+    uint8_t mode;
+    const char *label;
+};
+
+static constexpr QuickMenuBluetoothMode kQuickMenuBluetoothModes[] = {
+    {OPMODE_NORMAL, "NORMAL"},
+    {OPMODE_BLUETOOTH_SINK, "SPEAKER"},
+    {OPMODE_BLUETOOTH_SOURCE, "HEADPHONES"},
+};
+static constexpr uint8_t kQuickMenuBluetoothModeCount =
+    sizeof(kQuickMenuBluetoothModes) / sizeof(kQuickMenuBluetoothModes[0]);
 
 static constexpr char kDefaultIdleLine1[] = "LEO INDUSTRIES";
 static constexpr char kDefaultIdleLine2[] = "AUDIO TERMINAL AT-1";
@@ -214,6 +226,7 @@ static uint32_t s_quickMenuTouchedAt = 0;
 static uint16_t s_quickMenuPendingCommand = CMD_NOTHING;
 static uint8_t s_quickMenuLastOtaStatus = 0;
 static uint8_t s_quickMenuEqSelection = 0;
+static uint8_t s_quickMenuBluetoothSelection = 0;
 
 static void Display_SelectCurrentEqProfile(void) {
     const String current = AudioPlayer_GetEqualizerProfile();
@@ -221,6 +234,17 @@ static void Display_SelectCurrentEqProfile(void) {
     for (uint8_t i = 0; i < kQuickMenuEqProfileCount; i++) {
         if (current.equals(kQuickMenuEqProfiles[i].id)) {
             s_quickMenuEqSelection = i;
+            return;
+        }
+    }
+}
+
+static void Display_SelectCurrentBluetoothMode(void) {
+    const uint8_t current = System_GetOperationMode();
+    s_quickMenuBluetoothSelection = 0;
+    for (uint8_t i = 0; i < kQuickMenuBluetoothModeCount; i++) {
+        if (current == kQuickMenuBluetoothModes[i].mode) {
+            s_quickMenuBluetoothSelection = i;
             return;
         }
     }
@@ -242,6 +266,8 @@ static void Display_LoadQuickMenuConfig(void) {
             enabled = false;
             token.remove(0, 1);
         }
+        // Preserve the configured slot and enabled state when upgrading from the former WebDAV item.
+        if (token.equals("webdav")) token = "bluetooth";
         for (uint8_t i = 0; i < kQuickMenuDefinitionCount; i++) {
             if (!seen[i] && token.equals(kQuickMenuItems[i].id)) {
                 seen[i] = true;
@@ -734,6 +760,12 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
         s_quickMenuView = QuickMenuView::List;
         return true;
     }
+    if (s_quickMenuView == QuickMenuView::Bluetooth) {
+        const uint8_t targetMode = kQuickMenuBluetoothModes[s_quickMenuBluetoothSelection].mode;
+        s_quickMenuView = QuickMenuView::List;
+        System_SetOperationMode(targetMode);
+        return true;
+    }
     if (s_quickMenuView != QuickMenuView::List) {
         s_quickMenuView = QuickMenuView::List;
         return true;
@@ -742,6 +774,7 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
     const QuickMenuItem &item = kQuickMenuItems[s_cfgQuickMenuOrder[s_quickMenuSelection]];
     if (item.infoView != QuickMenuView::Closed) {
         if (item.infoView == QuickMenuView::Equalizer) Display_SelectCurrentEqProfile();
+        if (item.infoView == QuickMenuView::Bluetooth) Display_SelectCurrentBluetoothMode();
         s_quickMenuView = item.infoView;
         return true;
     }
@@ -774,6 +807,15 @@ void Display_MenuRotate(int32_t detents) {
         int32_t next = (static_cast<int32_t>(s_quickMenuEqSelection) + detents) % count;
         if (next < 0) next += count;
         s_quickMenuEqSelection = static_cast<uint8_t>(next);
+        s_quickMenuTouchedAt = millis();
+        return;
+    }
+
+    if (s_quickMenuView == QuickMenuView::Bluetooth) {
+        const int32_t count = static_cast<int32_t>(kQuickMenuBluetoothModeCount);
+        int32_t next = (static_cast<int32_t>(s_quickMenuBluetoothSelection) + detents) % count;
+        if (next < 0) next += count;
+        s_quickMenuBluetoothSelection = static_cast<uint8_t>(next);
         s_quickMenuTouchedAt = millis();
         return;
     }
@@ -816,6 +858,14 @@ static const char *Display_QuickMenuPlayState(void) {
     return gPlayProperties.pausePlay ? "PAUSED" : "PLAYING";
 }
 
+static const char *Display_QuickMenuBluetoothMode(void) {
+    const uint8_t current = System_GetOperationMode();
+    for (uint8_t i = 0; i < kQuickMenuBluetoothModeCount; i++) {
+        if (current == kQuickMenuBluetoothModes[i].mode) return kQuickMenuBluetoothModes[i].label;
+    }
+    return "UNKNOWN";
+}
+
 static void Display_FormatQuickMenuLabel(uint8_t definitionIndex, char *buf, size_t n) {
     const QuickMenuItem &item = kQuickMenuItems[definitionIndex];
     if (item.infoView == QuickMenuView::Status) {
@@ -830,8 +880,8 @@ static void Display_FormatQuickMenuLabel(uint8_t definitionIndex, char *buf, siz
 #else
         snprintf(buf, n, "NIGHT MODE: N/A");
 #endif
-    } else if (item.command == CMD_TOGGLE_WEBDAV_SERVER) {
-        snprintf(buf, n, "WEBDAV: %s", Webdav_IsServerRunning() ? "ON" : "OFF");
+    } else if (item.infoView == QuickMenuView::Bluetooth) {
+        snprintf(buf, n, "BT: %s", Display_QuickMenuBluetoothMode());
     } else if (item.command == CMD_FIRMWARE_UPDATE) {
         const int8_t upToDate = Web_GetFirmwareUpToDate();
         const uint8_t otaStatus = Web_GetGithubOtaStatus();
@@ -916,6 +966,34 @@ static void Display_DrawQuickMenuEqualizer(uint32_t now) {
             s_u8g2.setDrawColor(0);
         }
         s_u8g2.drawStr(5, y, kQuickMenuEqProfiles[row].label);
+        if (applied) s_u8g2.drawStr(108, y, "*");
+        if (selected) {
+            s_u8g2.drawStr(119, y, ">");
+            s_u8g2.setDrawColor(1);
+        }
+    }
+
+    Display_DrawQuickMenuTimeout(now);
+}
+
+static void Display_DrawQuickMenuBluetooth(uint32_t now) {
+    s_u8g2.setFont(u8g2_font_5x7_tf);
+    const uint8_t current = System_GetOperationMode();
+
+    char header[28];
+    snprintf(header, sizeof(header), "BLUETOOTH [%s]", Display_QuickMenuBluetoothMode());
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 7, header);
+    s_u8g2.drawHLine(0, 9, 128);
+
+    for (uint8_t row = 0; row < kQuickMenuBluetoothModeCount; row++) {
+        const uint8_t y = 23u + row * 15u;
+        const bool selected = row == s_quickMenuBluetoothSelection;
+        const bool applied = current == kQuickMenuBluetoothModes[row].mode;
+        if (selected) {
+            s_u8g2.drawBox(0, y - 10u, 128, 13);
+            s_u8g2.setDrawColor(0);
+        }
+        s_u8g2.drawStr(5, y, kQuickMenuBluetoothModes[row].label);
         if (applied) s_u8g2.drawStr(108, y, "*");
         if (selected) {
             s_u8g2.drawStr(119, y, ">");
@@ -1131,6 +1209,8 @@ void Display_Cyclic(void) {
             Display_DrawQuickMenuList(now);
         } else if (s_quickMenuView == QuickMenuView::Equalizer) {
             Display_DrawQuickMenuEqualizer(now);
+        } else if (s_quickMenuView == QuickMenuView::Bluetooth) {
+            Display_DrawQuickMenuBluetooth(now);
         } else if (s_quickMenuView == QuickMenuView::Confirm) {
             Display_DrawQuickMenuConfirm(now);
         } else if (s_quickMenuView == QuickMenuView::FirmwareUpdate) {

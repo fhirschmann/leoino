@@ -382,7 +382,7 @@ paths:
                       description: Remember the last OLED quick-menu selection when reopening it.
                     menuItems:
                       type: string
-                      default: status,equalizer,nightmode,webdav,fwupdate,shutdown
+                      default: status,equalizer,nightmode,bluetooth,fwupdate,shutdown
                       description: >-
                         Ordered OLED quick-menu item IDs. Prefix an item with "-" to keep its
                         position while hiding it. At least one known item must remain enabled.

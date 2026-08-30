@@ -6346,8 +6346,8 @@
 		var settingsAutoSaveTimer = null;
 		var settingsAutoSaveSuppressedUntil = 0;
 		var settingsAutoSavePopulating = false;
-		const OLED_MENU_ITEMS_DEFAULT = "status,equalizer,nightmode,webdav,fwupdate,shutdown";
-		const OLED_MENU_ITEM_DEFS = ["status", "equalizer", "nightmode", "webdav", "fwupdate", "shutdown"];
+		const OLED_MENU_ITEMS_DEFAULT = "status,equalizer,nightmode,bluetooth,fwupdate,shutdown";
+		const OLED_MENU_ITEM_DEFS = ["status", "equalizer", "nightmode", "bluetooth", "fwupdate", "shutdown"];
 
 		function syncOledMenuItems(triggerSave) {
 			const list = document.getElementById('oled_menuList');
@@ -6369,6 +6369,7 @@
 				let token = raw.trim();
 				const enabled = token.charAt(0) !== '-';
 				if (!enabled) token = token.substring(1);
+				if (token === 'webdav') token = 'bluetooth';
 				if (OLED_MENU_ITEM_DEFS.includes(token) && !seen.has(token)) {
 					configured.push({ id: token, enabled: enabled });
 					seen.add(token);
