@@ -26,7 +26,7 @@ extern TwoWire i2cBusTwo;
 // Startup-animation selector for the idle/attract screen.
 enum class StartupAnim : uint8_t { None = 0, Boot = 1, Login = 2, Full = 3 };
 
-enum class QuickMenuView : uint8_t { Closed, List, Status, FirmwareUpdate, Confirm };
+enum class QuickMenuView : uint8_t { Closed, List, Status, Equalizer, FirmwareUpdate, Confirm };
 
 struct QuickMenuItem {
     const char *id;
@@ -38,13 +38,26 @@ struct QuickMenuItem {
 
 static constexpr QuickMenuItem kQuickMenuItems[] = {
     {"status", "STATUS", QuickMenuView::Status, CMD_NOTHING, false},
-    {"equalizer", "EQUALIZER", QuickMenuView::Closed, CMD_TOGGLE_EQUALIZER, false},
+    {"equalizer", "EQUALIZER", QuickMenuView::Equalizer, CMD_TOGGLE_EQUALIZER, false},
     {"nightmode", "NIGHT MODE", QuickMenuView::Closed, CMD_DIMM_LEDS_NIGHTMODE, false},
     {"webdav", "WEBDAV", QuickMenuView::Closed, CMD_TOGGLE_WEBDAV_SERVER, false},
     {"fwupdate", "FIRMWARE UPDATE", QuickMenuView::Closed, CMD_FIRMWARE_UPDATE, true},
     {"shutdown", "SHUTDOWN", QuickMenuView::Closed, CMD_SLEEPMODE, true},
 };
 static constexpr uint8_t kQuickMenuDefinitionCount = sizeof(kQuickMenuItems) / sizeof(kQuickMenuItems[0]);
+
+struct QuickMenuEqProfile {
+    const char *id;
+    const char *label;
+};
+
+static constexpr QuickMenuEqProfile kQuickMenuEqProfiles[] = {
+    {"flat", "FLAT"},
+    {"music", "MUSIC"},
+    {"speech", "SPEECH"},
+    {"voiceBoost", "VOICE BOOST"},
+};
+static constexpr uint8_t kQuickMenuEqProfileCount = sizeof(kQuickMenuEqProfiles) / sizeof(kQuickMenuEqProfiles[0]);
 
 static constexpr char kDefaultIdleLine1[] = "LEO INDUSTRIES";
 static constexpr char kDefaultIdleLine2[] = "AUDIO TERMINAL AT-1";
@@ -200,6 +213,18 @@ static uint8_t s_quickMenuSelection = 0;
 static uint32_t s_quickMenuTouchedAt = 0;
 static uint16_t s_quickMenuPendingCommand = CMD_NOTHING;
 static uint8_t s_quickMenuLastOtaStatus = 0;
+static uint8_t s_quickMenuEqSelection = 0;
+
+static void Display_SelectCurrentEqProfile(void) {
+    const String current = AudioPlayer_GetEqualizerProfile();
+    s_quickMenuEqSelection = 0;
+    for (uint8_t i = 0; i < kQuickMenuEqProfileCount; i++) {
+        if (current.equals(kQuickMenuEqProfiles[i].id)) {
+            s_quickMenuEqSelection = i;
+            return;
+        }
+    }
+}
 
 static void Display_LoadQuickMenuConfig(void) {
     const String configured = gPrefsSettings.getString("oledMenuItems", OLED_MENU_ITEMS_DEFAULT);
@@ -704,6 +729,11 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
         s_quickMenuPendingCommand = CMD_NOTHING;
         return true;
     }
+    if (s_quickMenuView == QuickMenuView::Equalizer) {
+        AudioPlayer_SetEqualizerProfile(kQuickMenuEqProfiles[s_quickMenuEqSelection].id);
+        s_quickMenuView = QuickMenuView::List;
+        return true;
+    }
     if (s_quickMenuView != QuickMenuView::List) {
         s_quickMenuView = QuickMenuView::List;
         return true;
@@ -711,6 +741,7 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
 
     const QuickMenuItem &item = kQuickMenuItems[s_cfgQuickMenuOrder[s_quickMenuSelection]];
     if (item.infoView != QuickMenuView::Closed) {
+        if (item.infoView == QuickMenuView::Equalizer) Display_SelectCurrentEqProfile();
         s_quickMenuView = item.infoView;
         return true;
     }
@@ -737,6 +768,15 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
 
 void Display_MenuRotate(int32_t detents) {
     if (!Display_MenuIsActive() || detents == 0) return;
+
+    if (s_quickMenuView == QuickMenuView::Equalizer) {
+        const int32_t count = static_cast<int32_t>(kQuickMenuEqProfileCount);
+        int32_t next = (static_cast<int32_t>(s_quickMenuEqSelection) + detents) % count;
+        if (next < 0) next += count;
+        s_quickMenuEqSelection = static_cast<uint8_t>(next);
+        s_quickMenuTouchedAt = millis();
+        return;
+    }
 
     if (s_quickMenuView != QuickMenuView::List) {
         // Turning from an info/confirmation/result page returns to the list; the same detent continues
@@ -842,6 +882,41 @@ static void Display_DrawQuickMenuList(uint32_t now) {
         char label[28];
         Display_FormatQuickMenuLabel(s_cfgQuickMenuOrder[selectionIndex], label, sizeof(label));
         s_u8g2.drawStr(3, y, label);
+        if (selected) {
+            s_u8g2.drawStr(119, y, ">");
+            s_u8g2.setDrawColor(1);
+        }
+    }
+
+    Display_DrawQuickMenuTimeout(now);
+}
+
+static void Display_DrawQuickMenuEqualizer(uint32_t now) {
+    s_u8g2.setFont(u8g2_font_5x7_tf);
+    const String current = AudioPlayer_GetEqualizerProfile();
+    const char *currentLabel = "CUSTOM";
+    for (uint8_t i = 0; i < kQuickMenuEqProfileCount; i++) {
+        if (current.equals(kQuickMenuEqProfiles[i].id)) {
+            currentLabel = kQuickMenuEqProfiles[i].label;
+            break;
+        }
+    }
+
+    char header[28];
+    snprintf(header, sizeof(header), "EQUALIZER [%s]", currentLabel);
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 7, header);
+    s_u8g2.drawHLine(0, 9, 128);
+
+    for (uint8_t row = 0; row < kQuickMenuEqProfileCount; row++) {
+        const uint8_t y = 20u + row * 12u;
+        const bool selected = row == s_quickMenuEqSelection;
+        const bool applied = current.equals(kQuickMenuEqProfiles[row].id);
+        if (selected) {
+            s_u8g2.drawBox(0, y - 9u, 128, 11);
+            s_u8g2.setDrawColor(0);
+        }
+        s_u8g2.drawStr(5, y, kQuickMenuEqProfiles[row].label);
+        if (applied) s_u8g2.drawStr(108, y, "*");
         if (selected) {
             s_u8g2.drawStr(119, y, ">");
             s_u8g2.setDrawColor(1);
@@ -1054,6 +1129,8 @@ void Display_Cyclic(void) {
     if (quickMenuScreen) {
         if (s_quickMenuView == QuickMenuView::List) {
             Display_DrawQuickMenuList(now);
+        } else if (s_quickMenuView == QuickMenuView::Equalizer) {
+            Display_DrawQuickMenuEqualizer(now);
         } else if (s_quickMenuView == QuickMenuView::Confirm) {
             Display_DrawQuickMenuConfirm(now);
         } else if (s_quickMenuView == QuickMenuView::FirmwareUpdate) {
