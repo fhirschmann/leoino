@@ -27,3 +27,6 @@ managed_components/
 # Lokale Zugangsdaten / persönliche Einstellungen (nie einchecken)
 AGENTS_LOCAL.md
 .espuino_config.json
+
+# Unkomprimierte Foto-Originale; weboptimierte Exporte liegen in docs/img/.
+pictures/

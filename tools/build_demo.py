@@ -57,9 +57,10 @@ LANDING_FONTS = [
 
 # Screenshots/photos the landing page shows, copied from docs/img/ into img/.
 LANDING_IMAGES = [
-    "theme-cyberpunk.png", "theme-waldhaus.png", "theme-wolkchen.png",
-    "theme-pixelheld.png", "theme-robo.png", "theme-kreidetafel.png",
-    "at1-front.jpg",
+    "at1-finished-workbench.jpg", "at1-front.jpg", "at1-cartridge.jpg",
+    "at1-rear-io.jpg", "at1-build-front-module.jpg",
+    "at1-build-speaker-module.jpg", "at1-build-open-chassis.jpg",
+    "at1-build-exploded.jpg", "at1-build-wiring.jpg", "at1-build-powered.jpg",
 ]
 
 

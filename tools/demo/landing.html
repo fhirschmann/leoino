@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>LEO INDUSTRIES AT-1 // RFID Audio Player</title>
+	<title>LEO INDUSTRIES AT-1 // Ein handgebauter Audioplayer</title>
 	<meta name="description"
-		content="LEO INDUSTRIES AT-1 — an ESP32 RFID audio player with a cyberpunk web interface. Try the full UI in your browser, no hardware required.">
+		content="LEO INDUSTRIES AT-1 — ein handgebauter RFID-Audioplayer für meinen Sohn. Fotos, Baugeschichte und technische Details eines Einzelstücks.">
 	<meta name="color-scheme" content="dark">
 	<link rel="icon" href="logo.svg" type="image/svg+xml">
 	<meta property="og:title" content="LEO INDUSTRIES AT-1">
-	<meta property="og:description" content="RFID audio player :: ESP32 :: cyberpunk edition. Live browser demo, no hardware needed.">
+	<meta property="og:description" content="Ein handgebauter RFID-Audioplayer für meinen Sohn — vom ersten Modul bis zum fertigen Einzelstück.">
 	<meta property="og:type" content="website">
 	<style>
 		/* ---- bundled fonts (same faces the device UI uses) ---- */
@@ -612,103 +612,179 @@
 			margin: 0;
 		}
 
-		/* ---- feature cards ---- */
-		.cards {
+		/* ---- personal archive note ---- */
+		.story-grid {
 			display: grid;
-			grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-			gap: 1.2rem;
+			grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr);
+			gap: 3rem;
+			align-items: start;
 		}
 
-		.card {
+		.story-copy {
+			font-size: 1.08rem;
+			color: #a8bce0;
+		}
+
+		.story-copy p {
+			margin: 0 0 1.1rem;
+		}
+
+		.archive-note {
 			position: relative;
-			background: linear-gradient(180deg, rgba(14, 22, 38, .8), rgba(10, 16, 30, .8));
-			border: 1px solid var(--border);
-			padding: 1.5rem 1.4rem 1.6rem;
-			clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
-			transition: border-color .18s ease, transform .18s ease;
+			margin: 0;
+			padding: 1.7rem 1.6rem 1.8rem;
+			border: 1px solid rgba(255, 42, 109, .45);
+			background:
+				linear-gradient(135deg, rgba(255, 42, 109, .12), transparent 58%),
+				var(--panel);
+			clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
 		}
 
-		.card:hover {
-			border-color: rgba(0, 240, 255, .5);
-			transform: translateY(-3px);
+		.archive-note .tag {
+			margin: 0 0 .8rem;
 		}
 
-		.card .num {
-			font-family: var(--mono);
-			font-size: .74rem;
-			letter-spacing: .2em;
-			color: var(--magenta);
-		}
-
-		.card h3 {
+		.archive-note blockquote {
+			margin: 0;
 			font-family: var(--display);
-			font-weight: 700;
-			font-size: 1.02rem;
-			letter-spacing: .03em;
-			margin: .55rem 0 .5rem;
-			color: #e6f2ff;
+			font-size: clamp(1.15rem, 2.8vw, 1.55rem);
+			line-height: 1.45;
+			color: #eaf6ff;
 		}
 
-		.card p {
-			margin: 0;
-			font-size: .98rem;
-			color: #9fb0d2;
+		@media (max-width: 800px) {
+			.story-grid {
+				grid-template-columns: 1fr;
+				gap: 1.8rem;
+			}
 		}
 
-		/* ---- gallery ---- */
-		.shots {
+		/* ---- hardware field-unit gallery ---- */
+		.hardware-stage {
 			display: grid;
-			grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-			gap: 1.2rem;
-		}
-
-		figure.shot {
-			margin: 0;
-			border: 1px solid var(--border);
-			background: var(--panel);
-			overflow: hidden;
-			clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
-		}
-
-		figure.shot img {
-			display: block;
-			width: 100%;
-			height: 240px;
-			object-fit: cover;
-			object-position: top center;
-			filter: saturate(1.05);
-		}
-
-		figure.shot figcaption {
-			font-family: var(--mono);
-			font-size: .78rem;
-			letter-spacing: .16em;
-			text-transform: uppercase;
-			color: var(--dim);
-			padding: .6rem .9rem .7rem;
-			border-top: 1px solid var(--border);
-		}
-
-		/* ---- hardware split ---- */
-		.split {
-			display: grid;
-			grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+			grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
 			gap: 3rem;
 			align-items: center;
 		}
 
+		.hardware-primary,
+		.hardware-detail,
+		.build-card {
+			margin: 0;
+			border: 1px solid var(--border);
+			background: var(--panel);
+			overflow: hidden;
+			clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+		}
+
+		.hardware-primary img,
+		.hardware-detail img,
+		.build-card img {
+			width: 100%;
+			display: block;
+			object-fit: cover;
+		}
+
+		.hardware-primary img {
+			aspect-ratio: 4 / 3;
+		}
+
+		.hardware-caption {
+			display: flex;
+			justify-content: space-between;
+			gap: 1rem;
+			padding: .7rem 1rem .8rem;
+			border-top: 1px solid var(--border);
+			font-family: var(--mono);
+			font-size: .76rem;
+			letter-spacing: .12em;
+			text-transform: uppercase;
+			color: var(--dim);
+		}
+
+		.hardware-caption strong {
+			color: var(--cyan);
+			font-weight: 400;
+		}
+
+		.hardware-details {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 1.2rem;
+			margin-top: 1.2rem;
+		}
+
+		.hardware-detail img {
+			aspect-ratio: 4 / 3;
+		}
+
+		.build-gallery {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 1.2rem;
+		}
+
+		.build-card img {
+			aspect-ratio: 4 / 3;
+		}
+
+		.build-index {
+			color: var(--magenta);
+			margin-right: .45rem;
+		}
+
+		.tech-grid {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 1px;
+			margin: 0;
+			border: 1px solid var(--border);
+			background: var(--border);
+		}
+
+		.tech-grid>div {
+			background: linear-gradient(180deg, rgba(14, 22, 38, .95), rgba(8, 13, 24, .95));
+			padding: 1.2rem 1.3rem 1.3rem;
+		}
+
+		.tech-grid dt {
+			font-family: var(--mono);
+			font-size: .72rem;
+			letter-spacing: .18em;
+			text-transform: uppercase;
+			color: var(--magenta);
+		}
+
+		.tech-grid dd {
+			margin: .3rem 0 0;
+			font-size: 1.04rem;
+			color: #dbe8ff;
+		}
+
+		.tech-actions {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 1rem;
+			margin-top: 2rem;
+		}
+
 		@media (max-width: 900px) {
-			.split {
+			.hardware-stage {
 				grid-template-columns: 1fr;
 				gap: 2rem;
 			}
+
+			.hardware-details {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
 		}
 
-		.split img {
-			width: 100%;
-			display: block;
-			border: 1px solid var(--border);
-			clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+		@media (max-width: 620px) {
+			.hardware-details,
+			.build-gallery,
+			.tech-grid {
+				grid-template-columns: 1fr;
+			}
 		}
 
 		ul.ticks {
@@ -736,37 +812,6 @@
 			clip-path: polygon(0 0, 100% 0, 100% 60%, 60% 100%, 0 100%);
 		}
 
-		/* ---- demo banner block ---- */
-		.launch {
-			position: relative;
-			border: 1px solid rgba(0, 240, 255, .35);
-			background:
-				linear-gradient(120deg, rgba(255, 42, 109, .12), transparent 45%),
-				linear-gradient(180deg, rgba(14, 22, 38, .95), rgba(8, 13, 24, .95));
-			padding: 2.6rem 2rem;
-			text-align: center;
-			clip-path: polygon(22px 0, 100% 0, 100% calc(100% - 22px), calc(100% - 22px) 100%, 0 100%, 0 22px);
-		}
-
-		.launch h2 {
-			font-family: var(--display);
-			font-weight: 900;
-			font-size: clamp(1.4rem, 4vw, 2.2rem);
-			margin: .3rem 0 .6rem;
-			color: #eaf6ff;
-		}
-
-		.launch p {
-			margin: 0 auto;
-			max-width: 54ch;
-			color: #9fb0d2;
-		}
-
-		.launch .cta {
-			justify-content: center;
-			margin-top: 2rem;
-		}
-
 		/* ---- footer ---- */
 		footer {
 			border-top: 1px solid var(--border);
@@ -790,16 +835,6 @@
 			flex-wrap: wrap;
 		}
 
-		.note {
-			font-family: var(--body);
-			font-size: .98rem;
-			color: var(--dim);
-			border-left: 2px solid var(--magenta);
-			padding-left: 1rem;
-			margin: 2.4rem 0 0;
-			max-width: 70ch;
-		}
-
 		@media (prefers-reduced-motion: reduce) {
 
 			html {
@@ -817,8 +852,7 @@
 				display: none;
 			}
 
-			.btn:hover,
-			.card:hover {
+			.btn:hover {
 				transform: none;
 			}
 		}
@@ -833,9 +867,9 @@
 		<div class="wrap">
 			<a class="brand" href="#top"><img src="logo.svg" alt="">LEO INDUSTRIES AT-1</a>
 			<nav>
-				<a class="hide-sm" href="#features">Features</a>
-				<a class="hide-sm" href="#themes">Themes</a>
-				<a class="hide-sm" href="#hardware">Hardware</a>
+				<a class="hide-sm" href="#geschichte">Geschichte</a>
+				<a class="hide-sm" href="#bau">Bau</a>
+				<a class="hide-sm" href="#technik">Technik</a>
 				<a class="ghost" href="https://github.com/fhirschmann/leoino">GitHub ↗</a>
 			</nav>
 		</div>
@@ -845,179 +879,201 @@
 		<div class="wrap hero">
 			<div class="hero-grid">
 				<div>
-					<p class="kicker">RFID Audio Player :: ESP32 :: Cyberpunk Edition</p>
+					<p class="kicker">Handgebaut :: Einzelstück :: RFID Audio Player</p>
 					<h1><span class="lo glitch" data-text="LEO">LEO</span><span class="ind glitch"
 							data-text="INDUSTRIES">INDUSTRIES</span><span class="at glitch" data-text="AT-1">AT-1</span></h1>
-					<p class="lede">A hand-built RFID audio player for kids — <strong>ESP32 firmware</strong>,
-						<strong>PN5180 RFID</strong>, and a web interface rebuilt from the ground up in neon.
-						A private fork of ESPuino.
+					<p class="lede">Ein RFID-Audioplayer, den ich <strong>für meinen Sohn</strong> gebaut habe.
+						Aus Platinen, Kabeln und vielen gedruckten Teilen wurde ein Gerät nur für ihn —
+						für Musik, Hörspiele und Geschichten.
 					</p>
 					<div class="cta">
-						<a class="btn" href="demo/">▶ Launch live demo</a>
-						<a class="btn ghost magenta" href="https://github.com/fhirschmann/leoino">Source on GitHub</a>
+						<a class="btn" href="#geschichte">Die Geschichte</a>
+						<a class="btn ghost magenta" href="#technik">Technische Daten</a>
 					</div>
 				</div>
 
 				<div class="term" aria-hidden="true">
 					<div class="term-bar">
 						<i class="dot"></i><i class="dot c"></i><i class="dot g"></i>
-						<span>at1@leoino :: serial 115200</span>
+						<span>at1@leoino :: build log</span>
 					</div>
 					<pre><span class="k">[boot]</span>  LEO INDUSTRIES AT-1
-<span class="k">[wifi]</span>  connected  <span class="ok">ok</span>
-<span class="k">[sd  ]</span>  mounted    <span class="ok">ok</span>
-<span class="k">[rfid]</span>  PN5180     <span class="ok">ok</span>
-<span class="k">[web ]</span>  http://leoino.local
+<span class="k">[cad ]</span>  gehäuse    <span class="ok">fertig</span>
+<span class="k">[3d  ]</span>  xpetg/petg <span class="ok">gedruckt</span>
+<span class="k">[rfid]</span>  PN5180     <span class="ok">bereit</span>
+<span class="k">[akku]</span>  6000 mAh   <span class="ok">geladen</span>
 <span class="m">[tag ]</span>  0455-2130-6B80
-<span class="y">[play]</span>  /Music/Bibi Blocksberg
+<span class="y">[play]</span>  /Geschichten/Kapitel-01
         [#########-----]  04:12 / 07:38
-<span class="ok">[ok  ]</span>  have fun <span class="cursor"></span></pre>
+<span class="ok">[ok  ]</span>  bereit für die nächste geschichte <span class="cursor"></span></pre>
 				</div>
 			</div>
 
 			<dl class="specs">
 				<div>
-					<dt>Interface</dt>
-					<dd>6 themes</dd>
+					<dt>Bauart</dt>
+					<dd>Einzelstück</dd>
 				</div>
 				<div>
-					<dt>Languages</dt>
-					<dd>DE / EN / FR</dd>
+					<dt>Gehäuse</dt>
+					<dd>3D-Druck</dd>
 				</div>
 				<div>
-					<dt>Control</dt>
-					<dd>RFID · IR · MQTT</dd>
+					<dt>Steuerung</dt>
+					<dd>RFID · Tasten</dd>
 				</div>
 				<div>
-					<dt>Enclosure</dt>
-					<dd>Printable STL</dd>
+					<dt>Herzstück</dt>
+					<dd>ESP32</dd>
 				</div>
 			</dl>
 		</div>
 
-		<section id="features">
+		<section id="geschichte">
 			<div class="wrap">
 				<div class="sec-head">
 					<hr class="rule">
-					<p class="tag" style="margin-top:1rem">// Highlights</p>
-					<h2>What this fork adds</h2>
-					<p>The features that stand out most against stock ESPuino. The full, commit-by-commit list
-						lives in the repository README.</p>
+					<p class="tag" style="margin-top:1rem">// Die Geschichte</p>
+					<h2>Warum dieser Player entstanden ist</h2>
 				</div>
-				<div class="cards">
-					<article class="card">
-						<div class="num">01</div>
-						<h3>Cyberpunk web interface</h3>
-						<p>Management and access-point pages rebuilt in neon, with six switchable looks — from
-							Cyberpunk to kid-friendly Waldhaus, Wölkchen, Pixelheld, Robo and Kreidetafel.</p>
-					</article>
-					<article class="card">
-						<div class="num">02</div>
-						<h3>Fully offline &amp; installable</h3>
-						<p>Every library and font is vendored and served gzipped straight off the ESP32. No CDN,
-							no internet — and it installs as a PWA.</p>
-					</article>
-					<article class="card">
-						<div class="num">03</div>
-						<h3>RFID that keeps up</h3>
-						<p>Presence detection, SLIX2 support, learn-mode straight from the browser and resume
-							positions that survive a reboot.</p>
-					</article>
-					<article class="card">
-						<div class="num">04</div>
-						<h3>Apple HomeKit</h3>
-						<p>The player shows up as a native HomeKit accessory — pair it with a QR code and control
-							it from the Home app or Siri.</p>
-					</article>
-					<article class="card">
-						<div class="num">05</div>
-						<h3>Backup &amp; sync</h3>
-						<p>Export and restore the whole configuration, sync RFID assignments between devices, and
-							keep listening statistics per tag.</p>
-					</article>
-					<article class="card">
-						<div class="num">06</div>
-						<h3>Equalizer &amp; per-path rules</h3>
-						<p>A real EQ with rules that stick to a folder, so the loud audiobook and the quiet radio
-							play stay at the same level.</p>
-					</article>
+				<div class="story-grid">
+					<div class="story-copy">
+						<p>Der AT-1 ist kein gekauftes Produkt, sondern ein handgebautes Einzelstück. Das Gehäuse
+							entstand Teil für Teil in CAD und im 3D-Drucker; Platinen, Lautsprecher, Tasten, Display
+							und RFID-Leser wurden anschließend zu einem eigenen Gerät zusammengesetzt.</p>
+						<p>Eine RFID-Karte wählt die Geschichte aus, die großen mechanischen Tasten steuern die
+							Wiedergabe. Dahinter arbeitet ein ESP32 mit einer Software, die mit dem Gerät gewachsen
+							ist und immer wieder an unseren Alltag angepasst wurde.</p>
+						<p>Diese Seite bewahrt nicht nur Quellcode und technische Daten, sondern vor allem den Weg
+							von den ersten losen Modulen bis zum fertigen Player.</p>
+					</div>
+					<aside class="archive-note">
+						<p class="tag">// Für später</p>
+						<blockquote>Damit du irgendwann sehen kannst, wie aus einer Idee dein eigener Audioplayer wurde.</blockquote>
+					</aside>
 				</div>
 			</div>
 		</section>
 
-		<section id="themes" style="padding-top:1rem">
+		<section id="fotos" style="padding-top:1rem">
 			<div class="wrap">
 				<div class="sec-head">
 					<hr class="rule">
-					<p class="tag" style="margin-top:1rem">// Themes</p>
-					<h2>Six looks, one interface</h2>
-					<p>The theme is remembered per browser — neon for the workshop, something softer for the
-						kids' tablet.</p>
+					<p class="tag" style="margin-top:1rem">// Das fertige Gerät</p>
+					<h2>So sieht der AT-1 heute aus</h2>
+					<p>Ein robustes, tragbares Gehäuse mit klaren Bedienelementen — und mit genügend Schrauben,
+						damit es sich jederzeit wieder öffnen und reparieren lässt.</p>
 				</div>
-				<div class="shots">
-					<figure class="shot"><img src="img/theme-cyberpunk.png" alt="Cyberpunk theme" loading="lazy">
-						<figcaption>Cyberpunk</figcaption>
+				<div class="hardware-stage">
+					<figure class="hardware-primary">
+						<img src="img/at1-finished-workbench.jpg"
+							alt="Der fertige AT-1 auf der Werkbank, von vorne fotografiert" loading="lazy">
+						<figcaption class="hardware-caption"><span>Fertiges Gerät</span><strong>AT-1 / Einzelstück</strong></figcaption>
 					</figure>
-					<figure class="shot"><img src="img/theme-waldhaus.png" alt="Waldhaus theme" loading="lazy">
-						<figcaption>Waldhaus</figcaption>
-					</figure>
-					<figure class="shot"><img src="img/theme-wolkchen.png" alt="Wölkchen theme" loading="lazy">
-						<figcaption>Wölkchen</figcaption>
-					</figure>
-					<figure class="shot"><img src="img/theme-pixelheld.png" alt="Pixelheld theme" loading="lazy">
-						<figcaption>Pixelheld</figcaption>
-					</figure>
-					<figure class="shot"><img src="img/theme-robo.png" alt="Robo theme" loading="lazy">
-						<figcaption>Robo</figcaption>
-					</figure>
-					<figure class="shot"><img src="img/theme-kreidetafel.png" alt="Kreidetafel theme" loading="lazy">
-						<figcaption>Kreidetafel</figcaption>
-					</figure>
-				</div>
-			</div>
-		</section>
-
-		<section id="hardware" style="padding-top:1rem">
-			<div class="wrap">
-				<div class="sec-head">
-					<hr class="rule">
-					<p class="tag" style="margin-top:1rem">// Hardware</p>
-					<h2>The box it lives in</h2>
-				</div>
-				<div class="split">
-					<img src="img/at1-front.jpg" alt="The AT-1 player, front view" loading="lazy">
 					<div>
-						<p style="margin-top:0">The enclosure was drawn by hand in CAD — no AI involved — and prints
-							on any FDM machine. RFID cartridges snap onto the top plate and start a playlist the
-							moment they touch down.</p>
+						<p style="margin-top:0">Das Gehäuse wurde von Hand in CAD konstruiert und aus mehreren
+							Materialien gedruckt. Jede Seite hat eine Aufgabe, und alle wichtigen Baugruppen bleiben
+							für Wartung und spätere Umbauten erreichbar.</p>
 						<ul class="ticks">
-							<li>ESP32 with PN5180 RFID reader and an SH1106 OLED</li>
-							<li>Rotary encoder, mechanical keycaps, Neopixel ring</li>
-							<li>Battery powered with a real-time clock for wake-ups</li>
-							<li>Printable STL files for case, panels, handle and cartridges</li>
+							<li>RFID-Kartenschacht für Geschichten und Musik</li>
+							<li>Mechanische Tasten, Drehregler und 128×64-OLED</li>
+							<li>Peerless-Lautsprecher und Kopfhöreranschluss</li>
+							<li>LiFePO₄-Akku, Echtzeituhr und Statusbeleuchtung</li>
 						</ul>
 						<div class="cta" style="margin-top:1.8rem">
-							<a class="btn ghost" href="https://github.com/fhirschmann/leoino/tree/master/stl">Get the STLs</a>
+							<a class="btn ghost" href="https://github.com/fhirschmann/leoino/tree/master/stl">STL-Dateien ansehen</a>
 						</div>
 					</div>
 				</div>
-				<p class="note"><strong>Full disclosure:</strong> the firmware and web interface in this fork are
-					largely vibe-coded (AI-assisted). The hardware is not.</p>
+				<div class="hardware-details" aria-label="Außenansichten des AT-1">
+					<figure class="hardware-detail">
+						<img src="img/at1-front.jpg" alt="Frontansicht des fertigen AT-1" loading="lazy">
+						<figcaption class="hardware-caption"><span>Frontansicht</span><strong>Bedienfeld &amp; Licht</strong></figcaption>
+					</figure>
+					<figure class="hardware-detail">
+						<img src="img/at1-cartridge.jpg"
+							alt="Seitlicher RFID-Kartenschacht und Kopfhöreranschluss des AT-1" loading="lazy">
+						<figcaption class="hardware-caption"><span>Kartenschacht</span><strong>RFID &amp; Kopfhörer</strong></figcaption>
+					</figure>
+					<figure class="hardware-detail">
+						<img src="img/at1-rear-io.jpg"
+							alt="Rückseite des AT-1 mit Stromschalter, USB-Anschluss und Typenschild" loading="lazy">
+						<figcaption class="hardware-caption"><span>Rückseite</span><strong>Strom &amp; USB</strong></figcaption>
+					</figure>
+				</div>
 			</div>
 		</section>
 
-		<section style="padding-top:1rem">
+		<section id="bau" style="padding-top:1rem">
 			<div class="wrap">
-				<div class="launch">
-					<p class="tag">// No hardware required</p>
-					<h2>Try the whole interface in your browser</h2>
-					<p>A device-free build of the management page with a mocked WebSocket and REST layer — browse
-						the file tree, assign tags, flip themes, poke at every setting. Nothing you click leaves
-						your browser.</p>
-					<div class="cta">
-						<a class="btn" href="demo/">▶ Launch live demo</a>
-						<a class="btn ghost" href="https://github.com/fhirschmann/leoino#readme">Read the docs</a>
-					</div>
+				<div class="sec-head">
+					<hr class="rule">
+					<p class="tag" style="margin-top:1rem">// Bautagebuch</p>
+					<h2>Von Einzelteilen zum AT-1</h2>
+					<p>Die Fotos folgen dem Aufbau: erst die einzelnen Module, dann das offene Gehäuse,
+						zuletzt Verdrahtung und Funktionstest.</p>
+				</div>
+				<div class="build-gallery" aria-label="Baufolge des AT-1">
+					<figure class="build-card">
+						<img src="img/at1-build-front-module.jpg"
+							alt="Display, Status-LEDs und Frontmodul vor dem Einbau" loading="lazy">
+						<figcaption class="hardware-caption"><span><b class="build-index">01</b> Module</span><strong>Display &amp; LEDs</strong></figcaption>
+					</figure>
+					<figure class="build-card">
+						<img src="img/at1-build-speaker-module.jpg"
+							alt="Rückseite der Lautsprecher- und Displayplatte mit Verdrahtung" loading="lazy">
+						<figcaption class="hardware-caption"><span><b class="build-index">02</b> Frontplatte</span><strong>Verdrahtung</strong></figcaption>
+					</figure>
+					<figure class="build-card">
+						<img src="img/at1-build-open-chassis.jpg"
+							alt="Offenes AT-1-Gehäuse mit Lautsprecher, RFID-Leser und Elektronik" loading="lazy">
+						<figcaption class="hardware-caption"><span><b class="build-index">03</b> Gehäuse</span><strong>Elektronik einsetzen</strong></figcaption>
+					</figure>
+					<figure class="build-card">
+						<img src="img/at1-build-exploded.jpg"
+							alt="AT-1 in Serviceposition mit zugänglichen Modulen" loading="lazy">
+						<figcaption class="hardware-caption"><span><b class="build-index">04</b> Serviceposition</span><strong>Module verbinden</strong></figcaption>
+					</figure>
+					<figure class="build-card">
+						<img src="img/at1-build-wiring.jpg"
+							alt="Frontplatte während der Endmontage mit dem Gehäuse verbunden" loading="lazy">
+						<figcaption class="hardware-caption"><span><b class="build-index">05</b> Endmontage</span><strong>Front anschließen</strong></figcaption>
+					</figure>
+					<figure class="build-card">
+						<img src="img/at1-build-powered.jpg"
+							alt="Geöffneter AT-1 beim Funktionstest von OLED und Status-LEDs" loading="lazy">
+						<figcaption class="hardware-caption"><span><b class="build-index">06</b> Funktionstest</span><strong>OLED &amp; Licht</strong></figcaption>
+					</figure>
+				</div>
+			</div>
+		</section>
+
+		<section id="technik" style="padding-top:1rem">
+			<div class="wrap">
+				<div class="sec-head">
+					<hr class="rule">
+					<p class="tag" style="margin-top:1rem">// Technisches Datenblatt</p>
+					<h2>Was im Inneren steckt</h2>
+					<p>Die wichtigsten Komponenten des abgebildeten Aufbaus. Die vollständige Stückliste,
+						Druckdateien und Software liegen im Repository.</p>
+				</div>
+				<dl class="tech-grid">
+					<div><dt>Hauptplatine</dt><dd>ESPuino complete Rev. 5.1 · ESP32</dd></div>
+					<div><dt>RFID</dt><dd>NXP PN5180</dd></div>
+					<div><dt>Anzeige</dt><dd>128×64 OLED · SH1106 / SSD1306</dd></div>
+					<div><dt>Lautsprecher</dt><dd>Peerless TC7FD00-04</dd></div>
+					<div><dt>Akku</dt><dd>LiFePO₄ · 3,2 V · 6000 mAh</dd></div>
+					<div><dt>Bedienelemente</dt><dd>Drehencoder · 6× Kailh BOX Navy</dd></div>
+					<div><dt>Statuslicht</dt><dd>2× 8 WS2812B · weiße Standby-LED</dd></div>
+					<div><dt>Echtzeituhr</dt><dd>DS3231 · batteriegepuffert</dd></div>
+					<div><dt>Anschlüsse</dt><dd>Kopfhörer · USB · Stromschalter</dd></div>
+					<div><dt>Funk &amp; Netzwerk</dt><dd>WLAN · Bluetooth · MQTT · HomeKit</dd></div>
+					<div><dt>Gehäuse</dt><dd>XPETG Matt · PETG · TPU 85A</dd></div>
+					<div><dt>Software</dt><dd>ESPuino-Fork · PlatformIO / Arduino</dd></div>
+				</dl>
+				<div class="tech-actions">
+					<a class="btn" href="https://github.com/fhirschmann/leoino#bill-of-materials">Vollständige Stückliste</a>
+					<a class="btn ghost magenta" href="https://github.com/fhirschmann/leoino/tree/master/stl">3D-Druckdateien</a>
 				</div>
 			</div>
 		</section>
@@ -1025,11 +1081,11 @@
 
 	<footer>
 		<div class="wrap">
-			<span>LEO INDUSTRIES AT-1 // GPL-3.0</span>
+			<span>LEO INDUSTRIES AT-1 // HANDGEBAUTES EINZELSTÜCK</span>
 			<span class="right">
-				<a href="https://github.com/fhirschmann/leoino">Repository</a>
-				<a href="demo/">Demo</a>
-				<a href="https://github.com/biologist79/ESPuino">Upstream: ESPuino</a>
+				<a href="https://github.com/fhirschmann/leoino/tree/master/stl">3D-Druck</a>
+				<a href="https://github.com/fhirschmann/leoino#readme">Dokumentation</a>
+				<a href="https://github.com/fhirschmann/leoino">Quellcode</a>
 			</span>
 		</div>
 	</footer>

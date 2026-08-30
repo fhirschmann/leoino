@@ -87,13 +87,39 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 <div align="center">
 
-<img src="docs/img/at1-front.jpg" width="720" alt="LEO INDUSTRIES AT-1 — front of the finished, 3D-printed unit: carry handle, play controls, speaker grille and the side LED strip">
+<img src="docs/img/at1-finished-workbench.jpg" width="720" alt="LEO INDUSTRIES AT-1 on the workbench — finished front with button deck, speaker grille, OLED and illuminated status LEDs">
 
-<img src="docs/img/at1-cartridge.jpg" width="720" alt="LEO INDUSTRIES AT-1 — the RFID 'INSERT CARD' cartridge slot, headphone jack and serial number on the side panel">
-
-<sub>The finished, 3D-printed AT-1 — front panel with the play controls and speaker, and the RFID “INSERT CARD” cartridge slot.</sub>
+<sub>The finished, 3D-printed AT-1 — photographed on the same workbench where it was assembled.</sub>
 
 </div>
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/img/at1-rear-io.jpg" alt="Rear of the finished AT-1 with power switch, USB port and technical service plate"><br><sub><strong>Rear I/O</strong> — power, USB and the service plate</sub></td>
+<td align="center" width="50%"><img src="docs/img/at1-cartridge.jpg" alt="Side of the finished AT-1 with RFID cartridge slot and headphone jack"><br><sub><strong>RFID cartridge</strong> — insert slot and headphone jack</sub></td>
+</tr>
+</table>
+
+## Inside the build
+
+The enclosure is modular: the controls, front display/LED assembly and speaker panel can be
+opened independently, while the ESP32, PN5180 and audio electronics remain accessible in the
+main chassis.
+
+<table>
+<tr>
+<td align="center" width="50%"><img src="docs/img/at1-build-front-module.jpg" alt="AT-1 front-panel modules before installation"><br><sub><strong>Front modules</strong> — display, status LEDs and speaker panel</sub></td>
+<td align="center" width="50%"><img src="docs/img/at1-build-speaker-module.jpg" alt="Rear of the AT-1 speaker and display panel with wiring"><br><sub><strong>Panel wiring</strong> — the assembled panel from inside</sub></td>
+</tr>
+<tr>
+<td align="center" width="50%"><img src="docs/img/at1-build-open-chassis.jpg" alt="Open AT-1 chassis showing the speaker, RFID reader and electronics"><br><sub><strong>Open chassis</strong> — speaker, RFID reader and main electronics</sub></td>
+<td align="center" width="50%"><img src="docs/img/at1-build-exploded.jpg" alt="AT-1 enclosure opened with its panels arranged around the main chassis"><br><sub><strong>Service position</strong> — all modules remain accessible</sub></td>
+</tr>
+<tr>
+<td align="center" width="50%"><img src="docs/img/at1-build-wiring.jpg" alt="AT-1 front panel connected to the open chassis during assembly"><br><sub><strong>Wiring pass</strong> — front panel connected before closing</sub></td>
+<td align="center" width="50%"><img src="docs/img/at1-build-powered.jpg" alt="Open AT-1 powered on during an OLED and status LED test"><br><sub><strong>Powered test</strong> — OLED and status LEDs checked in place</sub></td>
+</tr>
+</table>
 
 ## Bill of materials
 
@@ -125,7 +151,7 @@ panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are availa
 
 Many of the JST/connector cables were hand-crimped with **ENGINEER PA-09** crimping pliers.
 
-> 🚧 _Still to add: photos of the opened unit / internals and wiring/pinout notes._
+> 🚧 _Still to add: wiring/pinout notes._
 
 ---
 
