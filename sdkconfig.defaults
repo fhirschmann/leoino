@@ -172,6 +172,12 @@ CONFIG_ESP_WIFI_ENABLE_WPA3_SAE=n
 # Core dump
 #
 CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_COREDUMP_CHECKSUM_CRC32=y
+CONFIG_ESP_COREDUMP_CHECK_BOOT=y
+# Core-dump component diagnostics reserve roughly 5 KB of scarce internal RAM; the dump itself and
+# its boot-time integrity check remain enabled without them.
+# CONFIG_ESP_COREDUMP_LOGS is not set
 # end of Core dump
 
 #

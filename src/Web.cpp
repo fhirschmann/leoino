@@ -12,6 +12,7 @@
 #include "Button.h"
 #include "Cmd.h"
 #include "Common.h"
+#include "CrashDump.h"
 #include "Display.h"
 #include "ESPAsyncWebServer.h"
 #include "EnumUtils.h"
@@ -19,6 +20,7 @@
 #include "HTMLbinary.h"
 #include "HallEffectSensor.h"
 #include "HomeKit.h"
+#include "I2cSupervisor.h"
 #include "IrReceiver.h"
 #include "JsonPsram.h"
 #include "Led.h"
@@ -91,6 +93,8 @@ static void handleWiFiScanRequest(AsyncWebServerRequest *request);
 // RFID tag-assignment handlers (handleGet/Post/Delete/ResetRfidPos) + DumpNvsToArrayCallback are
 // declared in WebInternal.h; the handlers live in WebRfid.cpp.
 static void handleGetInfo(AsyncWebServerRequest *request);
+static void handleGetCoreDump(AsyncWebServerRequest *request);
+static void handleDeleteCoreDump(AsyncWebServerRequest *request);
 static void handlePostSettings(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleDebugRequest(AsyncWebServerRequest *request);
 
@@ -697,6 +701,11 @@ void webserverStart(void) {
 
 		// info
 		wServer.on("/info", HTTP_GET, handleGetInfo);
+
+		// A core dump may contain stack data and credentials, so these routes stay behind the same
+		// authentication middleware as the rest of the management API.
+		wServer.on("/coredump", HTTP_GET, handleGetCoreDump);
+		wServer.on("/coredump", HTTP_DELETE, handleDeleteCoreDump);
 
 #ifdef HOMEKIT_ENABLE
 		// NB: this AsyncWebServer fork prefix-matches, so the specific /homekit/*
@@ -1935,6 +1944,39 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 	return WebsocketCodeType::Ok;
 }
 
+static void handleGetCoreDump(AsyncWebServerRequest *request) {
+	if (!Web_RequestAuthorized(request)) {
+		request->send(401);
+		return;
+	}
+	const CrashDumpStatus &status = CrashDump_GetStatus();
+	if (!status.available || !status.size) {
+		request->send(404, "application/json", "{\"error\":\"no core dump stored\"}");
+		return;
+	}
+
+	AsyncWebServerResponse *response = request->beginResponse("application/octet-stream", status.size, [](uint8_t *buffer, size_t maxLength, size_t index) -> size_t {
+		return CrashDump_Read(index, buffer, maxLength);
+	});
+	response->addHeader("Content-Disposition", "attachment; filename=leoino-coredump.elf");
+	response->addHeader("Cache-Control", "no-store");
+	request->send(response);
+	System_UpdateActivityTimer();
+}
+
+static void handleDeleteCoreDump(AsyncWebServerRequest *request) {
+	if (!Web_RequestAuthorized(request)) {
+		request->send(401);
+		return;
+	}
+	if (!CrashDump_Erase()) {
+		request->send(500, "application/json", "{\"error\":\"core dump erase failed\"}");
+		return;
+	}
+	request->send(200, "application/json", "{\"status\":\"ok\"}");
+	System_UpdateActivityTimer();
+}
+
 // handle get info
 void handleGetInfo(AsyncWebServerRequest *request) {
 
@@ -2009,6 +2051,38 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		JsonObject sdObj = infoObj["sdcard"].to<JsonObject>();
 		sdObj["size"] = SdCard_GetSize() / (1024 * 1024); // MiB
 		sdObj["free"] = SdCard_GetFreeSize() / (1024 * 1024); // MiB
+		const SdCardHealth &health = SdCard_GetHealth();
+		sdObj["mounted"] = health.mounted;
+		sdObj["mountAttempts"] = health.mountAttempts;
+		sdObj["driverResets"] = health.driverResets;
+		sdObj["powerCycles"] = health.powerCycles;
+		sdObj["mountDurationMs"] = health.mountDurationMs;
+		sdObj["frequencyKhz"] = health.frequencyKhz;
+	}
+#ifdef I2C_2_ENABLE
+	if ((section == "") || (section == "i2c")) {
+		const I2cSupervisorStatus &status = I2cSupervisor_GetStatus();
+		JsonObject i2cObj = infoObj["i2c"].to<JsonObject>();
+		i2cObj["started"] = status.started;
+		i2cObj["sdaHigh"] = status.sdaHigh;
+		i2cObj["sclHigh"] = status.sclHigh;
+		i2cObj["initialSdaLow"] = status.initialSdaLow;
+		i2cObj["initialSclLow"] = status.initialSclLow;
+		i2cObj["lastClockPulses"] = status.lastClockPulses;
+		i2cObj["recoveryAttempts"] = status.recoveryAttempts;
+		i2cObj["recoverySuccesses"] = status.recoverySuccesses;
+	}
+#endif
+	if ((section == "") || (section == "coredump")) {
+		const CrashDumpStatus &status = CrashDump_GetStatus();
+		JsonObject dumpObj = infoObj["coredump"].to<JsonObject>();
+		dumpObj["partitionPresent"] = status.partitionPresent;
+		dumpObj["available"] = status.available;
+		dumpObj["valid"] = status.valid;
+		dumpObj["size"] = status.size;
+		if (status.panicReason[0]) {
+			dumpObj["panicReason"] = status.panicReason;
+		}
 	}
 #ifdef BATTERY_MEASURE_ENABLE
 	// battery

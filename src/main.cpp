@@ -11,10 +11,12 @@
 #include "Button.h"
 #include "Cmd.h"
 #include "Common.h"
+#include "CrashDump.h"
 #include "Display.h"
 #include "Ftp.h"
 #include "HallEffectSensor.h"
 #include "HomeKit.h"
+#include "I2cSupervisor.h"
 #include "IrReceiver.h"
 #include "Led.h"
 #include "Log.h"
@@ -125,6 +127,7 @@ void setup() {
 	// PCA9555-controlled peripheral rail is still coming up. FastLED takes over this pin later.
 	Led_PrepareForBoot();
 	Log_Init();
+	CrashDump_Init();
 	// Silence the IDF mDNS component's own logging (one tag per source file). Its announce
 	// and TXT paths log an ERROR when an allocation fails under memory pressure -- and if
 	// that is the calling task's first ever print, newlib lazily allocates the task's stdio
@@ -153,7 +156,7 @@ void setup() {
 
 // Init 2nd i2c-bus if RC522 is used with i2c or if port-expander is enabled
 #ifdef I2C_2_ENABLE
-	i2cBusTwo.begin(ext_IIC_DATA, ext_IIC_CLK);
+	I2cSupervisor_Begin();
 	delay(50);
 	Log_Println(rfidScannerReady, LOGLEVEL_DEBUG);
 #endif
@@ -165,6 +168,7 @@ void setup() {
 	// must still avoid I2C pull-ups to the initially-off switched rail, which can hold the bus down
 	// when that rail also supplies a connected Neopixel chain.
 	while (!Port_Init()) {
+		I2cSupervisor_Recover("port-expander startup probe");
 		delay(250);
 	}
 
@@ -189,8 +193,10 @@ void setup() {
 	// All checks that could send us to sleep are done, power up fully
 	while (!Power_PeripheralOn()) {
 		Log_Println("Unable to enable peripheral power via port-expander; retrying", LOGLEVEL_ERROR);
+		I2cSupervisor_Recover("peripheral power write");
 		delay(250);
 		while (!Port_Init()) {
+			I2cSupervisor_Recover("port-expander power retry");
 			delay(250);
 		}
 	}

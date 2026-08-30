@@ -30,11 +30,14 @@ bool Power_PeripheralOn(void) {
 }
 
 // Switch off peripherals. Please note: meaning of POWER_OFF is LOW per default. But is HIGH in case of INVERT_POWER is enabled.
-void Power_PeripheralOff(void) {
+bool Power_PeripheralOff(void) {
+	bool success = true;
 #ifdef POWER
-	Port_Write(POWER, POWER_OFF, false);
+	success = Port_Write(POWER, POWER_OFF, false);
 	#ifdef BUTTONS_LED
-	Port_Write(BUTTONS_LED, LOW, false);
+	const bool buttonsLedOff = Port_Write(BUTTONS_LED, LOW, false);
+	success = buttonsLedOff && success;
 	#endif
 #endif
+	return success;
 }

@@ -19,8 +19,18 @@ enum class SearchDirection {
 	Backward
 };
 
+struct SdCardHealth {
+	bool mounted = false;
+	uint32_t mountAttempts = 0;
+	uint32_t driverResets = 0;
+	uint32_t powerCycles = 0;
+	uint32_t mountDurationMs = 0;
+	uint32_t frequencyKhz = 0;
+};
+
 void SdCard_Init(void);
 void SdCard_Exit(void);
+const SdCardHealth &SdCard_GetHealth(void);
 bool SdCard_Format(void);
 sdcard_type_t SdCard_GetType(void);
 uint64_t SdCard_GetSize();

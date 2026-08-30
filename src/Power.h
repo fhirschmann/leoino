@@ -10,4 +10,4 @@
 
 void Power_Init(void);
 bool Power_PeripheralOn(void);
-void Power_PeripheralOff(void);
+bool Power_PeripheralOff(void);

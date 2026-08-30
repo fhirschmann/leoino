@@ -663,6 +663,30 @@ paths:
                 type: object
                 # Include your common information properties here.
                 additionalProperties: true
+  /coredump:
+    get:
+      tags: [Fork]
+      summary: Download the stored ESP-IDF ELF core dump.
+      description: Requires the normal web session or X-API-Key authentication.
+      responses:
+        "200":
+          description: Stored ELF core-dump image.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: No core dump is stored.
+    delete:
+      tags: [Fork]
+      summary: Erase the stored core dump.
+      description: Requires the normal web session or X-API-Key authentication.
+      responses:
+        "200":
+          description: Core dump erased.
+        "500":
+          description: Erasing the core-dump partition failed.
   /log:
     get:
       summary: Get current log.

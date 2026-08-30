@@ -252,7 +252,9 @@
 					memory: { freeHeap: 142336, largestFreeBlock: 110592, freePSRam: 3801088 },
 					wifi: { ip: "192.168.1.34", macAddress: "A0:B1:C2:D3:E4:F5", rssi: -58 },
 					audio: { firstStart: Math.floor(Date.now() / 1000) - 5184000, playtimeTotal: 486000, playtimeSinceStart: 5400, playToday: 3600, playYesterday: 7200, play7d: 32400, play30d: 129600, dailyLimitMin: 90 },
-					sdcard: { size: 30437, free: 21347 }, // MB, like the device (the UI divides by 1024 -> GB)
+					sdcard: { size: 30437, free: 21347, mounted: true, mountAttempts: 1, driverResets: 0, powerCycles: 0, mountDurationMs: 238, frequencyKhz: 40000 }, // MB, like the device (the UI divides by 1024 -> GB)
+					i2c: { started: true, sdaHigh: true, sclHigh: true, initialSdaLow: false, initialSclLow: false, lastClockPulses: 0, recoveryAttempts: 0, recoverySuccesses: 0 },
+					coredump: { partitionPresent: true, available: false, valid: false, size: 0 },
 					battery: { currVoltage: 3.94, chargeLevel: 78 },
 					// battery-backed RTC (DS3231): drives the RTC card in the Tools tab
 					rtc: (function () {
@@ -360,6 +362,13 @@
 				return jsonResp({ status: "ok", demo: true });
 			}
 			return jsonResp({ status: "ok", demo: true });
+		}
+
+		// The demo advertises an empty core-dump partition in /info. Keep both authenticated device
+		// actions covered without inventing a downloadable crash file in the static preview.
+		if (p === "/coredump") {
+			if (method === "DELETE") { return jsonResp({ status: "ok", demo: true }); }
+			return { status: 404, contentType: "text/plain; charset=utf-8", body: "No core dump stored (demo)." };
 		}
 
 		// SD clean/format now start an async worker and the UI polls GET /sdmaint. The POST just

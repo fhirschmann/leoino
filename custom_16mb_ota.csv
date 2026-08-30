@@ -6,4 +6,5 @@ phy_init, data, phy,     0xb000 ,  0x1000
 app0,     app,  ota_0,   0x10000,  0x640000,
 app1,     app,  ota_1,          ,  0x640000,
 nvs,      data, nvs,            ,  0x40000,
-storage,  data, spiffs,         ,  0x330000,
+storage,  data, spiffs,         ,  0x230000,
+coredump, data, coredump,       ,  0x100000,

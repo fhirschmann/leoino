@@ -8897,6 +8897,10 @@
 				if (value === undefined || value === null || value === '') return;
 				rows.push('<tr><th scope="row">' + i18next.t(labelKey) + '</th><td>' + esc(String(value)) + '</td></tr>');
 			};
+			const addHtml = function (labelKey, value) {
+				if (!value) return;
+				rows.push('<tr><th scope="row">' + i18next.t(labelKey) + '</th><td>' + value + '</td></tr>');
+			};
 
 			add('systeminfo.lblSoftware', info.software.version);
 			add('systeminfo.lblBuild', info.software.build);
@@ -8935,6 +8939,38 @@
 				}
 			} catch (e) { /* ignore */ }
 			if (info.sdcard && info.sdcard.size) add('systeminfo.lblSd', (info.sdcard.free / 1024).toFixed(1) + ' / ' + (info.sdcard.size / 1024).toFixed(1) + ' GB');
+			if (info.sdcard && info.sdcard.mountAttempts > 1) {
+				add('systeminfo.lblSdRecovery', i18next.t('systeminfo.sdRecovery', {
+					attempts: info.sdcard.mountAttempts,
+					resets: info.sdcard.driverResets,
+					powerCycles: info.sdcard.powerCycles,
+					frequency: info.sdcard.frequencyKhz
+				}));
+			}
+			if (info.i2c) {
+				let i2cText = i18next.t('systeminfo.i2cStatus', {
+					sda: info.i2c.sdaHigh ? 'HIGH' : 'LOW',
+					scl: info.i2c.sclHigh ? 'HIGH' : 'LOW',
+					successes: info.i2c.recoverySuccesses,
+					attempts: info.i2c.recoveryAttempts
+				});
+				if (info.i2c.initialSdaLow || info.i2c.initialSclLow) {
+					i2cText += ' · ' + i18next.t('systeminfo.i2cStartupClear', { pulses: info.i2c.lastClockPulses });
+				}
+				add('systeminfo.lblI2c', i2cText);
+			}
+			if (info.coredump) {
+				if (info.coredump.available) {
+					let dumpText = esc(num(info.coredump.size) + ' B');
+					if (!info.coredump.valid) dumpText += ' · ' + esc(i18next.t('systeminfo.coreDumpInvalid'));
+					if (info.coredump.panicReason) dumpText += ' · ' + esc(info.coredump.panicReason);
+					dumpText += '<br><a href="http://' + esc(host) + '/coredump" download="leoino-coredump.elf"><i class="fas fa-download"></i> ' + esc(i18next.t('systeminfo.coreDumpDownload')) + '</a>'
+						+ ' · <button type="button" class="btn btn-link btn-sm p-0 align-baseline" id="coreDumpErase">' + esc(i18next.t('systeminfo.coreDumpErase')) + '</button>';
+					addHtml('systeminfo.lblCoreDump', dumpText);
+				} else {
+					add('systeminfo.lblCoreDump', i18next.t(info.coredump.partitionPresent ? 'systeminfo.coreDumpNone' : 'systeminfo.coreDumpMissing'));
+				}
+			}
 			if (info.battery) {
 				add('systeminfo.lblVoltage', info.battery.currVoltage.toFixed(2) + ' V');
 				if (info.battery.chargeLevel) add('systeminfo.lblCharge', info.battery.chargeLevel.toFixed(1) + ' %');
@@ -8962,6 +8998,17 @@
 				}
 			} catch (e) { /* ignore -- chart is optional */ }
 			$('#modalInfoContent').html(html + statsBlock);
+			$('#coreDumpErase').on('click', async function () {
+				if (!window.confirm(i18next.t('systeminfo.coreDumpEraseConfirm'))) return;
+				try {
+					const response = await fetchWithTimeout(apiUrl('/coredump'), { method: 'DELETE' });
+					if (!response.ok) throw new Error('HTTP ' + response.status);
+					toaster.info(i18next.t('systeminfo.coreDumpErased'));
+					await fetchInfo();
+				} catch (error) {
+					showRequestError(error);
+				}
+			});
 		}
 		var liveLogInterval;
 		async function fetchLog() {

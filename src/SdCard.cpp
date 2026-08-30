@@ -4,9 +4,12 @@
 #include "SdCard.h"
 
 #include "Common.h"
+#include "I2cSupervisor.h"
 #include "Led.h"
 #include "Log.h"
 #include "MemX.h"
+#include "Port.h"
+#include "Power.h"
 #include "System.h"
 
 #include <esp_random.h>
@@ -21,8 +24,78 @@ SPIClass spiSD(HSPI);
 SanitizedFS gFSystem(HARDWARE_FS);
 
 uint8_t maxRecursionDepth;
+static SdCardHealth s_sdHealth;
+
+namespace {
+#ifdef SD_MMC_1BIT_MODE
+constexpr uint32_t sdFastFrequencyKhz = SDMMC_FREQ_HIGHSPEED;
+constexpr uint32_t sdFallbackFrequencyKhz = SDMMC_FREQ_DEFAULT;
+#else
+constexpr uint32_t sdFastFrequencyHz = 4000000UL;
+constexpr uint32_t sdFallbackFrequencyHz = 1000000UL;
+#endif
+
+bool SdCard_MountAttempt(bool fallbackFrequency) {
+	s_sdHealth.mountAttempts++;
+#ifdef SD_MMC_1BIT_MODE
+	const uint32_t frequency = fallbackFrequency ? sdFallbackFrequencyKhz : sdFastFrequencyKhz;
+	s_sdHealth.frequencyKhz = frequency;
+	return SD_MMC.begin("/sdcard", true, false, frequency);
+#else
+	const uint32_t frequency = fallbackFrequency ? sdFallbackFrequencyHz : sdFastFrequencyHz;
+	s_sdHealth.frequencyKhz = frequency / 1000;
+	#ifndef SINGLE_SPI_ENABLE
+	spiSD.begin(SPISD_SCK, SPISD_MISO, SPISD_MOSI, SPISD_CS);
+	return SD.begin(SPISD_CS, spiSD, frequency);
+	#else
+	return SD.begin(SPISD_CS, SPI, frequency);
+	#endif
+#endif
+}
+
+void SdCard_ResetDriver(void) {
+#ifdef SD_MMC_1BIT_MODE
+	SD_MMC.end();
+#else
+	SD.end();
+	#ifndef SINGLE_SPI_ENABLE
+	spiSD.end();
+	#endif
+#endif
+	s_sdHealth.driverResets++;
+	delay(100);
+}
+
+void SdCard_PowerCycle(void) {
+#ifdef POWER
+	Log_Println("SD recovery: cycling the peripheral power rail", LOGLEVEL_NOTICE);
+	if (!Power_PeripheralOff()) {
+		Log_Println("SD recovery: peripheral power-off write failed", LOGLEVEL_ERROR);
+		I2cSupervisor_Recover("SD power-off write");
+		// Port_Init preloads every expander output with its safe inactive state before changing
+		// direction, so it is also the safest fallback if the direct OFF write was lost.
+		if (!Port_Init() || !Power_PeripheralOff()) {
+			Log_Println("SD recovery: unable to confirm peripheral power-off", LOGLEVEL_ERROR);
+		}
+	}
+	delay(300);
+	if (!Power_PeripheralOn()) {
+		Log_Println("SD recovery: peripheral power-on write failed", LOGLEVEL_ERROR);
+		I2cSupervisor_Recover("SD power-on write");
+		Port_Init();
+		if (!Power_PeripheralOn()) {
+			Log_Println("SD recovery: unable to confirm peripheral power-on", LOGLEVEL_ERROR);
+		}
+	}
+	s_sdHealth.powerCycles++;
+#else
+	delay(300);
+#endif
+}
+} // namespace
 
 void SdCard_Init(void) {
+	s_sdHealth = {};
 #ifdef NO_SDCARD
 	// Initialize without any SD card, e.g. for webplayer only
 	Log_Println("Init without SD card ", LOGLEVEL_NOTICE);
@@ -32,32 +105,40 @@ void SdCard_Init(void) {
 #ifndef SINGLE_SPI_ENABLE
 	#ifdef SD_MMC_1BIT_MODE
 	pinMode(2, INPUT_PULLUP);
-	while (!SD_MMC.begin("/sdcard", true)) {
 	#else
 	pinMode(SPISD_CS, OUTPUT);
 	digitalWrite(SPISD_CS, HIGH);
-	spiSD.begin(SPISD_SCK, SPISD_MISO, SPISD_MOSI, SPISD_CS);
-	spiSD.setFrequency(1000000);
-	while (!SD.begin(SPISD_CS, spiSD)) {
 	#endif
 #else
 	#ifdef SD_MMC_1BIT_MODE
 	pinMode(2, INPUT_PULLUP);
-	while (!SD_MMC.begin("/sdcard", true)) {
-	#else
-	while (!SD.begin(SPISD_CS)) {
 	#endif
 #endif
+
+	const uint32_t mountStartedAt = millis();
+	while (!SdCard_MountAttempt(s_sdHealth.mountAttempts > 0)) {
 		Log_Println(unableToMountSd, LOGLEVEL_ERROR);
-		delay(500);
+		Log_Printf(LOGLEVEL_ERROR, "SD recovery: attempt %u failed at %u kHz", s_sdHealth.mountAttempts, s_sdHealth.frequencyKhz);
+		SdCard_ResetDriver();
+
+		// The first retry lowers the bus clock. If that is still insufficient, fully remove power
+		// from the card/controller; repeat the power cycle only every third later failure to avoid
+		// hammering the rail while a card is physically absent.
+		if ((s_sdHealth.mountAttempts == 2) || ((s_sdHealth.mountAttempts > 2) && ((s_sdHealth.mountAttempts - 2) % 3 == 0))) {
+			SdCard_PowerCycle();
+		}
 #ifdef SHUTDOWN_IF_SD_BOOT_FAILS
-		if (millis() >= deepsleepTimeAfterBootFails * 1000) {
+		if (millis() - mountStartedAt >= deepsleepTimeAfterBootFails * 1000UL) {
 			Log_Println(sdBootFailedDeepsleep, LOGLEVEL_ERROR);
 			Led_Exit();
+			Power_PeripheralOff();
 			esp_deep_sleep_start();
 		}
 #endif
 	}
+	s_sdHealth.mounted = true;
+	s_sdHealth.mountDurationMs = millis() - mountStartedAt;
+	Log_Printf(LOGLEVEL_NOTICE, "SD mounted after %u attempt(s) at %u kHz (%u ms, resets=%u, power-cycles=%u)", s_sdHealth.mountAttempts, s_sdHealth.frequencyKhz, s_sdHealth.mountDurationMs, s_sdHealth.driverResets, s_sdHealth.powerCycles);
 
 	// Used when building recursive playlists
 	maxRecursionDepth = gPrefsSettings.getUInt("nvsRecDepth", 255);
@@ -71,6 +152,10 @@ void SdCard_Init(void) {
 	// it here, before any playback exists, means the first Info-tab open in the web UI
 	// can't stall SD access mid-listening.
 	SdCard_GetFreeSize();
+}
+
+const SdCardHealth &SdCard_GetHealth(void) {
+	return s_sdHealth;
 }
 
 void SdCard_Exit(void) {
