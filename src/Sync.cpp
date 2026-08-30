@@ -5,6 +5,7 @@
 
 #include "AudioPlayer.h"
 #include "Common.h"
+#include "JsonPsram.h"
 #include "Led.h"
 #include "Log.h"
 #include "Net.h"
@@ -17,7 +18,9 @@
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 #include <algorithm>
+#include <atomic>
 #include <climits>
+#include <mbedtls/sha256.h>
 #include <memory>
 
 // Abort a single file download if no data arrives for this long (connection still
@@ -35,6 +38,28 @@ static volatile bool gSyncCancel = false; // cooperative cancel flag
 // mirror-delete before it actually removes files). The report is served via GET /syncreport.
 static volatile bool gSyncDryRun = false;
 static const char *kSyncDryReport = "/.sync_dryrun.txt"; // hidden -> excluded from the manifest and from mirror-delete
+static const char *kPlaylistSyncState = "/.playlist_sync_state.json";
+static std::atomic_flag gPlaylistFileLock = ATOMIC_FLAG_INIT;
+
+void Sync_LockPlaylistFiles(void) {
+	while (gPlaylistFileLock.test_and_set(std::memory_order_acquire)) {
+		vTaskDelay(pdMS_TO_TICKS(5));
+	}
+}
+
+void Sync_UnlockPlaylistFiles(void) {
+	gPlaylistFileLock.clear(std::memory_order_release);
+}
+
+class SyncPlaylistFileGuard {
+public:
+	SyncPlaylistFileGuard() {
+		Sync_LockPlaylistFiles();
+	}
+	~SyncPlaylistFileGuard() {
+		Sync_UnlockPlaylistFiles();
+	}
+};
 
 const char *Sync_GetDryReportPath(void) {
 	return kSyncDryReport;
@@ -165,6 +190,651 @@ static bool syncDownloadFile(const String &url, const String &user, const String
 		gFSystem.remove(localPath);
 	}
 	return complete;
+}
+
+static bool syncIsPlaylistPath(const String &path) {
+	String lower = path;
+	lower.toLowerCase();
+	return lower.startsWith("/playlists/") && path.lastIndexOf('/') == 10 && (lower.endsWith(".m3u") || lower.endsWith(".m3u8"));
+}
+
+static bool syncHashFile(const String &path, String &hashOut) {
+	File file = gFSystem.open(path, "r");
+	if (!file || file.isDirectory()) {
+		if (file) {
+			file.close();
+		}
+		return false;
+	}
+	mbedtls_sha256_context context;
+	mbedtls_sha256_init(&context);
+	bool ok = mbedtls_sha256_starts(&context, 0) == 0;
+	uint8_t buffer[1024];
+	while (ok && file.available()) {
+		const size_t read = file.read(buffer, sizeof(buffer));
+		if (read == 0) {
+			ok = false;
+			break;
+		}
+		ok = mbedtls_sha256_update(&context, buffer, read) == 0;
+	}
+	unsigned char digest[32];
+	if (ok) {
+		ok = mbedtls_sha256_finish(&context, digest) == 0;
+	}
+	mbedtls_sha256_free(&context);
+	file.close();
+	if (!ok) {
+		return false;
+	}
+	static const char *hex = "0123456789abcdef";
+	char encoded[65];
+	for (size_t i = 0; i < sizeof(digest); i++) {
+		encoded[i * 2] = hex[digest[i] >> 4];
+		encoded[i * 2 + 1] = hex[digest[i] & 0x0f];
+	}
+	encoded[64] = '\0';
+	hashOut = encoded;
+	return true;
+}
+
+static JsonObject syncFindPlaylistState(JsonDocument &state, const String &path, bool create) {
+	if (!state["items"].is<JsonArray>()) {
+		state["items"].to<JsonArray>();
+	}
+	JsonArray items = state["items"].as<JsonArray>();
+	for (JsonObject item : items) {
+		const String storedPath = item["path"].as<String>();
+		if (storedPath.equalsIgnoreCase(path)) {
+			return item;
+		}
+	}
+	if (!create) {
+		return JsonObject();
+	}
+	JsonObject item = items.add<JsonObject>();
+	item["path"] = path;
+	item["revision"] = 0;
+	item["sha256"] = "";
+	item["deleted"] = false;
+	return item;
+}
+
+static void syncSetPlaylistState(JsonObject item, const String &path, uint32_t revision, const String &hash, bool deleted) {
+	item["path"] = path;
+	item["revision"] = revision;
+	item["sha256"] = deleted ? "" : hash;
+	item["deleted"] = deleted;
+	item["_seen"] = true;
+}
+
+static void syncLoadPlaylistState(JsonDocument &state) {
+	state.clear();
+	File file = gFSystem.open(kPlaylistSyncState, "r");
+	if (file) {
+		if (deserializeJson(state, file) != DeserializationError::Ok) {
+			state.clear();
+		}
+		file.close();
+	}
+	state["version"] = 1;
+	if (!state["items"].is<JsonArray>()) {
+		state["items"].to<JsonArray>();
+	}
+	for (JsonObject item : state["items"].as<JsonArray>()) {
+		item["_seen"] = false;
+	}
+}
+
+static bool syncSavePlaylistState(JsonDocument &state) {
+	for (JsonObject item : state["items"].as<JsonArray>()) {
+		item.remove("_seen");
+	}
+	const String temporaryPath = String(kPlaylistSyncState) + ".tmp";
+	const String backupPath = String(kPlaylistSyncState) + ".bak";
+	gFSystem.remove(temporaryPath);
+	File file = gFSystem.open(temporaryPath, "w", true);
+	if (!file) {
+		return false;
+	}
+	const size_t expected = measureJson(state);
+	const size_t written = serializeJson(state, file);
+	file.flush();
+	file.close();
+	if (written != expected) {
+		gFSystem.remove(temporaryPath);
+		return false;
+	}
+	const bool existed = gFSystem.exists(kPlaylistSyncState);
+	gFSystem.remove(backupPath);
+	if ((existed && !gFSystem.rename(kPlaylistSyncState, backupPath)) || !gFSystem.rename(temporaryPath, kPlaylistSyncState)) {
+		gFSystem.remove(temporaryPath);
+		if (existed && gFSystem.exists(backupPath)) {
+			gFSystem.rename(backupPath, kPlaylistSyncState);
+		}
+		return false;
+	}
+	gFSystem.remove(backupPath);
+	return true;
+}
+
+struct SyncPlaylistHttpResult {
+	int code = -1;
+	uint32_t revision = 0;
+	String hash;
+	bool deleted = false;
+	bool ok = false;
+	bool conflict = false;
+};
+
+static String syncPlaylistMutationUrl(const String &manifestUrl, const String &path, uint32_t baseRevision) {
+	String url = manifestUrl;
+	url += manifestUrl.indexOf('?') >= 0 ? '&' : '?';
+	String relativePath = path;
+	while (relativePath.startsWith("/")) {
+		relativePath.remove(0, 1);
+	}
+	url += "playlist=" + Url_EncodePath(relativePath) + "&baseRevision=" + String(baseRevision);
+	return url;
+}
+
+static SyncPlaylistHttpResult syncParsePlaylistMutationResponse(HTTPClient &http, int code) {
+	SyncPlaylistHttpResult result;
+	result.code = code;
+	result.ok = code == 200 || code == 201;
+	result.conflict = code == 409;
+	if (!result.ok && !result.conflict) {
+		return result;
+	}
+	const String body = http.getString(); // playlist API responses are deliberately tiny metadata JSON
+	JsonDocument response;
+	if (deserializeJson(response, body) == DeserializationError::Ok) {
+		result.revision = response["revision"] | 0;
+		result.hash = response["sha256"].as<String>();
+		result.deleted = response["deleted"] | false;
+	}
+	if (result.revision == 0) {
+		result.ok = false;
+		result.conflict = false;
+	}
+	return result;
+}
+
+static SyncPlaylistHttpResult syncUploadPlaylist(const String &manifestUrl, const String &user, const String &pass, const String &path, uint32_t baseRevision) {
+	SyncPlaylistHttpResult result;
+	File file = gFSystem.open(path, "r");
+	if (!file || file.isDirectory()) {
+		if (file) {
+			file.close();
+		}
+		return result;
+	}
+	const size_t fileSize = file.size();
+	const String url = syncPlaylistMutationUrl(manifestUrl, path, baseRevision);
+	std::unique_ptr<WiFiClient> client = Net_MakeClient(url);
+	HTTPClient http;
+	Net_SetupHttp(http, user, pass, 20000);
+	if (!http.begin(*client, url)) {
+		file.close();
+		return result;
+	}
+	http.addHeader("Content-Type", "audio/x-mpegurl");
+	http.addHeader("X-ESPuino-Host", Wlan_GetHostname());
+	const int code = http.sendRequest("POST", &file, fileSize);
+	file.close();
+	result = syncParsePlaylistMutationResponse(http, code);
+	http.end();
+	return result;
+}
+
+static SyncPlaylistHttpResult syncDeletePlaylistRemote(const String &manifestUrl, const String &user, const String &pass, const String &path, uint32_t baseRevision) {
+	SyncPlaylistHttpResult result;
+	const String url = syncPlaylistMutationUrl(manifestUrl, path, baseRevision);
+	std::unique_ptr<WiFiClient> client = Net_MakeClient(url);
+	HTTPClient http;
+	Net_SetupHttp(http, user, pass, 20000);
+	if (!http.begin(*client, url)) {
+		return result;
+	}
+	http.addHeader("X-ESPuino-Host", Wlan_GetHostname());
+	const int code = http.sendRequest("DELETE");
+	result = syncParsePlaylistMutationResponse(http, code);
+	http.end();
+	return result;
+}
+
+static bool syncCopyFile(const String &sourcePath, const String &destinationPath) {
+	File source = gFSystem.open(sourcePath, "r");
+	if (!source || source.isDirectory()) {
+		if (source) {
+			source.close();
+		}
+		return false;
+	}
+	File destination = gFSystem.open(destinationPath, "w", true);
+	if (!destination) {
+		source.close();
+		return false;
+	}
+	uint8_t buffer[1024];
+	bool ok = true;
+	while (source.available()) {
+		const size_t read = source.read(buffer, sizeof(buffer));
+		if (read == 0 || destination.write(buffer, read) != read) {
+			ok = false;
+			break;
+		}
+	}
+	destination.flush();
+	source.close();
+	destination.close();
+	if (!ok) {
+		gFSystem.remove(destinationPath);
+	}
+	return ok;
+}
+
+static String syncCreatePlaylistConflictCopy(const String &path) {
+	const int dot = path.lastIndexOf('.');
+	const String extension = dot > 10 ? path.substring(dot) : ".m3u";
+	const String stem = dot > 10 ? path.substring(0, dot) : path;
+	String host = Wlan_GetHostname();
+	host.replace("/", "-");
+	host.replace("\\", "-");
+	for (uint8_t attempt = 0; attempt < 100; attempt++) {
+		String suffix = " (Konflikt " + host;
+		if (attempt > 0) {
+			suffix += " " + String(attempt + 1);
+		}
+		suffix += ")";
+		const size_t maxStemLength = suffix.length() + extension.length() < 240 ? 240 - suffix.length() - extension.length() : 11;
+		size_t stemLength = std::min<size_t>(stem.length(), maxStemLength);
+		while (stemLength > 11 && stemLength < stem.length() && (((uint8_t) stem.charAt(stemLength)) & 0xc0) == 0x80) {
+			stemLength--;
+		}
+		const String candidate = stem.substring(0, stemLength) + suffix + extension;
+		if (!gFSystem.exists(candidate) && syncCopyFile(path, candidate)) {
+			return candidate;
+		}
+	}
+	return "";
+}
+
+static bool syncDownloadPlaylistAtomic(const String &url, const String &user, const String &pass, const String &path, const String &expectedHash) {
+	const String temporaryPath = "/.playlist_sync_download.tmp";
+	const String backupPath = "/.playlist_sync_download.bak";
+	gFSystem.remove(temporaryPath);
+	gFSystem.remove(backupPath);
+	if (!syncDownloadFile(url, user, pass, temporaryPath)) {
+		return false;
+	}
+	String downloadedHash;
+	if (!syncHashFile(temporaryPath, downloadedHash) || !downloadedHash.equalsIgnoreCase(expectedHash)) {
+		gFSystem.remove(temporaryPath);
+		return false;
+	}
+	const bool existed = gFSystem.exists(path);
+	if ((existed && !gFSystem.rename(path, backupPath)) || !gFSystem.rename(temporaryPath, path)) {
+		gFSystem.remove(temporaryPath);
+		if (existed && gFSystem.exists(backupPath)) {
+			gFSystem.rename(backupPath, path);
+		}
+		return false;
+	}
+	gFSystem.remove(backupPath);
+	return true;
+}
+
+static uint8_t syncReadManifestVersion(const char *manifestPath) {
+	File manifest = gFSystem.open(manifestPath, "r");
+	if (!manifest) {
+		return 1;
+	}
+	uint8_t version = 1;
+	if (manifest.find("\"version\"") && manifest.find(':')) {
+		const long parsed = manifest.parseInt();
+		if (parsed > 0 && parsed <= UINT8_MAX) {
+			version = (uint8_t) parsed;
+		}
+	}
+	manifest.close();
+	return version;
+}
+
+struct SyncPlaylistCounts {
+	size_t pushed = 0;
+	size_t pulled = 0;
+	size_t deleted = 0;
+	size_t conflicts = 0;
+	size_t failed = 0;
+};
+
+static void syncPlaylistDryLine(File *report, const char *action, const String &path) {
+	if (report && *report) {
+		report->printf("PL %-8s %s\n", action, path.c_str());
+	}
+}
+
+static String syncPlaylistDownloadUrl(const String &baseUrl, const String &path) {
+	String relative = path;
+	while (relative.startsWith("/")) {
+		relative.remove(0, 1);
+	}
+	return baseUrl + Url_EncodePath(relative);
+}
+
+static bool syncResolvePlaylistHttpConflict(const SyncPlaylistHttpResult &result, JsonObject stateItem, const String &baseUrl, const String &user, const String &pass, const String &path,
+	SyncPlaylistCounts &counts) {
+	counts.conflicts++;
+	const String conflictPath = gFSystem.exists(path) ? syncCreatePlaylistConflictCopy(path) : "";
+	if (gFSystem.exists(path) && conflictPath.isEmpty()) {
+		counts.failed++;
+		return false;
+	}
+	if (result.deleted) {
+		if (gFSystem.exists(path) && !gFSystem.remove(path)) {
+			counts.failed++;
+			return false;
+		}
+		syncSetPlaylistState(stateItem, path, result.revision, "", true);
+		Log_Printf(LOGLEVEL_NOTICE, "Playlist sync: server conflict on %s; preserved local copy as %s", path.c_str(), conflictPath.c_str());
+		return true;
+	}
+	if (result.hash.length() != 64 || !syncDownloadPlaylistAtomic(syncPlaylistDownloadUrl(baseUrl, path), user, pass, path, result.hash)) {
+		counts.failed++;
+		return false;
+	}
+	syncSetPlaylistState(stateItem, path, result.revision, result.hash, false);
+	counts.pulled++;
+	Log_Printf(LOGLEVEL_NOTICE, "Playlist sync: server conflict on %s; preserved local copy as %s", path.c_str(), conflictPath.c_str());
+	return true;
+}
+
+static bool syncPullPlaylist(const String &baseUrl, const String &user, const String &pass, JsonObject stateItem, const String &path, uint32_t revision, const String &hash,
+	SyncPlaylistCounts &counts) {
+	if (!syncDownloadPlaylistAtomic(syncPlaylistDownloadUrl(baseUrl, path), user, pass, path, hash)) {
+		counts.failed++;
+		return false;
+	}
+	syncSetPlaylistState(stateItem, path, revision, hash, false);
+	counts.pulled++;
+	return true;
+}
+
+static void syncReconcileRemotePlaylist(const String &manifestUrl, const String &baseUrl, const String &user, const String &pass, JsonDocument &state, const String &path,
+	uint32_t remoteRevision, const String &remoteHash, bool dryRun, File *dryReport, SyncPlaylistCounts &counts) {
+	SyncPlaylistFileGuard fileGuard;
+	JsonObject stateItem = syncFindPlaylistState(state, path, false);
+	const bool hadState = !stateItem.isNull();
+	if (!hadState) {
+		stateItem = syncFindPlaylistState(state, path, true);
+	}
+	const uint32_t baseRevision = stateItem["revision"] | 0;
+	const String baseHash = stateItem["sha256"].as<String>();
+	const bool baseDeleted = stateItem["deleted"] | false;
+	stateItem["_seen"] = true;
+
+	const bool localExists = gFSystem.exists(path);
+	String localHash;
+	if (localExists && !syncHashFile(path, localHash)) {
+		counts.failed++;
+		return;
+	}
+	if (localExists && localHash.equalsIgnoreCase(remoteHash)) {
+		// Same content independently reached both sides (or an upload response was lost): just adopt
+		// the server revision and avoid manufacturing a false conflict.
+		syncSetPlaylistState(stateItem, path, remoteRevision, remoteHash, false);
+		return;
+	}
+
+	if (!localExists) {
+		const bool localDelete = hadState && !baseDeleted && baseRevision == remoteRevision && baseHash.equalsIgnoreCase(remoteHash);
+		if (localDelete) {
+			counts.deleted++;
+			if (dryRun) {
+				syncPlaylistDryLine(dryReport, "DELETE", path);
+				return;
+			}
+			const SyncPlaylistHttpResult result = syncDeletePlaylistRemote(manifestUrl, user, pass, path, baseRevision);
+			if (result.ok && result.deleted) {
+				syncSetPlaylistState(stateItem, path, result.revision, "", true);
+			} else if (result.conflict) {
+				// The remote edit won over a simultaneous local delete; keep it locally on this device.
+				counts.conflicts++;
+				if (!result.deleted && result.hash.length() == 64) {
+					syncPullPlaylist(baseUrl, user, pass, stateItem, path, result.revision, result.hash, counts);
+				} else {
+					syncSetPlaylistState(stateItem, path, result.revision, "", true);
+				}
+			} else {
+				counts.failed++;
+			}
+			return;
+		}
+		if (hadState && !baseDeleted) {
+			counts.conflicts++; // delete vs a newer remote edit; remote wins without data loss
+			syncPlaylistDryLine(dryReport, "CONFLICT", path);
+		}
+		counts.pulled++;
+		if (dryRun) {
+			syncPlaylistDryLine(dryReport, "PULL", path);
+			return;
+		}
+		counts.pulled--; // syncPullPlaylist increments only after a successful atomic replacement
+		syncPullPlaylist(baseUrl, user, pass, stateItem, path, remoteRevision, remoteHash, counts);
+		return;
+	}
+
+	const bool localChanged = !hadState || baseDeleted || !localHash.equalsIgnoreCase(baseHash);
+	const bool remoteChanged = !hadState || baseDeleted || baseRevision != remoteRevision || !remoteHash.equalsIgnoreCase(baseHash);
+	if (localChanged && !remoteChanged) {
+		counts.pushed++;
+		if (dryRun) {
+			syncPlaylistDryLine(dryReport, "PUSH", path);
+			return;
+		}
+		const SyncPlaylistHttpResult result = syncUploadPlaylist(manifestUrl, user, pass, path, baseRevision);
+		if (result.ok) {
+			syncSetPlaylistState(stateItem, path, result.revision, result.hash.length() == 64 ? result.hash : localHash, false);
+		} else if (result.conflict) {
+			syncResolvePlaylistHttpConflict(result, stateItem, baseUrl, user, pass, path, counts);
+		} else {
+			counts.failed++;
+		}
+		return;
+	}
+	if (!localChanged && remoteChanged) {
+		counts.pulled++;
+		if (dryRun) {
+			syncPlaylistDryLine(dryReport, "PULL", path);
+			return;
+		}
+		counts.pulled--;
+		syncPullPlaylist(baseUrl, user, pass, stateItem, path, remoteRevision, remoteHash, counts);
+		return;
+	}
+
+	// Both sides changed from the last common revision. Preserve the local edit under a conflict
+	// name, then put the server version at the canonical path. The conflict copy is uploaded in the
+	// local-only pass later in this same sync.
+	counts.conflicts++;
+	if (dryRun) {
+		syncPlaylistDryLine(dryReport, "CONFLICT", path);
+		return;
+	}
+	const String conflictPath = syncCreatePlaylistConflictCopy(path);
+	if (conflictPath.isEmpty()) {
+		counts.failed++;
+		return;
+	}
+	if (!syncPullPlaylist(baseUrl, user, pass, stateItem, path, remoteRevision, remoteHash, counts)) {
+		return;
+	}
+	Log_Printf(LOGLEVEL_NOTICE, "Playlist sync: concurrent edit on %s; preserved local copy as %s", path.c_str(), conflictPath.c_str());
+}
+
+static void syncReconcilePlaylistTombstone(const String &manifestUrl, const String &baseUrl, const String &user, const String &pass, JsonDocument &state, const String &path,
+	uint32_t remoteRevision, bool dryRun, File *dryReport, SyncPlaylistCounts &counts) {
+	SyncPlaylistFileGuard fileGuard;
+	JsonObject stateItem = syncFindPlaylistState(state, path, false);
+	const bool hadState = !stateItem.isNull();
+	if (!hadState) {
+		stateItem = syncFindPlaylistState(state, path, true);
+	}
+	const uint32_t baseRevision = stateItem["revision"] | 0;
+	const String baseHash = stateItem["sha256"].as<String>();
+	const bool baseDeleted = stateItem["deleted"] | false;
+	stateItem["_seen"] = true;
+	if (!gFSystem.exists(path)) {
+		syncSetPlaylistState(stateItem, path, remoteRevision, "", true);
+		return;
+	}
+
+	String localHash;
+	if (!syncHashFile(path, localHash)) {
+		counts.failed++;
+		return;
+	}
+	// Re-creating a playlist after observing this exact tombstone is an intentional local change.
+	if (hadState && baseDeleted && baseRevision == remoteRevision) {
+		counts.pushed++;
+		if (dryRun) {
+			syncPlaylistDryLine(dryReport, "PUSH", path);
+			return;
+		}
+		const SyncPlaylistHttpResult result = syncUploadPlaylist(manifestUrl, user, pass, path, baseRevision);
+		if (result.ok) {
+			syncSetPlaylistState(stateItem, path, result.revision, result.hash.length() == 64 ? result.hash : localHash, false);
+		} else if (result.conflict) {
+			syncResolvePlaylistHttpConflict(result, stateItem, baseUrl, user, pass, path, counts);
+		} else {
+			counts.failed++;
+		}
+		return;
+	}
+
+	const bool localChanged = !hadState || baseDeleted || !localHash.equalsIgnoreCase(baseHash);
+	const bool remoteChanged = !hadState || !baseDeleted || baseRevision != remoteRevision;
+	if (!localChanged && remoteChanged) {
+		counts.deleted++;
+		if (dryRun) {
+			syncPlaylistDryLine(dryReport, "REMOVE", path);
+			return;
+		}
+		if (!gFSystem.remove(path)) {
+			counts.failed++;
+			return;
+		}
+		syncSetPlaylistState(stateItem, path, remoteRevision, "", true);
+		return;
+	}
+
+	// A remote delete raced a local edit or a same-named playlist unknown to this device. Preserve
+	// the local content as a conflict copy and honor the tombstone at the canonical path.
+	counts.conflicts++;
+	if (dryRun) {
+		syncPlaylistDryLine(dryReport, "CONFLICT", path);
+		return;
+	}
+	const String conflictPath = syncCreatePlaylistConflictCopy(path);
+	if (conflictPath.isEmpty() || !gFSystem.remove(path)) {
+		counts.failed++;
+		return;
+	}
+	syncSetPlaylistState(stateItem, path, remoteRevision, "", true);
+	Log_Printf(LOGLEVEL_NOTICE, "Playlist sync: delete/edit conflict on %s; preserved local copy as %s", path.c_str(), conflictPath.c_str());
+}
+
+static bool syncProcessPlaylistTombstones(File &manifest, const String &manifestUrl, const String &baseUrl, const String &user, const String &pass, JsonDocument &state, bool dryRun,
+	File *dryReport, SyncPlaylistCounts &counts) {
+	manifest.seek(0);
+	if (!manifest.find("\"playlistTombstones\"") || !manifest.find('[')) {
+		return true; // version-2 servers may legitimately have no tombstone field yet
+	}
+	while (manifest.peek() == ' ' || manifest.peek() == '\n' || manifest.peek() == '\r' || manifest.peek() == '\t') {
+		manifest.read();
+	}
+	if (manifest.peek() == ']') {
+		manifest.read();
+		return true;
+	}
+	bool more = true;
+	while (more) {
+		if (gSyncCancel) {
+			return true;
+		}
+		JsonDocument entryDoc;
+		const DeserializationError error = deserializeJson(entryDoc, manifest);
+		if (error == DeserializationError::EmptyInput) {
+			break;
+		}
+		if (error) {
+			return false;
+		}
+		String path = entryDoc["path"].as<String>();
+		if (!path.startsWith("/")) {
+			path = "/" + path;
+		}
+		const uint32_t revision = entryDoc["revision"] | 0;
+		if (syncIsPlaylistPath(path) && revision > 0) {
+			syncReconcilePlaylistTombstone(manifestUrl, baseUrl, user, pass, state, path, revision, dryRun, dryReport, counts);
+		}
+		more = manifest.findUntil(",", "]");
+	}
+	return true;
+}
+
+static void syncUploadLocalOnlyPlaylists(const String &manifestUrl, const String &baseUrl, const String &user, const String &pass, JsonDocument &state, bool dryRun, File *dryReport,
+	SyncPlaylistCounts &counts) {
+	SyncPlaylistFileGuard fileGuard;
+	File directory = gFSystem.open("/Playlists");
+	if (!directory || !directory.isDirectory()) {
+		if (directory) {
+			directory.close();
+		}
+		return;
+	}
+	File entry = directory.openNextFile();
+	while (entry) {
+		if (gSyncCancel) {
+			entry.close();
+			break;
+		}
+		const bool regularFile = !entry.isDirectory();
+		String path = entry.path();
+		entry.close();
+		if (regularFile && syncIsPlaylistPath(path)) {
+			JsonObject stateItem = syncFindPlaylistState(state, path, false);
+			const bool hadState = !stateItem.isNull();
+			if (!hadState) {
+				stateItem = syncFindPlaylistState(state, path, true);
+			}
+			if (!(stateItem["_seen"] | false)) {
+				String localHash;
+				if (!syncHashFile(path, localHash)) {
+					counts.failed++;
+				} else {
+					const uint32_t baseRevision = stateItem["revision"] | 0;
+					counts.pushed++;
+					if (dryRun) {
+						syncPlaylistDryLine(dryReport, "PUSH", path);
+					} else {
+						const SyncPlaylistHttpResult result = syncUploadPlaylist(manifestUrl, user, pass, path, baseRevision);
+						if (result.ok) {
+							syncSetPlaylistState(stateItem, path, result.revision, result.hash.length() == 64 ? result.hash : localHash, false);
+						} else if (result.conflict) {
+							syncResolvePlaylistHttpConflict(result, stateItem, baseUrl, user, pass, path, counts);
+						} else {
+							counts.failed++;
+						}
+					}
+				}
+			}
+		}
+		entry = directory.openNextFile();
+		vTaskDelay(pdMS_TO_TICKS(1));
+	}
+	directory.close();
 }
 
 // Set of 64-bit path hashes used only by the optional mirror-delete pass: it records every
@@ -396,6 +1066,8 @@ static void syncRun(void) {
 		gFSystem.remove(manifestTmp);
 		return;
 	}
+	const uint8_t manifestVersion = syncReadManifestVersion(manifestTmp);
+	const bool playlistSyncSupported = manifestVersion >= 2;
 
 	// Re-open the buffered manifest and seek to the start of the "files" array; from
 	// here entries are deserialized one object at a time.
@@ -425,6 +1097,9 @@ static void syncRun(void) {
 	if (lastSlash >= 0) {
 		baseUrl = baseUrl.substring(0, lastSlash + 1);
 	}
+	SpiRamAllocator playlistStateAllocator;
+	JsonDocument playlistState(&playlistStateAllocator);
+	SyncPlaylistCounts playlistCounts;
 
 	size_t processed = 0;
 	size_t downloaded = 0;
@@ -444,6 +1119,10 @@ static void syncRun(void) {
 
 	System_PauseTasksDuringUpload(true); // free SD/CPU and stop RFID from starting playback mid-sync
 	Led_ShowSyncColor(); // indicate the running sync with a solid blue (single transmission, no repeated show())
+	if (playlistSyncSupported) {
+		SyncPlaylistFileGuard playlistGuard;
+		syncLoadPlaylistState(playlistState);
+	}
 
 	bool cancelled = false;
 	bool more = true;
@@ -468,6 +1147,8 @@ static void syncRun(void) {
 		JsonObject entry = entryDoc.as<JsonObject>();
 		String path = entry["path"].as<String>();
 		const long size = entry["size"] | -1;
+		const uint32_t playlistRevision = entry["revision"] | 0;
+		const String playlistHash = entry["sha256"].as<String>();
 		while (path.startsWith("/")) {
 			path = path.substring(1);
 		}
@@ -492,34 +1173,47 @@ static void syncRun(void) {
 					keepSetOk = false;
 				}
 
-				// additive diff: skip if a local file of the same size already exists
-				const bool localExists = gFSystem.exists(localPath);
-				bool needDownload = true;
-				if ((size >= 0) && localExists) {
-					File existing = gFSystem.open(localPath, "r");
-					if (existing) {
-						if ((long) existing.size() == size) {
-							needDownload = false;
+				const bool managedPlaylist = playlistSyncSupported && syncIsPlaylistPath(localPath) && playlistRevision > 0 && playlistHash.length() == 64;
+				if (managedPlaylist) {
+					syncReconcileRemotePlaylist(manifestUrl, baseUrl, user, pass, playlistState, localPath, playlistRevision, playlistHash, dryRun, dryRun ? &dryReport : nullptr, playlistCounts);
+				} else {
+					// additive diff: skip if a local file of the same size already exists. Version-2
+					// playlists take the hash/revision path above; audio retains this cheap size check.
+					const bool localExists = gFSystem.exists(localPath);
+					bool needDownload = true;
+					if ((size >= 0) && localExists) {
+						File existing = gFSystem.open(localPath, "r");
+						if (existing) {
+							if ((long) existing.size() == size) {
+								needDownload = false;
+							}
+							existing.close();
 						}
-						existing.close();
 					}
-				}
 
-				if (needDownload) {
-					if (dryRun) {
-						// record only what a real run would fetch (new = missing locally, chg = size differs)
-						downloaded++;
-						dryReport.printf("DL %s %s\n", localExists ? "chg" : "new", localPath.c_str());
-					} else {
-						// expose the file currently being downloaded so the web UI can show it
-						gSyncMsg.set(path.c_str());
-						const String fileUrl = baseUrl + Url_EncodePath(path);
-						if (syncDownloadFile(fileUrl, user, pass, localPath)) {
+					if (needDownload) {
+						if (dryRun) {
+							// record only what a real run would fetch (new = missing locally, chg = size differs)
 							downloaded++;
-							Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+							dryReport.printf("DL %s %s\n", localExists ? "chg" : "new", localPath.c_str());
 						} else {
-							failed++;
-							Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+							// expose the file currently being downloaded so the web UI can show it
+							gSyncMsg.set(path.c_str());
+							const String fileUrl = baseUrl + Url_EncodePath(path);
+							bool downloadedOk = false;
+							if (syncIsPlaylistPath(localPath)) {
+								SyncPlaylistFileGuard playlistGuard;
+								downloadedOk = syncDownloadFile(fileUrl, user, pass, localPath);
+							} else {
+								downloadedOk = syncDownloadFile(fileUrl, user, pass, localPath);
+							}
+							if (downloadedOk) {
+								downloaded++;
+								Log_Printf(LOGLEVEL_INFO, "Sync: downloaded %s", localPath.c_str());
+							} else {
+								failed++;
+								Log_Printf(LOGLEVEL_ERROR, "Sync: failed %s", localPath.c_str());
+							}
 						}
 					}
 				}
@@ -564,6 +1258,25 @@ static void syncRun(void) {
 		Log_Printf(LOGLEVEL_ERROR, "Sync: manifest incomplete (%s) -> skipping mirror-delete pass",
 			parseFailed ? "parse error mid-manifest" : "array not terminated");
 	}
+	if (playlistSyncSupported && manifestComplete && !cancelled) {
+		if (!syncProcessPlaylistTombstones(manifest, manifestUrl, baseUrl, user, pass, playlistState, dryRun, dryRun ? &dryReport : nullptr, playlistCounts)) {
+			playlistCounts.failed++;
+		}
+		if (!gSyncCancel) {
+			syncUploadLocalOnlyPlaylists(manifestUrl, baseUrl, user, pass, playlistState, dryRun, dryRun ? &dryReport : nullptr, playlistCounts);
+		}
+		if (!dryRun) {
+			SyncPlaylistFileGuard playlistGuard;
+			if (!syncSavePlaylistState(playlistState)) {
+				playlistCounts.failed++;
+				Log_Println("Playlist sync: cannot persist local state", LOGLEVEL_ERROR);
+			}
+		}
+		if (gSyncCancel) {
+			cancelled = true;
+		}
+	}
+	failed += playlistCounts.failed;
 
 	manifest.close();
 	gFSystem.remove(manifestTmp);
@@ -597,17 +1310,23 @@ static void syncRun(void) {
 
 	if (dryRun) {
 		if (mirror) {
-			dryReport.printf("# %u to download, %u to delete, %u total\n", (unsigned) downloaded, (unsigned) deleted, (unsigned) processed);
-			gSyncMsg.setf("dry run: %u to download, %u to delete, %u total", (unsigned) downloaded, (unsigned) deleted, (unsigned) processed);
+			dryReport.printf("# %u files to download, %u files to delete, playlists: %u push/%u pull/%u delete/%u conflict, %u total\n", (unsigned) downloaded, (unsigned) deleted,
+				(unsigned) playlistCounts.pushed, (unsigned) playlistCounts.pulled, (unsigned) playlistCounts.deleted, (unsigned) playlistCounts.conflicts, (unsigned) processed);
+			gSyncMsg.setf("dry: %u dl/%u rm; PL %u up/%u down/%u conflict", (unsigned) downloaded, (unsigned) deleted, (unsigned) playlistCounts.pushed, (unsigned) playlistCounts.pulled,
+				(unsigned) playlistCounts.conflicts);
 		} else {
-			dryReport.printf("# %u to download, %u total (mirror-delete is off)\n", (unsigned) downloaded, (unsigned) processed);
-			gSyncMsg.setf("dry run: %u to download, %u total", (unsigned) downloaded, (unsigned) processed);
+			dryReport.printf("# %u files to download, playlists: %u push/%u pull/%u delete/%u conflict, %u total (mirror-delete is off)\n", (unsigned) downloaded,
+				(unsigned) playlistCounts.pushed, (unsigned) playlistCounts.pulled, (unsigned) playlistCounts.deleted, (unsigned) playlistCounts.conflicts, (unsigned) processed);
+			gSyncMsg.setf("dry: %u dl; PL %u up/%u down/%u conflict", (unsigned) downloaded, (unsigned) playlistCounts.pushed, (unsigned) playlistCounts.pulled,
+				(unsigned) playlistCounts.conflicts);
 		}
 		dryReport.close();
 	} else if (mirror) {
-		gSyncMsg.setf("%u downloaded, %u deleted, %u failed, %u total", (unsigned) downloaded, (unsigned) deleted, (unsigned) failed, (unsigned) processed);
+		gSyncMsg.setf("%u dl/%u rm/%u fail; PL %u up/%u down/%u conflict", (unsigned) downloaded, (unsigned) deleted, (unsigned) failed, (unsigned) playlistCounts.pushed,
+			(unsigned) playlistCounts.pulled, (unsigned) playlistCounts.conflicts);
 	} else {
-		gSyncMsg.setf("%u downloaded, %u failed, %u total", (unsigned) downloaded, (unsigned) failed, (unsigned) processed);
+		gSyncMsg.setf("%u dl/%u fail; PL %u up/%u down/%u conflict", (unsigned) downloaded, (unsigned) failed, (unsigned) playlistCounts.pushed, (unsigned) playlistCounts.pulled,
+			(unsigned) playlistCounts.conflicts);
 	}
 	char summary[StatusMessage::Capacity];
 	Sync_CopyMessage(summary, sizeof(summary));

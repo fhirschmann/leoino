@@ -732,7 +732,7 @@
 	},
 	"sync": {
 		"title": "File synchronization",
-		"intro": "Downloads files from a web server (e.g. nginx) onto the SD card. The ESPuino fetches a <b>JSON manifest</b> from the URL below and downloads every file listed in it that is missing locally or has a different size. By default it is <b>additive</b> – local files are kept; the option further down can also delete local files the manifest no longer lists (mirror mode). Syncing only runs while nothing is being played from the SD card.",
+		"intro": "Downloads audio from a web server onto the SD card. With the dynamic <b>manifest.php v2</b>, playlists below <code>/Playlists</code> additionally sync <b>both ways</b> between all ESPuinos: edits and deletes go to the server and reach the other devices on their next sync; concurrent edits are preserved as conflict copies. Static/v1 manifests stay compatible and remain server → device only. Optional mirror mode still applies only to the other files.",
 		"url": {
 			"title": "Manifest URL",
 			"placeholder": "https://server/audio/manifest.json"
@@ -753,7 +753,7 @@
 		"deleteHint": "Caution – mirror mode: after downloading, local files missing from the manifest are deleted. System and config files (hidden files, manifest.json, stats.csv, backup.txt) are kept. Only runs when the manifest loaded completely.",
 		"run": {
 			"title": "Sync now",
-			"desc": "Fetches the manifest and downloads missing/changed files. May take a while depending on the amount of data.",
+			"desc": "Fetches the manifest, reconciles playlists in both directions and downloads missing/changed audio. Other devices receive the playlists on their next sync.",
 			"button": "Sync now",
 			"stop": "Stop",
 			"gotools": "Open sync in the Tools tab",
@@ -764,8 +764,8 @@
 		},
 		"manifest": {
 			"title": "Manifest format",
-			"desc": "The manifest is a JSON file listing all files to sync. Place it on the web server (the URL above points to it):",
-			"fields": "<b>path</b>: path relative to the manifest's directory – used both as the download URL (manifest directory + path) and as the target path on the SD card. <b>size</b>: file size in bytes – used to detect whether the local file is up to date.",
+			"desc": "The bundled <code>manifest.php</code> generates manifest v2 and accepts playlist uploads/deletes. Static manifests with a <code>files</code> array continue to work in pull-only mode:",
+			"fields": "<b>path</b>: path relative to the manifest directory. <b>size</b>: file size used for audio. For playlists, v2 also supplies <b>sha256</b>, <b>revision</b> and deletion tombstones, enabling a conflict-safe three-way merge.",
 			"nginx": "nginx example: put the audio files and <code>manifest.json</code> into a directory served via a <code>location</code> block; for a login add <code>auth_basic</code> + <code>auth_basic_user_file</code>."
 		},
 		"status": {

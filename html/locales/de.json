@@ -732,7 +732,7 @@
 	},
 	"sync": {
 		"title": "Datei-Synchronisation",
-		"intro": "Lädt Dateien von einem Webserver (z.B. nginx) auf die SD-Karte. Der ESPuino holt ein <b>JSON-Manifest</b> von der angegebenen URL und lädt alle darin gelisteten Dateien, die lokal fehlen oder eine andere Größe haben. Standardmäßig wird <b>nur hinzugefügt</b> – lokale Dateien bleiben erhalten; mit der Option weiter unten lassen sich lokale Dateien, die das Manifest nicht (mehr) auflistet, auch löschen (Spiegel-Modus). Die Synchronisation läuft nur, wenn gerade nichts von der SD-Karte abgespielt wird.",
+		"intro": "Lädt Audiodateien von einem Webserver auf die SD-Karte. Mit dem dynamischen <b>manifest.php v2</b> werden Playlists unter <code>/Playlists</code> zusätzlich <b>bidirektional</b> zwischen allen ESPuinos abgeglichen: Änderungen und Löschungen wandern zum Server und beim nächsten Sync auf die anderen Geräte; gleichzeitige Bearbeitungen bleiben als Konfliktkopie erhalten. Statische/v1-Manifeste bleiben kompatibel und arbeiten nur Server → Gerät. Der optionale Spiegel-Modus betrifft weiterhin nur die übrigen Dateien.",
 		"url": {
 			"title": "Manifest-URL",
 			"placeholder": "https://server/audio/manifest.json"
@@ -753,7 +753,7 @@
 		"deleteHint": "Vorsicht – Spiegel-Modus: Nach dem Download werden lokale Dateien gelöscht, die im Manifest fehlen. System- und Konfigurationsdateien (versteckte Dateien, manifest.json, stats.csv, backup.txt) bleiben erhalten. Läuft nur, wenn das Manifest vollständig geladen wurde.",
 		"run": {
 			"title": "Jetzt synchronisieren",
-			"desc": "Holt das Manifest und lädt fehlende/geänderte Dateien herunter. Je nach Datenmenge kann das dauern.",
+			"desc": "Holt das Manifest, gleicht Playlists in beide Richtungen ab und lädt fehlende/geänderte Audiodateien herunter. Andere Geräte erhalten die Playlists bei ihrem nächsten Sync.",
 			"button": "Jetzt synchronisieren",
 			"stop": "Stopp",
 			"gotools": "Zum Sync in den Tools-Tab",
@@ -764,8 +764,8 @@
 		},
 		"manifest": {
 			"title": "Aufbau des Manifests",
-			"desc": "Das Manifest ist eine JSON-Datei, die alle zu synchronisierenden Dateien auflistet. Lege sie auf dem Webserver ab (die URL oben zeigt darauf):",
-			"fields": "<b>path</b>: Pfad relativ zum Verzeichnis des Manifests – wird sowohl als Download-URL (Manifest-Verzeichnis + path) als auch als Zielpfad auf der SD-Karte verwendet. <b>size</b>: Dateigröße in Bytes – dient zum Erkennen, ob die lokale Datei aktuell ist.",
+			"desc": "Das mitgelieferte <code>manifest.php</code> erzeugt Manifest v2 und nimmt Playlist-Uploads/Löschungen entgegen. Statische Manifeste mit <code>files</code> funktionieren weiterhin pull-only:",
+			"fields": "<b>path</b>: Pfad relativ zum Manifest-Verzeichnis. <b>size</b>: Dateigröße für den Audio-Abgleich. Für Playlists liefert v2 zusätzlich <b>sha256</b>, <b>revision</b> und Lösch-Tombstones; diese Felder ermöglichen den konfliktfreien Drei-Wege-Abgleich.",
 			"nginx": "Beispiel nginx: lege Audiodateien und <code>manifest.json</code> in ein Verzeichnis, das per <code>location</code> ausgeliefert wird; für Login <code>auth_basic</code> + <code>auth_basic_user_file</code> setzen."
 		},
 		"status": {

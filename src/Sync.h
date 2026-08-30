@@ -1,8 +1,8 @@
 #pragma once
 
-// HTTP(S) one-way file sync: pulls files listed in a remote JSON manifest
-// (served by e.g. nginx) onto the SD card. Additive only — never deletes local
-// files. Optional HTTP Basic Auth (user + password stored in NVS).
+// HTTP(S) file sync: pulls audio listed in a remote JSON manifest onto the SD card, with optional
+// mirror deletion. Manifest v2 additionally reconciles /Playlists bidirectionally using hashes,
+// server revisions and tombstones. Optional HTTP Basic Auth (user + password stored in NVS).
 
 // Starts a sync in the background. No-op if a sync is already running. Reusable
 // by the web endpoint, a bindable command and/or MQTT.
@@ -28,3 +28,8 @@ const char *Sync_GetStatusText(void); // "idle" / "syncing" / "done" / "failed"
 // Thread-safe: the message is written by the sync task on core 1 and read by the web
 // server on core 0, so it is guarded by a spinlock to avoid reading a half-written string.
 void Sync_CopyMessage(char *dst, size_t dstLen);
+
+// Serializes playlist writes between the async web handler and the background sync task. These
+// guard only the local /Playlists files; callers remain responsible for pausing playback/tasks.
+void Sync_LockPlaylistFiles(void);
+void Sync_UnlockPlaylistFiles(void);

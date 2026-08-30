@@ -15,6 +15,7 @@
 #include "Rfid.h"
 #include "SdCard.h"
 #include "StatusMessage.h"
+#include "Sync.h"
 #include "System.h"
 #include "Web.h"
 #include "WebInternal.h"
@@ -48,21 +49,30 @@ uint32_t index_buffer_read = 0;
 static SemaphoreHandle_t explorerFileUploadFinished;
 static TaskHandle_t fileStorageTaskHandle;
 static std::atomic<bool> uploadAborted = false;
-static std::atomic_flag playlistWriteLock = ATOMIC_FLAG_INIT;
-
 class PlaylistWriteGuard {
 public:
 	PlaylistWriteGuard() {
-		while (playlistWriteLock.test_and_set(std::memory_order_acquire)) {
-			vTaskDelay(pdMS_TO_TICKS(5));
-		}
+		Sync_LockPlaylistFiles();
 		System_PauseTasksDuringUpload(true);
 	}
 	~PlaylistWriteGuard() {
 		System_PauseTasksDuringUpload(false);
-		playlistWriteLock.clear(std::memory_order_release);
+		Sync_UnlockPlaylistFiles();
 	}
 };
+
+static bool isManagedPlaylistPath(const String &path) {
+	String normalized = path;
+	normalized.trim();
+	if (!normalized.startsWith("/")) {
+		normalized = "/" + normalized;
+	}
+	String lower = normalized;
+	lower.toLowerCase();
+	const String fileName = normalized.length() > 11 ? normalized.substring(11) : "";
+	return normalized.length() <= 240 && lower.startsWith("/playlists/") && normalized.lastIndexOf('/') == 10 && !fileName.isEmpty() && !fileName.startsWith(".")
+		&& normalized.indexOf("..") < 0 && normalized.indexOf('\r') < 0 && normalized.indexOf('\n') < 0 && (lower.endsWith(".m3u") || lower.endsWith(".m3u8"));
+}
 
 // Aborts a running upload storage task and waits (briefly) for it to release its file
 // handles. Called from Web_Exit during shutdown.
@@ -663,12 +673,19 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 		const char *filePath = param->value().c_str();
 		// Guard the protected folders: the web Explorer hides its delete action, but block it here
 		// too so a stray/direct API call (or an old client) can never wipe them. Reject the card root
-		// and anything at/under /System or /Playlists (mirrors Sync.cpp's mirror-protection intent),
-		// otherwise DELETE ?path=/ or ?path=/System/<child> would slip through.
-		if ((filePath[0] == '\0') || (strcmp(filePath, "/") == 0) || (strcasecmp(filePath, "/System") == 0) || (strncasecmp(filePath, "/System/", 8) == 0) || (strcasecmp(filePath, "/Playlists") == 0) || (strncasecmp(filePath, "/Playlists/", 11) == 0)) {
+		// and anything at/under /System. /Playlists itself stays protected, but its flat .m3u files
+		// can be removed individually so a bidirectional-sync tombstone can be created later.
+		const bool belowPlaylists = (strcasecmp(filePath, "/Playlists") == 0) || (strncasecmp(filePath, "/Playlists/", 11) == 0);
+		const bool allowedPlaylistFile = belowPlaylists && isManagedPlaylistPath(String(filePath));
+		if ((filePath[0] == '\0') || (strcmp(filePath, "/") == 0) || (strcasecmp(filePath, "/System") == 0) || (strncasecmp(filePath, "/System/", 8) == 0)
+			|| (belowPlaylists && !allowedPlaylistFile)) {
 			Log_Printf(LOGLEVEL_NOTICE, "DELETE:  refused to delete protected path %s", filePath);
 			request->send(403);
 			return;
+		}
+		if (allowedPlaylistFile) {
+			Sync_LockPlaylistFiles();
+			System_PauseTasksDuringUpload(true);
 		}
 		if (gFSystem.exists(filePath)) {
 			// stop playback, file to delete might be in use
@@ -689,6 +706,10 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 			}
 		} else {
 			Log_Printf(LOGLEVEL_ERROR, "DELETE:  Path %s does not exist", filePath);
+		}
+		if (allowedPlaylistFile) {
+			System_PauseTasksDuringUpload(false);
+			Sync_UnlockPlaylistFiles();
 		}
 	} else {
 		Log_Println("DELETE:  No path variable set", LOGLEVEL_ERROR);
@@ -721,8 +742,10 @@ void explorerHandleCreateRequest(AsyncWebServerRequest *request) {
 void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 	JsonObject obj = json.as<JsonObject>();
 	String path = obj["path"] | "";
+	String oldPath = obj["oldPath"] | "";
 	JsonArray tracks = obj["tracks"].as<JsonArray>();
 	path.trim();
+	oldPath.trim();
 	if (path.length() == 0 || path.length() > 240 || tracks.isNull() || tracks.size() == 0 || tracks.size() > 4096) {
 		request->send(400, "text/plain", "missing path or tracks");
 		return;
@@ -737,10 +760,16 @@ void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &js
 	}
 	lowerPath = path;
 	lowerPath.toLowerCase();
-	const String fileName = path.substring(11);
-	if (!lowerPath.startsWith("/playlists/") || path.lastIndexOf('/') != 10 || fileName.startsWith(".") || path.indexOf("..") >= 0 || path.indexOf('\r') >= 0 || path.indexOf('\n') >= 0) {
+	if (!isManagedPlaylistPath(path)) {
 		request->send(400, "text/plain", "invalid playlist path");
 		return;
+	}
+	if (!oldPath.isEmpty() && !isManagedPlaylistPath(oldPath)) {
+		request->send(400, "text/plain", "invalid old playlist path");
+		return;
+	}
+	if (oldPath.equalsIgnoreCase(path)) {
+		oldPath = ""; // same path is a normal edit
 	}
 	for (JsonVariant track : tracks) {
 		if (!track.is<const char *>()) {
@@ -808,6 +837,11 @@ void handleCreatePlaylistRequest(AsyncWebServerRequest *request, JsonVariant &js
 		return;
 	}
 	gFSystem.remove(backupPath);
+	if (!oldPath.isEmpty() && gFSystem.exists(oldPath) && !gFSystem.remove(oldPath)) {
+		Log_Printf(LOGLEVEL_ERROR, "PLAYLIST: wrote %s but cannot remove renamed source %s", path.c_str(), oldPath.c_str());
+		request->send(500, "text/plain", "cannot remove old playlist");
+		return;
+	}
 	Log_Printf(LOGLEVEL_NOTICE, "PLAYLIST: wrote %s (%u entries)", path.c_str(), (unsigned) tracks.size());
 	request->send(200, "application/json", "{\"ok\":true}");
 }

@@ -384,8 +384,10 @@
 			var payload;
 			try { payload = JSON.parse(requestBody || "{}"); } catch (e) { return jsonResp({ error: "invalid json" }, 400); }
 			var playlistPath = String(payload.path || "").trim();
+			var oldPlaylistPath = String(payload.oldPath || "").trim();
 			var tracks = payload.tracks;
 			if (playlistPath.charAt(0) !== "/") { playlistPath = "/" + playlistPath; }
+			if (oldPlaylistPath && oldPlaylistPath.charAt(0) !== "/") { oldPlaylistPath = "/" + oldPlaylistPath; }
 			if (!/\.m3u8?$/i.test(playlistPath)) { playlistPath += ".m3u"; }
 			var invalidTrack = !Array.isArray(tracks) || !tracks.length || tracks.length > 4096 || tracks.some(function (track) {
 				return typeof track !== "string" || !track.trim() || track.length > 2048 || /^\s*#/.test(track) || /[\r\n]/.test(track)
@@ -394,7 +396,15 @@
 			if (playlistPath.length > 240 || !/^\/Playlists\//i.test(playlistPath) || playlistPath.lastIndexOf("/") !== 10 || /\/\.|\.\./.test(playlistPath) || invalidTrack) {
 				return jsonResp({ error: "invalid playlist" }, 400);
 			}
+			if (oldPlaylistPath && (!/^\/Playlists\/[^/]+\.m3u8?$/i.test(oldPlaylistPath) || /\/\.|\.\./.test(oldPlaylistPath))) {
+				return jsonResp({ error: "invalid old playlist" }, 400);
+			}
 			PLAYLISTS[playlistPath] = tracks.map(function (track) { return track.trim(); });
+			if (oldPlaylistPath && oldPlaylistPath.toLowerCase() !== playlistPath.toLowerCase()) {
+				delete PLAYLISTS[oldPlaylistPath];
+				var oldName = oldPlaylistPath.substring(11);
+				FS["/Playlists"] = FS["/Playlists"].filter(function (entry) { return entry.name !== oldName; });
+			}
 			var name = playlistPath.substring(11);
 			if (!FS["/Playlists"].some(function (entry) { return entry.name === name; })) {
 				FS["/Playlists"].push({ name: name });

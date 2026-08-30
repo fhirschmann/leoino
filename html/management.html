@@ -8742,16 +8742,9 @@
 			fetchWithTimeout("http://" + host + "/playlist", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ path: path, tracks: tracks })
+				body: JSON.stringify({ path: path, oldPath: oldPath || "", tracks: tracks })
 			}).then(r => {
 				if (!r.ok) throw new Error("HTTP " + r.status);
-				// edited + renamed -> drop the old file so we don't leave a duplicate behind
-				if (oldPath && oldPath !== path) {
-					return fetchWithTimeout("http://" + host + "/explorer?path=" + encodeURIComponent(oldPath), { method: "DELETE" })
-						.then(deleteResponse => {
-							if (!deleteResponse.ok) throw new Error("HTTP " + deleteResponse.status);
-						});
-				}
 			}).then(() => {
 				plEditOriginalPath = null;
 				toaster.info(i18next.t("playlist.saved", { path: path }));

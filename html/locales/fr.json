@@ -725,7 +725,7 @@
 	},
 	"sync": {
 		"title": "Synchronisation de fichiers",
-		"intro": "Télécharge des fichiers depuis un serveur web (p.ex. nginx) vers la carte SD. L'ESPuino récupère un <b>manifeste JSON</b> à l'URL ci-dessous et télécharge tous les fichiers listés qui manquent localement ou ont une taille différente. Par défaut c'est <b>additif</b> – les fichiers locaux sont conservés ; l'option plus bas permet aussi de supprimer les fichiers locaux que le manifeste ne liste plus (mode miroir). La synchronisation ne s'exécute que lorsqu'aucune lecture n'est en cours depuis la carte SD.",
+		"intro": "Télécharge les fichiers audio d'un serveur web vers la carte SD. Avec le <b>manifest.php v2</b> dynamique, les playlists sous <code>/Playlists</code> sont aussi synchronisées <b>dans les deux sens</b> entre tous les ESPuinos : modifications et suppressions atteignent les autres appareils lors de leur prochaine synchro ; les éditions concurrentes sont conservées comme copies de conflit. Les manifestes statiques/v1 restent compatibles en mode serveur → appareil.",
 		"url": {
 			"title": "URL du manifeste",
 			"placeholder": "https://server/audio/manifest.json"
@@ -746,7 +746,7 @@
 		"deleteHint": "Attention – mode miroir : après le téléchargement, les fichiers locaux absents du manifeste sont supprimés. Les fichiers système et de configuration (fichiers cachés, manifest.json, stats.csv, backup.txt) sont conservés. Ne s'exécute que si le manifeste a été chargé entièrement.",
 		"run": {
 			"title": "Synchroniser maintenant",
-			"desc": "Récupère le manifeste et télécharge les fichiers manquants/modifiés. Peut prendre du temps selon le volume de données.",
+			"desc": "Récupère le manifeste, réconcilie les playlists dans les deux sens et télécharge les fichiers audio manquants/modifiés. Les autres appareils reçoivent les playlists à leur prochaine synchro.",
 			"button": "Synchroniser maintenant",
 			"stop": "Arrêter",
 			"gotools": "Ouvrir la synchro dans l'onglet Outils",
@@ -757,8 +757,8 @@
 		},
 		"manifest": {
 			"title": "Format du manifeste",
-			"desc": "Le manifeste est un fichier JSON listant tous les fichiers à synchroniser. Placez-le sur le serveur web (l'URL ci-dessus pointe dessus) :",
-			"fields": "<b>path</b> : chemin relatif au répertoire du manifeste – utilisé à la fois comme URL de téléchargement (répertoire du manifeste + path) et comme chemin cible sur la carte SD. <b>size</b> : taille du fichier en octets – utilisée pour détecter si le fichier local est à jour.",
+			"desc": "Le <code>manifest.php</code> fourni génère le manifeste v2 et accepte les envois/suppressions de playlists. Les manifestes statiques avec <code>files</code> restent disponibles en lecture seule :",
+			"fields": "<b>path</b> : chemin relatif au manifeste. <b>size</b> : taille utilisée pour l'audio. Pour les playlists, v2 fournit aussi <b>sha256</b>, <b>revision</b> et des tombstones de suppression pour une fusion à trois voies sans perte.",
 			"nginx": "Exemple nginx : placez les fichiers audio et <code>manifest.json</code> dans un répertoire servi via un bloc <code>location</code> ; pour une connexion, ajoutez <code>auth_basic</code> + <code>auth_basic_user_file</code>."
 		},
 		"status": {
