@@ -1011,15 +1011,12 @@ static void Display_DrawQuickMenuStatus(void) {
     s_u8g2.drawHLine(0, 9, 128);
 
     char audio[32];
-    char ip[32];
     char battery[32];
     char firmware[32];
     char uptime[32];
     char sd[32];
     snprintf(audio, sizeof(audio), "AUDIO:%s V:%u/%u", Display_QuickMenuPlayState(),
              AudioPlayer_GetCurrentVolume(), AudioPlayer_GetMaxVolume());
-    const String ipAddress = Wlan_GetIpAddress();
-    snprintf(ip, sizeof(ip), "IP:%s", ipAddress.length() > 0 ? ipAddress.c_str() : "NO WIFI");
 #ifdef BATTERY_MEASURE_ENABLE
     const int percent = static_cast<int>(Battery_EstimateLevel() * 100.0f);
     const char *batteryState = Battery_IsCritical() ? "CRIT" : Battery_IsLow() ? "LOW" : "OK";
@@ -1039,7 +1036,6 @@ static void Display_DrawQuickMenuStatus(void) {
              static_cast<unsigned long>(sdHealth.frequencyKhz));
 
     s_u8g2.drawStr(1, 17, audio);
-    s_u8g2.drawStr(1, 26, ip);
     s_u8g2.drawStr(1, 35, battery);
     s_u8g2.drawStr(1, 44, firmware);
     s_u8g2.drawStr(1, 53, uptime);
