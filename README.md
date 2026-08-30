@@ -82,8 +82,8 @@ commit-by-commit list lives further down under
 
 The physical build — a 3D-printed enclosure housing an ESP32, a PN5180 RFID reader, speaker and
 battery. The case was modelled by hand in CAD (no AI involved); all printable parts — case,
-panels, lids, handle, rotary knob, keycaps and the RFID cartridge — are available as STL files in
-[`stl/`](stl/).
+panels (including the OLED front panel and its two colour modifiers), lids, handle, rotary knob,
+keycaps and the RFID cartridge — are available as STL files in [`stl/`](stl/).
 
 <div align="center">
 
