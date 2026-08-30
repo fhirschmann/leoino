@@ -370,6 +370,22 @@ paths:
                       maximum: 30
                       default: 3
                       description: Cancellable OLED shutdown countdown in seconds; 0 shuts down immediately.
+                    menuTimeout:
+                      type: integer
+                      minimum: 1
+                      maximum: 30
+                      default: 5
+                      description: OLED quick-menu inactivity timeout in seconds.
+                    menuRemember:
+                      type: boolean
+                      default: false
+                      description: Remember the last OLED quick-menu selection when reopening it.
+                    menuItems:
+                      type: string
+                      default: status,ip,battery,sysinfo,equalizer,nightmode,webdav,fwupdate,shutdown
+                      description: >-
+                        Ordered OLED quick-menu item IDs. Prefix an item with "-" to keep its
+                        position while hiding it. At least one known item must remain enabled.
                 battery:
                   type: object
                   # Include all battery settings properties here

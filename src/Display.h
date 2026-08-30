@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+inline constexpr char OLED_MENU_ITEMS_DEFAULT[] = "status,ip,battery,sysinfo,equalizer,nightmode,webdav,fwupdate,shutdown";
+inline constexpr uint8_t OLED_MENU_TIMEOUT_DEFAULT_SECONDS = 5;
+
 void Display_Init(void);
 void Display_Cyclic(void);
 void Display_Exit(void);

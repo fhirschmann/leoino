@@ -143,7 +143,9 @@
 				enable: true, startAnim: 3, animColdOnly: false, showArtist: true, showBattery: true, showTime: true, showWifi: true,
 				showVolume: true, flip: false, idleLine1: "LEO INDUSTRIES", idleLine2: "AUDIO TERMINAL AT-1",
 				contrast: 255, invert: false, idleTimeout: 0, showClock: false, clock24h: true, burnIn: false,
-				loginUser: "leo", bootText: "Booting", loginPwLen: 6, animSpeed: 1, shutdownSeconds: 3, trackNum: false, timeMode: 0, statusInvert: false, idleBattery: false
+				loginUser: "leo", bootText: "Booting", loginPwLen: 6, animSpeed: 1, shutdownSeconds: 3,
+				menuTimeout: 5, menuRemember: false, menuItems: "status,ip,battery,sysinfo,equalizer,nightmode,webdav,fwupdate,shutdown",
+				trackNum: false, timeMode: 0, statusInvert: false, idleBattery: false
 			},
 			buttons: (function () {
 				var b = {};

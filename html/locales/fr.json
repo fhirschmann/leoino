@@ -191,6 +191,23 @@
 			"animspeed": "Vitesse de l'animation",
 			"shutdowncountdown": "Compte à rebours d'arrêt (s, 0 = immédiat)",
 			"shutdowncountdownhint": "Affiche SHUTTING DOWN... avec un compte à rebours avant l'arrêt. Toute pression sur un bouton physique annule l'arrêt. 0 arrête immédiatement.",
+			"menu": {
+				"title": "Menu rapide OLED",
+				"hint": "Faites glisser les entrées par la poignée et utilisez les cases pour les afficher ou les masquer. Au moins une entrée reste active.",
+				"timeout": "Fermer le menu après inactivité (s)",
+				"remember": "Mémoriser la dernière sélection à la réouverture",
+				"items": {
+					"status": "État de lecture et du réseau",
+					"ip": "Adresse IP",
+					"battery": "Batterie",
+					"sysinfo": "Informations système",
+					"equalizer": "Égaliseur",
+					"nightmode": "Mode nuit",
+					"webdav": "WebDAV",
+					"fwupdate": "Mise à jour du firmware",
+					"shutdown": "Arrêt"
+				}
+			},
 			"speed": {
 				"slow": "Lente",
 				"normal": "Normale",

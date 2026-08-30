@@ -191,6 +191,23 @@
 			"animspeed": "Animation speed",
 			"shutdowncountdown": "Shutdown countdown (s, 0 = immediate)",
 			"shutdowncountdownhint": "Shows SHUTTING DOWN... with a countdown before power-off. Any physical button press cancels shutdown. 0 shuts down immediately.",
+			"menu": {
+				"title": "OLED quick menu",
+				"hint": "Drag entries by the handle and use the checkboxes to show or hide them. At least one entry remains enabled.",
+				"timeout": "Close menu after inactivity (s)",
+				"remember": "Remember the last selection when reopening",
+				"items": {
+					"status": "Playback and network status",
+					"ip": "IP address",
+					"battery": "Battery",
+					"sysinfo": "System information",
+					"equalizer": "Equalizer",
+					"nightmode": "Night mode",
+					"webdav": "WebDAV",
+					"fwupdate": "Firmware update",
+					"shutdown": "Shutdown"
+				}
+			},
 			"speed": {
 				"slow": "Slow",
 				"normal": "Normal",

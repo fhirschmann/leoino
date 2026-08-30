@@ -6,9 +6,13 @@
 #include "AudioPlayer.h"
 #include "Battery.h"
 #include "Display.h"
+#include "Led.h"
 #include "Log.h"
+#include "SdCard.h"
 #include "System.h"
+#include "Webdav.h"
 #include "Wlan.h"
+#include "gitrevision.h"
 #include "values.h"
 
 #include <U8g2lib.h>
@@ -20,6 +24,29 @@ extern TwoWire i2cBusTwo;
 // -------- runtime configuration (web-settings, persisted in NVS) --------
 // Startup-animation selector for the idle/attract screen.
 enum class StartupAnim : uint8_t { None = 0, Boot = 1, Login = 2, Full = 3 };
+
+enum class QuickMenuView : uint8_t { Closed, List, Status, IpAddress, Battery, SystemInfo, Confirm };
+
+struct QuickMenuItem {
+    const char *id;
+    const char *label;
+    QuickMenuView infoView;
+    uint16_t command;
+    bool confirm;
+};
+
+static constexpr QuickMenuItem kQuickMenuItems[] = {
+    {"status", "STATUS", QuickMenuView::Status, CMD_NOTHING, false},
+    {"ip", "IP ADDRESS", QuickMenuView::IpAddress, CMD_NOTHING, false},
+    {"battery", "BATTERY", QuickMenuView::Battery, CMD_NOTHING, false},
+    {"sysinfo", "SYSTEM INFO", QuickMenuView::SystemInfo, CMD_NOTHING, false},
+    {"equalizer", "EQUALIZER", QuickMenuView::Closed, CMD_TOGGLE_EQUALIZER, false},
+    {"nightmode", "NIGHT MODE", QuickMenuView::Closed, CMD_DIMM_LEDS_NIGHTMODE, false},
+    {"webdav", "WEBDAV", QuickMenuView::Closed, CMD_TOGGLE_WEBDAV_SERVER, false},
+    {"fwupdate", "FIRMWARE UPDATE", QuickMenuView::Closed, CMD_FIRMWARE_UPDATE, true},
+    {"shutdown", "SHUTDOWN", QuickMenuView::Closed, CMD_SLEEPMODE, true},
+};
+static constexpr uint8_t kQuickMenuDefinitionCount = sizeof(kQuickMenuItems) / sizeof(kQuickMenuItems[0]);
 
 static constexpr char kDefaultIdleLine1[] = "LEO INDUSTRIES";
 static constexpr char kDefaultIdleLine2[] = "AUDIO TERMINAL AT-1";
@@ -49,6 +76,12 @@ static bool        s_cfgTrackNum    = false;                     // oledTrackNum
 static uint8_t     s_cfgTimeMode    = 0;                         // oledTimeMode – 0 elapsed/total, 1 remaining, 2 elapsed
 static bool        s_cfgStatusInv   = false;                     // oledStatusInv – draw the playing status-bar inverted
 static bool        s_cfgIdleBatt    = false;                     // oledIdleBatt – show battery % on the idle screen
+static uint32_t    s_cfgQuickMenuTimeoutMs = OLED_MENU_TIMEOUT_DEFAULT_SECONDS * 1000u;
+static bool        s_cfgQuickMenuRemember = false;
+static uint8_t     s_cfgQuickMenuOrder[kQuickMenuDefinitionCount] = {};
+static uint8_t     s_cfgQuickMenuItemCount = 0;
+
+static void Display_LoadQuickMenuConfig(void);
 
 // Boot/login animation phase timings at normal speed. The runtime copies below are these scaled by
 // s_cfgAnimSpeed in Display_LoadConfig.
@@ -109,6 +142,12 @@ static void Display_LoadConfig(void) {
     if (s_cfgTimeMode > 2) s_cfgTimeMode = 0;
     s_cfgStatusInv   = gPrefsSettings.getBool("oledStatusInv", false);
     s_cfgIdleBatt    = gPrefsSettings.getBool("oledIdleBatt", false);
+    uint8_t menuTimeout = gPrefsSettings.getUChar("oledMenuTout", OLED_MENU_TIMEOUT_DEFAULT_SECONDS);
+    if (menuTimeout < 1) menuTimeout = 1;
+    if (menuTimeout > 30) menuTimeout = 30;
+    s_cfgQuickMenuTimeoutMs = static_cast<uint32_t>(menuTimeout) * 1000u;
+    s_cfgQuickMenuRemember = gPrefsSettings.getBool("oledMenuRem", false);
+    Display_LoadQuickMenuConfig();
 
     // Scale the boot/login animation timings by the chosen speed (0 slow ×3/2, 1 normal ×1, 2 fast ×3/5).
     const uint32_t sn = (s_cfgAnimSpeed == 0) ? 3u : (s_cfgAnimSpeed == 2) ? 3u : 1u;
@@ -158,29 +197,45 @@ static bool s_displayOk = false;
 // One press of a button mapped to CMD_OLED_MENU opens the list; the encoder moves the selection and
 // the same command confirms it. Informational pages return to the list on the next press, while real
 // commands close the menu before Cmd.cpp dispatches them. Any menu interaction restarts the timeout.
-enum class QuickMenuView : uint8_t { Closed, List, Status, IpAddress, Battery };
-
-struct QuickMenuItem {
-    const char *label;
-    QuickMenuView infoView;
-    uint16_t command;
-};
-
-static constexpr QuickMenuItem kQuickMenuItems[] = {
-    {"STATUS", QuickMenuView::Status, CMD_NOTHING},
-    {"IP ADDRESS", QuickMenuView::IpAddress, CMD_NOTHING},
-    {"BATTERY", QuickMenuView::Battery, CMD_NOTHING},
-    {"EQUALIZER", QuickMenuView::Closed, CMD_TOGGLE_EQUALIZER},
-    {"NIGHT MODE", QuickMenuView::Closed, CMD_DIMM_LEDS_NIGHTMODE},
-    {"WEBDAV", QuickMenuView::Closed, CMD_TOGGLE_WEBDAV_SERVER},
-    {"FIRMWARE UPDATE", QuickMenuView::Closed, CMD_FIRMWARE_UPDATE},
-    {"SHUTDOWN", QuickMenuView::Closed, CMD_SLEEPMODE},
-};
-static constexpr uint8_t kQuickMenuItemCount = sizeof(kQuickMenuItems) / sizeof(kQuickMenuItems[0]);
-static constexpr uint32_t kQuickMenuTimeoutMs = 5000;
 static QuickMenuView s_quickMenuView = QuickMenuView::Closed;
 static uint8_t s_quickMenuSelection = 0;
 static uint32_t s_quickMenuTouchedAt = 0;
+static uint16_t s_quickMenuPendingCommand = CMD_NOTHING;
+
+static void Display_LoadQuickMenuConfig(void) {
+    const String configured = gPrefsSettings.getString("oledMenuItems", OLED_MENU_ITEMS_DEFAULT);
+    bool seen[kQuickMenuDefinitionCount] = {};
+    s_cfgQuickMenuItemCount = 0;
+
+    int start = 0;
+    while (start < configured.length()) {
+        int end = configured.indexOf(',', start);
+        if (end < 0) end = configured.length();
+        String token = configured.substring(start, end);
+        token.trim();
+        bool enabled = true;
+        if (token.startsWith("-")) {
+            enabled = false;
+            token.remove(0, 1);
+        }
+        for (uint8_t i = 0; i < kQuickMenuDefinitionCount; i++) {
+            if (!seen[i] && token.equals(kQuickMenuItems[i].id)) {
+                seen[i] = true;
+                if (enabled) s_cfgQuickMenuOrder[s_cfgQuickMenuItemCount++] = i;
+                break;
+            }
+        }
+        start = end + 1;
+    }
+
+    // A malformed API request must not create an unusable empty menu. The web UI prevents this too,
+    // but the firmware remains authoritative for direct REST/WebSocket clients.
+    if (s_cfgQuickMenuItemCount == 0) {
+        s_cfgQuickMenuOrder[0] = 0; // STATUS
+        s_cfgQuickMenuItemCount = 1;
+    }
+    if (s_quickMenuSelection >= s_cfgQuickMenuItemCount) s_quickMenuSelection = 0;
+}
 
 // Re-init recovery. The OLED has no reset line (U8X8_PIN_NONE), so the only way to bring a panel that
 // lost power (hot-unplug/replug), boot-probed too early, or got confused back to life is to re-run
@@ -609,8 +664,9 @@ bool Display_IsEnabled(void) {
 
 bool Display_MenuIsActive(void) {
     if (s_quickMenuView == QuickMenuView::Closed) return false;
-    if (millis() - s_quickMenuTouchedAt >= kQuickMenuTimeoutMs) {
+    if (millis() - s_quickMenuTouchedAt >= s_cfgQuickMenuTimeoutMs) {
         s_quickMenuView = QuickMenuView::Closed;
+        s_quickMenuPendingCommand = CMD_NOTHING;
         return false;
     }
     return true;
@@ -623,20 +679,34 @@ bool Display_MenuPress(uint16_t *selectedCommand) {
     const uint32_t now = millis();
     if (!Display_MenuIsActive()) {
         s_quickMenuView = QuickMenuView::List;
-        s_quickMenuSelection = 0;
+        if (!s_cfgQuickMenuRemember || s_quickMenuSelection >= s_cfgQuickMenuItemCount) {
+            s_quickMenuSelection = 0;
+        }
         s_quickMenuTouchedAt = now;
         return true;
     }
 
     s_quickMenuTouchedAt = now;
+    if (s_quickMenuView == QuickMenuView::Confirm) {
+        s_quickMenuView = QuickMenuView::Closed;
+        if (selectedCommand != nullptr) *selectedCommand = s_quickMenuPendingCommand;
+        s_quickMenuPendingCommand = CMD_NOTHING;
+        return true;
+    }
     if (s_quickMenuView != QuickMenuView::List) {
         s_quickMenuView = QuickMenuView::List;
         return true;
     }
 
-    const QuickMenuItem &item = kQuickMenuItems[s_quickMenuSelection];
+    const QuickMenuItem &item = kQuickMenuItems[s_cfgQuickMenuOrder[s_quickMenuSelection]];
     if (item.infoView != QuickMenuView::Closed) {
         s_quickMenuView = item.infoView;
+        return true;
+    }
+
+    if (item.confirm) {
+        s_quickMenuPendingCommand = item.command;
+        s_quickMenuView = QuickMenuView::Confirm;
         return true;
     }
 
@@ -649,11 +719,12 @@ void Display_MenuRotate(int32_t detents) {
     if (!Display_MenuIsActive() || detents == 0) return;
 
     if (s_quickMenuView != QuickMenuView::List) {
-        // Turning from an info page returns to the selected list entry; the same detent continues
-        // from there, so browsing never needs an extra button press.
+        // Turning from an info/confirmation page cancels it and returns to the list; the same detent
+        // continues from there, so browsing never needs an extra button press.
         s_quickMenuView = QuickMenuView::List;
+        s_quickMenuPendingCommand = CMD_NOTHING;
     }
-    const int32_t count = static_cast<int32_t>(kQuickMenuItemCount);
+    const int32_t count = static_cast<int32_t>(s_cfgQuickMenuItemCount);
     int32_t next = (static_cast<int32_t>(s_quickMenuSelection) + detents) % count;
     if (next < 0) next += count;
     s_quickMenuSelection = static_cast<uint8_t>(next);
@@ -677,42 +748,95 @@ static bool Display_FormatClock(char *buf, size_t n) {
     return true;
 }
 
+static const char *Display_QuickMenuPlayState(void) {
+    if (System_GetOperationMode() == OPMODE_BLUETOOTH_SINK) return "BT SPEAKER";
+    if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) return "BT HEADSET";
+    if (gPlayProperties.playMode == BUSY) return "LOADING";
+    if (gPlayProperties.playMode == NO_PLAYLIST) return "IDLE";
+    return gPlayProperties.pausePlay ? "PAUSED" : "PLAYING";
+}
+
+static void Display_FormatQuickMenuLabel(uint8_t definitionIndex, char *buf, size_t n) {
+    const QuickMenuItem &item = kQuickMenuItems[definitionIndex];
+    if (item.infoView == QuickMenuView::Status) {
+        snprintf(buf, n, "STATUS: %s", Display_QuickMenuPlayState());
+    } else if (item.infoView == QuickMenuView::IpAddress) {
+        String ip = Wlan_GetIpAddress();
+        snprintf(buf, n, "IP: %s", ip.length() > 0 ? ip.c_str() : "OFFLINE");
+    } else if (item.infoView == QuickMenuView::Battery) {
+#ifdef BATTERY_MEASURE_ENABLE
+        snprintf(buf, n, "BATTERY: %d%%", static_cast<int>(Battery_EstimateLevel() * 100.0f));
+#else
+        snprintf(buf, n, "BATTERY: N/A");
+#endif
+    } else if (item.infoView == QuickMenuView::SystemInfo) {
+        snprintf(buf, n, "SYSTEM INFO");
+    } else if (item.command == CMD_TOGGLE_EQUALIZER) {
+        String eq = AudioPlayer_GetEqualizerProfile();
+        eq.toUpperCase();
+        snprintf(buf, n, "EQ: %s", eq.c_str());
+    } else if (item.command == CMD_DIMM_LEDS_NIGHTMODE) {
+#ifdef NEOPIXEL_ENABLE
+        snprintf(buf, n, "NIGHT MODE: %s", Led_GetNightmode() ? "ON" : "OFF");
+#else
+        snprintf(buf, n, "NIGHT MODE: N/A");
+#endif
+    } else if (item.command == CMD_TOGGLE_WEBDAV_SERVER) {
+        snprintf(buf, n, "WEBDAV: %s", Webdav_IsServerRunning() ? "ON" : "OFF");
+    } else {
+        snprintf(buf, n, "%s", item.label);
+    }
+}
+
+static void Display_DrawQuickMenuTimeout(uint32_t now) {
+    const uint32_t elapsed = now - s_quickMenuTouchedAt;
+    const uint32_t usedWidth = elapsed >= s_cfgQuickMenuTimeoutMs ? 128u : elapsed * 128u / s_cfgQuickMenuTimeoutMs;
+    const uint8_t remainingWidth = static_cast<uint8_t>(128u - usedWidth);
+    if (remainingWidth > 0) s_u8g2.drawHLine(0, 63, remainingWidth);
+}
+
 static void Display_DrawQuickMenuList(uint32_t now) {
     s_u8g2.setFont(u8g2_font_5x7_tf);
-    char header[24];
+    char header[28];
     snprintf(header, sizeof(header), "QUICK MENU       %u/%u",
-             static_cast<unsigned>(s_quickMenuSelection + 1u), static_cast<unsigned>(kQuickMenuItemCount));
+             static_cast<unsigned>(s_quickMenuSelection + 1u), static_cast<unsigned>(s_cfgQuickMenuItemCount));
     s_u8g2.drawStr(0, 7, header);
     s_u8g2.drawHLine(0, 9, 128);
 
-    // Four entries fit cleanly below the header. Pages advance in groups of four so the selected
-    // row remains stable while the encoder moves within a page.
-    const uint8_t first = (s_quickMenuSelection / 4u) * 4u;
-    for (uint8_t row = 0; row < 4u && first + row < kQuickMenuItemCount; row++) {
-        const uint8_t index = first + row;
+    // Four entries fit below the header. Keep one neighbouring entry visible while possible and
+    // pin the window at the beginning/end; this also avoids a nearly empty final page with 9 items.
+    const uint8_t visible = s_cfgQuickMenuItemCount < 4u ? s_cfgQuickMenuItemCount : 4u;
+    uint8_t first = 0;
+    if (s_cfgQuickMenuItemCount > visible) {
+        if (s_quickMenuSelection > 1u) first = s_quickMenuSelection - 1u;
+        const uint8_t maxFirst = s_cfgQuickMenuItemCount - visible;
+        if (first > maxFirst) first = maxFirst;
+    }
+    for (uint8_t row = 0; row < visible; row++) {
+        const uint8_t selectionIndex = first + row;
         const uint8_t y = 20u + row * 12u;
-        const bool selected = index == s_quickMenuSelection;
+        const bool selected = selectionIndex == s_quickMenuSelection;
         if (selected) {
             s_u8g2.drawBox(0, y - 9u, 128, 11);
             s_u8g2.setDrawColor(0);
         }
-        s_u8g2.drawStr(3, y, kQuickMenuItems[index].label);
+        char label[28];
+        Display_FormatQuickMenuLabel(s_cfgQuickMenuOrder[selectionIndex], label, sizeof(label));
+        s_u8g2.drawStr(3, y, label);
         if (selected) {
             s_u8g2.drawStr(119, y, ">");
             s_u8g2.setDrawColor(1);
         }
     }
 
-    const uint32_t elapsed = now - s_quickMenuTouchedAt;
-    const uint32_t usedWidth = elapsed >= kQuickMenuTimeoutMs ? 128u : elapsed * 128u / kQuickMenuTimeoutMs;
-    const uint8_t remainingWidth = static_cast<uint8_t>(128u - usedWidth);
-    if (remainingWidth > 0) s_u8g2.drawHLine(0, 63, remainingWidth);
+    Display_DrawQuickMenuTimeout(now);
 }
 
 static void Display_DrawQuickMenuInfo(QuickMenuView view) {
     s_u8g2.setFont(u8g2_font_6x13_tf);
     const char *header = (view == QuickMenuView::Status) ? "STATUS" :
-                         (view == QuickMenuView::IpAddress) ? "IP ADDRESS" : "BATTERY";
+                         (view == QuickMenuView::IpAddress) ? "IP ADDRESS" :
+                         (view == QuickMenuView::Battery) ? "BATTERY" : "SYSTEM INFO";
     s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 13, header);
     s_u8g2.drawHLine(0, 16, 128);
 
@@ -747,14 +871,33 @@ static void Display_DrawQuickMenuInfo(QuickMenuView view) {
         return;
     }
 
-    const char *playState = (gPlayProperties.playMode == BUSY) ? "LOADING" :
-                            (gPlayProperties.playMode == NO_PLAYLIST) ? "IDLE" :
-                            gPlayProperties.pausePlay ? "PAUSED" : "PLAYING";
+    if (view == QuickMenuView::SystemInfo) {
+        char firmware[28];
+        char uptime[28];
+        char heap[28];
+        char sd[28];
+        const uint32_t uptimeMinutes = millis() / 60000u;
+        snprintf(firmware, sizeof(firmware), "FW: %s", softwareRevisionShort);
+        snprintf(uptime, sizeof(uptime), "UP: %lud %02lu:%02lu",
+                 static_cast<unsigned long>(uptimeMinutes / 1440u),
+                 static_cast<unsigned long>((uptimeMinutes / 60u) % 24u),
+                 static_cast<unsigned long>(uptimeMinutes % 60u));
+        snprintf(heap, sizeof(heap), "HEAP: %lu KB", static_cast<unsigned long>(ESP.getFreeHeap() / 1024u));
+        const SdCardHealth &sdHealth = SdCard_GetHealth();
+        snprintf(sd, sizeof(sd), "SD: %s %lu KHZ", sdHealth.mounted ? "OK" : "ERROR",
+                 static_cast<unsigned long>(sdHealth.frequencyKhz));
+        s_u8g2.drawStr(3, 27, firmware);
+        s_u8g2.drawStr(3, 38, uptime);
+        s_u8g2.drawStr(3, 49, heap);
+        s_u8g2.drawStr(3, 60, sd);
+        return;
+    }
+
     char playLine[24];
     char wifiLine[24];
     char volumeLine[24];
     char eqLine[24];
-    snprintf(playLine, sizeof(playLine), "AUDIO: %s", playState);
+    snprintf(playLine, sizeof(playLine), "AUDIO: %s", Display_QuickMenuPlayState());
     snprintf(wifiLine, sizeof(wifiLine), "WIFI: %s", Wlan_IsConnected() ? "ONLINE" : "OFFLINE");
     snprintf(volumeLine, sizeof(volumeLine), "VOLUME: %u/%u", AudioPlayer_GetCurrentVolume(), AudioPlayer_GetMaxVolume());
     String eq = AudioPlayer_GetEqualizerProfile();
@@ -763,6 +906,19 @@ static void Display_DrawQuickMenuInfo(QuickMenuView view) {
     s_u8g2.drawStr(3, 38, wifiLine);
     s_u8g2.drawStr(3, 49, volumeLine);
     s_u8g2.drawStr(3, 60, eqLine);
+}
+
+static void Display_DrawQuickMenuConfirm(uint32_t now) {
+    s_u8g2.setFont(u8g2_font_6x13_tf);
+    const char *header = s_quickMenuPendingCommand == CMD_FIRMWARE_UPDATE ? "UPDATE FIRMWARE?" : "SHUT DOWN?";
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 15, header);
+    s_u8g2.drawFrame(8, 23, 112, 22);
+    const char *confirm = "PRESS AGAIN";
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(confirm)) / 2), 39, confirm);
+    s_u8g2.setFont(u8g2_font_5x7_tf);
+    const char *cancel = "TURN TO CANCEL";
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(cancel)) / 2), 57, cancel);
+    Display_DrawQuickMenuTimeout(now);
 }
 
 // -----------------------------------------------------------------------
@@ -871,6 +1027,8 @@ void Display_Cyclic(void) {
     if (quickMenuScreen) {
         if (s_quickMenuView == QuickMenuView::List) {
             Display_DrawQuickMenuList(now);
+        } else if (s_quickMenuView == QuickMenuView::Confirm) {
+            Display_DrawQuickMenuConfirm(now);
         } else {
             Display_DrawQuickMenuInfo(s_quickMenuView);
         }

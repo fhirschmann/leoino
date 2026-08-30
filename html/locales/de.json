@@ -191,6 +191,23 @@
 			"animspeed": "Animationsgeschwindigkeit",
 			"shutdowncountdown": "Abschalt-Countdown (Sek., 0 = sofort)",
 			"shutdowncountdownhint": "Zeigt vor dem Ausschalten SHUTTING DOWN... mit Countdown. Jeder physische Tastendruck bricht das Ausschalten ab. 0 schaltet ohne Verzögerung aus.",
+			"menu": {
+				"title": "OLED-Schnellmenü",
+				"hint": "Einträge am Griff verschieben und per Häkchen ein-/ausblenden. Mindestens ein Eintrag bleibt aktiv.",
+				"timeout": "Menü schließt nach Inaktivität (Sek.)",
+				"remember": "Letzte Auswahl beim nächsten Öffnen merken",
+				"items": {
+					"status": "Wiedergabe- und Netzwerkstatus",
+					"ip": "IP-Adresse",
+					"battery": "Akku",
+					"sysinfo": "Systeminformationen",
+					"equalizer": "Equalizer",
+					"nightmode": "Nachtmodus",
+					"webdav": "WebDAV",
+					"fwupdate": "Firmware-Update",
+					"shutdown": "Herunterfahren"
+				}
+			},
 			"speed": {
 				"slow": "Langsam",
 				"normal": "Normal",

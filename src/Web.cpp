@@ -62,6 +62,42 @@
 	#define JUMP_OFFSET_ROTARY 10
 #endif
 
+#ifdef OLED_ENABLE
+static bool Web_IsValidOledMenuItems(const char *value) {
+	if (value == nullptr) {
+		return false;
+	}
+	const size_t length = strlen(value);
+	if (length == 0 || length >= 128) {
+		return false;
+	}
+
+	static constexpr const char *knownItems[] = {"status", "ip", "battery", "sysinfo", "equalizer", "nightmode", "webdav", "fwupdate", "shutdown"};
+	bool seen[sizeof(knownItems) / sizeof(knownItems[0])] = {};
+	char copy[128];
+	strncpy(copy, value, sizeof(copy) - 1);
+	copy[sizeof(copy) - 1] = '\0';
+	char *save = nullptr;
+	for (char *token = strtok_r(copy, ",", &save); token != nullptr; token = strtok_r(nullptr, ",", &save)) {
+		if (token[0] == '-') {
+			token++;
+		}
+		bool found = false;
+		for (size_t i = 0; i < sizeof(knownItems) / sizeof(knownItems[0]); i++) {
+			if (!seen[i] && strcmp(token, knownItems[i]) == 0) {
+				seen[i] = true;
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			return false;
+		}
+	}
+	return true;
+}
+#endif
+
 typedef struct {
 	char nvsKey[cardIdStringSize];
 	char nvsEntry[512];
@@ -1537,6 +1573,21 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		if (oledObj["shutdownSeconds"].is<uint8_t>()) {
 			uint8_t const shutdownSeconds = std::min<uint8_t>(oledObj["shutdownSeconds"].as<uint8_t>(), 30u);
 			success = success && (gPrefsSettings.putUChar("shutdownDelay", shutdownSeconds) != 0);
+		}
+		if (oledObj["menuTimeout"].is<uint8_t>()) {
+			uint8_t const menuTimeout = std::clamp<uint8_t>(oledObj["menuTimeout"].as<uint8_t>(), 1u, 30u);
+			success = success && (gPrefsSettings.putUChar("oledMenuTout", menuTimeout) != 0);
+		}
+		if (oledObj["menuRemember"].is<bool>()) {
+			success = success && (gPrefsSettings.putBool("oledMenuRem", oledObj["menuRemember"].as<bool>()) != 0);
+		}
+		if (oledObj["menuItems"].is<const char *>()) {
+			const char *menuItems = oledObj["menuItems"].as<const char *>();
+			if (!Web_IsValidOledMenuItems(menuItems)) {
+				Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "oled menu items");
+				return WebsocketCodeType::Error;
+			}
+			success = success && (gPrefsSettings.putString("oledMenuItems", menuItems) != 0);
 		}
 		if (oledObj["idleLine1"].is<const char *>()) {
 			gPrefsSettings.putString("oledIdleL1", oledObj["idleLine1"].as<const char *>());

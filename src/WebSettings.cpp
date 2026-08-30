@@ -8,6 +8,7 @@
 #include "Bluetooth.h"
 #include "Cmd.h"
 #include "Common.h"
+#include "Display.h"
 #include "ESPAsyncWebServer.h"
 #include "EnumUtils.h"
 #include "Ftp.h"
@@ -191,6 +192,9 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		oledObj["statusInvert"].set(gPrefsSettings.getBool("oledStatusInv", false));
 		oledObj["idleBattery"].set(gPrefsSettings.getBool("oledIdleBatt", false));
 		oledObj["shutdownSeconds"].set(gPrefsSettings.getUChar("shutdownDelay", 3)); // 0=immediate, 1..30=cancellable countdown
+		oledObj["menuTimeout"].set(gPrefsSettings.getUChar("oledMenuTout", OLED_MENU_TIMEOUT_DEFAULT_SECONDS));
+		oledObj["menuRemember"].set(gPrefsSettings.getBool("oledMenuRem", false));
+		oledObj["menuItems"].set(gPrefsSettings.getString("oledMenuItems", OLED_MENU_ITEMS_DEFAULT));
 	}
 #endif
 	if ((section == "") || (section == "buttons")) {
@@ -343,6 +347,9 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		oledSettings["idleLine1"].set("LEO INDUSTRIES");
 		oledSettings["idleLine2"].set("AUDIO TERMINAL AT-1");
 		oledSettings["shutdownSeconds"].set(3u);
+		oledSettings["menuTimeout"].set(OLED_MENU_TIMEOUT_DEFAULT_SECONDS);
+		oledSettings["menuRemember"].set(false);
+		oledSettings["menuItems"].set(OLED_MENU_ITEMS_DEFAULT);
 #endif
 		JsonObject buttonsSettings = defaultsObj["buttons"].to<JsonObject>();
 		buttonsSettings["short0"].set(BUTTON_0_SHORT);
