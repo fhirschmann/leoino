@@ -8,6 +8,7 @@
 #include "Backup.h"
 #include "Battery.h"
 #include "Bluetooth.h"
+#include "Button.h"
 #include "Display.h"
 #include "Ftp.h"
 #include "Led.h"
@@ -374,6 +375,7 @@ void System_ShutdownHandler(void) {
 
 // prepare power down
 void System_PreparePowerDown(void) {
+	Button_StopSampler(); // finish any in-flight PCA9555 read before the shared I2C bus is torn down
 	Web_Exit();
 	AudioPlayer_Exit();
 

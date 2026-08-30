@@ -252,6 +252,7 @@ void setup() {
 	// here held the boot-LED animation and stalled the main loop for the whole duration.
 
 	IrReceiver_Init();
+	Button_StartSampler(); // capture quick physical taps even while a synchronous SD track-open blocks loop()
 	System_UpdateActivityTimer(); // initial set after boot
 	Led_Indicate(LedIndicatorType::BootComplete);
 
@@ -296,12 +297,12 @@ void loop() {
 		// bluetooth headset mode
 		Bluetooth_Cyclic();
 	}
+	Button_Cyclic(); // apply buffered button edges before rotary gestures and audio consume their command
 	RotaryEncoder_Cyclic();
 	Ftp_Cyclic();
 	Webdav_Cyclic();
 	AudioPlayer_Cyclic();
 	Battery_Cyclic();
-	Button_Cyclic();
 	Rtc_Cyclic();
 	RfidSync_Cyclic();
 	Backup_Cyclic();

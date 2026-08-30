@@ -9,6 +9,7 @@
 #include "System.h"
 
 #include <atomic>
+#include <freertos/task.h>
 
 bool gButtonInitComplete = false;
 
@@ -57,15 +58,33 @@ uint8_t gShutdownButton = 99; // Helper used for Neopixel: stores button-number 
 uint16_t gLongPressTime = 0;
 static constexpr uint16_t smartHoldRepeatIntervalMs = 200; // match the IR remote's repeat cadence
 
-#ifdef PORT_EXPANDER_ENABLE
-extern volatile bool Port_AllowReadFromPortExpander;
-#endif
-
 static std::atomic<SemaphoreHandle_t> Button_TimerSemaphore;
+
+// The audio player's track-open path is synchronous and can hold Arduino's main loop for a few
+// hundred milliseconds. Sampling buttons from that loop loses a complete quick press/release made
+// during the open. A tiny task therefore records debounced physical edges independently; the main
+// loop still owns all command dispatch and consumes at most one action per pass.
+struct ButtonEdge {
+	uint32_t timestamp;
+	uint8_t index;
+	bool pressed;
+};
+
+static constexpr uint8_t buttonEdgeBufferSize = 64; // 31 complete clicks while the main loop is blocked
+static constexpr uint8_t buttonEdgeBufferMask = buttonEdgeBufferSize - 1;
+static_assert((buttonEdgeBufferSize & buttonEdgeBufferMask) == 0, "button edge buffer must be a power of two");
+static ButtonEdge Button_EdgeBuffer[buttonEdgeBufferSize];
+static std::atomic<uint8_t> Button_EdgeWriteIndex {0};
+static std::atomic<uint8_t> Button_EdgeReadIndex {0};
+static std::atomic<uint32_t> Button_DroppedEdges {0};
+static std::atomic<TaskHandle_t> Button_SamplerTaskHandle {nullptr};
+static std::atomic<bool> Button_AsyncSamplerRunning {false};
+static std::atomic<bool> Button_StopSamplerRequested {false};
+static bool Button_SamplerInitialStates[7] = {true, true, true, true, true, true, true};
 
 hw_timer_t *Button_Timer = NULL;
 static void IRAM_ATTR onTimer();
-static void Button_DoButtonActions(void);
+static bool Button_DoButtonActions(unsigned long currentTimestamp);
 
 void Button_Init() {
 	memset(gButtons, 0, sizeof(gButtons));
@@ -158,29 +177,40 @@ void Button_Init() {
 #endif
 }
 
-// Read current state of all enabled buttons
-static void Button_ReadAllStates(void) {
+// Read current state of all enabled buttons. true means released, false means physically down.
+static void Button_ReadPhysicalStates(bool (&states)[7]) {
+	for (bool &state : states) {
+		state = true;
+	}
 #if defined(BUTTON_0_ENABLE) || defined(EXPANDER_0_ENABLE)
-	gButtons[0].currentState = Port_Read(NEXT_BUTTON) ^ BUTTON_0_ACTIVE_STATE;
+	states[0] = Port_Read(NEXT_BUTTON) ^ BUTTON_0_ACTIVE_STATE;
 #endif
 #if defined(BUTTON_1_ENABLE) || defined(EXPANDER_1_ENABLE)
-	gButtons[1].currentState = Port_Read(PREVIOUS_BUTTON) ^ BUTTON_1_ACTIVE_STATE;
+	states[1] = Port_Read(PREVIOUS_BUTTON) ^ BUTTON_1_ACTIVE_STATE;
 #endif
 #if defined(BUTTON_2_ENABLE) || defined(EXPANDER_2_ENABLE)
-	gButtons[2].currentState = Port_Read(PAUSEPLAY_BUTTON) ^ BUTTON_2_ACTIVE_STATE;
+	states[2] = Port_Read(PAUSEPLAY_BUTTON) ^ BUTTON_2_ACTIVE_STATE;
 #endif
 #if defined(BUTTON_3_ENABLE) || defined(EXPANDER_3_ENABLE)
-	gButtons[3].currentState = Port_Read(ROTARYENCODER_BUTTON) ^ BUTTON_3_ACTIVE_STATE;
+	states[3] = Port_Read(ROTARYENCODER_BUTTON) ^ BUTTON_3_ACTIVE_STATE;
 #endif
 #if defined(BUTTON_4_ENABLE) || defined(EXPANDER_4_ENABLE)
-	gButtons[4].currentState = Port_Read(BUTTON_4) ^ BUTTON_4_ACTIVE_STATE;
+	states[4] = Port_Read(BUTTON_4) ^ BUTTON_4_ACTIVE_STATE;
 #endif
 #if defined(BUTTON_5_ENABLE) || defined(EXPANDER_5_ENABLE)
-	gButtons[5].currentState = Port_Read(BUTTON_5) ^ BUTTON_5_ACTIVE_STATE;
+	states[5] = Port_Read(BUTTON_5) ^ BUTTON_5_ACTIVE_STATE;
 #endif
 #if defined(BUTTON_6_ENABLE) || defined(EXPANDER_6_ENABLE)
-	gButtons[6].currentState = Port_Read(BUTTON_6) ^ BUTTON_6_ACTIVE_STATE;
+	states[6] = Port_Read(BUTTON_6) ^ BUTTON_6_ACTIVE_STATE;
 #endif
+}
+
+static void Button_ReadAllStates(void) {
+	bool states[7];
+	Button_ReadPhysicalStates(states);
+	for (uint8_t i = 0; i < 7; i++) {
+		gButtons[i].currentState = states[i];
+	}
 }
 
 static const char *buttonNames[] = {
@@ -192,6 +222,114 @@ static const char *buttonNames[] = {
 	"BUTTON_5",
 	"BUTTON_6",
 	"DUMMY"}; // index 7 matches the dummy slot in gButtons[8]
+
+static bool Button_PushEdge(const ButtonEdge &edge) {
+	const uint8_t writeIndex = Button_EdgeWriteIndex.load(std::memory_order_relaxed);
+	const uint8_t nextWriteIndex = (writeIndex + 1) & buttonEdgeBufferMask;
+	if (nextWriteIndex == Button_EdgeReadIndex.load(std::memory_order_acquire)) {
+		Button_DroppedEdges.fetch_add(1, std::memory_order_relaxed);
+		return false;
+	}
+	Button_EdgeBuffer[writeIndex] = edge;
+	Button_EdgeWriteIndex.store(nextWriteIndex, std::memory_order_release);
+	return true;
+}
+
+static bool Button_PopEdge(ButtonEdge &edge) {
+	const uint8_t readIndex = Button_EdgeReadIndex.load(std::memory_order_relaxed);
+	if (readIndex == Button_EdgeWriteIndex.load(std::memory_order_acquire)) {
+		return false;
+	}
+	edge = Button_EdgeBuffer[readIndex];
+	Button_EdgeReadIndex.store((readIndex + 1) & buttonEdgeBufferMask, std::memory_order_release);
+	return true;
+}
+
+static void Button_SamplerTask(void *) {
+	bool stableStates[7];
+	bool candidateStates[7];
+	uint32_t candidateSince[7];
+	const uint32_t startedAt = millis();
+	for (uint8_t i = 0; i < 7; i++) {
+		stableStates[i] = Button_SamplerInitialStates[i];
+		candidateStates[i] = Button_SamplerInitialStates[i];
+		candidateSince[i] = startedAt;
+	}
+
+	while (!Button_StopSamplerRequested.load(std::memory_order_acquire)) {
+		if (xSemaphoreTake(Button_TimerSemaphore.load(std::memory_order_acquire), portMAX_DELAY) != pdTRUE) {
+			continue;
+		}
+		if (Button_StopSamplerRequested.load(std::memory_order_acquire)) {
+			break;
+		}
+
+#ifdef PORT_EXPANDER_ENABLE
+		Port_Cyclic();
+#endif
+		bool physicalStates[7];
+		Button_ReadPhysicalStates(physicalStates);
+		const uint32_t now = millis();
+
+		for (uint8_t i = 0; i < 7; i++) {
+			if (physicalStates[i] != candidateStates[i]) {
+				candidateStates[i] = physicalStates[i];
+				candidateSince[i] = now;
+				continue;
+			}
+			if ((candidateStates[i] != stableStates[i]) && (now - candidateSince[i] >= buttonDebounceInterval)) {
+				stableStates[i] = candidateStates[i];
+				Button_PushEdge({now, i, !stableStates[i]});
+			}
+		}
+	}
+
+	Button_AsyncSamplerRunning.store(false, std::memory_order_release);
+	Button_SamplerTaskHandle.store(nullptr, std::memory_order_release);
+	vTaskDelete(nullptr);
+}
+
+void Button_StartSampler(void) {
+	if (Button_AsyncSamplerRunning.load(std::memory_order_acquire)) {
+		return;
+	}
+
+#ifdef PORT_EXPANDER_ENABLE
+	Port_Cyclic();
+#endif
+	Button_ReadAllStates();
+	for (uint8_t i = 0; i < 7; i++) {
+		gButtons[i].lastState = gButtons[i].currentState;
+		Button_SamplerInitialStates[i] = gButtons[i].currentState;
+	}
+	gButtonInitComplete = true;
+	Button_EdgeReadIndex.store(0, std::memory_order_relaxed);
+	Button_EdgeWriteIndex.store(0, std::memory_order_relaxed);
+	Button_StopSamplerRequested.store(false, std::memory_order_release);
+
+	TaskHandle_t taskHandle = nullptr;
+	if (xTaskCreatePinnedToCore(Button_SamplerTask, "buttonSampler", 3072, nullptr, 2, &taskHandle, 0) == pdPASS) {
+		Button_SamplerTaskHandle.store(taskHandle, std::memory_order_release);
+		Button_AsyncSamplerRunning.store(true, std::memory_order_release);
+	} else {
+		Log_Println("Unable to start asynchronous button sampler; using main-loop fallback", LOGLEVEL_ERROR);
+	}
+}
+
+void Button_StopSampler(void) {
+	if (!Button_AsyncSamplerRunning.load(std::memory_order_acquire)) {
+		return;
+	}
+	Button_StopSamplerRequested.store(true, std::memory_order_release);
+	xSemaphoreGive(Button_TimerSemaphore.load(std::memory_order_acquire));
+	const uint32_t waitStarted = millis();
+	while (Button_SamplerTaskHandle.load(std::memory_order_acquire) != nullptr && millis() - waitStarted < 500u) {
+		vTaskDelay(1);
+	}
+	if (Button_SamplerTaskHandle.load(std::memory_order_acquire) != nullptr) {
+		Log_Println("Button sampler did not stop before I2C shutdown", LOGLEVEL_ERROR);
+	}
+}
 
 // Update press/release state for a single button with debouncing
 static void Button_UpdateState(uint8_t i, t_button &btn, unsigned long currentTimestamp) {
@@ -220,8 +358,48 @@ static void Button_UpdateState(uint8_t i, t_button &btn, unsigned long currentTi
 	}
 }
 
+static void Button_ApplyEdge(const ButtonEdge &edge) {
+	t_button &btn = gButtons[edge.index];
+	btn.currentState = !edge.pressed;
+	btn.lastState = btn.currentState;
+	if (edge.pressed) {
+		Log_Printf(LOGLEVEL_INFO, "Button %d (%s) pressed", edge.index, buttonNames[edge.index]);
+		// A press during the shutdown countdown is an emergency cancel, not a second command.
+		btn.isPressed = !System_CancelSleep();
+		btn.isReleased = false;
+		btn.lastPressedTimestamp = edge.timestamp;
+		btn.lastRepeatTimestamp = edge.timestamp;
+		btn.holdRepeatFired = false;
+		if (!btn.firstPressedTimestamp) {
+			btn.firstPressedTimestamp = edge.timestamp;
+		}
+	} else {
+		btn.isReleased = true;
+		btn.lastReleasedTimestamp = edge.timestamp;
+		btn.firstPressedTimestamp = 0;
+	}
+}
+
 // If timer-semaphore is set, read buttons (unless controls are locked)
 void Button_Cyclic() {
+	if (Button_AsyncSamplerRunning.load(std::memory_order_acquire)) {
+		const uint32_t dropped = Button_DroppedEdges.exchange(0, std::memory_order_acq_rel);
+		if (dropped) {
+			Log_Printf(LOGLEVEL_ERROR, "Button edge buffer overflow: %u event(s) lost", dropped);
+		}
+
+		bool actionDispatched = false;
+		ButtonEdge edge;
+		while (!actionDispatched && Button_PopEdge(edge)) {
+			Button_ApplyEdge(edge);
+			actionDispatched = Button_DoButtonActions(edge.timestamp);
+		}
+		if (!actionDispatched) {
+			Button_DoButtonActions(millis()); // long-press/repeat while the button remains held
+		}
+		return;
+	}
+
 	if (xSemaphoreTake(Button_TimerSemaphore, 0) != pdTRUE) {
 		return;
 	}
@@ -239,7 +417,7 @@ void Button_Cyclic() {
 	}
 
 	gButtonInitComplete = true;
-	Button_DoButtonActions();
+	Button_DoButtonActions(currentTimestamp);
 }
 
 // Multi-button combination configuration: {btn1, btn2, prefsKey, defaultCmd}
@@ -304,8 +482,9 @@ static const struct {
 	{"btnShort6", "btnLong6", BUTTON_6_SHORT, BUTTON_6_LONG},
 };
 
-// Handle a single button's short/long press action
-static void Button_HandleSinglePress(uint8_t i, unsigned long currentTimestamp) {
+// Handle a single button's short/long press action. true means a command was dispatched; the caller
+// then leaves later buffered clicks for the next main-loop pass so trackCommand cannot be overwritten.
+static bool Button_HandleSinglePress(uint8_t i, unsigned long currentTimestamp) {
 	// The button was used to modify a rotary gesture, so it must not also fire its own action. Its short
 	// press would otherwise fire on release, and its long press at intervalToLongPress while still held --
 	// which for a button whose long action is CMD_SLEEPMODE means the box falls asleep mid-gesture.
@@ -314,7 +493,7 @@ static void Button_HandleSinglePress(uint8_t i, unsigned long currentTimestamp) 
 			gButtons[i].isPressed = false;
 			gButtons[i].usedAsModifier = false;
 		}
-		return;
+		return false;
 	}
 
 	uint8_t Cmd_Short = gPrefsSettings.getUChar(buttonCmdConfig[i].prefsKeyShort, buttonCmdConfig[i].defaultShort);
@@ -337,22 +516,26 @@ static void Button_HandleSinglePress(uint8_t i, unsigned long currentTimestamp) 
 		if (gButtons[i].holdRepeatFired) {
 			gButtons[i].isPressed = false;
 			gButtons[i].holdRepeatFired = false;
-			return;
+			return false;
 		}
 
 		unsigned long const releaseDuration = gButtons[i].lastReleasedTimestamp - gButtons[i].lastPressedTimestamp;
 		bool const wasShortPress = releaseDuration < intervalToLongPress;
 
+		bool actionDispatched = false;
 		if (wasShortPress) {
 			Cmd_Action(Cmd_Short);
-		} else if (Cmd_Long == CMD_SLEEPMODE || isRotaryModifier) {
-			// Sleep-mode only triggers on release to prevent immediate wake-up; modifier buttons defer for
-			// the reason above.
+			actionDispatched = true;
+		} else {
+			// Sleep and rotary-modifier actions always resolve on release. Other long actions normally fire
+			// while held and clear isPressed first; reaching this branch means the main loop was blocked for
+			// the complete hold, so use the buffered duration and emit the long action now.
 			Cmd_Action(Cmd_Long);
+			actionDispatched = true;
 		}
 
 		gButtons[i].isPressed = false;
-		return;
+		return actionDispatched;
 	}
 
 	// Smart forward/backward may be assigned as the long action to make a physical NEXT/PREV button
@@ -363,32 +546,37 @@ static void Button_HandleSinglePress(uint8_t i, unsigned long currentTimestamp) 
 			Cmd_Action(Cmd_Long);
 			gButtons[i].holdRepeatFired = true;
 			gButtons[i].lastRepeatTimestamp = currentTimestamp;
+			return true;
 		}
-		return;
+		return false;
 	}
 
 	if (isRotaryModifier) {
-		return; // Still held: wait for release before deciding whether this was a long press or a gesture
+		return false; // Still held: wait for release before deciding whether this was a long press or a gesture
 	}
 
 	// Handle volume buttons with repeat functionality
 	if (Cmd_Long == CMD_VOLUMEUP || Cmd_Long == CMD_VOLUMEDOWN) {
 		if (pressDuration <= intervalToLongPress) {
-			return;
+			return false;
 		}
 		uint16_t remainder = pressDuration % intervalToLongPress;
 		if (remainder < gLongPressTime) {
 			Cmd_Action(Cmd_Long);
+			gLongPressTime = remainder;
+			return true;
 		}
 		gLongPressTime = remainder;
-		return;
+		return false;
 	}
 
 	// Handle other long-press actions (except sleep mode which triggers on release)
 	if (Cmd_Long != CMD_SLEEPMODE && pressDuration > intervalToLongPress) {
 		gButtons[i].isPressed = false;
 		Cmd_Action(Cmd_Long);
+		return true;
 	}
+	return false;
 }
 
 // settings-override.h, when present, replaces settings.h wholesale -- so an override written before this
@@ -490,20 +678,26 @@ void Button_MarkModifierUsed(uint8_t buttonIndex) {
 	}
 }
 
-// Do corresponding actions for all buttons
-void Button_DoButtonActions(void) {
+// Do corresponding actions for all buttons. Dispatch no more than one command per call: the audio
+// control path intentionally has one command slot, so a later buffered click must wait for the next
+// loop pass rather than overwrite the click that is about to be consumed.
+static bool Button_DoButtonActions(unsigned long currentTimestamp) {
 	if (Button_HandleMultiButtonPress()) {
-		return;
+		return true;
 	}
 
-	unsigned long currentTimestamp = millis();
 	for (uint8_t i = 0; i < sizeof(buttonCmdConfig) / sizeof(buttonCmdConfig[0]); i++) {
-		if (gButtons[i].isPressed) {
-			Button_HandleSinglePress(i, currentTimestamp);
+		if (gButtons[i].isPressed && Button_HandleSinglePress(i, currentTimestamp)) {
+			return true;
 		}
 	}
+	return false;
 }
 
 void IRAM_ATTR onTimer() {
-	xSemaphoreGiveFromISR(Button_TimerSemaphore, NULL);
+	BaseType_t higherPriorityTaskWoken = pdFALSE;
+	xSemaphoreGiveFromISR(Button_TimerSemaphore.load(std::memory_order_relaxed), &higherPriorityTaskWoken);
+	if (higherPriorityTaskWoken == pdTRUE) {
+		portYIELD_FROM_ISR();
+	}
 }
