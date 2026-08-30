@@ -663,11 +663,12 @@ void Display_Cyclic(void) {
     }
     bool volScreen = s_cfgShowVolume && (s_volChangedAt > 0) && (now - s_volChangedAt < kVolBarDurationMs);
     bool idle      = (gPlayProperties.playMode == NO_PLAYLIST);
+    bool shutdownScreen = System_IsShutdownPending();
 
     // Auto-off: once the panel has been blanked (see the idle branch below) bring it back the moment
     // anything happens — playback resumes or the volume overlay shows.
     static bool s_panelBlanked = false;
-    if (s_panelBlanked && (!idle || volScreen)) {
+    if (s_panelBlanked && (!idle || volScreen || shutdownScreen)) {
         I2cBusTwo_Lock();
         s_u8g2.setPowerSave(0);
         I2cBusTwo_Unlock();
@@ -675,6 +676,26 @@ void Display_Cyclic(void) {
     }
 
     s_u8g2.clearBuffer();
+
+    // ---- SHUTDOWN COUNTDOWN (takes priority over playback/volume/idle) ----
+    // Teardown has not started yet, so every frame remains safe to draw and a physical button can
+    // return directly to the previous screen without having to re-initialise any subsystem.
+    if (shutdownScreen) {
+        s_u8g2.setFont(u8g2_font_6x13_tf);
+        const char *label = "SHUTTING DOWN...";
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(label)) / 2), 16, label);
+
+        uint32_t const remainingSeconds = (System_GetShutdownRemainingMs() + 999u) / 1000u;
+        char countdown[12];
+        snprintf(countdown, sizeof(countdown), "%lus", static_cast<unsigned long>(remainingSeconds));
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(countdown)) / 2), 40, countdown);
+
+        s_u8g2.setFont(u8g2_font_5x7_tf);
+        const char *cancelHint = "PRESS ANY BUTTON";
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(cancelHint)) / 2), 60, cancelHint);
+        Display_Send();
+        return;
+    }
 
     // ---- VOLUME SCREEN (takes over entire display) ----
     if (volScreen) {

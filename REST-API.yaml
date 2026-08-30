@@ -361,6 +361,15 @@ paths:
                 led:
                   type: object
                   # Include all LED settings properties here
+                oled:
+                  type: object
+                  properties:
+                    shutdownSeconds:
+                      type: integer
+                      minimum: 0
+                      maximum: 30
+                      default: 3
+                      description: Cancellable OLED shutdown countdown in seconds; 0 shuts down immediately.
                 battery:
                   type: object
                   # Include all battery settings properties here

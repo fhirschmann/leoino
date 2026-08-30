@@ -188,6 +188,8 @@
 			"contrast": "Helligkeit / Kontrast",
 			"invert": "Anzeige invertieren",
 			"animspeed": "Animationsgeschwindigkeit",
+			"shutdowncountdown": "Abschalt-Countdown (Sek., 0 = sofort)",
+			"shutdowncountdownhint": "Zeigt vor dem Ausschalten SHUTTING DOWN... mit Countdown. Jeder physische Tastendruck bricht das Ausschalten ab. 0 schaltet ohne Verzögerung aus.",
 			"speed": {
 				"slow": "Langsam",
 				"normal": "Normal",

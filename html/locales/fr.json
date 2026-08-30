@@ -188,6 +188,8 @@
 			"contrast": "Luminosité / contraste",
 			"invert": "Inverser l'affichage",
 			"animspeed": "Vitesse de l'animation",
+			"shutdowncountdown": "Compte à rebours d'arrêt (s, 0 = immédiat)",
+			"shutdowncountdownhint": "Affiche SHUTTING DOWN... avec un compte à rebours avant l'arrêt. Toute pression sur un bouton physique annule l'arrêt. 0 arrête immédiatement.",
 			"speed": {
 				"slow": "Lente",
 				"normal": "Normale",

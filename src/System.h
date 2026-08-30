@@ -19,6 +19,9 @@ void I2cBusTwo_Lock(void);
 void I2cBusTwo_Unlock(void);
 void System_UpdateActivityTimer(void);
 void System_RequestSleep(void);
+bool System_CancelSleep(void); // cancel the configurable pre-shutdown countdown, if active
+bool System_IsShutdownPending(void);
+uint32_t System_GetShutdownRemainingMs(void);
 void System_ReloadSleepSettings(void); // re-read "no sleep while powered" config from NVS
 bool System_IsExternallyPowered(void); // heuristic: battery voltage at/above the powered threshold
 void System_Restart(void);

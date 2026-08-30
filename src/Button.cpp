@@ -201,7 +201,9 @@ static void Button_UpdateState(uint8_t i, t_button &btn, unsigned long currentTi
 		bool const buttonPressed = !btn.currentState;
 		if (buttonPressed) {
 			Log_Printf(LOGLEVEL_INFO, "Button %d (%s) pressed", i, buttonNames[i]);
-			btn.isPressed = true;
+			// A press during the shutdown countdown is an emergency cancel, not a second command. Consume
+			// the edge so NEXT/PREV/etc. does not also alter playback as the normal screen returns.
+			btn.isPressed = !System_CancelSleep();
 			btn.lastPressedTimestamp = currentTimestamp;
 			if (!btn.firstPressedTimestamp) {
 				btn.firstPressedTimestamp = currentTimestamp;

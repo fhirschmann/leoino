@@ -190,6 +190,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		oledObj["timeMode"].set(gPrefsSettings.getUChar("oledTimeMode", 0)); // 0=elapsed/total 1=remaining 2=elapsed
 		oledObj["statusInvert"].set(gPrefsSettings.getBool("oledStatusInv", false));
 		oledObj["idleBattery"].set(gPrefsSettings.getBool("oledIdleBatt", false));
+		oledObj["shutdownSeconds"].set(gPrefsSettings.getUChar("shutdownDelay", 3)); // 0=immediate, 1..30=cancellable countdown
 	}
 #endif
 	if ((section == "") || (section == "buttons")) {
@@ -341,6 +342,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		oledSettings["flip"].set(false);
 		oledSettings["idleLine1"].set("LEO INDUSTRIES");
 		oledSettings["idleLine2"].set("AUDIO TERMINAL AT-1");
+		oledSettings["shutdownSeconds"].set(3u);
 #endif
 		JsonObject buttonsSettings = defaultsObj["buttons"].to<JsonObject>();
 		buttonsSettings["short0"].set(BUTTON_0_SHORT);

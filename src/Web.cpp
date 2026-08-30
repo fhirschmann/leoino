@@ -1532,6 +1532,12 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putUChar("oledTimeMode", oledObj["timeMode"].as<uint8_t>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledStatusInv", oledObj["statusInvert"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("oledIdleBatt", oledObj["idleBattery"].as<bool>()) != 0);
+		// Optional for compatibility with an older cached Web UI. Missing must preserve the current
+		// value rather than silently disabling the countdown when another OLED field is saved.
+		if (oledObj["shutdownSeconds"].is<uint8_t>()) {
+			uint8_t const shutdownSeconds = std::min<uint8_t>(oledObj["shutdownSeconds"].as<uint8_t>(), 30u);
+			success = success && (gPrefsSettings.putUChar("shutdownDelay", shutdownSeconds) != 0);
+		}
 		if (oledObj["idleLine1"].is<const char *>()) {
 			gPrefsSettings.putString("oledIdleL1", oledObj["idleLine1"].as<const char *>());
 		}

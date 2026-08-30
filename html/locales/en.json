@@ -188,6 +188,8 @@
 			"contrast": "Brightness / contrast",
 			"invert": "Invert display",
 			"animspeed": "Animation speed",
+			"shutdowncountdown": "Shutdown countdown (s, 0 = immediate)",
+			"shutdowncountdownhint": "Shows SHUTTING DOWN... with a countdown before power-off. Any physical button press cancels shutdown. 0 shuts down immediately.",
 			"speed": {
 				"slow": "Slow",
 				"normal": "Normal",

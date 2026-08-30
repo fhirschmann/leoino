@@ -40,6 +40,9 @@ std::atomic<uint32_t> System_LastTimeActiveTimestamp {0u}; // Timestamp of last 
 std::atomic<uint32_t> System_SleepTimerStartTimestamp {0u}; // Flag if sleep-timer is active
 std::atomic<bool> System_GoToSleep = false; // Flag for turning uC immediately into deepsleep
 std::atomic<bool> System_Sleeping = false; // Flag for turning into deepsleep is in progress
+std::atomic<bool> System_ShutdownPending = false; // cancellable countdown before teardown begins
+std::atomic<uint32_t> System_ShutdownStartedAt {0u};
+std::atomic<uint32_t> System_ShutdownDelayMs {0u};
 std::atomic<bool> System_Rebooting = false; // Flag for rebooting is in progress
 std::atomic<bool> System_LockControls = false; // Flag if buttons and rotary encoder is locked
 uint8_t System_MaxInactivityTime = 10u; // Time in minutes, after uC is put to deep sleep because of inactivity (and modified later via GUI)
@@ -55,6 +58,7 @@ static float System_PoweredVoltageThreshold = 3.5f;
 std::atomic<uint8_t> System_OperationMode;
 
 void System_SleepHandler(void);
+void System_ShutdownHandler(void);
 void System_DeepSleepManager(void);
 void System_RebootHandler(void);
 
@@ -136,6 +140,7 @@ bool System_IsExternallyPowered(void) {
 
 void System_Cyclic(void) {
 	System_SleepHandler();
+	System_ShutdownHandler();
 	System_DeepSleepManager();
 	System_RebootHandler();
 }
@@ -145,7 +150,55 @@ void System_UpdateActivityTimer(void) {
 }
 
 void System_RequestSleep(void) {
-	System_GoToSleep = true;
+	if (System_ShutdownPending || System_GoToSleep || System_Sleeping) {
+		return;
+	}
+
+	uint8_t countdownSeconds = 0;
+#ifdef OLED_ENABLE
+	countdownSeconds = gPrefsSettings.getUChar("shutdownDelay", 3u);
+	if (countdownSeconds > 30u) {
+		countdownSeconds = 30u;
+	}
+#endif
+
+	if (countdownSeconds == 0u) {
+		System_GoToSleep = true;
+		return;
+	}
+
+	System_ShutdownDelayMs = static_cast<uint32_t>(countdownSeconds) * 1000u;
+	System_ShutdownStartedAt = millis();
+	System_ShutdownPending = true;
+	Log_Printf(LOGLEVEL_NOTICE, "Shutdown requested: %u s countdown (press any button to cancel)", countdownSeconds);
+}
+
+bool System_CancelSleep(void) {
+	if (!System_ShutdownPending.exchange(false)) {
+		return false;
+	}
+
+	System_ShutdownStartedAt = 0u;
+	System_ShutdownDelayMs = 0u;
+	System_GoToSleep = false;
+	System_DisableSleepTimer();
+	System_UpdateActivityTimer();
+	Log_Println("Shutdown cancelled by button press", LOGLEVEL_NOTICE);
+	return true;
+}
+
+bool System_IsShutdownPending(void) {
+	return System_ShutdownPending;
+}
+
+uint32_t System_GetShutdownRemainingMs(void) {
+	if (!System_ShutdownPending) {
+		return 0u;
+	}
+
+	uint32_t const elapsed = millis() - System_ShutdownStartedAt.load();
+	uint32_t const delayMs = System_ShutdownDelayMs.load();
+	return elapsed < delayMs ? delayMs - elapsed : 0u;
 }
 
 bool System_SetSleepTimer(uint8_t minutes) {
@@ -197,7 +250,7 @@ uint32_t System_GetSleepTimerTimeStamp(void) {
 }
 
 bool System_IsSleepPending(void) {
-	return System_Sleeping;
+	return System_ShutdownPending || System_GoToSleep || System_Sleeping;
 }
 
 uint8_t System_GetSleepTimer(void) {
@@ -301,6 +354,22 @@ void System_SleepHandler(void) {
 			System_RequestSleep();
 		}
 	}
+}
+
+// Turn the cancellable countdown into the existing irreversible deep-sleep path. No subsystem is
+// torn down before this point, so cancelling leaves playback, WiFi and the display fully intact.
+void System_ShutdownHandler(void) {
+	if (!System_ShutdownPending) {
+		return;
+	}
+
+	uint32_t const elapsed = millis() - System_ShutdownStartedAt.load();
+	if (elapsed < System_ShutdownDelayMs.load()) {
+		return;
+	}
+
+	System_ShutdownPending = false;
+	System_GoToSleep = true;
 }
 
 // prepare power down
