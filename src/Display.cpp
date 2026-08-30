@@ -154,6 +154,34 @@ static uint8_t Display_I2cByteCb(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, voi
 static U8G2_SH1106_128X64_NONAME_F_HW_I2C s_u8g2(U8G2_R0, U8X8_PIN_NONE);
 static bool s_displayOk = false;
 
+// -------- OLED quick menu --------
+// One press of a button mapped to CMD_OLED_MENU opens the list; the encoder moves the selection and
+// the same command confirms it. Informational pages return to the list on the next press, while real
+// commands close the menu before Cmd.cpp dispatches them. Any menu interaction restarts the timeout.
+enum class QuickMenuView : uint8_t { Closed, List, Status, IpAddress, Battery };
+
+struct QuickMenuItem {
+    const char *label;
+    QuickMenuView infoView;
+    uint16_t command;
+};
+
+static constexpr QuickMenuItem kQuickMenuItems[] = {
+    {"STATUS", QuickMenuView::Status, CMD_NOTHING},
+    {"IP ADDRESS", QuickMenuView::IpAddress, CMD_NOTHING},
+    {"BATTERY", QuickMenuView::Battery, CMD_NOTHING},
+    {"EQUALIZER", QuickMenuView::Closed, CMD_TOGGLE_EQUALIZER},
+    {"NIGHT MODE", QuickMenuView::Closed, CMD_DIMM_LEDS_NIGHTMODE},
+    {"WEBDAV", QuickMenuView::Closed, CMD_TOGGLE_WEBDAV_SERVER},
+    {"FIRMWARE UPDATE", QuickMenuView::Closed, CMD_FIRMWARE_UPDATE},
+    {"SHUTDOWN", QuickMenuView::Closed, CMD_SLEEPMODE},
+};
+static constexpr uint8_t kQuickMenuItemCount = sizeof(kQuickMenuItems) / sizeof(kQuickMenuItems[0]);
+static constexpr uint32_t kQuickMenuTimeoutMs = 5000;
+static QuickMenuView s_quickMenuView = QuickMenuView::Closed;
+static uint8_t s_quickMenuSelection = 0;
+static uint32_t s_quickMenuTouchedAt = 0;
+
 // Re-init recovery. The OLED has no reset line (U8X8_PIN_NONE), so the only way to bring a panel that
 // lost power (hot-unplug/replug), boot-probed too early, or got confused back to life is to re-run
 // initDisplay() over I2C. We do that, but SAFELY so we never repeat the wedge:
@@ -579,6 +607,59 @@ bool Display_IsEnabled(void) {
     return s_cfgEnabled;
 }
 
+bool Display_MenuIsActive(void) {
+    if (s_quickMenuView == QuickMenuView::Closed) return false;
+    if (millis() - s_quickMenuTouchedAt >= kQuickMenuTimeoutMs) {
+        s_quickMenuView = QuickMenuView::Closed;
+        return false;
+    }
+    return true;
+}
+
+bool Display_MenuPress(uint16_t *selectedCommand) {
+    if (selectedCommand != nullptr) *selectedCommand = CMD_NOTHING;
+    if (!s_cfgEnabled || !s_displayOk) return false;
+
+    const uint32_t now = millis();
+    if (!Display_MenuIsActive()) {
+        s_quickMenuView = QuickMenuView::List;
+        s_quickMenuSelection = 0;
+        s_quickMenuTouchedAt = now;
+        return true;
+    }
+
+    s_quickMenuTouchedAt = now;
+    if (s_quickMenuView != QuickMenuView::List) {
+        s_quickMenuView = QuickMenuView::List;
+        return true;
+    }
+
+    const QuickMenuItem &item = kQuickMenuItems[s_quickMenuSelection];
+    if (item.infoView != QuickMenuView::Closed) {
+        s_quickMenuView = item.infoView;
+        return true;
+    }
+
+    s_quickMenuView = QuickMenuView::Closed;
+    if (selectedCommand != nullptr) *selectedCommand = item.command;
+    return true;
+}
+
+void Display_MenuRotate(int32_t detents) {
+    if (!Display_MenuIsActive() || detents == 0) return;
+
+    if (s_quickMenuView != QuickMenuView::List) {
+        // Turning from an info page returns to the selected list entry; the same detent continues
+        // from there, so browsing never needs an extra button press.
+        s_quickMenuView = QuickMenuView::List;
+    }
+    const int32_t count = static_cast<int32_t>(kQuickMenuItemCount);
+    int32_t next = (static_cast<int32_t>(s_quickMenuSelection) + detents) % count;
+    if (next < 0) next += count;
+    s_quickMenuSelection = static_cast<uint8_t>(next);
+    s_quickMenuTouchedAt = millis();
+}
+
 // Format the current wall-clock time (RTC-backed system clock) into buf. Returns false when the
 // clock hasn't been set yet, so the caller can simply skip drawing it.
 static bool Display_FormatClock(char *buf, size_t n) {
@@ -594,6 +675,94 @@ static bool Display_FormatClock(char *buf, size_t n) {
         snprintf(buf, n, "%d:%02d%c", h, lt.tm_min, lt.tm_hour < 12 ? 'a' : 'p');
     }
     return true;
+}
+
+static void Display_DrawQuickMenuList(uint32_t now) {
+    s_u8g2.setFont(u8g2_font_5x7_tf);
+    char header[24];
+    snprintf(header, sizeof(header), "QUICK MENU       %u/%u",
+             static_cast<unsigned>(s_quickMenuSelection + 1u), static_cast<unsigned>(kQuickMenuItemCount));
+    s_u8g2.drawStr(0, 7, header);
+    s_u8g2.drawHLine(0, 9, 128);
+
+    // Four entries fit cleanly below the header. Pages advance in groups of four so the selected
+    // row remains stable while the encoder moves within a page.
+    const uint8_t first = (s_quickMenuSelection / 4u) * 4u;
+    for (uint8_t row = 0; row < 4u && first + row < kQuickMenuItemCount; row++) {
+        const uint8_t index = first + row;
+        const uint8_t y = 20u + row * 12u;
+        const bool selected = index == s_quickMenuSelection;
+        if (selected) {
+            s_u8g2.drawBox(0, y - 9u, 128, 11);
+            s_u8g2.setDrawColor(0);
+        }
+        s_u8g2.drawStr(3, y, kQuickMenuItems[index].label);
+        if (selected) {
+            s_u8g2.drawStr(119, y, ">");
+            s_u8g2.setDrawColor(1);
+        }
+    }
+
+    const uint32_t elapsed = now - s_quickMenuTouchedAt;
+    const uint32_t usedWidth = elapsed >= kQuickMenuTimeoutMs ? 128u : elapsed * 128u / kQuickMenuTimeoutMs;
+    const uint8_t remainingWidth = static_cast<uint8_t>(128u - usedWidth);
+    if (remainingWidth > 0) s_u8g2.drawHLine(0, 63, remainingWidth);
+}
+
+static void Display_DrawQuickMenuInfo(QuickMenuView view) {
+    s_u8g2.setFont(u8g2_font_6x13_tf);
+    const char *header = (view == QuickMenuView::Status) ? "STATUS" :
+                         (view == QuickMenuView::IpAddress) ? "IP ADDRESS" : "BATTERY";
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 13, header);
+    s_u8g2.drawHLine(0, 16, 128);
+
+    if (view == QuickMenuView::IpAddress) {
+        String ip = Wlan_GetIpAddress();
+        const char *ipText = ip.length() > 0 ? ip.c_str() : "NO WIFI";
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(ipText)) / 2), 38, ipText);
+        s_u8g2.setFont(u8g2_font_5x7_tf);
+        String host = Wlan_GetHostname();
+        if (host.length() > 18) host = host.substring(0, 18);
+        char hostBuf[32];
+        snprintf(hostBuf, sizeof(hostBuf), "%s.local", host.c_str());
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(hostBuf)) / 2), 55, hostBuf);
+        return;
+    }
+
+    s_u8g2.setFont(u8g2_font_5x7_tf);
+    if (view == QuickMenuView::Battery) {
+#ifdef BATTERY_MEASURE_ENABLE
+        char level[24];
+        char voltage[24];
+        const int percent = static_cast<int>(Battery_EstimateLevel() * 100.0f);
+        snprintf(level, sizeof(level), "LEVEL: %d%%", percent);
+        snprintf(voltage, sizeof(voltage), "VOLTAGE: %.2f V", Battery_GetVoltage());
+        const char *condition = Battery_IsCritical() ? "STATE: CRITICAL" : Battery_IsLow() ? "STATE: LOW" : "STATE: OK";
+        s_u8g2.drawStr(3, 30, level);
+        s_u8g2.drawStr(3, 43, voltage);
+        s_u8g2.drawStr(3, 56, condition);
+#else
+        s_u8g2.drawStr(3, 36, "NO BATTERY SENSOR");
+#endif
+        return;
+    }
+
+    const char *playState = (gPlayProperties.playMode == BUSY) ? "LOADING" :
+                            (gPlayProperties.playMode == NO_PLAYLIST) ? "IDLE" :
+                            gPlayProperties.pausePlay ? "PAUSED" : "PLAYING";
+    char playLine[24];
+    char wifiLine[24];
+    char volumeLine[24];
+    char eqLine[24];
+    snprintf(playLine, sizeof(playLine), "AUDIO: %s", playState);
+    snprintf(wifiLine, sizeof(wifiLine), "WIFI: %s", Wlan_IsConnected() ? "ONLINE" : "OFFLINE");
+    snprintf(volumeLine, sizeof(volumeLine), "VOLUME: %u/%u", AudioPlayer_GetCurrentVolume(), AudioPlayer_GetMaxVolume());
+    String eq = AudioPlayer_GetEqualizerProfile();
+    snprintf(eqLine, sizeof(eqLine), "EQ: %s", eq.c_str());
+    s_u8g2.drawStr(3, 27, playLine);
+    s_u8g2.drawStr(3, 38, wifiLine);
+    s_u8g2.drawStr(3, 49, volumeLine);
+    s_u8g2.drawStr(3, 60, eqLine);
 }
 
 // -----------------------------------------------------------------------
@@ -664,11 +833,12 @@ void Display_Cyclic(void) {
     bool volScreen = s_cfgShowVolume && (s_volChangedAt > 0) && (now - s_volChangedAt < kVolBarDurationMs);
     bool idle      = (gPlayProperties.playMode == NO_PLAYLIST);
     bool shutdownScreen = System_IsShutdownPending();
+    bool quickMenuScreen = Display_MenuIsActive();
 
     // Auto-off: once the panel has been blanked (see the idle branch below) bring it back the moment
     // anything happens — playback resumes or the volume overlay shows.
     static bool s_panelBlanked = false;
-    if (s_panelBlanked && (!idle || volScreen || shutdownScreen)) {
+    if (s_panelBlanked && (!idle || volScreen || shutdownScreen || quickMenuScreen)) {
         I2cBusTwo_Lock();
         s_u8g2.setPowerSave(0);
         I2cBusTwo_Unlock();
@@ -693,6 +863,17 @@ void Display_Cyclic(void) {
         s_u8g2.setFont(u8g2_font_5x7_tf);
         const char *cancelHint = "PRESS ANY BUTTON";
         s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(cancelHint)) / 2), 60, cancelHint);
+        Display_Send();
+        return;
+    }
+
+    // ---- QUICK MENU (takes priority over volume/playback/idle) ----
+    if (quickMenuScreen) {
+        if (s_quickMenuView == QuickMenuView::List) {
+            Display_DrawQuickMenuList(now);
+        } else {
+            Display_DrawQuickMenuInfo(s_quickMenuView);
+        }
         Display_Send();
         return;
     }

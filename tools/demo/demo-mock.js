@@ -148,6 +148,7 @@
 			buttons: (function () {
 				var b = {};
 				["0", "1", "2", "3", "4", "5", "6"].forEach(function (i) { b["short" + i] = 0; b["long" + i] = 0; });
+				b.short6 = 194; // OLED quick menu: open/confirm with button 6, navigate with the encoder
 				["01", "02", "03", "04", "05", "06", "12", "13", "14", "15", "16", "23", "24", "25", "26", "34", "35", "36", "45", "46", "56"].forEach(function (i) { b["multi" + i] = 0; });
 				return b;
 			})(),

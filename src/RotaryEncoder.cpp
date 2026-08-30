@@ -7,6 +7,7 @@
 #include "Bluetooth.h"
 #include "Button.h"
 #include "Cmd.h"
+#include "Display.h"
 #include "Log.h"
 #include "System.h"
 
@@ -56,6 +57,9 @@ void RotaryEncoder_Cyclic(void) {
 	// this hold-gesture is a seek-preview session rather than the generic per-detent-command dispatch below.
 	static bool previewGestureActive = false;
 	static uint8_t lastModifier = BUTTON_NONE;
+	#ifdef OLED_ENABLE
+	static bool menuWasActive = false;
+	#endif
 
 	#ifdef INCLUDE_ROTARY_IN_CONTROLS_LOCK
 	if (System_AreControlsLocked()) {
@@ -65,6 +69,31 @@ void RotaryEncoder_Cyclic(void) {
 			lastModifier = BUTTON_NONE;
 		}
 		encoder.clearCount();
+		return;
+	}
+	#endif
+
+	#ifdef OLED_ENABLE
+	// The OLED quick menu temporarily owns the encoder. Clear the half-step accumulator at both
+	// boundaries so opening/closing the menu can never leak a partial detent into the menu or volume.
+	const bool menuActive = Display_MenuIsActive();
+	if (menuActive != menuWasActive) {
+		if (previewGestureActive) {
+			AudioPlayer_SeekPreviewCommit();
+			previewGestureActive = false;
+		}
+		lastModifier = BUTTON_NONE;
+		menuWasActive = menuActive;
+		encoder.clearCount();
+		return;
+	}
+	if (menuActive) {
+		const int32_t menuEncoderValue = encoder.getCount();
+		if ((menuEncoderValue != 0) && (menuEncoderValue % 2 == 0)) {
+			System_UpdateActivityTimer();
+			encoder.clearCount();
+			Display_MenuRotate(menuEncoderValue / 2);
+		}
 		return;
 	}
 	#endif

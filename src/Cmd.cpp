@@ -505,6 +505,22 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 			break;
 		}
 
+		case CMD_OLED_MENU: {
+#ifdef OLED_ENABLE
+			uint16_t selectedCommand = CMD_NOTHING;
+			if (!Display_MenuPress(&selectedCommand)) {
+				System_IndicateError();
+			} else if (selectedCommand != CMD_NOTHING) {
+				// The menu closes before returning an action. Dispatch through the normal command path so
+				// shutdown countdowns, OTA, MQTT side effects and lock handling remain exactly the same.
+				Cmd_Action(selectedCommand, bypassLock);
+			}
+#else
+			System_IndicateError();
+#endif
+			break;
+		}
+
 		case CMD_BRIGHTNESS_UP:
 		case CMD_BRIGHTNESS_DOWN: {
 			// Led_SetBrightness() takes a uint8_t and does not bounds-check, so clamping is the caller's job:
