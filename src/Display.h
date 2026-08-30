@@ -5,6 +5,14 @@
 inline constexpr char OLED_MENU_ITEMS_DEFAULT[] = "status,equalizer,nightmode,bluetooth,fwupdate,shutdown";
 inline constexpr uint8_t OLED_MENU_TIMEOUT_DEFAULT_SECONDS = 5;
 
+enum class DisplayCommandFeedback : uint8_t {
+	Play,
+	Pause,
+	LoopOn,
+	LoopOff,
+	Equalizer
+};
+
 void Display_Init(void);
 void Display_Cyclic(void);
 void Display_Exit(void);
@@ -14,3 +22,4 @@ bool Display_IsEnabled(void); // current runtime enable state (reflects the NVS 
 bool Display_MenuIsActive(void); // true while the OLED quick menu or one of its info pages is visible
 bool Display_MenuPress(uint16_t *selectedCommand); // open/confirm/back; returns an executable command via selectedCommand
 void Display_MenuRotate(int32_t detents); // move the quick-menu selection without changing volume
+void Display_ShowCommandFeedback(DisplayCommandFeedback feedback); // show a two-second transport/EQ overlay

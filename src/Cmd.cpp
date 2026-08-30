@@ -193,6 +193,9 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 					Log_Println(modificatorTrackActive, LOGLEVEL_NOTICE);
 				}
 				gPlayProperties.repeatCurrentTrack = !gPlayProperties.repeatCurrentTrack;
+#ifdef OLED_ENABLE
+				Display_ShowCommandFeedback(gPlayProperties.repeatCurrentTrack ? DisplayCommandFeedback::LoopOn : DisplayCommandFeedback::LoopOff);
+#endif
 #ifdef MQTT_ENABLE
 				publishMqtt(topicRepeatMode, static_cast<uint32_t>(AudioPlayer_GetRepeatMode()), false);
 #endif
@@ -224,6 +227,9 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 
 		case CMD_TOGGLE_EQUALIZER: {
 			AudioPlayer_CycleEqualizerProfile();
+#ifdef OLED_ENABLE
+			Display_ShowCommandFeedback(DisplayCommandFeedback::Equalizer);
+#endif
 			System_IndicateOk();
 			break;
 		}
@@ -354,11 +360,22 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 		}
 
 		case CMD_PLAYPAUSE: {
+#ifdef OLED_ENABLE
+			const bool canTogglePlayback = System_UsesLocalAudio()
+				? gPlayProperties.playMode != NO_PLAYLIST
+				: Bluetooth_Device_Connected();
+			const bool pausedAfterToggle = !gPlayProperties.pausePlay;
+#endif
 			if (System_UsesLocalAudio()) {
 				AudioPlayer_SetTrackControl(PAUSEPLAY);
 			} else {
 				Bluetooth_PlayPauseTrack();
 			}
+#ifdef OLED_ENABLE
+			if (canTogglePlayback) {
+				Display_ShowCommandFeedback(pausedAfterToggle ? DisplayCommandFeedback::Pause : DisplayCommandFeedback::Play);
+			}
+#endif
 			break;
 		}
 

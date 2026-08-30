@@ -319,6 +319,12 @@ static uint8_t  s_lastVol      = 0xFF;  // 0xFF = not yet sampled
 static uint32_t s_volChangedAt = 0;
 static constexpr uint32_t kVolBarDurationMs = 2500;
 
+// -------- command-feedback overlay --------
+static DisplayCommandFeedback s_commandFeedback = DisplayCommandFeedback::Play;
+static uint32_t s_commandFeedbackStartedAt = 0;
+static bool s_commandFeedbackActive = false;
+static constexpr uint32_t kCommandFeedbackDurationMs = 2000;
+
 // -------- login splash state --------
 static uint32_t s_idleSince    = 0;        // millis() when we first entered idle
 static uint8_t  s_lastPlayMode = 0xFF;     // detect idle transition
@@ -712,6 +718,13 @@ bool Display_IsEnabled(void) {
     return s_cfgEnabled;
 }
 
+void Display_ShowCommandFeedback(DisplayCommandFeedback feedback) {
+    if (!s_cfgEnabled || !s_displayOk) return;
+    s_commandFeedback = feedback;
+    s_commandFeedbackStartedAt = millis();
+    s_commandFeedbackActive = true;
+}
+
 bool Display_MenuIsActive(void) {
     if (s_quickMenuView == QuickMenuView::Closed) return false;
     if (s_quickMenuView == QuickMenuView::FirmwareUpdate) {
@@ -1097,6 +1110,57 @@ static void Display_DrawQuickMenuConfirm(uint32_t now) {
     Display_DrawQuickMenuTimeout(now);
 }
 
+static void Display_DrawCommandFeedback(void) {
+    if (s_commandFeedback == DisplayCommandFeedback::Equalizer) {
+        s_u8g2.setFont(u8g2_font_6x13_tf);
+        const char *header = "EQUALIZER";
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(header)) / 2), 14, header);
+        s_u8g2.drawHLine(12, 19, 104);
+
+        const String current = AudioPlayer_GetEqualizerProfile();
+        const char *profile = "CUSTOM";
+        for (uint8_t i = 0; i < kQuickMenuEqProfileCount; i++) {
+            if (current.equals(kQuickMenuEqProfiles[i].id)) {
+                profile = kQuickMenuEqProfiles[i].label;
+                break;
+            }
+        }
+        s_u8g2.setFont(current.equals("voiceBoost") ? u8g2_font_helvB14_tf : u8g2_font_helvB18_tf);
+        s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(profile)) / 2), 50, profile);
+        return;
+    }
+
+    if (s_commandFeedback == DisplayCommandFeedback::Play) {
+        s_u8g2.drawTriangle(50, 5, 50, 31, 78, 18);
+    } else if (s_commandFeedback == DisplayCommandFeedback::Pause) {
+        s_u8g2.drawBox(50, 5, 9, 27);
+        s_u8g2.drawBox(69, 5, 9, 27);
+    } else {
+        // Two opposed arrows form a compact repeat/loop logo. A slash marks the disabled state.
+        s_u8g2.drawHLine(39, 10, 47);
+        s_u8g2.drawTriangle(85, 5, 94, 10, 85, 15);
+        s_u8g2.drawHLine(42, 29, 47);
+        s_u8g2.drawTriangle(43, 24, 34, 29, 43, 34);
+        s_u8g2.drawVLine(38, 11, 12);
+        s_u8g2.drawVLine(90, 16, 12);
+        if (s_commandFeedback == DisplayCommandFeedback::LoopOff) s_u8g2.drawLine(31, 3, 96, 36);
+    }
+
+    const char *label = "PLAY";
+    if (s_commandFeedback == DisplayCommandFeedback::Pause) {
+        label = "PAUSE";
+    } else if (s_commandFeedback == DisplayCommandFeedback::LoopOn) {
+        label = "LOOP ON";
+    } else if (s_commandFeedback == DisplayCommandFeedback::LoopOff) {
+        label = "LOOP OFF";
+    }
+    s_u8g2.setFont(s_commandFeedback == DisplayCommandFeedback::Play ||
+                           s_commandFeedback == DisplayCommandFeedback::Pause
+                       ? u8g2_font_helvB18_tf
+                       : u8g2_font_helvB14_tf);
+    s_u8g2.drawStr(static_cast<int>((128 - s_u8g2.getStrWidth(label)) / 2), 59, label);
+}
+
 // -----------------------------------------------------------------------
 //  IDLE SCREEN (128 × 64)
 //    y=13   "LEO INDUSTRIES"            font_6x13
@@ -1116,6 +1180,9 @@ static void Display_DrawQuickMenuConfirm(uint32_t now) {
 //    y=18–38 bar (21 px tall, x=4..123)
 //    y=40   separator
 //    y=57   volume number centred       font_6x13
+//
+//  COMMAND FEEDBACK (shown for 2 s)
+//    large play/pause or loop icon + state, or the active equalizer profile
 // -----------------------------------------------------------------------
 
 
@@ -1166,11 +1233,14 @@ void Display_Cyclic(void) {
     bool idle      = (gPlayProperties.playMode == NO_PLAYLIST);
     bool shutdownScreen = System_IsShutdownPending();
     bool quickMenuScreen = Display_MenuIsActive();
+    bool commandFeedbackScreen = s_commandFeedbackActive &&
+        (now - s_commandFeedbackStartedAt < kCommandFeedbackDurationMs);
+    if (!commandFeedbackScreen) s_commandFeedbackActive = false;
 
     // Auto-off: once the panel has been blanked (see the idle branch below) bring it back the moment
     // anything happens — playback resumes or the volume overlay shows.
     static bool s_panelBlanked = false;
-    if (s_panelBlanked && (!idle || volScreen || shutdownScreen || quickMenuScreen)) {
+    if (s_panelBlanked && (!idle || volScreen || shutdownScreen || quickMenuScreen || commandFeedbackScreen)) {
         I2cBusTwo_Lock();
         s_u8g2.setPowerSave(0);
         I2cBusTwo_Unlock();
@@ -1214,6 +1284,13 @@ void Display_Cyclic(void) {
         } else {
             Display_DrawQuickMenuStatus();
         }
+        Display_Send();
+        return;
+    }
+
+    // ---- TRANSPORT / LOOP / EQ FEEDBACK ----
+    if (commandFeedbackScreen) {
+        Display_DrawCommandFeedback();
         Display_Send();
         return;
     }
