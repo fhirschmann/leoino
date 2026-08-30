@@ -576,6 +576,8 @@
 					"179": "Sleep immediately",
 					"180": "Seek forwards (n seconds)",
 					"181": "Seek backwards (n seconds)",
+					"190": "Smart forward",
+					"191": "Smart backward",
 					"182": "Stop",
 					"183": "Restart",
 					"184": "Jump to next folder",
