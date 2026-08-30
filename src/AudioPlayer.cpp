@@ -33,6 +33,7 @@
 #include <cmath>
 #include <esp_task_wdt.h>
 #include <freertos/task.h>
+#include <limits>
 #include <random>
 #include <vector>
 
@@ -42,8 +43,36 @@ EXT_RAM_BSS_ATTR playProps gPlayProperties;
 // Pending relative seek in seconds, written from the button/rotary/web tasks and drained by the audio loop.
 static std::atomic<int16_t> AudioPlayer_PendingSeekSeconds {0};
 
+// Smart navigation is counted instead of stored in trackCommand's single slot. Waiting until the
+// click burst settles keeps the main loop polling the physical buttons instead of blocking on the
+// first track open, so every short press is captured. The audio loop then jumps to the final target
+// with one decoder reconnect (or performs one accumulated in-file seek).
+static std::atomic<int32_t> AudioPlayer_PendingSmartNavigation {0};
+static std::atomic<uint32_t> AudioPlayer_LastSmartNavigationMs {0};
+
 void AudioPlayer_AddSeekOffset(const int16_t seconds) {
 	AudioPlayer_PendingSeekSeconds.fetch_add(seconds, std::memory_order_relaxed);
+}
+
+static int32_t AudioPlayer_TakeSettledSmartNavigation(const uint32_t now) {
+	if (AudioPlayer_PendingSmartNavigation.load(std::memory_order_acquire) == 0) {
+		return 0;
+	}
+
+	const uint32_t requestBefore = AudioPlayer_LastSmartNavigationMs.load(std::memory_order_acquire);
+	if (now - requestBefore < smartSeekCoalesceMs) {
+		return 0;
+	}
+
+	const int32_t delta = AudioPlayer_PendingSmartNavigation.exchange(0, std::memory_order_acq_rel);
+	const uint32_t requestAfter = AudioPlayer_LastSmartNavigationMs.load(std::memory_order_acquire);
+	if ((requestAfter != requestBefore) && (now - requestAfter < smartSeekCoalesceMs)) {
+		// A producer added another click while the batch was being taken. Put this batch back so the
+		// new click and the existing ones still resolve together after the new quiet period.
+		AudioPlayer_PendingSmartNavigation.fetch_add(delta, std::memory_order_release);
+		return 0;
+	}
+	return delta;
 }
 
 static bool AudioPlayer_IsPersistableRfid(const char *rfidTagId) {
@@ -1262,6 +1291,15 @@ void AudioPlayer_Loop() {
 	// Take exactly one command for this pass. A producer can publish the next command while this
 	// one is handled without having it erased by a later `NO_ACTION` assignment.
 	uint8_t currentTrackCommand = trackCommand.exchange(NO_ACTION, std::memory_order_acq_rel);
+	int32_t currentSmartNavigation = 0;
+	if (currentTrackCommand == NO_ACTION) {
+		currentSmartNavigation = AudioPlayer_TakeSettledSmartNavigation(millis());
+		if (currentSmartNavigation > 0) {
+			currentTrackCommand = SMARTFORWARD;
+		} else if (currentSmartNavigation < 0) {
+			currentTrackCommand = SMARTBACKWARD;
+		}
+	}
 
 	// A track-control keypress (play/pause, next, ...) during a running IP-/time-announcement
 	// aborts the announcement and resumes the audiobook, instead of acting on the speech
@@ -1356,11 +1394,11 @@ void AudioPlayer_Loop() {
 			}
 		}
 
-		// Resolve smart-seek (SMARTFORWARD/SMARTBACKWARD): on a single long file it becomes a coalesced
-		// in-file seek (rapid presses accumulate into one jump -> one resync), otherwise it falls back to
-		// a normal next/previous track change. Reads the cached duration so it works from any caller context.
+		// Resolve smart navigation: on a single long file the settled click batch becomes one in-file
+		// seek; on a multi-track playlist it becomes one direct jump to the final track.
 		if (currentTrackCommand == SMARTFORWARD || currentTrackCommand == SMARTBACKWARD) {
 			const bool forward = (currentTrackCommand == SMARTFORWARD);
+			const int32_t navigationDelta = (currentSmartNavigation != 0) ? currentSmartNavigation : (forward ? 1 : -1);
 			const uint16_t step = AudioPlayer_GetSeekStep();
 			// A single-file playlist (audiobook) always smart-seeks in-file - even before the decoder
 			// has reported the duration (audioFileDuration is 0 for the first ~second after a card tap
@@ -1371,8 +1409,15 @@ void AudioPlayer_Loop() {
 			const bool singleLongFile = (gPlayProperties.playlist != nullptr) && (gPlayProperties.playlist->size() == 1);
 			if (singleLongFile) {
 				AudioPlayer_ResumeIfPaused(); // resume before seeking (mirrors the next/previous-track behavior)
-				gPlayProperties.smartSeekPendingSec += forward ? (int32_t) step : -(int32_t) step;
-				gPlayProperties.smartSeekRequestMs = millis();
+				const int64_t accumulated = static_cast<int64_t>(gPlayProperties.smartSeekPendingSec)
+					+ (static_cast<int64_t>(navigationDelta) * step);
+				gPlayProperties.smartSeekPendingSec = static_cast<int32_t>(std::clamp<int64_t>(
+					accumulated,
+					std::numeric_limits<int32_t>::min(),
+					std::numeric_limits<int32_t>::max()));
+				// The input batch already observed the coalescing quiet period. Make the existing seek
+				// application path eligible immediately on the next loop pass instead of waiting twice.
+				gPlayProperties.smartSeekRequestMs = millis() - smartSeekCoalesceMs;
 				currentTrackCommand = NO_ACTION; // applied later (coalesced) in the seek-handling section
 				return; // exit before the switch/reconnect tail so the current file isn't restarted from 0
 			} else {
@@ -1443,7 +1488,7 @@ void AudioPlayer_Loop() {
 				Web_SendWebsocketData(0, WebsocketCodeType::TrackInfo);
 				return;
 
-			case NEXTTRACK:
+			case NEXTTRACK: {
 				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.repeatCurrentTrack) { // End loop if button was pressed
 					gPlayProperties.repeatCurrentTrack = false;
@@ -1451,13 +1496,16 @@ void AudioPlayer_Loop() {
 					publishMqtt(topicRepeatMode, static_cast<uint32_t>(AudioPlayer_GetRepeatMode()), false);
 #endif
 				}
-				// Allow next track if current track played in playlist isn't the last track.
-				// Exception: loop-playlist is active. In this case playback restarts at the first track of the playlist.
+				const size_t trackCount = gPlayProperties.playlist->size();
+				const size_t stepCount = (currentSmartNavigation > 0) ? static_cast<size_t>(currentSmartNavigation) : 1u;
+				// A settled Smart burst jumps directly to its final track, avoiding a decoder reconnect
+				// for every intermediate click. Ordinary NEXTTRACK remains a one-track step.
 				if ((gPlayProperties.currentTrackNumber + 1 < gPlayProperties.playlist->size()) || gPlayProperties.repeatPlaylist) {
-					if ((gPlayProperties.currentTrackNumber + 1 >= gPlayProperties.playlist->size()) && gPlayProperties.repeatPlaylist) {
-						gPlayProperties.currentTrackNumber = 0;
+					if (gPlayProperties.repeatPlaylist) {
+						gPlayProperties.currentTrackNumber = (gPlayProperties.currentTrackNumber + (stepCount % trackCount)) % trackCount;
 					} else {
-						gPlayProperties.currentTrackNumber++;
+						const size_t remaining = trackCount - 1 - gPlayProperties.currentTrackNumber;
+						gPlayProperties.currentTrackNumber += std::min(stepCount, remaining);
 					}
 					AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber, true);
 					Log_Println(cmndNextTrack, LOGLEVEL_INFO);
@@ -1470,8 +1518,9 @@ void AudioPlayer_Loop() {
 					return;
 				}
 				break;
+			}
 
-			case PREVIOUSTRACK:
+			case PREVIOUSTRACK: {
 				AudioPlayer_ResumeIfPaused();
 				if (gPlayProperties.repeatCurrentTrack) { // End loop if button was pressed
 					gPlayProperties.repeatCurrentTrack = false;
@@ -1486,19 +1535,31 @@ void AudioPlayer_Loop() {
 				} else if (gPlayProperties.playMode == LOCAL_M3U) {
 					Log_Println(cmndPrevTrack, LOGLEVEL_INFO);
 					if (gPlayProperties.currentTrackNumber > 0) {
-						gPlayProperties.currentTrackNumber--;
+						const size_t stepCount = (currentSmartNavigation < 0)
+							? static_cast<size_t>(-static_cast<int64_t>(currentSmartNavigation))
+							: 1u;
+						gPlayProperties.currentTrackNumber -= std::min<size_t>(stepCount, gPlayProperties.currentTrackNumber);
 					} else {
 						System_IndicateError();
 						return;
 					}
 				} else {
+					size_t stepCount = (currentSmartNavigation < 0)
+						? static_cast<size_t>(-static_cast<int64_t>(currentSmartNavigation))
+						: 1u;
+					// Preserve PREVIOUS' established restart-current-track behavior: when the current
+					// track has played for >=5 s, the first click restarts it and only further clicks
+					// in the same Smart burst move into earlier tracks.
+					if ((audio->getAudioCurrentTime() >= 5) && (stepCount > 0)) {
+						stepCount--;
+					}
 					if (gPlayProperties.currentTrackNumber > 0 || gPlayProperties.repeatPlaylist) {
-						if (audio->getAudioCurrentTime() < 5) { // play previous track when current track time is small, else play current track again
-							if (gPlayProperties.currentTrackNumber == 0 && gPlayProperties.repeatPlaylist) {
-								gPlayProperties.currentTrackNumber = gPlayProperties.playlist->size() - 1; // Go back to last track in loop-mode when first track is played
-							} else {
-								gPlayProperties.currentTrackNumber--;
-							}
+						if (stepCount > 0 && gPlayProperties.repeatPlaylist) {
+							const size_t trackCount = gPlayProperties.playlist->size();
+							const size_t wrappedSteps = stepCount % trackCount;
+							gPlayProperties.currentTrackNumber = (gPlayProperties.currentTrackNumber + trackCount - wrappedSteps) % trackCount;
+						} else if (stepCount > 0) {
+							gPlayProperties.currentTrackNumber -= std::min<size_t>(stepCount, gPlayProperties.currentTrackNumber);
 						}
 
 						AudioPlayer_SaveTrackStart(gPlayProperties.currentTrackNumber, true);
@@ -1524,6 +1585,7 @@ void AudioPlayer_Loop() {
 					}
 				}
 				break;
+			}
 			case FIRSTTRACK:
 				AudioPlayer_ResumeIfPaused();
 				gPlayProperties.currentTrackNumber = 0;
@@ -2485,6 +2547,16 @@ void AudioPlayer_SetTrackControl(const uint8_t new_trackCommand) {
 			Sync_Cancel();
 		}
 	}
+	if (new_trackCommand == SMARTFORWARD || new_trackCommand == SMARTBACKWARD) {
+		AudioPlayer_PendingSmartNavigation.fetch_add(
+			(new_trackCommand == SMARTFORWARD) ? 1 : -1,
+			std::memory_order_relaxed);
+		AudioPlayer_LastSmartNavigationMs.store(millis(), std::memory_order_release);
+		return;
+	}
+	// A different explicit transport command supersedes a not-yet-applied Smart click burst, just
+	// like it used to overwrite SMARTFORWARD/SMARTBACKWARD in the old single command slot.
+	AudioPlayer_PendingSmartNavigation.store(0, std::memory_order_release);
 	trackCommand.store(new_trackCommand, std::memory_order_release);
 }
 

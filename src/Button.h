@@ -1,16 +1,14 @@
 #pragma once
 
 typedef struct {
-	bool lastState		 : 1;
-	bool currentState	 : 1;
-	bool isPressed		 : 1;
-	bool isReleased		 : 1;
-	bool usedAsModifier	 : 1; // A rotary gesture was performed while this button was held: swallow its normal short/long action
-	bool holdRepeatFired : 1; // A repeatable long action fired: suppress the normal release action
+	bool lastState		: 1;
+	bool currentState	: 1;
+	bool isPressed		: 1;
+	bool isReleased		: 1;
+	bool usedAsModifier : 1; // A rotary gesture was performed while this button was held: swallow its normal short/long action
 	unsigned long lastPressedTimestamp;
 	unsigned long lastReleasedTimestamp;
 	unsigned long firstPressedTimestamp;
-	unsigned long lastRepeatTimestamp;
 } t_button;
 
 extern uint8_t gShutdownButton;
