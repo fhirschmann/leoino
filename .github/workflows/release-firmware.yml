@@ -49,7 +49,9 @@ jobs:
           python-version: "3.13"
 
       - name: Install PlatformIO Core
-        run: pip install -U platformio
+        # Match firmware-builds.yml: Core 6.2.0 installs SCons 4.11, which breaks
+        # this pioarduino platform with a missing SCons.Tool.FortranCommon module.
+        run: pip install -U "platformio==6.1.19"
 
       - name: Build complete firmware
         run: platformio run -e complete
