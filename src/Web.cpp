@@ -25,6 +25,7 @@
 #include "JsonPsram.h"
 #include "Led.h"
 #include "Log.h"
+#include "MediaHub.h"
 #include "MemX.h"
 #include "Mqtt.h"
 #include "Playstats.h"
@@ -55,12 +56,6 @@
 #include <esp_task_wdt.h>
 #include <mbedtls/sha256.h>
 #include <nvs.h>
-
-// An override written before this feature existed does not define it (settings-override.h replaces
-// settings.h wholesale), so fall back rather than break those builds.
-#ifndef JUMP_OFFSET_ROTARY
-	#define JUMP_OFFSET_ROTARY 10
-#endif
 
 #ifdef OLED_ENABLE
 static bool Web_IsValidOledMenuItems(const char *value) {
@@ -130,6 +125,9 @@ static void handleBluetoothConnectRequest(AsyncWebServerRequest *request, JsonVa
 static void handleWiFiScanRequest(AsyncWebServerRequest *request);
 // RFID tag-assignment handlers (handleGet/Post/Delete/ResetRfidPos) + DumpNvsToArrayCallback are
 // declared in WebInternal.h; the handlers live in WebRfid.cpp.
+static void handleGetMediaHubServers(AsyncWebServerRequest *request);
+static void handlePostMediaHubServers(AsyncWebServerRequest *request, JsonVariant &json);
+static void handleDeleteMediaHubServers(AsyncWebServerRequest *request);
 static void handleGetInfo(AsyncWebServerRequest *request);
 static void handleGetCoreDump(AsyncWebServerRequest *request);
 static void handleDeleteCoreDump(AsyncWebServerRequest *request);
@@ -1160,6 +1158,12 @@ void webserverStart(void) {
 			request->send(response);
 		});
 
+		// MediaHub registered servers (concept §5.1)
+		wServer.on("/mediahubservers", HTTP_GET, handleGetMediaHubServers);
+		wServer.addHandler(new AsyncCallbackJsonWebHandler("/mediahubservers", handlePostMediaHubServers));
+		wServer.addRewrite(new OneParamRewrite("/mediahubservers/{name}", "/mediahubservers?name={name}"));
+		wServer.on("/mediahubservers", HTTP_DELETE, handleDeleteMediaHubServers);
+
 		// WiFi scan
 		wServer.on("/wifiscan", HTTP_GET, handleWiFiScanRequest);
 
@@ -1355,6 +1359,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putUInt("mInactiviyT", generalObj["sleepInactivity"].as<uint8_t>()) != 0);
 		if (generalObj["rotSeekStep"].is<uint8_t>()) {
 			success = success && (gPrefsSettings.putUChar("rotSeekStep", generalObj["rotSeekStep"].as<uint8_t>()) != 0);
+		}
+		if (generalObj["jumpOffset"].is<uint8_t>()) {
+			success = success && (gPrefsSettings.putUChar("jumpOffset", generalObj["jumpOffset"].as<uint8_t>()) != 0);
 		}
 		success = success && (gPrefsSettings.putBool("playMono", generalObj["playMono"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("savePosShutdown", generalObj["savePosShutdown"].as<bool>()) != 0);
@@ -1692,6 +1699,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 	}
 	if (doc["battery"].is<JsonObject>()) {
 		// Battery settings
+		if (doc["battery"]["offsetVoltage"].is<float>() && gPrefsSettings.putFloat("offsetVoltage", doc["battery"]["offsetVoltage"].as<float>()) == 0) {
+			return WebsocketCodeType::Error;
+		}
 		if (gPrefsSettings.putFloat("wLowVoltage", doc["battery"]["warnLowVoltage"].as<float>()) == 0 || gPrefsSettings.putFloat("vIndicatorLow", doc["battery"]["indicatorLow"].as<float>()) == 0 || gPrefsSettings.putFloat("vIndicatorHigh", doc["battery"]["indicatorHi"].as<float>()) == 0 || gPrefsSettings.putFloat("wCritVoltage", doc["battery"]["criticalVoltage"].as<float>()) == 0 || gPrefsSettings.putBool("shutdownBatCrit", doc["battery"]["shutdownOnCritical"].as<bool>()) == 0 || gPrefsSettings.putUInt("vCheckIntv", doc["battery"]["voltageCheckInterval"].as<uint8_t>()) == 0) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "battery");
 			return WebsocketCodeType::Error;
@@ -2004,6 +2014,50 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 	}
 
 	return WebsocketCodeType::Ok;
+}
+
+// Registered MediaHub servers (concept §5.1): pure Web-UI enrollment
+// convenience, never read by the runtime playback flow.
+static void handleGetMediaHubServers(AsyncWebServerRequest *request) {
+	AsyncJsonResponse *response = new AsyncJsonResponse(true);
+	JsonArray arr = response->getRoot();
+	for (const MediaHubServer &server : MediaHub_GetServers()) {
+		JsonObject obj = arr.add<JsonObject>();
+		obj["name"] = server.name;
+		obj["hostPort"] = server.hostPort;
+		obj["https"] = server.https;
+	}
+	response->setLength();
+	request->send(response);
+}
+
+static void handlePostMediaHubServers(AsyncWebServerRequest *request, JsonVariant &json) {
+	const char *name = json["name"].as<const char *>();
+	const char *hostPort = json["hostPort"].as<const char *>();
+	const bool https = json["https"] | false;
+	if (!name || !hostPort || strlen(name) == 0 || strlen(hostPort) == 0) {
+		request->send(400, "text/plain; charset=utf-8", "error adding media server");
+		return;
+	}
+	if (MediaHub_SaveServer(name, hostPort, https)) {
+		request->send(200, "text/plain; charset=utf-8", name);
+	} else {
+		request->send(500, "text/plain; charset=utf-8", "error adding media server");
+	}
+}
+
+static void handleDeleteMediaHubServers(AsyncWebServerRequest *request) {
+	if (!request->hasParam("name")) {
+		request->send(400, "text/plain", "missing server name");
+		return;
+	}
+	const AsyncWebParameter *p = request->getParam("name");
+	const String name = p->value();
+	if (MediaHub_DeleteServer(name)) {
+		request->send(200, "text/plain; charset=utf-8", name);
+	} else {
+		request->send(500, "text/plain; charset=utf-8", "error deleting media server");
+	}
 }
 
 static void handleGetCoreDump(AsyncWebServerRequest *request) {

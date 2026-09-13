@@ -32,7 +32,8 @@
 		"dropout": "flux lent, des interruptions sont possibles.",
 		"saved": "Paramètres enregistrés.",
 		"error": "Erreur",
-		"ledCountRestart": "Le nombre de LEDs a été modifié. L'ESPuino va redémarrer pour appliquer ce changement."
+		"ledCountRestart": "Le nombre de LEDs a été modifié. L'ESPuino va redémarrer pour appliquer ce changement.",
+		"settingsInvalid": "Enregistrement impossible : veuillez d'abord corriger ces réglages ({{fields}})."
 	},
 	"nav": {
 		"updateAvailable": "Mise à jour disponible",
@@ -56,7 +57,8 @@
 		"oled": "OLED",
 		"power": "Alim.",
 		"security": "Sécurité",
-		"updates": "Mises à jour"
+		"updates": "Mises à jour",
+		"mediahub": "MediaHub"
 	},
 	"ir": {
 		"title": "Télécommande infrarouge",
@@ -268,12 +270,18 @@
 			"gesturesExp": "Tant qu'un de ces boutons est maintenu, tourner le codeur rotatif déclenche l'action attribuée au lieu de changer le volume. « Tourner à droite » est le sens qui augmente le volume. L'appui long d'un tel bouton ne se déclenche qu'au relâchement - et pas du tout si le codeur a été tourné.",
 			"ccw": "tourner à gauche",
 			"cw": "tourner à droite",
-			"seekPreviewTitle": "Réglages de l'aperçu de recherche",
-			"seekPreviewTitleExp": "Réglages fins pour le geste 🎯 d'aperçu de recherche (voir tableau ci-dessus) : combien de temps attendre avant qu'un aperçu ne se valide automatiquement, et avec quelle précision la position cible peut être ajustée en tournant.",
+			"seekPreviewTitle": "Recherche avec le codeur rotatif",
+			"seekPreviewTitleExp": "Réglages fins pour la recherche avec le codeur rotatif : le geste d'aperçu 🎯 (voir tableau ci-dessus) et la recherche directe lorsqu'une action de rotation est affectée à avancer/reculer.",
 			"seekPrevDelay": "Délai avant validation [ms]",
 			"seekPrevDelayExp": "Durée (en ms) pendant laquelle le codeur doit rester immobile avant qu'un geste 🎯 d'aperçu de recherche ne saute de lui-même à la position prévisualisée. Relâcher le bouton maintenu valide toujours immédiatement, indépendamment de ce délai. 0-3000, par défaut 2000.",
 			"seekPrevSweep": "Crans pour un balayage complet",
-			"seekPrevSweepExp": "Nombre de crans du codeur nécessaires pour déplacer la cible de l'aperçu de recherche de 0% à 100% (LED bleue) du morceau. Plus bas = défilement plus grossier/rapide, plus haut = contrôle plus fin. Par défaut 40."
+			"seekPrevSweepExp": "Nombre de crans du codeur nécessaires pour déplacer la cible de l'aperçu de recherche de 0% à 100% (LED bleue) du morceau. Plus bas = défilement plus grossier/rapide, plus haut = contrôle plus fin. Par défaut 40.",
+			"rotSeekStep": "Pas de recherche par cran [s]",
+			"rotSeekStepExp": "Nombre de secondes parcourues par cran lorsqu'une action de rotation est affectée directement à avancer/reculer (et non à l'aperçu). À garder petit : une rotation rapide représente de nombreux crans d'un coup. 1-60, par défaut 10.",
+			"directSeekTitle": "Recherche directe",
+			"directSeekHint": "La variante simple : chaque cran avance ou recule immédiatement de la durée configurée - sans affichage ni attente. C'est plus direct, mais aussi plus grossier, car une rotation rapide représente de nombreux crans d'un coup et vous atterrissez d'autant plus loin. En contrepartie, cela fonctionne même si votre ESPuino n'a pas de Neopixels et qu'un aperçu n'aurait donc rien à montrer. C'est la configuration d'usine du codeur rotatif. S'applique lorsqu'une action de rotation ci-dessus est affectée à « avancer » ou « reculer ».",
+			"previewSeekTitle": "Aperçu de position",
+			"previewSeekHint": "La variante la plus confortable et le meilleur choix pour la plupart des gens. Dès que vous maintenez la touche affectée, l'anneau LED devient jaune - avant même que vous ne tourniez. C'est le signe que l'aperçu est actif. En tournant, la lecture proprement dite ne bouge alors pas du tout ; seul un repère bleu (curseur) se déplace vers l'endroit visé (si vous avez une seule LED au lieu d'un anneau, elle s'allume simplement en bleu pendant ce temps). La lecture n'y saute qu'au relâchement de la touche ou après un court arrêt de la rotation. Vous pouvez ainsi viser tranquillement en voyant ce que vous faites, au lieu d'avancer et reculer à l'aveugle. Les deux valeurs ci-dessous déterminent le délai d'attente après la dernière rotation et le nombre de crans nécessaires pour parcourir tout le morceau. S'applique lorsqu'une action de rotation ci-dessus est affectée à « aperçu de recherche »."
 		},
 		"autosaveHint": "Les modifications sont enregistrées automatiquement",
 		"rfid": {
@@ -282,6 +290,12 @@
 			"learnBtn": "Apprendre la carte",
 			"learnedTitle": "Cartes apprises",
 			"empty": "Aucune carte apprise pour le moment."
+		},
+		"seek": {
+			"title": "Recherche avec les touches",
+			"titleExp": "Pas de recherche pour les actions de touche « avancer » et « reculer ».",
+			"jumpOffset": "Pas de recherche par appui [s]",
+			"jumpOffsetExp": "Nombre de secondes parcourues à chaque appui sur « avancer » / « reculer » dans le morceau en cours. Effet immédiat après enregistrement. 1-120, par défaut 30."
 		}
 	},
 	"security": {
@@ -463,7 +477,12 @@
 		},
 		"storage": {
 			"title": "Stockage",
-			"info": "{{free}} Go libres sur {{total}} Go ({{percent}} % utilisés)"
+			"info": "{{free}} Go libres sur {{total}} Go ({{percent}} % utilisés)",
+			"loading": "Chargement de l’utilisation du stockage...",
+			"usage": "{{used}} utilisés sur {{total}} · {{free}} libres",
+			"unavailable": "Aucune carte SD disponible",
+			"statsUnavailable": "Carte SD détectée, mais la capacité n’a pas pu être déterminée",
+			"error": "Impossible de charger l’utilisation du stockage"
 		},
 		"context": {
 			"systemProtected": "Dossier système protégé (suppression désactivée)",
@@ -540,7 +559,8 @@
 					"13": "Toutes les pistes d'un sous-répertoire aléatoire (triées)",
 					"14": "Toutes les pistes d'un sous-répertoire aléatoire (aléatoire)",
 					"8": "Webradio",
-					"11": "Liste (fichiers de la carte SD et/ou flux web) à partir d'un fichier .m3u local"
+					"11": "Liste (fichiers de la carte SD et/ou flux web) à partir d'un fichier .m3u local",
+					"18": "🌐 MediaHub (contenu/mode fourni par le serveur média sélectionné)"
 				},
 				"error": "Mode de lecture invalide"
 			},
@@ -619,7 +639,27 @@
 				"virtualOption": "Carte virtuelle {{n}}",
 				"virtualUsed": "utilisée"
 			},
-			"saveButton": "Enregistrer l'affectation"
+			"saveButton": "Enregistrer l'affectation",
+			"mediahub": {
+				"serverSelect": {
+					"title": "Serveur média"
+				},
+				"name": {
+					"title": "Nom affiché",
+					"explanation": "Nom librement choisi affiché pour ce serveur média dans le menu déroulant."
+				},
+				"hostPort": {
+					"title": "Adresse",
+					"explanation": "Hôte et port du serveur MediaHub, par ex. 192.168.1.50:8080.",
+					"placeholder": "par ex. 192.168.1.50:8080"
+				},
+				"addButton": "Enregistrer le serveur média",
+				"openButton": "Ouvrir MediaHub",
+				"delete": {
+					"title": "Supprimer le serveur média ?",
+					"prompt": "Vraiment supprimer le serveur média \"{{name}}\" ? Les cartes déjà assignées à ce serveur restent inchangées."
+				}
+			}
 		}
 	},
 	"mqtt": {
@@ -914,7 +954,10 @@
 			"mfrc522ScanInterval": "Intervalle de scan MFRC522",
 			"mfrc522ScanIntervalExp": "Durée en millisecondes entre deux interrogations du lecteur RFID MFRC522. Un redémarrage est nécessaire pour qu'une modification prenne effet. La valeur par défaut est 100ms.",
 			"pn5180Debounce": "Anti-rebond PN5180",
-			"pn5180DebounceExp": "Durée en millisecondes pendant laquelle une carte doit rester non détectée avant d'être considérée comme retirée. Évite que de brèves pertes de lecture (par ex. avec un écart plus important entre la carte et le lecteur) soient interprétées à tort comme un retrait de carte. Un redémarrage est nécessaire pour qu'une modification prenne effet. La valeur par défaut est 500ms."
+			"pn5180DebounceExp": "Durée en millisecondes pendant laquelle une carte doit rester non détectée avant d'être considérée comme retirée. Évite que de brèves pertes de lecture (par ex. avec un écart plus important entre la carte et le lecteur) soient interprétées à tort comme un retrait de carte. Un redémarrage est nécessaire pour qu'une modification prenne effet. La valeur par défaut est 500ms.",
+			"slixPrivacyPassword": "Mot de passe de confidentialité ICODE-SLIX2",
+			"slixPrivacyPasswordExp": "Mot de passe de quatre octets utilisé pour désactiver le mode confidentialité des tags ICODE-SLIX2 protégés. Seules les valeurs hexadécimales de 00 à FF sont acceptées.",
+			"pn5180Firmware": "Firmware PN5180 lue"
 		},
 		"options": {
 			"title": "Options",
@@ -963,7 +1006,10 @@
 			"poweredVoltage": "Seuil « sur secteur » (V)",
 			"poweredVoltageExp": "À partir de cette tension de batterie, l'appareil est considéré « sur secteur ». Pour le LiFePO4, ~3,5 V est un bon point de départ (tension de charge ~3,6 V, repos plein ~3,3-3,4 V).",
 			"resumeOnSameRfid": "Reprendre la lecture si la même RFID est reposée",
-			"resumeOnSameRfidExp": "Si la lecture est en pause et que la même balise RFID est reposée, la lecture reprend. Actif uniquement si <em>Ne pas accepter la balise RFID deux fois</em> est activé."
+			"resumeOnSameRfidExp": "Si la lecture est en pause et que la même balise RFID est reposée, la lecture reprend. Actif uniquement si <em>Ne pas accepter la balise RFID deux fois</em> est activé.",
+			"savePlayPosInterval": "Enregistrer automatiquement la position de lecture des livres audio longs toutes les",
+			"savePlayPosIntervalSecs": "secondes",
+			"savePlayPosIntervalExp": "Enregistre régulièrement la position de lecture des livres audio longs (fichiers de 5 minutes ou plus) dans la mémoire flash pendant la lecture, afin qu'une coupure de courant soudaine (batterie vide, débranchement, plantage) ne fasse reculer que du nombre de secondes défini au maximum au lieu de redémarrer le fichier. Concerne uniquement les modes livre audio ; les pistes courtes ou fractionnées sont déjà enregistrées à chaque changement de piste. Un intervalle plus court sollicite le flash plus souvent ; 30 à 60 secondes sont recommandées, car des valeurs bien plus basses n'apportent presque rien et usent le flash plus vite."
 		},
 		"neopixel": {
 			"title": "Neopixel (luminosité)",
@@ -992,7 +1038,9 @@
 			"highExp": "Tension considérée comme 100% de charge de la batterie (batterie pleine).",
 			"criticalShutoffExp": "Tension à laquelle ESPuino s'éteint automatiquement pour protéger la batterie d'une décharge profonde.",
 			"measureIntervalExp": "Intervalle de temps en minutes auquel la tension de la batterie est mesurée.",
-			"shutdownOnCriticalExp": "Éteint automatiquement ESPuino lorsque la tension de la batterie descend en dessous du seuil critique défini ci-dessous. Peut protéger la batterie dans une certaine mesure d'une décharge profonde, mais ne remplace pas un système de gestion de batterie (BMS) ! Valeurs recommandées : LFP : 2,7 V, LiPo : 3,0 V."
+			"shutdownOnCriticalExp": "Éteint automatiquement ESPuino lorsque la tension de la batterie descend en dessous du seuil critique défini ci-dessous. Peut protéger la batterie dans une certaine mesure d'une décharge profonde, mais ne remplace pas un système de gestion de batterie (BMS) ! Valeurs recommandées : LFP : 2,7 V, LiPo : 3,0 V.",
+			"offset": "Valeur de correction pour la tension mesurée de la batterie (en volt, ± au centième)",
+			"offsetExp": "Correction fine de la tension mesurée de la batterie. Si la tension affichée diffère d'une mesure au multimètre, saisissez ici la différence (positive ou négative). Valeur par défaut de la Complete : -0,04 V."
 		},
 		"playlist": {
 			"title": "Playlist",
@@ -1239,5 +1287,11 @@
 	"status": {
 		"connected": "Connexion à l'ESPuino : OK",
 		"disconnected": "Connexion à l'ESPuino perdue - tentative de reconnexion..."
+	},
+	"mediahub": {
+		"title": "MediaHub",
+		"intro": "MediaHub est un composant optionnel, exécuté séparément : un petit serveur local fonctionnant comme conteneur Docker sur votre propre réseau. Il permet de gérer de façon centralisée les assignations de cartes RFID pour plusieurs ESPuino - le contenu et le mode de lecture proviennent alors du serveur plutôt que de la configuration NVS locale. Sans serveur MediaHub en cours d'exécution, cette page ne sert à rien. Vous enregistrez ici l'adresse (ou les adresses) de votre/vos serveur(s) MediaHub afin qu'ils apparaissent dans le menu déroulant lors de l'assignation d'une carte. Le serveur MediaHub lui-même est disponible sur GitHub : <a href='https://github.com/biologist79/ESPuino-Mediahub' target='_blank'>github.com/biologist79/ESPuino-Mediahub</a>.",
+		"serversTitle": "Ajouter un serveur média",
+		"registeredServersTitle": "Serveurs média enregistrés"
 	}
 }

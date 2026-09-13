@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: ESPuino API
-  version: 1.0.5
+  version: 1.0.6
   description: >-
     API for the ESPuino, a DIY Smart Speaker project. ESPuino is a DIY Smart
     Speaker that uses software-based audio decoding, supports various music
@@ -20,6 +20,21 @@ servers:
 #     ESPUINO_SESSION cookie (used automatically by the browser/Swagger UI).
 # With no web password set, the API is open and authentication is ignored.
 components:
+  schemas:
+    MediaHubServer:
+      type: object
+      required: [name, hostPort]
+      properties:
+        name:
+          type: string
+          description: Display name identifying the registered server.
+        hostPort:
+          type: string
+          description: Host and optional port, without a URL scheme.
+          example: mediahub.local:8080
+        https:
+          type: boolean
+          default: false
   securitySchemes:
     apiKey:
       type: apiKey
@@ -330,7 +345,7 @@ paths:
           description: Optional section to retrieve specific settings.
       responses:
         "200":
-          description: Successful response with common settings.
+          description: Common settings, including general.jumpOffset, general.rotSeekStep, and battery.offsetVoltage (when voltage measurement is enabled).
           content:
             application/json:
               schema:
@@ -351,7 +366,19 @@ paths:
               properties:
                 general:
                   type: object
-                  # Include all general settings properties here
+                  properties:
+                    jumpOffset:
+                      type: integer
+                      minimum: 1
+                      maximum: 120
+                      default: 30
+                      description: Seconds per seek-forward/backward button command; applies immediately.
+                    rotSeekStep:
+                      type: integer
+                      minimum: 1
+                      maximum: 60
+                      default: 10
+                      description: Seconds per direct rotary seek detent; applies immediately.
                 defaults:
                   type: object
                   # Include all defaults settings properties here
@@ -388,7 +415,12 @@ paths:
                         position while hiding it. At least one known item must remain enabled.
                 battery:
                   type: object
-                  # Include all battery settings properties here
+                  properties:
+                    offsetVoltage:
+                      type: number
+                      minimum: -0.5
+                      maximum: 0.5
+                      description: Voltage-measurement correction in volts; applies after restart. Omitting it preserves the saved calibration.
                 ftp:
                   type: object
                   # Include all FTP settings properties here
@@ -403,6 +435,64 @@ paths:
       responses:
         "200":
           description: Successful settings save.
+  /mediahubservers:
+    get:
+      summary: List registered MediaHub servers.
+      description: Device-local enrollment convenience; existing cards retain their own server address.
+      responses:
+        "200":
+          description: Registered servers.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MediaHubServer"
+    post:
+      summary: Register or update a MediaHub server by name.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaHubServer"
+      responses:
+        "200":
+          description: Server saved.
+        "400":
+          description: Missing name or address.
+        "500":
+          description: Save failed (including when the ten-server limit is reached).
+    delete:
+      summary: Remove a registered server by name.
+      description: Removes it from the enrollment list; existing card assignments keep their server address.
+      parameters:
+        - in: query
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Server removed.
+        "400":
+          description: Missing name.
+        "500":
+          description: Server not found or removal failed.
+  /mediahubservers/{name}:
+    delete:
+      summary: Path alias for deleting a registered MediaHub server.
+      parameters:
+        - in: path
+          name: name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Server removed.
+        "500":
+          description: Server not found or removal failed.
   /rfid:
     get:
       summary: List all saved RFID-tag assignments with details.
@@ -430,7 +520,10 @@ paths:
           description: The requested RFID tag ID does not exist.
     post:
       summary: Save or overwrite RFID-tag assignment.
-      description: Save a new RFID-tag assignment or overwrite an existing one.
+      description: >-
+        Save a new RFID-tag assignment or overwrite an existing one. For a MediaHub-managed
+        card use playMode "18" and fileOrUrl "mediahub://http://mediahub.local:8080"
+        (or an https base URL). Content and the real playback mode come from the hub.
       requestBody:
         description: RFID-tag assignment details to save.
         required: true
@@ -457,7 +550,10 @@ paths:
           description: The serialized assignment exceeds the device's supported length.
     delete:
       summary: Delete an RFID-tag assignment.
-      description: Delete an RFID-tag assignment by providing its ID.
+      description: >-
+        Delete an RFID-tag assignment by providing its ID. MediaHub cards also remove their
+        cached manifest and downloaded media. The assignment is retained if cleanup fails,
+        so the operation can be retried.
       parameters:
         - in: query
           name: id

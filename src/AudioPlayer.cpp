@@ -10,6 +10,7 @@
 #include "EnumUtils.h"
 #include "Led.h"
 #include "Log.h"
+#include "MediaHub.h"
 #include "MemX.h"
 #include "Mqtt.h"
 #include "Playstats.h"
@@ -2439,10 +2440,19 @@ size_t AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _
 		*pos = '\0'; // Terminate the string at this position
 	}
 
-	// Build the new string with the preserved first part (which already contains the track)
-	snprintf(prefBuf, sizeof(prefBuf), "%s%s%" PRIu32 "%s%d%s%" PRIu16, firstPart, stringDelimiter, playPosition, stringDelimiter, _playMode, stringDelimiter, _trackLastPlayed);
+	// MediaHub-managed cards (concept §8.1) store MEDIAHUB as a marker in this
+	// field, not the real playmode; gPlayProperties.playMode is the manifest's
+	// real mode by the time playback reaches this wrapper, so writing it back
+	// verbatim would silently overwrite the marker on the first position-save.
+	uint8_t playModeToStore = _playMode;
+	if (MediaHub_IsMediaHubPath(firstPart + strlen(stringDelimiter))) {
+		playModeToStore = MEDIAHUB;
+	}
 
-	Log_Printf(LOGLEVEL_INFO, wroteLastTrackToNvs, prefBuf, _rfidCardId, _playMode, _trackLastPlayed);
+	// Build the new string with the preserved first part (which already contains the track)
+	snprintf(prefBuf, sizeof(prefBuf), "%s%s%" PRIu32 "%s%d%s%" PRIu16, firstPart, stringDelimiter, playPosition, stringDelimiter, playModeToStore, stringDelimiter, _trackLastPlayed);
+
+	Log_Printf(LOGLEVEL_INFO, wroteLastTrackToNvs, prefBuf, _rfidCardId, playModeToStore, _trackLastPlayed);
 	Log_Println(prefBuf, LOGLEVEL_INFO);
 	// keep the LED task paused THROUGH the flash write (that is the whole point of the
 	// pause); releasing it before putString re-armed the NeoPixel during the write

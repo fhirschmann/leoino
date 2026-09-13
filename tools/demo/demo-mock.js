@@ -122,7 +122,7 @@
 		return {
 			current: { volume: DEMO_VOLUME, rfidTagId: "0009094506" },
 			general: {
-				initVolume: 3, minVolume: 0, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10,
+				initVolume: 3, minVolume: 0, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10, jumpOffset: 30, rotSeekStep: 10,
 				playMono: false, savePosShutdown: false, savePosRfidChge: false,
 				savePosPeriodic: true, restartFreshHrs: 24, minResumeSec: 20, shortTrackSec: 300, seekStep: 300, sleepFadeSec: 30, dailyLimitMin: 90, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
 				stopIfRfidRemoved: false,
@@ -157,7 +157,7 @@
 			})(),
 			rotary: { reverse: false, seekPrevDelay: 2000, seekPrevSweep: 40 },
 			playlist: { sortMode: 0, recDepth: 2 },
-			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, shutdownOnCritical: false, voltageCheckInterval: 10 },
+			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, offsetVoltage: 0, shutdownOnCritical: false, voltageCheckInterval: 10 },
 			ftp: { username: "esp32", password: "esp32", maxUserLength: 31, maxPwdLength: 31, enable: false },
 			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
 			sync: { url: "", username: "", password: "", abortOnButton: true, deleteRemoved: false, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
@@ -211,6 +211,8 @@
 		return { status: status || 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(obj) };
 	}
 
+	var MEDIAHUB_SERVERS = [{ name: "MediaHub", hostPort: "mediahub.local:8080", https: false }];
+
 	function route(method, rawUrl, requestBody) {
 		var u;
 		try { u = new URL(rawUrl, window.location.href); } catch (e) { return null; }
@@ -222,6 +224,20 @@
 		// real but tag the language so the demo strings can be merged in.
 		var locMatch = p.match(/\/locales\/([a-zA-Z]+)\.json$/);
 		if (locMatch) { return { passthrough: "." + u.pathname.substring(u.pathname.indexOf("/locales/")), lng: locMatch[1].toLowerCase() }; }
+
+		if (p === "/mediahubservers" || p.startsWith("/mediahubservers/")) {
+			if (method === "GET") { return jsonResp(MEDIAHUB_SERVERS); }
+			if (method === "DELETE") {
+				var serverName = qs.get("name") || decodeURIComponent(p.substring("/mediahubservers/".length));
+				MEDIAHUB_SERVERS = MEDIAHUB_SERVERS.filter(function (server) { return server.name !== serverName; });
+			} else if (method === "POST") {
+				var server = typeof requestBody === "string" ? JSON.parse(requestBody) : requestBody;
+				if (!server || !server.name || !server.hostPort) { return jsonResp({ error: "missing server name or address" }, 400); }
+				MEDIAHUB_SERVERS = MEDIAHUB_SERVERS.filter(function (entry) { return entry.name !== server.name; });
+				MEDIAHUB_SERVERS.push({ name: server.name, hostPort: server.hostPort, https: !!server.https });
+			}
+			return jsonResp({ status: "ok" });
+		}
 
 		// Read endpoints
 		if (method === "GET") {

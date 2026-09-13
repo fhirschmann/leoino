@@ -2306,6 +2306,7 @@
 			animation: settingsHitPulse 2.3s ease-out;
 			border-radius: 4px;
 		}
+		a[data-bs-toggle="popover"] { cursor: pointer; }
 	</style>
 </head>
 
@@ -2559,6 +2560,22 @@
 			</div>
 		</div>
 	</div>
+	<!-- Modal dialog for delete MediaHub server-->
+	<div class="modal fade" data-bs-backdrop="static" id="deleteMediaHubServerModal" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" data-i18n="files.rfid.mediahub.delete.title"></h5>
+				</div>
+				<div class="modal-body">
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-i18n="cancel"></button>
+					<a class="btn btn-danger btn-ok" data-i18n="delete"></a>
+				</div>
+			</div>
+		</div>
+	</div>
 	<!-- Modal dialog for delete NVS RFID assignment-->
 	<div class="modal fade" data-bs-backdrop="static" id="deleteRFIDModal" role="dialog">
 		<div class="modal-dialog" role="document">
@@ -2738,6 +2755,9 @@
 			<a class="nav-item nav-link main-tab-item" id="nav-general-tab" data-bs-toggle="tab" href="#nav-general"
 				data-bs-target="#nav-general" role="tab" aria-controls="nav-general" aria-selected="false"><i
 					class="fas fa-sliders-h"></i><span class="d-none d-md-inline" data-i18n="nav.settings"></span></a>
+			<a class="nav-item nav-link main-tab-item" id="nav-mediahub-tab" data-bs-toggle="tab" href="#nav-mediahub"
+				data-bs-target="#nav-mediahub" role="tab" aria-controls="nav-mediahub" aria-selected="false"><i
+					class="fas fa-server"></i><span class="d-none d-md-inline" data-i18n="nav.mediahub"></span></a>
 			<a class="nav-item nav-link main-tab-item" id="nav-tools-tab" data-bs-toggle="tab" href="#nav-tools"
 				data-bs-target="#nav-tools" role="tab" aria-controls="nav-tools" aria-selected="false"><i
 					class="fas fa-wrench"></i><span class="d-none d-md-inline" data-i18n="nav.tools"></span></a>
@@ -3018,6 +3038,8 @@
 										</option>
 										<option class="option-playlist" value="11"
 											data-i18n="files.rfid.playmode.mode.11"></option>
+										<option class="option-mediahub" value="18"
+											data-i18n="files.rfid.playmode.mode.18"></option>
 									</select>
 								</div>
 								<div class="tab-pane" id="rfidmod" role="tabpanel">
@@ -3167,7 +3189,7 @@
 									value="false">
 								<label for="savePlayPosShutdown"
 									data-i18n="general.options.savePlayPosShutdown"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.savePlayPosShutdownExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
@@ -3176,7 +3198,7 @@
 									value="false">
 								<label for="savePlayPosRfidChange"
 									data-i18n="general.options.savePlayPosRfidChange"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.savePlayPosRfidChangeExp"
 									tabindex="0"><i class="fas fa-circle-question"></i></a>
 							</div>
@@ -3185,7 +3207,7 @@
 									value="false">
 								<label for="savePlayPosPeriodic"
 									data-i18n="general.options.savePlayPosPeriodic"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.savePlayPosPeriodicExp"
 									tabindex="0"><i class="fas fa-circle-question"></i></a>
 							</div>
@@ -3193,7 +3215,7 @@
 								<label for="seekStep" data-i18n="general.options.seekStep"></label>
 								<input type="number" class="form-control" id="seekStep" name="seekStep"
 									min="5" max="3600" step="5" style="max-width:7em">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.seekStepExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
@@ -3201,7 +3223,7 @@
 								<label for="sleepFadeSec" data-i18n="general.options.sleepFade"></label>
 								<input type="number" class="form-control" id="sleepFadeSec" name="sleepFadeSec"
 									min="0" max="300" step="5" style="max-width:7em">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.sleepFadeExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
@@ -3209,42 +3231,42 @@
 								<label for="dailyLimitMin" data-i18n="general.options.dailyLimit"></label>
 								<input type="number" class="form-control" id="dailyLimitMin" name="dailyLimitMin"
 									min="0" max="1440" step="5" style="max-width:7em">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.dailyLimitExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="pauseOnMinVolume" name="pauseOnMinVolume" value="false">
 								<label for="pauseOnMinVolume" data-i18n="general.options.pauseOnMinVolume"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.pauseOnMinVolumeExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="recoverVolBoot" name="recoverVolBoot" value="false">
 								<label for="recoverVolBoot" data-i18n="general.options.recoverVolBoot"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.recoverVolBootExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="playMono" name="playMono" value="false">
 								<label for="playMono" data-i18n="general.options.playMono"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.playMonoExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="volumeCurve" name="volumeCurve" value="false">
 								<label for="volumeCurve" data-i18n="general.options.volumeCurve"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.volumeCurveExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="playStartupSound" name="playStartupSound" value="false">
 								<label for="playStartupSound" data-i18n="general.options.playStartupSound"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.playStartupSoundExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
@@ -3275,10 +3297,20 @@
 							</select>
 						</fieldset>
 					</div>
+							<div class="mb-3">
+								<label for="jumpOffset" data-i18n="settingsex.seek.jumpOffset"></label>
+								<input type="number" class="form-control" id="jumpOffset" name="jumpOffset" min="1" max="120" step="1">
+								<small class="text-secondary" data-i18n="settingsex.seek.jumpOffsetExp"></small>
+							</div>
 					<span id="settingsExConfigContainer">
 						<div class="col-md-12 mb-4" id="rotaryConfig" style="display:none">
 							<fieldset>
 								<legend class="w-auto" data-i18n="settingsex.rotary.title"></legend><br>
+							<div class="mb-3">
+								<label for="rotSeekStep" data-i18n="settingsex.rotary.rotSeekStep"></label>
+								<input type="number" class="form-control" id="rotSeekStep" name="rotSeekStep" min="1" max="60" step="1">
+								<small class="text-secondary" data-i18n="settingsex.rotary.rotSeekStepExp"></small>
+							</div>
 								<input type="checkbox" id="rotaryReverse" name="rotaryReverse" value="false">&nbsp;
 								<label for="rotaryReverse" data-i18n="settingsex.rotary.reverse"></label>
 								<div class="row gx-3 mt-2">
@@ -3288,7 +3320,7 @@
 											<input type="number" class="form-control" id="seekPrevDelay" name="seekPrevDelay"
 												min="0" max="3000" step="100">
 											<span class="input-group-text bg-transparent border-0">
-												<a href="#" class="link-secondary" data-bs-toggle="popover"
+												<a class="link-secondary" data-bs-toggle="popover"
 													data-i18n="[data-bs-content]settingsex.rotary.seekPrevDelayExp" tabindex="0">
 													<i class="fas fa-circle-question"></i></a>
 											</span>
@@ -3300,7 +3332,7 @@
 											<input type="number" class="form-control" id="seekPrevSweep" name="seekPrevSweep"
 												min="1" max="200">
 											<span class="input-group-text bg-transparent border-0">
-												<a href="#" class="link-secondary" data-bs-toggle="popover"
+												<a class="link-secondary" data-bs-toggle="popover"
 													data-i18n="[data-bs-content]settingsex.rotary.seekPrevSweepExp" tabindex="0">
 													<i class="fas fa-circle-question"></i></a>
 											</span>
@@ -3477,7 +3509,7 @@
 						<div class="input-group">
 							<input type="number" class="form-control" id="mfrc522Gain" name="mfrc522Gain" min="0" max="7">
 							<span class="input-group-text bg-transparent border-0">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.rfid.mfrc522GainExp" tabindex="0">
 									<i class="fas fa-circle-question"></i></a>
 							</span>
@@ -3489,7 +3521,7 @@
 							<input type="number" class="form-control" id="mfrc522ScanInterval" name="mfrc522ScanInterval"
 								min="20" max="2000" step="10">
 							<span class="input-group-text bg-transparent border-0">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.rfid.mfrc522ScanIntervalExp" tabindex="0">
 									<i class="fas fa-circle-question"></i></a>
 							</span>
@@ -3503,7 +3535,7 @@
 							<input type="number" class="form-control" id="pn5180Debounce" name="pn5180Debounce"
 								min="100" max="5000" step="100">
 							<span class="input-group-text bg-transparent border-0">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.rfid.pn5180DebounceExp" tabindex="0">
 									<i class="fas fa-circle-question"></i></a>
 							</span>
@@ -3512,7 +3544,7 @@
 					<div class="form-check form-switch">
 						<input class="form-check-input" type="checkbox" role="switch" id="pn5180Lpcd" name="pn5180Lpcd" value="false">
 						<label class="form-check-label" for="pn5180Lpcd" data-i18n="general.rfid.pn5180Lpcd"></label>
-						<a href="#" class="link-secondary" data-bs-toggle="popover"
+						<a class="link-secondary" data-bs-toggle="popover"
 							data-i18n="[data-bs-content]general.rfid.pn5180LpcdExp" tabindex="0"><i
 								class="fas fa-circle-question"></i></a>
 					</div>
@@ -3522,7 +3554,7 @@
 							<input type="text" class="form-control" id="slix2Password" name="slix2Password"
 								maxlength="8" placeholder="e.g. 01020304">
 							<span class="input-group-text bg-transparent border-0">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.rfid.slix2Password.description" tabindex="0">
 									<i class="fas fa-circle-question"></i></a>
 							</span>
@@ -3535,42 +3567,42 @@
 					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" role="switch" id="pauseIfRfidRemoved" name="pauseIfRfidRemoved" value="false">
 						<label class="form-check-label" for="pauseIfRfidRemoved" data-i18n="general.options.pauseIfRfidRemoved"></label>
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.pauseIfRfidRemovedExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.pauseIfRfidRemovedExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" role="switch" id="stopIfRfidRemoved" name="stopIfRfidRemoved" value="false">
 						<label class="form-check-label" for="stopIfRfidRemoved" data-i18n="general.options.stopIfRfidRemoved"></label>
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.stopIfRfidRemovedExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.stopIfRfidRemovedExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" role="switch" id="dontAcceptRfidTwice" name="dontAcceptRfidTwice" value="false">
 						<label class="form-check-label" for="dontAcceptRfidTwice" data-i18n="general.options.dontAcceptRfidTwice"></label>
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.dontAcceptRfidTwiceExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.dontAcceptRfidTwiceExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" role="switch" id="blockWebPlayTag" name="blockWebPlayTag" value="false">
 						<label class="form-check-label" for="blockWebPlayTag" data-i18n="general.options.blockWebPlayTag"></label>
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.blockWebPlayTagExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.blockWebPlayTagExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" role="switch" id="playLastRfidOnReboot" name="playLastRfidOnReboot" value="false">
 						<label class="form-check-label" for="playLastRfidOnReboot" data-i18n="general.options.playLastRfidOnReboot"></label>
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.playLastRfidOnRebootExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.playLastRfidOnRebootExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="d-flex gap-2 align-items-center mb-2">
 						<label class="mb-0" for="restartFreshDays" data-i18n="general.options.restartFreshDays"></label>
 						<input type="number" class="form-control" id="restartFreshDays" name="restartFreshDays" min="0" max="365" step="1" style="max-width:7em">
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.restartFreshDaysExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.restartFreshDaysExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="d-flex gap-2 align-items-center mb-2">
 						<label class="mb-0" for="minResumeSec" data-i18n="general.options.minResumeSec"></label>
 						<input type="number" class="form-control" id="minResumeSec" name="minResumeSec" min="0" max="3600" step="1" style="max-width:7em">
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.minResumeSecExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.minResumeSecExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 					<div class="d-flex gap-2 align-items-center mb-2">
 						<label class="mb-0" for="shortTrackSec" data-i18n="general.options.shortTrackSec"></label>
 						<input type="number" class="form-control" id="shortTrackSec" name="shortTrackSec" min="0" max="7200" step="1" style="max-width:7em">
-						<a href="#" class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.shortTrackSecExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
+						<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]general.options.shortTrackSecExp" tabindex="0"><i class="fas fa-circle-question"></i></a>
 					</div>
 				</fieldset>
 				<fieldset>
@@ -3934,7 +3966,7 @@
 							<div class="form-check form-switch mt-3">
 								<input class="form-check-input" type="checkbox" role="switch" id="noSleepWhenPowered" name="noSleepWhenPowered" value="false">
 								<label class="form-check-label" for="noSleepWhenPowered" data-i18n="general.options.noSleepWhenPowered"></label>
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.noSleepWhenPoweredExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
@@ -3944,7 +3976,7 @@
 								<label for="poweredVoltage" data-i18n="general.options.poweredVoltage"></label>
 								<input type="number" class="form-control" id="poweredVoltage" name="poweredVoltage"
 									min="2.5" max="4.5" step="0.05" style="max-width:7em">
-								<a href="#" class="link-secondary" data-bs-toggle="popover"
+								<a class="link-secondary" data-bs-toggle="popover"
 									data-i18n="[data-bs-content]general.options.poweredVoltageExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
@@ -4004,10 +4036,15 @@
 								name="shutdownOnCritical" value="false">
 							<label class="form-check-label" for="shutdownOnCritical"
 								data-i18n="general.battery.shutdownOnCritical"></label>
-							<a href="#" class="link-secondary" data-bs-toggle="popover"
+							<a class="link-secondary" data-bs-toggle="popover"
 								data-i18n="[data-bs-content]general.battery.shutdownOnCriticalExp" tabindex="0"><i
 									class="fas fa-circle-question"></i></a>
 						</div>
+							<div class="mb-3">
+								<label for="offsetVoltage" data-i18n="general.battery.offset"></label>
+								<input type="number" class="form-control" id="offsetVoltage" name="offsetVoltage" min="-0.5" max="0.5" step="0.01">
+								<small class="text-secondary" data-i18n="general.battery.offsetExp"></small>
+							</div>
 						<div id="criticalVoltageSection" data-visible="false">
 								<label class="form-label" for="criticalVoltage"
 									data-i18n="[prepend]general.battery.criticalShutoff">:</label>
@@ -4481,6 +4518,83 @@
 		</div>
 			</div>
 		</div>
+		<!-- ### Tab MediaHub ### -->
+		<div class="tab-pane main-tab-pane fade mb-4" id="nav-mediahub" role="tabpanel"
+			aria-labelledby="nav-mediahub-tab">
+			<div class="container" id="mediaHubIntro">
+				<legend data-i18n="mediahub.title"></legend>
+				<p data-i18n="[html]mediahub.intro"></p>
+			</div>
+			<div class="container mt-5" id="mediaHubServers">
+				<fieldset>
+					<legend data-i18n="mediahub.serversTitle"></legend>
+					<form action="#mediaHubServers" method="POST"
+						onsubmit="mediaHubServerConfig('mediaHubServers'); return false">
+						<div class="settings-group-card">
+						<div class="mb-3 col-md-12">
+							<div class="row mb-2 align-items-center">
+								<div class="col-sm-4 d-flex align-items-center gap-2">
+									<label for="mediaHubServerName" class="col-form-label"
+										data-i18n="[prepend]files.rfid.mediahub.name.title">:</label>
+									<a class="link-secondary" data-bs-toggle="popover"
+										data-i18n="[data-bs-content]files.rfid.mediahub.name.explanation" tabindex="0"><i
+											class="fas fa-circle-question"></i></a>
+								</div>
+								<div class="col-sm-8">
+									<input type="text" class="form-control" id="mediaHubServerName"
+										name="mediaHubServerName" maxlength="32" required>
+								</div>
+							</div>
+							<div class="row mb-2 align-items-center">
+								<div class="col-sm-4 d-flex align-items-center gap-2">
+									<label for="mediaHubServerHostPort" class="col-form-label"
+										data-i18n="[prepend]files.rfid.mediahub.hostPort.title">:</label>
+									<a class="link-secondary" data-bs-toggle="popover"
+										data-i18n="[data-bs-content]files.rfid.mediahub.hostPort.explanation"
+										tabindex="0"><i class="fas fa-circle-question"></i></a>
+								</div>
+								<div class="col-sm-8">
+									<div class="input-group">
+										<select class="form-select flex-grow-0 w-auto" id="mediaHubServerScheme"
+											name="mediaHubServerScheme">
+											<option value="http">http://</option>
+											<option value="https">https://</option>
+										</select>
+										<input type="text" class="form-control" id="mediaHubServerHostPort"
+											name="mediaHubServerHostPort"
+											data-i18n="[placeholder]files.rfid.mediahub.hostPort.placeholder"
+											maxlength="64" required>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div>
+							<button type="submit" class="btn btn-primary"
+								data-i18n="files.rfid.mediahub.addButton"></button>
+						</div>
+						</div>
+					</form>
+					<div class="col-md-12" style="margin-top: 20px;">
+						<legend data-i18n="mediahub.registeredServersTitle"></legend>
+						<div class="settings-group-card">
+						<ul class="list-group" id="mediaHubServerListManaged"></ul>
+						</div>
+					</div>
+				</fieldset>
+			</div>
+			<div class="container mt-4 mb-4">
+				<fieldset>
+					<legend data-i18n="files.rfid.title"></legend>
+									<div id="mediaHubServerDiv" class="mb-3">
+										<label for="mediaHubServerSelect"
+											data-i18n="files.rfid.mediahub.serverSelect.title"></label>
+										<select class="form-control form-select" id="mediaHubServerSelect"
+											name="mediaHubServerSelect"></select>
+									</div>
+					<button type="button" class="btn btn-primary" id="mediaHubLearnButton" disabled onclick="learnMediaHubCard()" data-i18n="settingsex.rfid.learnBtn"></button>
+				</fieldset>
+			</div>
+		</div>
 		<!-- ### Tab Tools ### -->
 		<div class="tab-pane main-tab-pane fade select-div" id="nav-tools" role="tabpanel"
 			aria-labelledby="nav-tools-tab">
@@ -4835,6 +4949,7 @@
 			const lang = localStorage.getItem("language");
 			const selectedLanguage = lang === null ? language.split("-")[0] : lang;
 			i18next.changeLanguage(selectedLanguage, function () {
+				rebuildMediaHubServerList();
 				initHomeKit();
 				refreshSecurityStatus();
 				loadEqRules(updateEqIndicator);
@@ -6463,6 +6578,8 @@
 				$('#maxVolumeSpeaker').bootstrapSlider('setValue', genSettings.maxVolumeSp);
 				$('#maxVolumeHeadphone').bootstrapSlider('setValue', genSettings.maxVolumeHp);
 				$('#inactivityTime').bootstrapSlider('setValue', genSettings.sleepInactivity);
+				$('#jumpOffset').val(genSettings.jumpOffset);
+				$('#rotSeekStep').val(genSettings.rotSeekStep);
 				$('#playMono').prop('checked', genSettings.playMono);
 				$('#savePlayPosShutdown').prop('checked', genSettings.savePosShutdown);
 				$('#savePlayPosRfidChange').prop('checked', genSettings.savePosRfidChge);
@@ -6689,6 +6806,7 @@
 				$('#warningLowVoltage').bootstrapSlider('setValue', batSettings.warnLowVoltage);
 				$('#voltageIndicatorLow').bootstrapSlider('setValue', batSettings.indicatorLow);
 				$('#voltageIndicatorHigh').bootstrapSlider('setValue', batSettings.indicatorHi);
+				$('#offsetVoltage').val(batSettings.offsetVoltage == null ? 0 : batSettings.offsetVoltage);
 				$('#shutdownOnCritical').prop('checked', !!batSettings.shutdownOnCritical);
 				if (batSettings.criticalVoltage) {
 					document.getElementById('criticalVoltageSection').setAttribute('data-visible', !!batSettings.shutdownOnCritical);
@@ -7060,6 +7178,119 @@
 			} catch (e) { showRequestError(e); }
 			if (btn) btn.disabled = false;
 		}
+		// Registered MediaHub servers (concept §5.1): a small local list used purely as
+		// enrollment convenience for the RFID-assignment dropdown - the runtime flow (§11)
+		// never reads it, it only ever fills in the "mediahub://<host:port>" fileOrUrl value.
+		const mediaHubServerListManaged = document.getElementById("mediaHubServerListManaged");
+		const mediaHubServerSelect = document.getElementById("mediaHubServerSelect");
+		async function rebuildMediaHubServerList() {
+			try {
+				let servers = await apiGet("/mediahubservers");
+				const previous = mediaHubServerSelect.value;
+				document.getElementById("mediaHubLearnButton").disabled = servers.length === 0;
+
+				mediaHubServerSelect.innerHTML = "";
+				for (let server of servers) {
+					// the option's value is the full "scheme://host:port" base: at
+					// assignment time that's exactly what fills the fileOrUrl field
+					// (via mediahub://<value>), the runtime never sees this server list.
+					let base = (server.https ? "https://" : "http://") + server.hostPort;
+					let opt = document.createElement("option");
+					opt.value = base;
+					opt.textContent = server.name + " (" + base + ")";
+					mediaHubServerSelect.appendChild(opt);
+				}
+				if (servers.length === 1) {
+					// only one known hub -> preselect it (concept §5.1)
+					mediaHubServerSelect.selectedIndex = 0;
+				}
+				if (Array.from(mediaHubServerSelect.options).some(function (o) { return o.value === previous; })) { mediaHubServerSelect.value = previous; }
+
+				mediaHubServerListManaged.innerHTML = "";
+				for (let server of servers) {
+					let base = (server.https ? "https://" : "http://") + server.hostPort;
+					let elem = document.createElement("li");
+					elem.classList.add("list-group-item", "d-flex", "flex-wrap", "align-items-center", "gap-2");
+					const serverLabel = document.createElement("span");
+					serverLabel.classList.add("text-break", "flex-grow-1");
+					serverLabel.textContent = server.name + " (" + base + ")";
+					elem.appendChild(serverLabel);
+					let deleteSpan = document.createElement("span");
+					deleteSpan.classList.add("float-end");
+					deleteSpan.classList.add("button-group");
+					// Open the MediaHub server's own web UI in a new tab - lets the
+					// user browse the server's media library without embedding it here.
+					let openLink = document.createElement("a");
+					openLink.classList.add("btn", "btn-secondary", "me-2");
+					const openIcon = document.createElement("i");
+					openIcon.className = "fas fa-arrow-up";
+					openLink.appendChild(openIcon);
+					openLink.href = base;
+					openLink.target = "_blank";
+					openLink.rel = "noopener";
+					openLink.setAttribute("data-i18n", "[title]files.rfid.mediahub.openButton;[aria-label]files.rfid.mediahub.openButton");
+					openLink.title = i18next.t("files.rfid.mediahub.openButton");
+					openLink.setAttribute("aria-label", i18next.t("files.rfid.mediahub.openButton"));
+					deleteSpan.appendChild(openLink);
+					let deleteButton = document.createElement("button");
+					deleteButton.classList.add("btn", "btn-danger");
+					const deleteIcon = document.createElement("i");
+					deleteIcon.className = "fas fa-trash";
+					deleteButton.appendChild(deleteIcon);
+					deleteButton.setAttribute("aria-label", i18next.t("delete"));
+					deleteButton.setAttribute("data-i18n", "[aria-label]delete");
+					deleteButton.setAttribute("data-bs-toggle", "modal");
+					deleteButton.setAttribute("data-bs-target", "#deleteMediaHubServerModal");
+					deleteButton.setAttribute("data-mediahubserver", server.name);
+					deleteSpan.appendChild(deleteButton);
+					elem.appendChild(deleteSpan);
+					mediaHubServerListManaged.appendChild(elem);
+				}
+			} catch (error) { showRequestError(error); }
+		}
+		async function deleteMediaHubServer(name) {
+			try {
+				console.log("deleting mediahub server", name);
+				$('#deleteMediaHubServerModal').modal('hide');
+				await fetchOrThrow("http://" + host + "/mediahubservers/" + encodeURIComponent(name), {
+					method: "DELETE"
+				});
+				await rebuildMediaHubServerList();
+			} catch (error) { showRequestError(error); }
+		}
+		async function mediaHubServerConfig(clickedId) {
+			try {
+				lastIdclicked = clickedId;
+				// Strip a scheme typed into the host field (dropdown already sets it);
+				// tolerates separator typos, syncs dropdown to the typed scheme.
+				var scheme = document.getElementById('mediaHubServerScheme');
+				var hostPort = document.getElementById('mediaHubServerHostPort').value.trim();
+				var schemeMatch = hostPort.match(/^(https?)[:/]+/i);
+				if (schemeMatch) {
+					scheme.value = schemeMatch[1].toLowerCase();
+					hostPort = hostPort.replace(/^https?[:/]+/i, '');
+					document.getElementById('mediaHubServerHostPort').value = hostPort;
+				}
+				var myObj = {
+					name: document.getElementById('mediaHubServerName').value,
+					hostPort: hostPort,
+					https: scheme.value === 'https'
+				};
+				await fetchOrThrow("http://" + host + "/mediahubservers", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json"
+					},
+					body: JSON.stringify(myObj)
+				});
+				toaster.info(i18next.t("toast.saved"));
+				await rebuildMediaHubServerList();
+			} catch (error) { showRequestError(error); }
+		}
+		function learnMediaHubCard() {
+			const base = mediaHubServerSelect.value;
+			if (base) { armRfidLearn('mediahub://' + base, 18); }
+		}
 		const rfidListSavedAssignments = document.getElementById("rfidListSavedAssignments");
 		async function rebuildRFIDList() {
 			var rfidList;
@@ -7309,6 +7540,8 @@
 					maxVolumeSp: Number($('#maxVolumeSpeaker').val()),
 					maxVolumeHp: Number($('#maxVolumeHeadphone').val()),
 					sleepInactivity: Number($('#inactivityTime').val()),
+					jumpOffset: Number($('#jumpOffset').val()),
+					rotSeekStep: Number($('#rotSeekStep').val()),
 					playMono: $('#playMono').prop('checked'),
 					savePosShutdown: $('#savePlayPosShutdown').prop('checked'),
 					savePosRfidChge: $('#savePlayPosRfidChange').prop('checked'),
@@ -7396,6 +7629,7 @@
 					indicatorLow: Number($('#voltageIndicatorLow').val()),
 					indicatorHi: Number($('#voltageIndicatorHigh').val()),
 					criticalVoltage: Number($('#criticalVoltage').val()),
+					offsetVoltage: Number($('#offsetVoltage').val()),
 					shutdownOnCritical: $('#shutdownOnCritical').prop('checked'),
 					voltageCheckInterval: Number($('#voltageCheckInterval').val())
 				},
@@ -9709,6 +9943,14 @@
 					ssid: ssid
 				}));
 				$(this).find('.btn-ok').off('click').on('click', function () { deleteSSID(ssid); });
+			})
+			$('#deleteMediaHubServerModal').on('show.bs.modal', function (event) {
+				var name = $(event.relatedTarget).data('mediahubserver')
+				$(this).find('.modal-title').text(i18next.t("files.rfid.mediahub.delete.title"));
+				$(this).find('.modal-body').text(i18next.t("files.rfid.mediahub.delete.prompt", {
+					name: name
+				}));
+				$(this).find('.btn-ok').off('click').on('click', function () { deleteMediaHubServer(name); });
 			})
 			$('#deleteRFIDModal').on('show.bs.modal', function (event) {
 				var rfid = $(event.relatedTarget).data('rfid')

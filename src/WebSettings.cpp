@@ -53,6 +53,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		generalObj["maxVolumeSp"].set(gPrefsSettings.getUInt("maxVolumeSp", 21));
 		generalObj["maxVolumeHp"].set(gPrefsSettings.getUInt("maxVolumeHp", 21));
 		generalObj["sleepInactivity"].set(gPrefsSettings.getUInt("mInactiviyT", 10));
+		generalObj["rotSeekStep"].set(gPrefsSettings.getUChar("rotSeekStep", SEEK_STEP_ROTARY_DEFAULT));
+		generalObj["jumpOffset"].set(gPrefsSettings.getUChar("jumpOffset", SEEK_STEP_BUTTON_DEFAULT));
 		generalObj["playMono"].set(gPrefsSettings.getBool("playMono", false));
 		generalObj["savePosShutdown"].set(gPrefsSettings.getBool("savePosShutdown", false)); // SAVE_PLAYPOS_BEFORE_SHUTDOWN
 		generalObj["savePosRfidChge"].set(gPrefsSettings.getBool("savePosRfidChge", false)); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
@@ -257,6 +259,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		batteryObj["warnLowVoltage"].set(gPrefsSettings.getFloat("wLowVoltage", s_warningLowVoltage));
 		batteryObj["indicatorLow"].set(gPrefsSettings.getFloat("vIndicatorLow", s_voltageIndicatorLow));
 		batteryObj["indicatorHi"].set(gPrefsSettings.getFloat("vIndicatorHigh", s_voltageIndicatorHigh));
+		batteryObj["offsetVoltage"].set(gPrefsSettings.getFloat("offsetVoltage", s_offsetVoltage));
 		batteryObj["criticalVoltage"].set(gPrefsSettings.getFloat("wCritVoltage", s_warningCriticalVoltage));
 		batteryObj["shutdownOnCritical"].set(gPrefsSettings.getBool("shutdownBatCrit", false)); // shutdown when battery is critical (runtime toggle)
 	#endif
@@ -273,6 +276,8 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		genSettings["maxVolumeSp"].set(AUDIOPLAYER_VOLUME_MAX);
 		genSettings["maxVolumeHp"].set(18u); // gPrefsSettings.getUInt("maxVolumeHp", 0));
 		genSettings["sleepInactivity"].set(10u); // System_MaxInactivityTime
+		genSettings["rotSeekStep"].set(SEEK_STEP_ROTARY_DEFAULT);
+		genSettings["jumpOffset"].set(SEEK_STEP_BUTTON_DEFAULT);
 		genSettings["playMono"].set(false); // PLAY_MONO_SPEAKER
 		genSettings["savePosShutdown"].set(false); // SAVE_PLAYPOS_BEFORE_SHUTDOWN
 		genSettings["savePosRfidChge"].set(false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
@@ -402,6 +407,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		batSettings["warnLowVoltage"].set(s_warningLowVoltage);
 		batSettings["indicatorLow"].set(s_voltageIndicatorLow);
 		batSettings["indicatorHi"].set(s_voltageIndicatorHigh);
+		batSettings["offsetVoltage"].set(s_offsetVoltage);
 		batSettings["criticalVoltage"].set(s_warningCriticalVoltage);
 		batSettings["shutdownOnCritical"].set(false);
 	#endif

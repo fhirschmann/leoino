@@ -19,6 +19,7 @@ enum class LedAnimationType : uint8_t {
 	Error,
 	Ok,
 	VoltageWarning,
+	Download, // MediaHub file sync (concept §12): outranks normal playback feedback, since it runs before playback even starts
 	Volume,
 	Battery,
 	BatteryMeasurement,
@@ -126,6 +127,7 @@ void Led_TaskResume(void);
 void Led_ShowSyncColor(void);
 // Shows OTA-update progress on the indicator LEDs while Led_Task is suspended.
 void Led_ShowOtaProgress(uint8_t percent);
+void Led_SetDownloadProgress(bool active, uint8_t percent = 0);
 
 void Led_SetNightmode(bool enabled);
 void Led_ToggleNightmode();

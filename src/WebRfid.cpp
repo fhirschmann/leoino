@@ -8,6 +8,7 @@
 #include "Common.h"
 #include "ESPAsyncWebServer.h"
 #include "Log.h"
+#include "MediaHub.h"
 #include "Playstats.h"
 #include "Rfid.h"
 #include "RfidSync.h"
@@ -291,7 +292,10 @@ void handleDeleteRFIDRequest(AsyncWebServerRequest *request) {
 			Cmd_Action(CMD_STOP);
 		}
 		// OnDelete removes the tag and writes its deletion tombstone atomically (single lock), then propagates.
-		const bool removed = RfidSync_OnDelete(tagId.c_str());
+		const String nvsValue = gPrefsRfid.getString(tagId.c_str(), "");
+		const bool isMediaHubCard = nvsValue.startsWith(String(stringDelimiter) + MediaHub_PathPrefix);
+		const bool cleanupOk = !isMediaHubCard || MediaHub_DeleteCard(tagId.c_str());
+		const bool removed = cleanupOk && RfidSync_OnDelete(tagId.c_str());
 		if (removed) {
 			Playstats_ClearCardPlays(tagId.c_str()); // drop the card's play counter too
 			Playstats_ClearCardSeen(tagId.c_str()); // and its last-seen timestamp

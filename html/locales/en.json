@@ -32,7 +32,8 @@
 		"dropout": "slow stream, dropouts are possible.",
 		"saved": "Settings saved.",
 		"error": "Error",
-		"ledCountRestart": "The number of LEDs was changed. ESPuino will restart to apply it."
+		"ledCountRestart": "The number of LEDs was changed. ESPuino will restart to apply it.",
+		"settingsInvalid": "Cannot save: please correct these settings first ({{fields}})."
 	},
 	"nav": {
 		"updateAvailable": "Update available",
@@ -56,7 +57,8 @@
 		"oled": "OLED",
 		"power": "Power",
 		"security": "Security",
-		"updates": "Updates"
+		"updates": "Updates",
+		"mediahub": "MediaHub"
 	},
 	"ir": {
 		"title": "Infrared remote control",
@@ -275,12 +277,18 @@
 			"gesturesExp": "While one of these buttons is held down, turning the encoder triggers the assigned action instead of changing the volume. 'Turn right' is the direction that raises the volume. The long-press action of such a button fires when it is released - and not at all if the encoder was turned.",
 			"ccw": "turn left",
 			"cw": "turn right",
-			"seekPreviewTitle": "Seek preview settings",
-			"seekPreviewTitleExp": "Fine-tuning for the 🎯 seek preview gesture (see table above): how long to wait before a preview auto-commits, and how finely the target position can be steered by turning.",
+			"seekPreviewTitle": "Seeking with the rotary encoder",
+			"seekPreviewTitleExp": "Fine-tuning for seeking with the rotary encoder: the 🎯 seek-preview gesture (see table above) and direct seeking when a turn action is mapped to seek forwards/backwards.",
 			"seekPrevDelay": "Auto-commit delay [ms]",
 			"seekPrevDelayExp": "How long (in ms) the encoder must stay idle before a 🎯 seek-preview gesture jumps to the previewed position on its own. Releasing the held button always commits immediately, regardless of this delay. 0-3000, default 2000.",
 			"seekPrevSweep": "Turns for full sweep",
-			"seekPrevSweepExp": "How many encoder detents move the seek-preview target from 0% to 100% (blue LED) of the track. Lower = coarser/faster scrubbing, higher = finer control. Default 40."
+			"seekPrevSweepExp": "How many encoder detents move the seek-preview target from 0% to 100% (blue LED) of the track. Lower = coarser/faster scrubbing, higher = finer control. Default 40.",
+			"rotSeekStep": "Seek step per detent [s]",
+			"rotSeekStepExp": "How many seconds each detent seeks when a turn action is mapped directly to seek forwards/backwards (not the seek preview). Keep it small: a quick flick is many detents at once. 1-60, default 10.",
+			"directSeekTitle": "Direct seeking",
+			"directSeekHint": "The simple variant: every detent jumps forwards or backwards by the configured amount straight away - no display, no waiting. That is more immediate but also coarser, because a quick flick is many detents at once and you land correspondingly far away. In exchange it works even when your ESPuino has no Neopixels and a preview would therefore have nothing to show. This is how the rotary encoder is set up out of the box. Applies when you assign 'seek forwards' or 'seek backwards' to a turn action above.",
+			"previewSeekTitle": "Seek preview",
+			"previewSeekHint": "The more comfortable variant and the better choice for most people. As soon as you hold the assigned button down, the LED ring turns yellow - before you even start turning. That is the signal that the preview is running. Turning then does not move the actual playback at first; instead only a blue marker (cursor) travels to the spot that would be jumped to (if you have a single LED instead of a ring, it simply lights up blue while the preview is running). Playback only jumps there once you release the button or stop turning for a moment. That lets you take your time aiming at a spot and watch what you are doing, instead of feeling your way back and forth blindly. The two values below set how long ESPuino waits after the last turn and how many detents it takes to sweep across the whole track. Applies when you assign 'seek preview' to a turn action above."
 		},
 		"autosaveHint": "Changes are saved automatically",
 		"rfid": {
@@ -289,6 +297,12 @@
 			"learnBtn": "Learn card",
 			"learnedTitle": "Learned cards",
 			"empty": "No cards learned yet."
+		},
+		"seek": {
+			"title": "Seeking with the buttons",
+			"titleExp": "Seek step for the button actions 'seek forwards' and 'seek backwards'.",
+			"jumpOffset": "Seek step per button press [s]",
+			"jumpOffsetExp": "How many seconds a press of 'seek forwards' / 'seek backwards' jumps within the current track. Applies immediately after saving. 1-120, default 30."
 		}
 	},
 	"security": {
@@ -470,7 +484,12 @@
 		},
 		"storage": {
 			"title": "Storage",
-			"info": "{{free}} GB free of {{total}} GB ({{percent}} % used)"
+			"info": "{{free}} GB free of {{total}} GB ({{percent}} % used)",
+			"loading": "Loading storage usage...",
+			"usage": "{{used}} of {{total}} used · {{free}} free",
+			"unavailable": "No SD card available",
+			"statsUnavailable": "SD card detected, but storage size could not be determined",
+			"error": "Storage usage could not be loaded"
 		},
 		"context": {
 			"systemProtected": "Protected system folder (deletion disabled)",
@@ -547,7 +566,8 @@
 					"13": "All tracks of a random subdirectory (sorted)",
 					"14": "All tracks of a random subdirectory (random)",
 					"8": "Webradio",
-					"11": "List (files from SD and/or webstreams) from local .m3u-File"
+					"11": "List (files from SD and/or webstreams) from local .m3u-File",
+					"18": "🌐 MediaHub (content/mode comes from the selected media server)"
 				},
 				"error": "Invalid playmode"
 			},
@@ -626,7 +646,27 @@
 				"virtualOption": "Virtual card {{n}}",
 				"virtualUsed": "in use"
 			},
-			"saveButton": "Save assignment"
+			"saveButton": "Save assignment",
+			"mediahub": {
+				"serverSelect": {
+					"title": "Media server"
+				},
+				"name": {
+					"title": "Display name",
+					"explanation": "Freely chosen name shown for this media server in the selection dropdown."
+				},
+				"hostPort": {
+					"title": "Address",
+					"explanation": "Host and port of the MediaHub server, e.g. 192.168.1.50:8080.",
+					"placeholder": "e.g. 192.168.1.50:8080"
+				},
+				"addButton": "Save media server",
+				"openButton": "Open MediaHub",
+				"delete": {
+					"title": "Delete media server?",
+					"prompt": "Really delete the media server \"{{name}}\"? Cards already assigned to it are left unchanged."
+				}
+			}
 		}
 	},
 	"mqtt": {
@@ -925,7 +965,10 @@
 			"mfrc522ScanInterval": "MFRC522 scan interval",
 			"mfrc522ScanIntervalExp": "Time in milliseconds between two polls of the MFRC522 RFID reader. A restart is required for a change to take effect. Default is 100ms.",
 			"pn5180Debounce": "PN5180 debounce",
-			"pn5180DebounceExp": "Time in milliseconds a card must go undetected before it's considered removed. Prevents brief read dropouts (e.g. with a larger gap between card and reader) from being mistaken for card removal. A restart is required for a change to take effect. Default is 500ms."
+			"pn5180DebounceExp": "Time in milliseconds a card must go undetected before it's considered removed. Prevents brief read dropouts (e.g. with a larger gap between card and reader) from being mistaken for card removal. A restart is required for a change to take effect. Default is 500ms.",
+			"slixPrivacyPassword": "ICODE-SLIX2 privacy password",
+			"slixPrivacyPasswordExp": "Four-byte password used to disable privacy mode on protected ICODE-SLIX2 tags. Only hexadecimal values from 00 to FF are accepted.",
+			"pn5180Firmware": "PN5180 firmware readout"
 		},
 		"options": {
 			"title": "Options",
@@ -974,7 +1017,10 @@
 			"poweredVoltage": "'On power' threshold (V)",
 			"poweredVoltageExp": "At or above this battery voltage the device is considered 'on power'. For LiFePO4, ~3.5 V is a good starting point (charge voltage ~3.6 V, full resting ~3.3-3.4 V).",
 			"resumeOnSameRfid": "Resume from pause when placing the same RFID again",
-			"resumeOnSameRfidExp": "If playback is paused and the same RFID tag is placed again, playback continues. Only effective if <em>Don't accept the same RFID twice</em> is enabled."
+			"resumeOnSameRfidExp": "If playback is paused and the same RFID tag is placed again, playback continues. Only effective if <em>Don't accept the same RFID twice</em> is enabled.",
+			"savePlayPosInterval": "Auto-save playback position for long audio books every",
+			"savePlayPosIntervalSecs": "seconds",
+			"savePlayPosIntervalExp": "Periodically saves the playback position of long audio books (files of 5 minutes or more) to flash while playing, so a sudden power loss (dead battery, unplugged, crash) only rewinds by up to the set number of seconds instead of restarting the file. Only applies to audio-book playmodes; short or split tracks already save at each track boundary. A shorter interval writes to flash more often, so 30-60 seconds is recommended; going much lower gains little and wears the flash faster."
 		},
 		"neopixel": {
 			"title": "Neopixel (brightness)",
@@ -1003,7 +1049,9 @@
 			"highExp": "Voltage that is shown as 100% battery charge (full battery).",
 			"criticalShutoffExp": "Voltage at which ESPuino automatically shuts down to protect the battery from deep discharge.",
 			"measureIntervalExp": "Time interval in minutes at which the battery voltage is measured.",
-			"shutdownOnCriticalExp": "Automatically shuts ESPuino down once the battery voltage drops below the critical threshold set below. Can help protect the battery from deep discharge to some extent, but does not replace a battery management system! Recommended values are: LFP: 2.7 V, LiPo: 3.0 V."
+			"shutdownOnCriticalExp": "Automatically shuts ESPuino down once the battery voltage drops below the critical threshold set below. Can help protect the battery from deep discharge to some extent, but does not replace a battery management system! Recommended values are: LFP: 2.7 V, LiPo: 3.0 V.",
+			"offset": "Correction value for the measured battery voltage (in volt, ± in hundredths)",
+			"offsetExp": "Fine-correction of the measured battery voltage. If the displayed voltage differs from a multimeter reading, enter the difference here (positive or negative). Default for the Complete: -0.04 V."
 		},
 		"playlist": {
 			"title": "Playlist",
@@ -1250,5 +1298,11 @@
 	"status": {
 		"connected": "Connection to ESPuino: OK",
 		"disconnected": "Connection to ESPuino lost - trying to reconnect..."
+	},
+	"mediahub": {
+		"title": "MediaHub",
+		"intro": "MediaHub is an optional, separately-run add-on: a small local server running as a Docker container on your own network. It lets you manage RFID card assignments centrally for multiple ESPuinos - content and playback mode then come from the server instead of the local NVS configuration. Without a running MediaHub server, this page doesn't do anything useful. Here you register the address(es) of your MediaHub server(s) so they show up in the dropdown when assigning a card. The MediaHub server itself is available on GitHub: <a href='https://github.com/biologist79/ESPuino-Mediahub' target='_blank'>github.com/biologist79/ESPuino-Mediahub</a>.",
+		"serversTitle": "Add media server",
+		"registeredServersTitle": "Registered media servers"
 	}
 }

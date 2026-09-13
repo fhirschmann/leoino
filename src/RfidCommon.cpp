@@ -6,6 +6,7 @@
 #include "Common.h"
 #include "HallEffectSensor.h"
 #include "Log.h"
+#include "MediaHub.h"
 #include "MemX.h"
 #include "Mqtt.h"
 #include "Playstats.h"
@@ -102,7 +103,13 @@ void Rfid_PreferenceLookupHandler(void) {
 				Playstats_NoteCardSeen(gCurrentRfidTagId); // remember when this card was last started
 
 				Playstats_NoteCardPlay(gCurrentRfidTagId); // count plays per music card (most-played stats)
-				AudioPlayer_SetPlaylist(_file, _lastPlayPos, _playMode, _trackLastPlayed);
+				if (_playMode == MEDIAHUB) {
+					// Dispatch to MediaHub before the normal AudioPlayer logic gets
+					// a chance to interpret _file (concept: mediahub-konzept.md §8).
+					MediaHub_HandleCardTapped(gCurrentRfidTagId, _file, _lastPlayPos, _trackLastPlayed);
+				} else {
+					AudioPlayer_SetPlaylist(_file, _lastPlayPos, _playMode, _trackLastPlayed);
+				}
 			}
 		}
 	}

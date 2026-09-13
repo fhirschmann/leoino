@@ -73,7 +73,7 @@ jobs:
         # (ModuleNotFoundError at link time, 2026-08-12); "pio pkg update --global" additionally
         # bypassed the version pins in platformio.ini.
         run: |
-          pip install -U setuptools platformio
+          pip install -U setuptools "platformio==6.1.19"
           mkdir binaries
 
       - name: Build ${{ matrix.variant }} (${{ matrix.language }})

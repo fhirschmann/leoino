@@ -169,6 +169,20 @@ fork-specific features. The full interface (default RFID tab shown below, live f
 
 </div>
 
+### // Upstream integration (September 2026)
+
+- **MediaHub:** register a self-hosted [MediaHub server](https://github.com/biologist79/ESPuino-Mediahub)
+  in the MediaHub tab and learn a physical or virtual RFID card there. The hub supplies its
+  playback mode and content; downloaded files are cached on SD for offline playback, checked
+  for updates, and removed when the card assignment is deleted.
+- **Seek steps:** configure button jumps (1–120 seconds) and direct rotary seeking
+  (1–60 seconds per detent) independently in Settings. Existing smart seeking and LED seek
+  preview remain available with their existing command IDs.
+- **Battery calibration:** adjust the voltage correction in Settings → Power (−0.5 to +0.5 V).
+  The value is stored on the device and applied after restarting.
+- Help popovers preserve the page's scroll position. The device-free demo includes the new
+  settings and MediaHub server registration and card-learning flow.
+
 ### // Live demo
 
 Try the web interface in your browser — **no hardware required**:

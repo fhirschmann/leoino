@@ -258,14 +258,10 @@
 	#endif
 
 	// Seekmode-configuration
-	constexpr uint8_t jumpOffset = 30;                            // Offset in seconds to jump for commands CMD_SEEK_FORWARDS / CMD_SEEK_BACKWARDS
 	constexpr uint16_t seekStepDefault = 300;                     // Default step in seconds for CMD_SMART_FORWARDS / CMD_SMART_BACKWARDS (configurable via web setting "seekStep")
 	constexpr uint16_t smartSeekCoalesceMs = 450;                 // Wait this long (ms) after the last smart-seek press before applying the accumulated jump (one resync instead of many)
 	constexpr uint16_t smartSeekEndMarginSec = 5;                 // A forward smart-seek past the end clamps to this many seconds before the end (keeps playing) instead of ending the file
-	#define JUMP_OFFSET_ROTARY 10                                 // Offset in seconds per encoder-detent when seeking via a rotary gesture. A button press is a
-	                                                              // deliberate act and can afford jumpOffset; a flick of the encoder is many detents at once, so
-	                                                              // reusing jumpOffset there scrubs minutes at a time. Overridable at runtime via NVS "rotSeekStep".
-	                                                              // A macro (not constexpr) so Button/RotaryEncoder can #ifndef-default it for older overrides.
+
 
 	// Topics for MQTT: used to build actual topics in webinterface. So normally there's no need to apply any changes here 
 	// MQTT configuration available via webinterface: https://forum.espuino.de/t/dokumentation-webinterface/2807.

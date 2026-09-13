@@ -32,7 +32,8 @@
 		"dropout": "Langsamer Stream, Aussetzer möglich.",
 		"saved": "Einstellungen gespeichert.",
 		"error": "Fehler",
-		"ledCountRestart": "Die Anzahl der LEDs wurde geändert. Der ESPuino startet neu, um das zu übernehmen."
+		"ledCountRestart": "Die Anzahl der LEDs wurde geändert. Der ESPuino startet neu, um das zu übernehmen.",
+		"settingsInvalid": "Speichern nicht möglich: Bitte zuerst diese Einstellungen korrigieren ({{fields}})."
 	},
 	"nav": {
 		"updateAvailable": "Update verfügbar",
@@ -56,7 +57,8 @@
 		"oled": "OLED",
 		"power": "Power",
 		"security": "Sicherheit",
-		"updates": "Updates"
+		"updates": "Updates",
+		"mediahub": "MediaHub"
 	},
 	"ir": {
 		"title": "Infrarot-Fernbedienung",
@@ -275,12 +277,18 @@
 			"gesturesExp": "Solange eine dieser Tasten gehalten wird, löst Drehen am Drehimpulsgeber die zugewiesene Aktion aus, statt die Lautstärke zu ändern. 'Rechts drehen' ist die Richtung, die sonst lauter stellt. Die Lang-Aktion einer solchen Taste wird erst beim Loslassen ausgelöst - und gar nicht, wenn gedreht wurde.",
 			"ccw": "links drehen",
 			"cw": "rechts drehen",
-			"seekPreviewTitle": "Positionsvorschau-Einstellungen",
-			"seekPreviewTitleExp": "Feineinstellungen für die 🎯 Positionsvorschau-Geste (siehe Tabelle oben): wie lange gewartet wird, bis eine Vorschau automatisch übernommen wird, und wie fein sich die Zielposition per Drehung steuern lässt.",
+			"seekPreviewTitle": "Spulen mit dem Drehimpulsgeber",
+			"seekPreviewTitleExp": "Feineinstellungen fürs Spulen per Drehimpulsgeber: die 🎯 Positionsvorschau-Geste (siehe Tabelle oben) und das direkte Spulen, wenn eine Dreh-Aktion auf Vor-/Zurückspulen gelegt ist.",
 			"seekPrevDelay": "Verzögerung bis zur Übernahme [ms]",
 			"seekPrevDelayExp": "Wie lange (in ms) der Drehimpulsgeber stillstehen muss, bevor eine 🎯 Positionsvorschau-Geste von selbst zur vorgeschauten Position springt. Loslassen der gehaltenen Taste übernimmt die Position immer sofort, unabhängig von dieser Verzögerung. 0-3000, Standard 2000.",
 			"seekPrevSweep": "Anzahl Rasterungen für 0 bis 100 %",
-			"seekPrevSweepExp": "Wie viele Encoder-Rasterungen das Positionsvorschau-Ziel von 0% auf 100% (blaue LED) des Titels bewegen. Niedriger = grober/schnelleres Positionieren, höher = feinere Kontrolle. Standard 40."
+			"seekPrevSweepExp": "Wie viele Encoder-Rasterungen das Positionsvorschau-Ziel von 0% auf 100% (blaue LED) des Titels bewegen. Niedriger = grober/schnelleres Positionieren, höher = feinere Kontrolle. Standard 40.",
+			"rotSeekStep": "Sprungweite pro Rastung [s]",
+			"rotSeekStepExp": "Um wie viele Sekunden pro Rasterung gesprungen wird, wenn eine Dreh-Aktion direkt auf Vor-/Zurückspulen gelegt ist (nicht die Positionsvorschau). Klein halten: Eine schnelle Drehung sind viele Rasterungen auf einmal. 1-60, Standard 10.",
+			"directSeekTitle": "Direktes Spulen",
+			"directSeekHint": "Die einfache Variante: Jede Rasterung springt sofort um die eingestellte Zeit vor oder zurück - ohne Anzeige, ohne Wartezeit. Das ist unmittelbarer, aber auch gröber, denn eine schnelle Drehung sind viele Rasterungen auf einmal und entsprechend weit landest du. Dafür funktioniert es auch dann, wenn dein ESPuino keine Neopixel hat und eine Vorschau folglich nichts anzeigen könnte. So ist der Drehimpulsgeber ab Werk belegt. Greift, wenn du einer Dreh-Aktion oben 'Vorspulen' oder 'Zurückspulen' zuweist.",
+			"previewSeekTitle": "Positionsvorschau",
+			"previewSeekHint": "Die komfortablere Variante und für die meisten die bessere Wahl. Sobald du die zugewiesene Taste gedrückt hältst, färbt sich der LED-Ring gelb - noch bevor du überhaupt drehst. Das ist das Zeichen, dass die Vorschau läuft. Beim Drehen springt die eigentliche Wiedergabe dann zunächst gar nicht; stattdessen wandert nur eine blaue Markierung (Cursor) auf die Stelle, zu der gesprungen würde (hast du nur eine einzelne LED statt eines Rings, leuchtet sie währenddessen einfach blau). Erst wenn du die Taste loslässt oder eine Weile nicht mehr drehst, springt die Wiedergabe dorthin. So kannst du eine Stelle in Ruhe ansteuern und dabei zusehen, statt dich blind vor- und zurückzutasten. Die beiden Werte darunter bestimmen, wie lange ESPuino nach der letzten Drehung wartet und wie viele Rasterungen einmal über den ganzen Titel führen. Greift, wenn du einer Dreh-Aktion oben 'Positionsvorschau' zuweist."
 		},
 		"autosaveHint": "Änderungen werden automatisch gespeichert",
 		"rfid": {
@@ -289,6 +297,12 @@
 			"learnBtn": "Karte anlernen",
 			"learnedTitle": "Gelernte Karten",
 			"empty": "Noch keine Karten gelernt."
+		},
+		"seek": {
+			"title": "Spulen mit den Tasten",
+			"titleExp": "Sprungweite für die Tasten-Aktionen 'Vorspulen' und 'Zurückspulen'.",
+			"jumpOffset": "Sprungweite pro Tastendruck [s]",
+			"jumpOffsetExp": "Um wie viele Sekunden ein Tastendruck auf 'Vorspulen' bzw. 'Zurückspulen' im laufenden Titel springt. Wirkt sofort nach dem Speichern. 1-120, Standard 30."
 		}
 	},
 	"security": {
@@ -470,7 +484,12 @@
 		},
 		"storage": {
 			"title": "Speicherplatz",
-			"info": "{{free}} GB frei von {{total}} GB ({{percent}} % belegt)"
+			"info": "{{free}} GB frei von {{total}} GB ({{percent}} % belegt)",
+			"loading": "Speicherbelegung wird geladen...",
+			"usage": "{{used}} von {{total}} belegt · {{free}} frei",
+			"unavailable": "Keine SD-Karte verfügbar",
+			"statsUnavailable": "SD-Karte erkannt, Speichergröße konnte nicht ermittelt werden",
+			"error": "Speicherbelegung konnte nicht geladen werden"
 		},
 		"context": {
 			"systemProtected": "Geschütztes Systemverzeichnis (Löschen deaktiviert)",
@@ -547,7 +566,8 @@
 					"13": "Alle Titel aus einem zufälligen Unterverzeichnis (sortiert)",
 					"14": "Alle Titel aus einem zufälligen Unterverzeichnis (zufällig)",
 					"8": "Webradio",
-					"11": "Liste (Dateien von SD und/oder Webstreams) aus lokaler .m3u-Datei"
+					"11": "Liste (Dateien von SD und/oder Webstreams) aus lokaler .m3u-Datei",
+					"18": "🌐 MediaHub (Inhalt/Modus kommt vom gewählten Mediaserver)"
 				},
 				"error": "Kein gültiger Abspielmodus"
 			},
@@ -626,7 +646,27 @@
 				"virtualOption": "Virtuelle Karte {{n}}",
 				"virtualUsed": "belegt"
 			},
-			"saveButton": "Zuweisung speichern"
+			"saveButton": "Zuweisung speichern",
+			"mediahub": {
+				"serverSelect": {
+					"title": "Mediaserver"
+				},
+				"name": {
+					"title": "Anzeigename",
+					"explanation": "Frei wählbarer Name, unter dem dieser Mediaserver im Auswahl-Dropdown erscheint."
+				},
+				"hostPort": {
+					"title": "Adresse",
+					"explanation": "Host und Port des MediaHub-Servers, z.B. 192.168.1.50:8080.",
+					"placeholder": "z.B. 192.168.1.50:8080"
+				},
+				"addButton": "Mediaserver speichern",
+				"openButton": "MediaHub öffnen",
+				"delete": {
+					"title": "Mediaserver löschen?",
+					"prompt": "Soll der Mediaserver \"{{name}}\" wirklich gelöscht werden? Bereits zugewiesene Karten bleiben unverändert."
+				}
+			}
 		}
 	},
 	"mqtt": {
@@ -925,7 +965,10 @@
 			"mfrc522ScanInterval": "MFRC522 Scan-Intervall",
 			"mfrc522ScanIntervalExp": "Zeit in Millisekunden zwischen zwei Abfragen des MFRC522 RFID-Readers. Ein Neustart ist nötig, damit eine Änderung wirksam wird. Standard ist 100ms.",
 			"pn5180Debounce": "PN5180 Debounce",
-			"pn5180DebounceExp": "Zeit in Millisekunden, die eine Karte ununterbrochen nicht erkannt werden muss, bevor sie als entfernt gilt. Verhindert, dass kurze Leseaussetzer (z.B. bei größerem Abstand zwischen Karte und Leser) fälschlich als Kartenentfernung gewertet werden. Ein Neustart ist nötig, damit eine Änderung wirksam wird. Standard ist 500ms."
+			"pn5180DebounceExp": "Zeit in Millisekunden, die eine Karte ununterbrochen nicht erkannt werden muss, bevor sie als entfernt gilt. Verhindert, dass kurze Leseaussetzer (z.B. bei größerem Abstand zwischen Karte und Leser) fälschlich als Kartenentfernung gewertet werden. Ein Neustart ist nötig, damit eine Änderung wirksam wird. Standard ist 500ms.",
+			"slixPrivacyPassword": "ICODE-SLIX2 Privacy-Passwort",
+			"slixPrivacyPasswordExp": "Vier-Byte-Passwort zum Deaktivieren des Privacy-Modus geschützter ICODE-SLIX2-Tags. Es sind ausschließlich Hexadezimalwerte von 00 bis FF zulässig.",
+			"pn5180Firmware": "Ausgelesene PN5180 Firmware"
 		},
 		"options": {
 			"title": "Optionen",
@@ -974,7 +1017,10 @@
 			"poweredVoltage": "Schwelle „am Strom“ (V)",
 			"poweredVoltageExp": "Ab dieser Akkuspannung gilt das Gerät als „am Strom“. Für LiFePO4 ist ~3,5 V ein guter Startwert (Ladespannung ~3,6 V, Ruhespannung voll ~3,3–3,4 V).",
 			"dontAcceptRfidTwiceExp": "Denselben RFID-Tag nicht erneut akzeptieren. Kann nicht zusammen mit <em>Pause wenn RFID-Tag entfernt</em> verwendet werden.",
-			"resumeOnSameRfid": "Wechsel von Pause zu Play bei erneutem Auflegen"
+			"resumeOnSameRfid": "Wechsel von Pause zu Play bei erneutem Auflegen",
+			"savePlayPosInterval": "Wiedergabeposition langer Hörbücher automatisch speichern alle",
+			"savePlayPosIntervalSecs": "Sekunden",
+			"savePlayPosIntervalExp": "Speichert die Wiedergabeposition langer Hörbücher (Dateien ab 5 Minuten) während der Wiedergabe regelmäßig ins Flash, sodass ein plötzlicher Stromausfall (leerer Akku, ausgesteckt, Absturz) höchstens um die eingestellte Anzahl Sekunden zurückspringt, statt die Datei neu zu starten. Betrifft nur Hörbuch-Modi; kurze oder geteilte Titel werden ohnehin bei jedem Titelwechsel gespeichert. Ein kürzeres Intervall schreibt häufiger ins Flash, daher werden 30-60 Sekunden empfohlen; deutlich niedrigere Werte bringen kaum etwas und nutzen das Flash schneller ab."
 		},
 		"neopixel": {
 			"title": "Neopixel (Helligkeit)",
@@ -1003,7 +1049,9 @@
 			"highExp": "Spannung, die als 100% Akkuladung in der Anzeige gilt (voller Akku).",
 			"criticalShutoffExp": "Spannung, bei der ESPuino automatisch herunterfährt, um den Akku vor Tiefentladung zu schützen.",
 			"measureIntervalExp": "Zeitabstand in Minuten, in dem die Akkuspannung gemessen wird.",
-			"shutdownOnCriticalExp": "Schaltet ESPuino automatisch ab, sobald die Akkuspannung den unten eingestellten kritischen Wert unterschreitet. Kann den Akku ein Stück weit vor Tiefentladung schützen, ersetzt jedoch kein Batterie-Management-System! Empfohlene Werte sind: LFP: 2,7 V, LiPo: 3,0 V."
+			"shutdownOnCriticalExp": "Schaltet ESPuino automatisch ab, sobald die Akkuspannung den unten eingestellten kritischen Wert unterschreitet. Kann den Akku ein Stück weit vor Tiefentladung schützen, ersetzt jedoch kein Batterie-Management-System! Empfohlene Werte sind: LFP: 2,7 V, LiPo: 3,0 V.",
+			"offset": "Korrekturwert für die gemessene Akkuspannung (in Volt, ± in Hundertstel)",
+			"offsetExp": "Feinkorrektur der gemessenen Akkuspannung. Weicht die angezeigte Spannung von einer Messung per Multimeter ab, trage hier die Differenz ein (positiv oder negativ). Standardwert der Complete: -0,04 V."
 		},
 		"playlist": {
 			"title": "Wiedergabeliste",
@@ -1250,5 +1298,11 @@
 	"status": {
 		"connected": "Verbindung zum ESPuino: OK",
 		"disconnected": "Verbindung zum ESPuino unterbrochen - versuche erneut zu verbinden..."
+	},
+	"mediahub": {
+		"title": "MediaHub",
+		"intro": "MediaHub ist eine optionale, separat betriebene Zusatzkomponente: ein kleiner lokaler Server, der als Docker-Container im eigenen Netzwerk läuft. Damit lassen sich RFID-Kartenzuweisungen zentral für mehrere ESPuinos verwalten - Inhalt und Abspielmodus kommen dann vom Server statt aus der lokalen NVS-Konfiguration. Ohne einen laufenden MediaHub-Server bringt diese Seite nichts. Hier registrierst du die Adresse(n) deiner MediaHub-Server, damit sie beim Zuweisen einer Karte im Dropdown zur Auswahl stehen. Den MediaHub-Server selbst findest du auf GitHub: <a href='https://github.com/biologist79/ESPuino-Mediahub' target='_blank'>github.com/biologist79/ESPuino-Mediahub</a>.",
+		"serversTitle": "Mediaserver hinzufügen",
+		"registeredServersTitle": "Registrierte Mediaserver"
 	}
 }
