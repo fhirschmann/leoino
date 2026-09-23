@@ -889,7 +889,7 @@ static void Display_FormatQuickMenuLabel(uint8_t definitionIndex, char *buf, siz
         snprintf(buf, n, "EQ: %s", eq.c_str());
     } else if (item.command == CMD_DIMM_LEDS_NIGHTMODE) {
 #ifdef NEOPIXEL_ENABLE
-        snprintf(buf, n, "NIGHT MODE: %s", Led_GetNightmode() ? "ON" : "OFF");
+        snprintf(buf, n, "NIGHT MODE: %s", System_GetNightmode() ? "ON" : "OFF");
 #else
         snprintf(buf, n, "NIGHT MODE: N/A");
 #endif

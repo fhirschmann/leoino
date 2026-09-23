@@ -171,6 +171,26 @@ fork-specific features. The full interface (default RFID tab shown below, live f
 
 ### // Upstream integration (September 2026)
 
+Latest merge: upstream `dev` through `70a95173` on 23 September 2026. General ESPuino usage is
+covered in the [upstream handbook](https://biologist79.github.io/ESPuino-Docs/).
+
+- **Spoken battery warning:** optionally interrupt normal playback with an SD audio file, then
+  resume the same track and position. Configure it in Settings → Power, or select a file with
+  **Use as battery warning** in the file browser. Warnings can repeat at each measurement or
+  occur once per discharge. Example recordings in German, English and French are included in
+  [`announcements/`](announcements/). Disabled by default; the demo includes the settings.
+- **Night-mode volume limit:** optionally cap volume at the level when night mode starts, plus
+  one step. The limit follows the night-mode button, command 120 and MQTT controls, and is
+  removed when night mode ends. Configure it in Settings → General; changes apply on the next
+  activation. Night-mode state is shared by LEDs, OLED, HomeKit and the web interface.
+- **RFID feedback:** an optional LED flash acknowledges accepted RFID tags; enable it in the
+  LED settings. Disabled by default.
+- **Bluetooth:** one mode selector for normal playback, headphones and speaker mode, plus live
+  headphone connection status through `/bluetoothstatus`. Improved device names, reconnects,
+  discovery shutdown and headphone volume handling are inherited from upstream.
+- SPI-connected SD cards use the compatible FastLED driver; builds without MQTT retain the
+  sleep-timer helper. The CI and release workflows remain pinned to PlatformIO 6.1.19.
+
 - **MediaHub:** register a self-hosted [MediaHub server](https://github.com/biologist79/ESPuino-Mediahub)
   in the MediaHub tab and learn a physical or virtual RFID card there. The hub supplies its
   playback mode and content; downloaded files are cached on SD for offline playback, checked
@@ -451,7 +471,8 @@ git fetch upstream
 git merge upstream/dev
 ```
 
-Last sync: August 2026. Notable upstream features inherited with that merge:
+Last sync: **23 September 2026**, upstream `dev` at `70a95173` (release 3.1 preparation).
+See the September integration above for the newest additions. Earlier inherited features:
 
 - **Deterministic RFID presence detection** (WUPA-based polling for MFRC522 and PN5180, plus a
   silent re-init sweep to tell a wedged reader apart from a removed card — see

@@ -2307,7 +2307,18 @@
 			border-radius: 4px;
 		}
 		a[data-bs-toggle="popover"] { cursor: pointer; }
-	</style>
+
+		.bt-device-item { min-width: 0; }
+		.bt-device-main { min-width: 0; flex: 1 1 auto; }
+		.bt-device-name, .bt-device-address { overflow-wrap: anywhere; word-break: break-word; }
+		.bt-device-actions { flex: 0 0 auto; }
+		@media (max-width: 575.98px) {
+			.bt-mode-selector .btn { padding-left: .35rem; padding-right: .35rem; white-space: normal; }
+			.bt-mode-selector .btn i { display: block; margin-bottom: .25rem; }
+			.bt-device-item { flex-direction: column; align-items: stretch !important; }
+			.bt-device-actions { width: 100%; display: flex; justify-content: flex-end; gap: .5rem; margin-top: .5rem; }
+		}
+</style>
 </head>
 
 <body data-bs-theme="dark">
@@ -3242,6 +3253,14 @@
 									data-i18n="[data-bs-content]general.options.pauseOnMinVolumeExp" tabindex="0"><i
 										class="fas fa-circle-question"></i></a>
 							</div>
+							<div class="d-flex gap-2">
+								<input type="checkbox" id="nightVolumeLimit" name="nightVolumeLimit" value="false">
+								<label for="nightVolumeLimit" data-i18n="general.options.nightVolumeLimit"></label>
+								<a class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.options.nightVolumeLimitExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
+
 							<div class="col-12 col-md-6 d-flex gap-2 align-items-center mb-1">
 								<input type="checkbox" id="recoverVolBoot" name="recoverVolBoot" value="false">
 								<label for="recoverVolBoot" data-i18n="general.options.recoverVolBoot"></label>
@@ -3789,6 +3808,14 @@
 									<input class="form-check-input" type="checkbox" id="led_offsetPause" name="led_offsetPause" value="false">
 									<label class="form-check-label" for="led_offsetPause" data-i18n="settingsex.led.offsetpause"></label>
 								</div>
+							<div class="d-flex gap-2">
+								<input type="checkbox" id="led_rfidFlash" name="led_rfidFlash" value="false">
+								<label for="led_rfidFlash" data-i18n="settingsex.led.rfidflash"></label>
+								<a class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]settingsex.led.rfidflashExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
+
 								<div class="form-check">
 									<input class="form-check-input" type="checkbox" id="led_reverseRotation" name="led_reverseRotation" value="false">
 									<label class="form-check-label" for="led_reverseRotation" data-i18n="settingsex.led.reverserotation"></label>
@@ -4040,11 +4067,7 @@
 								data-i18n="[data-bs-content]general.battery.shutdownOnCriticalExp" tabindex="0"><i
 									class="fas fa-circle-question"></i></a>
 						</div>
-							<div class="mb-3">
-								<label for="offsetVoltage" data-i18n="general.battery.offset"></label>
-								<input type="number" class="form-control" id="offsetVoltage" name="offsetVoltage" min="-0.5" max="0.5" step="0.01">
-								<small class="text-secondary" data-i18n="general.battery.offsetExp"></small>
-							</div>
+
 						<div id="criticalVoltageSection" data-visible="false">
 								<label class="form-label" for="criticalVoltage"
 									data-i18n="[prepend]general.battery.criticalShutoff">:</label>
@@ -4063,6 +4086,42 @@
 									</div>
 								</div>
 							</div>
+							<div class="mb-3">
+								<label for="offsetVoltage" data-i18n="general.battery.offset"></label>
+								<input type="number" class="form-control" id="offsetVoltage" name="offsetVoltage" min="-0.5" max="0.5" step="0.01">
+								<small class="text-secondary" data-i18n="general.battery.offsetExp"></small>
+							</div>
+
+							<div class="d-flex gap-2">
+								<input type="checkbox" id="batWarnSound" name="batWarnSound" value="false">
+								<label for="batWarnSound" data-i18n="general.battery.warnSound"></label>
+								<a class="link-secondary" data-bs-toggle="popover"
+									data-i18n="[data-bs-content]general.battery.warnSoundExp" tabindex="0"><i
+										class="fas fa-circle-question"></i></a>
+							</div>
+							<fieldset id="batWarnSoundSection" class="mb-2" data-visible="false" disabled>
+								<div class="row align-items-center mb-2">
+									<div class="col-sm-4 d-flex align-items-center gap-2">
+										<label for="batWarnFile" class="col-form-label"
+											data-i18n="general.battery.warnSoundFile"></label>
+										<a class="link-secondary" data-bs-toggle="popover"
+											data-i18n="[data-bs-content]general.battery.warnSoundFileExp" tabindex="0"><i
+												class="fas fa-circle-question"></i></a>
+									</div>
+									<div class="col-sm-8">
+										<input type="text" class="form-control" id="batWarnFile" name="batWarnFile"
+											maxlength="255" placeholder="/ESPuino/announcements/battery-low_de.mp3">
+									</div>
+								</div>
+								<div class="d-flex gap-2 ms-4">
+									<input type="checkbox" id="batWarnOnce" name="batWarnOnce" value="false">
+									<label for="batWarnOnce" data-i18n="general.battery.warnSoundOnce"></label>
+									<a class="link-secondary" data-bs-toggle="popover"
+										data-i18n="[data-bs-content]general.battery.warnSoundOnceExp" tabindex="0"><i
+											class="fas fa-circle-question"></i></a>
+								</div>
+							</fieldset>
+
 							<label for="voltageCheckInterval"
 								data-i18n="[prepend]general.battery.measureInterval">:</label>
 							<div class="slider-container mb-3">
@@ -4258,7 +4317,7 @@
 				<div class="col-md-12">
 					<legend data-i18n="ftp.start.title"></legend>
 					<div data-i18n="ftp.start.desc"></div>
-					
+
 					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="ftpModeBtn" onclick="ftpSetStatus(1)"
 							data-i18n="ftp.start.button"></button>
@@ -4290,7 +4349,7 @@
 				<div class="col-md-12">
 					<legend data-i18n="webdav.start.title"></legend>
 					<div data-i18n="webdav.start.desc"></div>
-					
+
 					<div class="text-center mt-3">
 						<button type="button" class="btn btn-primary" id="webdavModeBtn" onclick="webdavSetStatus(1)"
 							data-i18n="webdav.start.button"></button>
@@ -4453,69 +4512,63 @@
 					</div>
 				</div>
 			</div>
-			<div class="tab-pane fade" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
-			<div class="container" id="btConfig">
+			<!-- ### Tab Bluetooth ### -->
+		<div class="tab-pane fade" id="nav-bt" role="tabpanel" aria-labelledby="nav-bt-tab">
+			<div class="container mt-4" id="btModeConfig">
+				<div class="mb-3 col-md-12">
+					<legend data-i18n="bt.mode.title"></legend>
+					<div class="settings-group-card">
+						<div class="btn-group w-100 bt-mode-selector" role="group" aria-label="Bluetooth mode">
+							<button type="button" id="btModeOff" class="btn btn-outline-primary" onclick="setOperationMode(0)"><i class="fas fa-power-off"></i> <span data-i18n="bt.mode.off"></span></button>
+							<button type="button" id="btModeSource" class="btn btn-outline-primary" onclick="setOperationMode(2)"><i class="fas fa-headphones"></i> <span data-i18n="bt.mode.headphones"></span></button>
+							<button type="button" id="btModeSink" class="btn btn-outline-primary" onclick="setOperationMode(1)"><i class="fas fa-volume-up"></i> <span data-i18n="bt.mode.speaker"></span></button>
+						</div>
+						<div class="text-muted small mt-3"><i class="fas fa-rotate-right me-1"></i> <span data-i18n="bt.mode.restartNotice"></span></div>
+					</div>
+				</div>
+			</div>
+
+			<div class="container mt-5" id="btConfig" style="display:none;">
 				<form action="#btConfig" method="POST" onsubmit="btSettings('btConfig'); return false">
 					<div class="mb-3 col-md-12">
 						<legend data-i18n="bt.source.configtitle"></legend>
-						<div class="mb-3">
-						<label class="form-label" for="btDeviceName" data-i18n="[prepend]bt.device.title">:</label>
-						<input type="text" class="form-control" id="btDeviceName" data-i18n="[placeholder]bt.device.placeholder" name="btDeviceName" value="">
-					</div>
-					<div class="mb-3">
-						<label class="form-label" for="btPinCode" data-i18n="[prepend]bt.pincode.title">:</label>
-						<input type="text" class="form-control" id="btPinCode" data-i18n="[placeholder]bt.pincode.placeholder" name="btPinCode" value="">
-					</div>
-					</div>
-					<div class="mb-3 col-md-12">
-						<label class="form-label" data-i18n="bt.scan.title"></label>
-						<div class="d-grid gap-2 d-md-block">
-							<button type="button" class="btn btn-outline-primary" id="bt-scan-btn" onclick="startBtScan()"><i class="fas fa-search"></i> <span data-i18n="bt.scan.button"></span></button>
+						<div class="settings-group-card">
+							<div id="btConnectionStatus" class="d-flex align-items-center gap-2 mb-3 pb-3 border-bottom">
+								<span id="btConnectionDot" class="rounded-circle bg-secondary" style="width:14px;height:14px;flex:0 0 14px;"></span>
+								<span id="btConnectionText" class="text-muted" data-i18n="bt.connection.disconnected"></span>
+							</div>
+
+							<div class="row mb-3 align-items-center">
+								<div class="col-sm-4 d-flex align-items-center gap-2">
+									<label for="btDeviceName" class="col-form-label" data-i18n="bt.device.title"></label>
+									<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]bt.device.explanation" tabindex="0"><i class="fas fa-circle-question"></i></a>
+								</div>
+								<div class="col-sm-8">
+									<div class="input-group">
+										<input type="text" class="form-control" id="btDeviceName" data-i18n="[placeholder]bt.device.placeholder" name="btDeviceName" value="">
+										<button type="button" class="btn btn-outline-primary" id="bt-scan-btn" onclick="startBtScan()"><i class="fas fa-search"></i> <span data-i18n="bt.scan.button"></span></button>
+									</div>
+								</div>
+							</div>
+							<div class="row mb-3 align-items-center">
+								<div class="col-sm-4 d-flex align-items-center gap-2">
+									<label for="btPinCode" class="col-form-label" data-i18n="bt.pincode.title"></label>
+									<a class="link-secondary" data-bs-toggle="popover" data-i18n="[data-bs-content]bt.pincode.explanation" tabindex="0"><i class="fas fa-circle-question"></i></a>
+								</div>
+								<div class="col-sm-8"><input type="text" class="form-control" id="btPinCode" data-i18n="[placeholder]bt.pincode.placeholder" name="btPinCode" value=""></div>
+							</div>
+
+							<div id="bt-scan-results" class="mt-3 d-none">
+								<div id="bt-scan-list" class="bt-device-list"></div>
+							</div>
+
+							<div class="mt-3"><button type="submit" class="btn btn-primary" data-i18n="bt.saveButton"></button></div>
 						</div>
 					</div>
-					<div id="bt-scan-results" class="mt-3 d-none">
-						<table class="table table-sm table-striped table-hover">
-							<thead>
-								<tr>
-									<th>Name</th>
-									<th>Address</th>
-									<th>RSSI</th>
-									<th class="text-end">Action</th>
-								</tr>
-							</thead>
-							<tbody id="bt-scan-list"></tbody>
-						</table>
-					</div>
-					<div class="text-center">
-						<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
-					</div>
 				</form>
-				<hr>
-			</div>
-			<div class="container" id="btStartSource">
-				<div class="mb-3 col-md-12">
-					<legend data-i18n="bt.source.title"></legend>
-					<div data-i18n="bt.source.desc"></div>
-					
-					<div class="text-center mt-3">
-						<button type="button" class="btn btn-primary" id="btSourceModeBtn" onclick="setOperationMode(2)"
-							data-i18n="bt.source.button"></button>
-					</div>
-				</div>
-				<hr>
-			</div>
-			<div class="container" id="btStartSink">
-				<div class="mb-3 col-md-12">
-					<legend data-i18n="bt.sink.title"></legend>
-					<div data-i18n="bt.sink.desc"></div>
-					
-					<div class="text-center mt-3">
-						<button type="button" class="btn btn-primary" id="btSinkModeBtn" onclick="setOperationMode(1)"
-							data-i18n="bt.sink.button"></button>
-					</div>
-				</div>
 			</div>
 		</div>
+
 			</div>
 		</div>
 		<!-- ### Tab MediaHub ### -->
@@ -4615,7 +4668,7 @@
 					<label for="commandId" data-i18n="files.rfid.mod.title"></label>
 					<select class="form-control form-select" id="commandId" name="commandId"></select>
 				</div>
-				
+
 				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" onclick="executeCommand()"
 						data-i18n="execute"></button>
@@ -4672,7 +4725,7 @@
 					</div>
 				</div>
 				<div id="syncCurrent" class="small text-muted text-truncate mt-1">&nbsp;</div>
-				
+
 				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" id="syncRunBtn" onclick="startSync()"
 						data-i18n="sync.run.button"></button>
@@ -4687,7 +4740,7 @@
 			<div class="container" id="rfidSyncRunSection">
 				<legend data-i18n="sync.rfid.runTitle"></legend>
 				<div data-i18n="sync.rfid.runDesc"></div>
-				
+
 				<div class="text-center mt-3">
 					<button type="button" class="btn btn-primary" onclick="startRfidSync()"
 						data-i18n="sync.rfid.runBtn"></button>
@@ -4802,7 +4855,7 @@
 							class="label d-flex position-absolute flex-column align-self-center text-center w-100 text-nowrap text-light">
 						</div>
 					</div>
-					
+
 					<div class="text-center mt-3">
 						<button type="submit" class="btn btn-primary" data-i18n="submit"></button>
 					</div>
@@ -5793,6 +5846,22 @@
 								postData("http://" + host + "/exploreraudio?path=" + encodeURIComponent(node.data.path) + "&playmode=" + playMode);
 							}
 						};
+						/* Use as the spoken low-battery warning (files only) */
+						if (!node.data.directory && (/\.(mp3|m4a|wav|flac|ogg|opus|aac)$/i).test(node.data.path)) {
+							items.batWarnSound = {
+								label: () => i18next.t("files.context.useAsBatteryWarning"),
+								icon: "fas fa-battery-quarter",
+								action: function (x) {
+									// Mirrors what selecting a node does for an RFID assignment: drop the path into
+									// the field and jump to where it is configured, so it is obvious where it landed.
+									$('#batWarnFile').val(node.data.path);
+									$('#batWarnSound').prop('checked', true).trigger('change');
+									$('#nav-general-tab').tab('show');
+									$('#settings-power-subtab').tab('show');
+									toaster.info(i18next.t("files.context.useAsBatteryWarningDone"));
+								}
+							};
+						}
 						/* EQ profile for this file/folder (per-path equalizer) */
 						var eqSubmenu = {};
 						// Currently assigned EQ profile for this exact path (if any).
@@ -6077,27 +6146,29 @@
 			if (ico) ico.className = reveal ? 'fas fa-eye-slash' : 'fas fa-eye';
 		}
 
+		function setSettingsSectionActive(section, active) {
+			if (!section) return;
+			section.setAttribute('data-visible', !!active);
+			const fieldset = section.matches('fieldset') ? section : section.querySelector('fieldset');
+			if (fieldset) fieldset.disabled = !active;
+		}
+
 		function updateOperationModeIndicator(opmode) {
-			const btStartSource = document.getElementById('btStartSource');
-			const btStartSink = document.getElementById('btStartSink');
-
-			updateModeButton('btSinkModeBtn', opmode === 1, 'bt.sink.button', 'bt.sink.stopButton', 1);
-			updateModeButton('btSourceModeBtn', opmode === 2, 'bt.source.button', 'bt.source.stopButton', 2);
-
-			// OPMODE_NORMAL = 0, OPMODE_BLUETOOTH_SINK = 1, OPMODE_BLUETOOTH_SOURCE = 2
-			if (opmode === 0) {
-				// Normal mode - no active panel
-				btStartSource.classList.remove('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
-				btStartSink.classList.remove('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
-			} else if (opmode === 1) {
-				// Bluetooth Sink - highlight sink panel
-				btStartSource.classList.remove('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
-				btStartSink.classList.add('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
-			} else if (opmode === 2) {
-				// Bluetooth Source - highlight source panel
-				btStartSink.classList.remove('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
-				btStartSource.classList.add('border', 'border-primary', 'border-3', 'rounded', 'p-3', 'bg-body-secondary');
-			}
+			currentOpMode = Number(opmode);
+			const buttons = [
+				[document.getElementById('btModeOff'), 0],
+				[document.getElementById('btModeSink'), 1],
+				[document.getElementById('btModeSource'), 2]
+			];
+			buttons.forEach(([button, mode]) => {
+				if (!button) return;
+				button.classList.toggle('btn-primary', currentOpMode === mode);
+				button.classList.toggle('btn-outline-primary', currentOpMode !== mode);
+			});
+			const config = document.getElementById('btConfig');
+			if (config) config.style.display = currentOpMode === 2 ? '' : 'none';
+			if (currentOpMode === 2) refreshBtConnectionStatus();
+			opmode = currentOpMode;
 
 			const btTab = document.getElementById('nav-bt-tab');
 			if (btTab) {
@@ -6148,6 +6219,52 @@
 			}, 5000);
 		}
 
+		let btConnectionState = { connected: false, name: '', address: '' };
+
+		function renderBtConnectionStatus() {
+			const dot = document.getElementById('btConnectionDot');
+			const text = document.getElementById('btConnectionText');
+			if (!dot || !text) return;
+			text.removeAttribute('data-i18n');
+			if (btConnectionState.connected) {
+				dot.classList.remove('bg-secondary');
+				dot.classList.add('bg-success');
+				text.classList.remove('text-muted');
+				text.classList.add('text-success');
+				const name = (btConnectionState.name || '').trim();
+				const address = (btConnectionState.address || '').trim();
+				let label = name || address || '---';
+				if (name && address && name.toUpperCase() !== address.toUpperCase()) {
+					label = `${name} (${address})`;
+				}
+				text.textContent = i18next.t('bt.connection.connected', { device: label });
+			} else {
+				dot.classList.remove('bg-success');
+				dot.classList.add('bg-secondary');
+				text.classList.remove('text-success');
+				text.classList.add('text-muted');
+				text.textContent = i18next.t('bt.connection.disconnected');
+			}
+		}
+
+		async function refreshBtConnectionStatus() {
+			if (currentOpMode !== 2) return;
+			try {
+				const response = await fetch('/bluetoothstatus', { cache: 'no-store' });
+				if (!response.ok) return;
+				const status = await response.json();
+				btConnectionState = {
+					connected: !!status.connected,
+					name: status.name || '',
+					address: status.address || ''
+				};
+				renderBtConnectionStatus();
+			} catch (error) {
+				console.debug('Bluetooth status unavailable:', error);
+			}
+		}
+
+
 		function connect() {
 			if (socket && (socket.readyState === 0 || socket.readyState === 1)) return;
 			clearTimeout(reconnectTimer);
@@ -6170,6 +6287,7 @@
 				ws.send('{"trackinfo":{"trackinfo":"trackinfo"}}'); // get trackinfo
 				ws.send('{"coverimg":{"coverimg":"coverimg"}}'); // get cover image
 				refreshVersionBadge(0); // update the navbar firmware-version badge
+				refreshBtConnectionStatus();
 			};
 			ws.onclose = function (e) {
 				if (socket !== ws) return;
@@ -6350,6 +6468,16 @@
 			};
 		}
 
+		document.getElementById('nav-bt-tab').addEventListener('shown.bs.tab', function () {
+			refreshBtConnectionStatus();
+		});
+
+		setInterval(function () {
+			if (currentOpMode === 2 && document.getElementById('nav-bt')?.classList.contains('active')) {
+				refreshBtConnectionStatus();
+			}
+		}, 3000);
+
 		function getHexColor(number) {
 			return "#" + ('000000' + ((number) >>> 0).toString(16)).slice(-6);
 		}
@@ -6424,23 +6552,48 @@
 					list.empty();
 					if (devices.length > 0) {
 						devices.forEach(dev => {
-							const safeAddress = escapeHtml(dev.address);
-							const displayName = (dev.name && dev.name !== 'Unknown') ? escapeHtml(dev.name) : `<i>Device ${safeAddress}</i>`;
-							const row = $(`<tr>
-								<td>${displayName}</td>
-								<td><code>${safeAddress}</code></td>
-								<td>${dev.rssi} dBm</td>
-								<td class="text-end">
-									<button class="btn btn-sm btn-success bt-scan-save" title="${i18next.t('bt.scan.save')}"><i class="fas fa-save"></i></button>
-									<button class="btn btn-sm btn-primary bt-scan-connect">${i18next.t('bt.scan.connect')}</button>
-								</td>
-							</tr>`);
-							row.find('.bt-scan-save').on('click', function () { saveBtDevice(dev.name, dev.address); });
-							row.find('.bt-scan-connect').on('click', function () { connectBt(dev.address); });
-							list.append(row);
+							const rawName = String(dev.name ?? '');
+							const realName = rawName && rawName !== 'Unknown' && rawName !== 'Connected Device' ? rawName : '';
+							const displayName = realName || i18next.t('bt.scan.unknownDevice');
+							const address = String(dev.address ?? '');
+
+							// Build the result row as DOM nodes instead of interpolating device data into
+							// HTML/onclick strings. Bluetooth names are untrusted input and may contain
+							// quotes or JavaScript syntax. text() and event handlers keep data as data.
+							const item = $('<div>', {
+								class: 'bt-device-item d-flex align-items-center gap-3 py-3 border-bottom'
+							});
+							const main = $('<div>', { class: 'bt-device-main' });
+							main.append($('<div>', { class: 'bt-device-name fw-semibold', text: displayName }));
+
+							const details = $('<div>', { class: 'small text-muted bt-device-address' });
+							details.append($('<code>').text(address));
+							details.append(document.createTextNode(` · ${dev.rssi ?? ''} dBm`));
+							main.append(details);
+
+							const actions = $('<div>', { class: 'bt-device-actions d-flex gap-2' });
+							const saveButton = $('<button>', {
+								type: 'button',
+								class: 'btn btn-sm btn-success',
+								title: i18next.t('bt.scan.save')
+							}).append($('<i>', { class: 'fas fa-save' }));
+							saveButton.on('click', () => saveBtDevice(realName, address));
+
+							const connectButton = $('<button>', {
+								type: 'button',
+								class: 'btn btn-sm btn-primary',
+								text: i18next.t('bt.scan.connect')
+							});
+							connectButton.on('click', () => connectBt(address));
+
+							actions.append(saveButton, connectButton);
+							item.append(main, actions);
+							list.append(item);
 						});
 					} else {
-						list.append('<tr><td colspan="4" class="text-center text-muted"><i>' + i18next.t('bt.scan.noDevices') + '</i></td></tr>');
+						const empty = $('<div>', { class: 'text-center text-muted py-3' });
+						empty.append($('<i>').text(i18next.t('bt.scan.noDevices')));
+						list.append(empty);
 					}
 					container.removeClass('d-none');
 				})
@@ -6448,15 +6601,16 @@
 		}
 
 		function saveBtDevice(name, address) {
-			// Prefer name if available, otherwise use address for better reliability
-			const identifier = (name && name !== 'Unknown') ? name : address;
+			const identifier = name || address;
 			document.getElementById('btDeviceName').value = identifier;
 			btSettings('btConfig');
 		}
 
 		function connectBt(address) {
 			postData('/bluetoothconnect', null, JSON.stringify({ address: address }));
-			toaster.info("Connecting to " + address + "...");
+			toaster.info(i18next.t('bt.scan.connecting', { device: address }));
+			setTimeout(refreshBtConnectionStatus, 1000);
+			setTimeout(refreshBtConnectionStatus, 3000);
 		}
 
 		// Auto-save for the General + Buttons settings tabs (no submit button needed). Debounced,
@@ -6616,6 +6770,7 @@
 					$('#blockWebPlayTag').prop('checked', genSettings.blockWebPlayTag);
 				}
 				$('#pauseOnMinVolume').prop('checked', genSettings.pauseOnMinVol);
+				$('#nightVolumeLimit').prop('checked', genSettings.nightVolLimit);
 				$('#recoverVolBoot').prop('checked', genSettings.recoverVolBoot);
 				$('#noSleepWhenPowered').prop('checked', genSettings.noSleepWhenPowered);
 				$('#noSleepWhenPoweredWarn').toggleClass('d-none', !genSettings.noSleepWhenPowered);
@@ -6696,6 +6851,7 @@
 				$('#led_satAtmo').bootstrapSlider('setValue', ledSettings.satAtmo);
 				document.getElementById('led_dimStates').value = ledSettings.dimStates;
 				$('#led_offsetPause').prop('checked', ledSettings.offsetPause);
+				$('#led_rfidFlash').prop('checked', ledSettings.rfidFlash);
 				$('#led_reverseRotation').prop('checked', ledSettings.reverseRot);
 				document.getElementById('led_offsetStart').value = ledSettings.offsetStart;
 			}
@@ -6814,6 +6970,10 @@
 				} else {
 					document.getElementById('criticalVoltageSection').setAttribute('data-visible', false);
 				}
+				$('#batWarnSound').prop('checked', batSettings.warnSound);
+				$('#batWarnOnce').prop('checked', batSettings.warnSoundOnce);
+				$('#batWarnFile').val(batSettings.warnSoundFile);
+				setSettingsSectionActive(document.getElementById('batWarnSoundSection'), batSettings.warnSound);
 				$('#voltageCheckInterval').bootstrapSlider('setValue', batSettings.voltageCheckInterval);
 			}
 			// ftp
@@ -7558,6 +7718,7 @@
 					dontAcceptRfidTwice: $('#dontAcceptRfidTwice').prop('checked'),
 					blockWebPlayTag: $('#blockWebPlayTag').prop('checked'),
 					pauseOnMinVol: $('#pauseOnMinVolume').prop('checked'),
+					nightVolLimit: $('#nightVolumeLimit').prop('checked'),
 					recoverVolBoot: $('#recoverVolBoot').prop('checked'),
 					noSleepWhenPowered: $('#noSleepWhenPowered').prop('checked'),
 					poweredVoltage: Number($('#poweredVoltage').val()),
@@ -7590,6 +7751,7 @@
 					satAtmo: Number($('#led_satAtmo').val()),
 					dimStates: Number(document.getElementById("led_dimStates").value),
 					offsetPause: $('#led_offsetPause').prop('checked'),
+					rfidFlash: $('#led_rfidFlash').prop('checked'),
 					reverseRot: $('#led_reverseRotation').prop('checked'),
 					offsetStart: Number(document.getElementById("led_offsetStart").value),
 				},
@@ -7631,6 +7793,9 @@
 					criticalVoltage: Number($('#criticalVoltage').val()),
 					offsetVoltage: Number($('#offsetVoltage').val()),
 					shutdownOnCritical: $('#shutdownOnCritical').prop('checked'),
+					warnSound: $('#batWarnSound').prop('checked'),
+					warnSoundOnce: $('#batWarnOnce').prop('checked'),
+					warnSoundFile: $('#batWarnFile').val(),
 					voltageCheckInterval: Number($('#voltageCheckInterval').val())
 				},
 				"playlist": {
@@ -8173,7 +8338,7 @@
 			if (duration > 0 && remaining > 0) {
 				btn.classList.add('active-magenta');
 				sleepTimerRemaining = remaining;
-				
+
 				clearInterval(sleepTimerRemainingInterval);
 				updateSleepTimerLabel();
 				sleepTimerRemainingInterval = setInterval(function() {
@@ -8195,7 +8360,7 @@
 		function updateSleepTimerLabel() {
 			const lbl = document.getElementById('lbl-sleep-timer');
 			if (!lbl) return;
-			
+
 			const mins = Math.floor(sleepTimerRemaining / 60);
 			const secs = sleepTimerRemaining % 60;
 			const timeStr = mins + ":" + (secs < 10 ? "0" : "") + secs;
@@ -8474,7 +8639,7 @@
 			}).catch(error => {
 				console.log('Device restarting, connection lost (expected):', error);
 			});
-			
+
 			// Start redirecting mechanism only after the request has been sent
 			tryRedirect();
 		}
@@ -10065,6 +10230,10 @@
 				}
 			});
 
+			/* The spoken low-battery warning gates its own file/repeat settings. */
+			$('#batWarnSound').on('change', function () {
+				setSettingsSectionActive(document.getElementById('batWarnSoundSection'), $(this).prop('checked'));
+			});
 			$('#pauseIfRfidRemoved').on('change', function () {
 				const dontAcceptRfidTwice = $('#dontAcceptRfidTwice');
 				const stopIfRfidRemoved = $('#stopIfRfidRemoved');

@@ -123,7 +123,7 @@
 			current: { volume: DEMO_VOLUME, rfidTagId: "0009094506" },
 			general: {
 				initVolume: 3, minVolume: 0, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10, jumpOffset: 30, rotSeekStep: 10,
-				playMono: false, savePosShutdown: false, savePosRfidChge: false,
+				playMono: false, nightVolLimit: false, savePosShutdown: false, savePosRfidChge: false,
 				savePosPeriodic: true, restartFreshHrs: 24, minResumeSec: 20, shortTrackSec: 300, seekStep: 300, sleepFadeSec: 30, dailyLimitMin: 90, playLastRfidOnReboot: false, pauseIfRfidRemoved: false,
 				stopIfRfidRemoved: false,
 				// Use PN5180 in the demo so reader-specific settings visibly hide the unrelated MFRC522 controls.
@@ -137,7 +137,7 @@
 			led: {
 				initBrightness: 16, nightBrightness: 2, atmoBrightness: 30, numIndicator: 24,
 				numControl: 0, controlLedsEnabled: true, numIdleDots: 4, idleColor: 16777215,
-				idleAnimation: 0, offsetPause: false, progColorStart: 65280, progColorEnd: 16711680,
+				idleAnimation: 0, offsetPause: false, rfidFlash: false, progColorStart: 65280, progColorEnd: 16711680,
 				hueAtmo: 0, satAtmo: 255, dimStates: 3, reverseRot: false, offsetStart: 0
 			},
 			oled: {
@@ -157,7 +157,7 @@
 			})(),
 			rotary: { reverse: false, seekPrevDelay: 2000, seekPrevSweep: 40 },
 			playlist: { sortMode: 0, recDepth: 2 },
-			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, offsetVoltage: 0, shutdownOnCritical: false, voltageCheckInterval: 10 },
+			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, offsetVoltage: 0, shutdownOnCritical: false, warnSound: false, warnSoundOnce: false, warnSoundFile: "", voltageCheckInterval: 10 },
 			ftp: { username: "esp32", password: "esp32", maxUserLength: 31, maxPwdLength: 31, enable: false },
 			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
 			sync: { url: "", username: "", password: "", abortOnButton: true, deleteRemoved: false, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
@@ -211,6 +211,19 @@
 		return { status: status || 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(obj) };
 	}
 
+	var DEMO_MODE = 0;
+	var DEMO_BT_PEER = null;
+	var DEMO_BT_DEVICES = [{ name: "Demo Headphones", address: "02:00:00:00:00:01", rssi: -42 }];
+	var demoSocket = null;
+	// Mode switches in the demo update the preview without the real device's restart flow.
+	document.addEventListener("DOMContentLoaded", function () {
+		window.setOperationMode = async function (mode) {
+			DEMO_MODE = Number(mode);
+			DEMO_BT_PEER = null;
+			if (demoSocket) demoSocket._emit({ opmode: DEMO_MODE });
+		};
+	});
+
 	var MEDIAHUB_SERVERS = [{ name: "MediaHub", hostPort: "mediahub.local:8080", https: false }];
 
 	function route(method, rawUrl, requestBody) {
@@ -237,6 +250,16 @@
 				MEDIAHUB_SERVERS.push({ name: server.name, hostPort: server.hostPort, https: !!server.https });
 			}
 			return jsonResp({ status: "ok" });
+		}
+
+		if (p === "/bluetoothscan") {
+			setTimeout(function () { if (demoSocket) demoSocket._emit({ bt_scan: "complete" }); }, 300);
+			return jsonResp({ status: "ok", demo: true });
+		}
+		if (p === "/bluetoothconnect" && method === "POST") {
+			var target = typeof requestBody === "string" ? JSON.parse(requestBody) : requestBody;
+			DEMO_BT_PEER = DEMO_BT_DEVICES.find(function (device) { return device.address === (target || {}).address; }) || null;
+			return jsonResp({ status: "ok", demo: true });
 		}
 
 		// Read endpoints
@@ -311,7 +334,8 @@
 			if (p === "/homekit") { return jsonResp({ enabled: true, active: true, paired: false, code: "031-45-154", deviceName: "Leo Industries AT-1", tvName: "AT-1 TV" }); }
 			// password status: the device never echoes the password back (write-only field)
 			if (p === "/security") { return jsonResp({ enabled: false, cookieDays: 90 }); }
-			if (p === "/bluetoothresults") { return jsonResp([]); }
+			if (p === "/bluetoothstatus") { return jsonResp(DEMO_MODE === 2 && DEMO_BT_PEER ? { connected: true, name: DEMO_BT_PEER.name, address: DEMO_BT_PEER.address } : { connected: false }); }
+			if (p === "/bluetoothresults") { return jsonResp(DEMO_MODE === 2 ? DEMO_BT_DEVICES : []); }
 			if (p === "/settings") {
 				var section = qs.get("section");
 				if (section === "defaults") { return jsonResp({ defaults: buildSettings() }); }
@@ -346,7 +370,7 @@
 					"# 2 to download, 2 to delete, 1305 total (demo sample)"
 				].join("\n") + "\n" };
 			}
-			if (p === "/mode") { return jsonResp({ mode: 0 }); }
+			if (p === "/mode") { return jsonResp({ mode: DEMO_MODE }); }
 			if (p === "/activeequalizer") { return jsonResp({ gainLowPass: 0, gainBandPass: 0, gainHighPass: 0 }); }
 			// now-playing detail for the info dialog (built from the now-playing fixture)
 			if (p === "/currenttrack") {
@@ -570,6 +594,7 @@
 	// WebSocket override
 	// ---------------------------------------------------------------
 	function MockWebSocket(url) {
+		demoSocket = this;
 		var self = this;
 		this.url = url;
 		this.readyState = 0; // CONNECTING
@@ -582,7 +607,7 @@
 			self.readyState = 1; // OPEN
 			if (typeof self.onopen === "function") { self.onopen({ type: "open" }); }
 			// Proactively push the indicators the firmware would stream.
-			self._emit({ opmode: 0 });
+			self._emit({ opmode: DEMO_MODE });
 			self._emit({ volume: DEMO_VOLUME });
 			self._emit({ rssi: -58 });
 			self._emit({ battery: { level: 78, voltage: 3.94 } });

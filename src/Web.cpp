@@ -120,6 +120,7 @@ static void handleGetWiFiConfig(AsyncWebServerRequest *request);
 static void handlePostWiFiConfig(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleCoverImageRequest(AsyncWebServerRequest *request);
 static void handleBluetoothScanRequest(AsyncWebServerRequest *request);
+static void handleBluetoothStatusRequest(AsyncWebServerRequest *request);
 static void handleBluetoothResultsRequest(AsyncWebServerRequest *request);
 static void handleBluetoothConnectRequest(AsyncWebServerRequest *request, JsonVariant &json);
 static void handleWiFiScanRequest(AsyncWebServerRequest *request);
@@ -1224,6 +1225,7 @@ void webserverStart(void) {
 		// Bluetooth-Scan and connect
 		wServer.on("/bluetoothscan", HTTP_GET, handleBluetoothScanRequest);
 		wServer.on("/bluetoothresults", HTTP_GET, handleBluetoothResultsRequest);
+		wServer.on("/bluetoothstatus", HTTP_GET, handleBluetoothStatusRequest);
 		wServer.addHandler(new AsyncCallbackJsonWebHandler("/bluetoothconnect", handleBluetoothConnectRequest));
 
 		// ESPuino logo: user-provided SD override takes precedence, otherwise fall back to the default
@@ -1406,6 +1408,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 		success = success && (gPrefsSettings.putBool("p2pSameRfid", generalObj["resumeOnSameRfid"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("pauseOnMinVol", generalObj["pauseOnMinVol"].as<bool>()) != 0);
+		success = success && (gPrefsSettings.putBool("nightVolLimit", generalObj["nightVolLimit"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putBool("recoverVolBoot", generalObj["recoverVolBoot"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUChar("volumeCurve", generalObj["volumeCurve"].as<uint8_t>()) != 0);
 		AudioPlayer_SetVolumeCurve(generalObj["volumeCurve"].as<uint8_t>()); // refresh the audio-task cache without a reboot
@@ -1450,6 +1453,10 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			return WebsocketCodeType::Error;
 		}
 		AudioPlayer_ApplyMaxVolumes(maxVolumeSp, maxVolumeHp);
+		// Takes effect the next time night mode is switched on; an already running night mode keeps the
+		// ceiling it was armed with (or none), so the setting never changes the limit under way.
+		AudioPlayer_SetNightVolumeLimitEnabled(generalObj["nightVolLimit"].as<bool>());
+
 		gPlayProperties.newPlayMono = generalObj["playMono"].as<bool>();
 		gPlayProperties.SavePlayPosRfidChange = generalObj["savePosRfidChge"].as<bool>();
 		AudioPlayer_SetSavePosPeriodic(generalObj["savePosPeriodic"].as<bool>());
@@ -1517,6 +1524,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		success = success && (gPrefsSettings.putBool("offsetPause", ledObj["offsetPause"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putUInt("progColorStart", ledObj["progColorStart"].as<uint32_t>()) != 0);
 		success = success && (gPrefsSettings.putUInt("progColorEnd", ledObj["progColorEnd"].as<uint32_t>()) != 0);
+		success = success && (gPrefsSettings.putBool("ledRfidFlash", ledObj["rfidFlash"].as<bool>()) != 0);
 		success = success && (gPrefsSettings.putShort("hueAtmo", ledObj["hueAtmo"].as<int16_t>()) != 0);
 		success = success && (gPrefsSettings.putShort("satAtmo", ledObj["satAtmo"].as<int16_t>()) != 0);
 		success = success && (gPrefsSettings.putUChar("dimStates", ledObj["dimStates"].as<uint8_t>()) != 0);
@@ -1706,6 +1714,12 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "battery");
 			return WebsocketCodeType::Error;
 		}
+		// Kept out of the "== 0 means failure" chain above: putString() returns strlen(), so clearing the
+		// path to "" would be misread as an error even though the write succeeded.
+		gPrefsSettings.putBool("batWarnSound", doc["battery"]["warnSound"].as<bool>());
+		gPrefsSettings.putBool("batWarnOnce", doc["battery"]["warnSoundOnce"].as<bool>());
+		const char *warnSoundFile = doc["battery"]["warnSoundFile"].as<const char *>();
+		gPrefsSettings.putString("batWarnFile", warnSoundFile ? warnSoundFile : "");
 		Battery_Init();
 	}
 	if (doc["playlist"].is<JsonObject>()) {
@@ -2365,7 +2379,7 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 		object["pong"] = "pong";
 		object["rssi"] = Wlan_GetRssi();
 		object["controlsLocked"] = System_AreControlsLocked();
-		object["nightMode"] = Led_GetNightmode();
+		object["nightMode"] = System_GetNightmode();
 		object["repeatMode"] = AudioPlayer_GetRepeatMode();
 		object["sleepTimerDuration"] = System_GetSleepTimer();
 		object["sleepTimerRemaining"] = System_GetSleepTimerRemainingSeconds();
@@ -2399,7 +2413,7 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 		entry["posPercent"] = gPlayProperties.currentRelPos;
 		entry["playMode"] = gPlayProperties.playMode;
 		entry["controlsLocked"] = System_AreControlsLocked();
-		entry["nightMode"] = Led_GetNightmode();
+		entry["nightMode"] = System_GetNightmode();
 		entry["repeatMode"] = AudioPlayer_GetRepeatMode();
 		entry["sleepTimerDuration"] = System_GetSleepTimer();
 		entry["sleepTimerRemaining"] = System_GetSleepTimerRemainingSeconds();
@@ -2988,6 +3002,35 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 	});
 	response->addHeader("Cache-Control", "no-cache, must-revalidate");
 	request->send(response);
+}
+
+// Returns the current Bluetooth headphone connection state.
+// This is intentionally a normal HTTP endpoint so opening/reloading the web UI
+// does not depend on having witnessed the A2DP connection event via websocket.
+static void handleBluetoothStatusRequest(AsyncWebServerRequest *request) {
+#ifdef BLUETOOTH_ENABLE
+	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	JsonObject object = response->getRoot();
+
+	String name;
+	String address;
+	const bool connected = Bluetooth_GetConnectedSourceInfo(name, address);
+	object["connected"] = connected;
+
+	if (connected) {
+		if (address.length() > 0) {
+			object["address"] = address;
+		}
+		if (name.length() > 0) {
+			object["name"] = name;
+		}
+	}
+
+	response->setLength();
+	request->send(response);
+#else
+	request->send(200, "application/json", "{\"connected\":false}");
+#endif
 }
 
 // Handles Bluetooth scan requests

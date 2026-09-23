@@ -55,6 +55,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		generalObj["sleepInactivity"].set(gPrefsSettings.getUInt("mInactiviyT", 10));
 		generalObj["rotSeekStep"].set(gPrefsSettings.getUChar("rotSeekStep", SEEK_STEP_ROTARY_DEFAULT));
 		generalObj["jumpOffset"].set(gPrefsSettings.getUChar("jumpOffset", SEEK_STEP_BUTTON_DEFAULT));
+		generalObj["nightVolLimit"].set(gPrefsSettings.getBool("nightVolLimit", false));
 		generalObj["playMono"].set(gPrefsSettings.getBool("playMono", false));
 		generalObj["savePosShutdown"].set(gPrefsSettings.getBool("savePosShutdown", false)); // SAVE_PLAYPOS_BEFORE_SHUTDOWN
 		generalObj["savePosRfidChge"].set(gPrefsSettings.getBool("savePosRfidChge", false)); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
@@ -119,6 +120,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		// LED settings
 		JsonObject ledObj = obj["led"].to<JsonObject>();
 		ledObj["initBrightness"].set(gPrefsSettings.getUChar("iLedBrightness", 0));
+		ledObj["rfidFlash"].set(gPrefsSettings.getBool("ledRfidFlash", false));
 		ledObj["nightBrightness"].set(gPrefsSettings.getUChar("nLedBrightness", 0));
 		ledObj["atmoBrightness"].set(gPrefsSettings.getUChar("aLedBrightness", 0));
 		ledObj["numIndicator"].set(gPrefsSettings.getUChar("numIndicator", NUM_INDICATOR_LEDS));
@@ -264,6 +266,9 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		batteryObj["shutdownOnCritical"].set(gPrefsSettings.getBool("shutdownBatCrit", false)); // shutdown when battery is critical (runtime toggle)
 	#endif
 
+		batteryObj["warnSound"].set(gPrefsSettings.getBool("batWarnSound", false));
+		batteryObj["warnSoundOnce"].set(gPrefsSettings.getBool("batWarnOnce", false));
+		batteryObj["warnSoundFile"].set(gPrefsSettings.getString("batWarnFile", ""));
 		batteryObj["voltageCheckInterval"].set(gPrefsSettings.getUInt("vCheckIntv", s_batteryCheckInterval));
 	}
 #endif
@@ -278,6 +283,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		genSettings["sleepInactivity"].set(10u); // System_MaxInactivityTime
 		genSettings["rotSeekStep"].set(SEEK_STEP_ROTARY_DEFAULT);
 		genSettings["jumpOffset"].set(SEEK_STEP_BUTTON_DEFAULT);
+		genSettings["nightVolLimit"].set(false);
 		genSettings["playMono"].set(false); // PLAY_MONO_SPEAKER
 		genSettings["savePosShutdown"].set(false); // SAVE_PLAYPOS_BEFORE_SHUTDOWN
 		genSettings["savePosRfidChge"].set(false); // SAVE_PLAYPOS_WHEN_RFID_CHANGE
@@ -310,6 +316,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 #ifdef NEOPIXEL_ENABLE
 		JsonObject ledSettings = defaultsObj["led"].to<JsonObject>();
 		ledSettings["initBrightness"].set(16u); // LED_INITIAL_BRIGHTNESS
+		ledSettings["rfidFlash"].set(false);
 		ledSettings["nightBrightness"].set(2u); // LED_INITIAL_NIGHT_BRIGHTNESS
 		ledSettings["atmoBrightness"].set(30u); // LED_INITIAL_NIGHT_BRIGHTNESS
 		ledSettings["numIndicator"].set(NUM_INDICATOR_LEDS); // NUM_INDICATOR_LEDS
@@ -411,6 +418,9 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		batSettings["criticalVoltage"].set(s_warningCriticalVoltage);
 		batSettings["shutdownOnCritical"].set(false);
 	#endif
+		batSettings["warnSound"].set(false);
+		batSettings["warnSoundOnce"].set(false);
+		batSettings["warnSoundFile"].set("");
 		batSettings["voltageCheckInterval"].set(s_batteryCheckInterval);
 #endif
 	}

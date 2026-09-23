@@ -164,7 +164,9 @@
 			"dimmablestatesExp": "Number of intermediate steps per LED, used to make transitions (e.g. volume or progress indicator) smoother/finer.",
 			"offsetExp": "Shifts the first LED of the indicator by this many positions - useful if the LED ring shouldn't start at position 0.",
 			"offsetpauseExp": "Offsets the pause indicator by half an LED spacing compared to the normal idle indicator, so pause is visually distinguishable from idle.",
-			"reverserotationExp": "Reverses the direction the LED indicator runs in, e.g. for rings mounted counter-clockwise instead of clockwise."
+			"reverserotationExp": "Reverses the direction the LED indicator runs in, e.g. for rings mounted counter-clockwise instead of clockwise.",
+			"rfidflash": "Briefly flash all LEDs when a tag is recognized",
+			"rfidflashExp": "Acknowledges an assigned RFID tag with a brief green flash, so you can see that the tag was accepted. An unknown tag is still acknowledged in red."
 		},
 		"oled": {
 			"title": "OLED display",
@@ -506,7 +508,9 @@
 			"rfidManage": "RFID card",
 			"rfidLearnNew": "Learn another card",
 			"rfidNoCard": "Place an RFID card first",
-			"rfidRemove": "Remove RFID assignment"
+			"rfidRemove": "Remove RFID assignment",
+			"useAsBatteryWarning": "Use as battery warning",
+			"useAsBatteryWarningDone": "Set as the battery warning"
 		},
 		"files": {
 			"title": "Files",
@@ -888,7 +892,9 @@
 			"save": "Save Device",
 			"inProgress": "Scanning for devices...",
 			"noDevices": "No Bluetooth devices found",
-			"notAllowed": "Bluetooth device scan not allowed in current mode. Please switch to Bluetooth headphone mode first."
+			"notAllowed": "Bluetooth device scan not allowed in current mode. Please switch to Bluetooth headphone mode first.",
+			"unknownDevice": "Unknown device",
+			"connecting": "Connecting to {{device}}..."
 		},
 		"device": {
 			"title": "Bluetooth device (headphone)",
@@ -911,6 +917,17 @@
 			"desc": "Returns to normal mode with WiFi functionality. Music from SD card and web streams can be played.",
 			"button": "Exit Bluetooth Mode",
 			"indicator": "WiFi Mode (RSSI: {{rssi}} dBm)"
+		},
+		"mode": {
+			"title": "Bluetooth mode",
+			"off": "Off",
+			"headphones": "Headphones",
+			"speaker": "Speaker",
+			"restartNotice": "Selecting a different mode restarts ESPuino."
+		},
+		"connection": {
+			"connected": "Connected to: {{device}}",
+			"disconnected": "Not connected"
 		}
 	},
 	"general": {
@@ -1020,7 +1037,9 @@
 			"resumeOnSameRfidExp": "If playback is paused and the same RFID tag is placed again, playback continues. Only effective if <em>Don't accept the same RFID twice</em> is enabled.",
 			"savePlayPosInterval": "Auto-save playback position for long audio books every",
 			"savePlayPosIntervalSecs": "seconds",
-			"savePlayPosIntervalExp": "Periodically saves the playback position of long audio books (files of 5 minutes or more) to flash while playing, so a sudden power loss (dead battery, unplugged, crash) only rewinds by up to the set number of seconds instead of restarting the file. Only applies to audio-book playmodes; short or split tracks already save at each track boundary. A shorter interval writes to flash more often, so 30-60 seconds is recommended; going much lower gains little and wears the flash faster."
+			"savePlayPosIntervalExp": "Periodically saves the playback position of long audio books (files of 5 minutes or more) to flash while playing, so a sudden power loss (dead battery, unplugged, crash) only rewinds by up to the set number of seconds instead of restarting the file. Only applies to audio-book playmodes; short or split tracks already save at each track boundary. A shorter interval writes to flash more often, so 30-60 seconds is recommended; going much lower gains little and wears the flash faster.",
+			"nightVolumeLimit": "Limit volume in night mode",
+			"nightVolumeLimitExp": "When night mode is switched on, the volume currently set becomes a temporary upper limit (plus one step of headroom) – handy when ESPuino is taken to bed. The limit is lifted again when night mode ends."
 		},
 		"neopixel": {
 			"title": "Neopixel (brightness)",
@@ -1051,7 +1070,13 @@
 			"measureIntervalExp": "Time interval in minutes at which the battery voltage is measured.",
 			"shutdownOnCriticalExp": "Automatically shuts ESPuino down once the battery voltage drops below the critical threshold set below. Can help protect the battery from deep discharge to some extent, but does not replace a battery management system! Recommended values are: LFP: 2.7 V, LiPo: 3.0 V.",
 			"offset": "Correction value for the measured battery voltage (in volt, ± in hundredths)",
-			"offsetExp": "Fine-correction of the measured battery voltage. If the displayed voltage differs from a multimeter reading, enter the difference here (positive or negative). Default for the Complete: -0.04 V."
+			"offsetExp": "Fine-correction of the measured battery voltage. If the displayed voltage differs from a multimeter reading, enter the difference here (positive or negative). Default for the Complete: -0.04 V.",
+			"warnSound": "Announce a low battery",
+			"warnSoundExp": "Plays an audio file from the SD card when the battery runs low – playback is briefly interrupted and then resumes at exactly the same spot. Useful because the blinking LEDs are easily missed while listening, and by children in any case.",
+			"warnSoundFile": "Announcement file",
+			"warnSoundFileExp": "Path to the audio file on the SD card. The easiest way to pick it is a right-click in the file browser, \"Use as battery warning\". If the file is missing, nothing is interrupted and only an error is logged.",
+			"warnSoundOnce": "Announce only once",
+			"warnSoundOnceExp": "Without this option the announcement is repeated at every measurement while the battery stays below the warning threshold – so at the rate of the configured measurement interval. With this option it is announced only once, and is played again only after the voltage has risen above the warning threshold and then drops below it once more."
 		},
 		"playlist": {
 			"title": "Playlist",

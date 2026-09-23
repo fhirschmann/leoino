@@ -164,7 +164,9 @@
 			"dimmablestatesExp": "Anzahl der Zwischenschritte pro LED, mit denen Übergänge (z.B. Lautstärke- oder Fortschrittsanzeige) feiner/weicher dargestellt werden.",
 			"offsetExp": "Verschiebt die erste LED der Anzeige um die angegebene Anzahl Positionen - nützlich, wenn der LED-Ring nicht bei Position 0 beginnen soll.",
 			"offsetpauseExp": "Versetzt die Pause-Anzeige um einen halben LED-Abstand gegenüber der normalen Ruhezustand-Anzeige, damit Pause optisch von Idle unterscheidbar ist.",
-			"reverserotationExp": "Kehrt die Laufrichtung der LED-Anzeige um, z.B. für Ringe, die gegen den Uhrzeigersinn statt im Uhrzeigersinn montiert sind."
+			"reverserotationExp": "Kehrt die Laufrichtung der LED-Anzeige um, z.B. für Ringe, die gegen den Uhrzeigersinn statt im Uhrzeigersinn montiert sind.",
+			"rfidflash": "Kurzes Aufleuchten aller LEDs bei erkannter Karte",
+			"rfidflashExp": "Quittiert eine zugewiesene RFID-Karte mit einem kurzen grünen Aufleuchten – so siehst du, dass die Karte angenommen wurde. Eine unbekannte Karte wird weiterhin rot quittiert."
 		},
 		"oled": {
 			"title": "OLED-Display",
@@ -506,7 +508,9 @@
 			"rfidManage": "RFID-Karte",
 			"rfidLearnNew": "Weitere Karte anlernen",
 			"rfidNoCard": "Erst RFID-Karte auflegen",
-			"rfidRemove": "RFID-Zuweisung entfernen"
+			"rfidRemove": "RFID-Zuweisung entfernen",
+			"useAsBatteryWarning": "Als Akku-Warnung festlegen",
+			"useAsBatteryWarningDone": "Als Akku-Warnung übernommen"
 		},
 		"files": {
 			"title": "Dateien",
@@ -888,7 +892,9 @@
 			"save": "Gerät speichern",
 			"inProgress": "Suche nach Geräten...",
 			"noDevices": "Keine Bluetooth-Geräte gefunden",
-			"notAllowed": "Scan im aktuellen Modus nicht erlaubt. Bitte wechseln Sie zum Bluetooth-Kopfhörer-Modus."
+			"notAllowed": "Scan im aktuellen Modus nicht erlaubt. Bitte wechseln Sie zum Bluetooth-Kopfhörer-Modus.",
+			"unknownDevice": "Unbekanntes Gerät",
+			"connecting": "Verbinde mit {{device}}..."
 		},
 		"device": {
 			"title": "Bluetooth-Gerät (Kopfhörer)",
@@ -911,6 +917,17 @@
 			"desc": "Kehrt zum normalen Modus mit WiFi-Funktionalität zurück. Musik von SD-Karte und Webstreams können abgespielt werden.",
 			"button": "Bluetooth-Modus verlassen",
 			"indicator": "WiFi-Modus (RSSI: {{rssi}} dBm)"
+		},
+		"mode": {
+			"title": "Bluetooth-Modus",
+			"off": "Aus",
+			"headphones": "Kopfhörer",
+			"speaker": "Lautsprecher",
+			"restartNotice": "Die Auswahl eines anderen Modus startet den ESPuino neu."
+		},
+		"connection": {
+			"connected": "Verbunden mit: {{device}}",
+			"disconnected": "Nicht verbunden"
 		}
 	},
 	"general": {
@@ -1020,7 +1037,9 @@
 			"resumeOnSameRfid": "Wechsel von Pause zu Play bei erneutem Auflegen",
 			"savePlayPosInterval": "Wiedergabeposition langer Hörbücher automatisch speichern alle",
 			"savePlayPosIntervalSecs": "Sekunden",
-			"savePlayPosIntervalExp": "Speichert die Wiedergabeposition langer Hörbücher (Dateien ab 5 Minuten) während der Wiedergabe regelmäßig ins Flash, sodass ein plötzlicher Stromausfall (leerer Akku, ausgesteckt, Absturz) höchstens um die eingestellte Anzahl Sekunden zurückspringt, statt die Datei neu zu starten. Betrifft nur Hörbuch-Modi; kurze oder geteilte Titel werden ohnehin bei jedem Titelwechsel gespeichert. Ein kürzeres Intervall schreibt häufiger ins Flash, daher werden 30-60 Sekunden empfohlen; deutlich niedrigere Werte bringen kaum etwas und nutzen das Flash schneller ab."
+			"savePlayPosIntervalExp": "Speichert die Wiedergabeposition langer Hörbücher (Dateien ab 5 Minuten) während der Wiedergabe regelmäßig ins Flash, sodass ein plötzlicher Stromausfall (leerer Akku, ausgesteckt, Absturz) höchstens um die eingestellte Anzahl Sekunden zurückspringt, statt die Datei neu zu starten. Betrifft nur Hörbuch-Modi; kurze oder geteilte Titel werden ohnehin bei jedem Titelwechsel gespeichert. Ein kürzeres Intervall schreibt häufiger ins Flash, daher werden 30-60 Sekunden empfohlen; deutlich niedrigere Werte bringen kaum etwas und nutzen das Flash schneller ab.",
+			"nightVolumeLimit": "Lautstärke im Nachtmodus begrenzen",
+			"nightVolumeLimitExp": "Beim Einschalten des Nachtmodus wird die gerade eingestellte Lautstärke zur vorübergehenden Obergrenze (plus eine Stufe Spielraum) – praktisch, wenn ESPuino mit ins Bett genommen wird. Beim Verlassen des Nachtmodus wird die Begrenzung wieder aufgehoben."
 		},
 		"neopixel": {
 			"title": "Neopixel (Helligkeit)",
@@ -1051,7 +1070,13 @@
 			"measureIntervalExp": "Zeitabstand in Minuten, in dem die Akkuspannung gemessen wird.",
 			"shutdownOnCriticalExp": "Schaltet ESPuino automatisch ab, sobald die Akkuspannung den unten eingestellten kritischen Wert unterschreitet. Kann den Akku ein Stück weit vor Tiefentladung schützen, ersetzt jedoch kein Batterie-Management-System! Empfohlene Werte sind: LFP: 2,7 V, LiPo: 3,0 V.",
 			"offset": "Korrekturwert für die gemessene Akkuspannung (in Volt, ± in Hundertstel)",
-			"offsetExp": "Feinkorrektur der gemessenen Akkuspannung. Weicht die angezeigte Spannung von einer Messung per Multimeter ab, trage hier die Differenz ein (positiv oder negativ). Standardwert der Complete: -0,04 V."
+			"offsetExp": "Feinkorrektur der gemessenen Akkuspannung. Weicht die angezeigte Spannung von einer Messung per Multimeter ab, trage hier die Differenz ein (positiv oder negativ). Standardwert der Complete: -0,04 V.",
+			"warnSound": "Warnung bei leerem Akku ansagen",
+			"warnSoundExp": "Spielt bei niedrigem Akkustand eine Audiodatei von der SD-Karte ab – die Wiedergabe wird dafür kurz unterbrochen und danach an genau derselben Stelle fortgesetzt. Sinnvoll, weil die blinkenden LEDs beim Hören leicht übersehen werden, von Kindern ohnehin.",
+			"warnSoundFile": "Datei für die Ansage",
+			"warnSoundFileExp": "Pfad zur Audiodatei auf der SD-Karte. Am bequemsten wählst du sie im Dateibrowser per Rechtsklick über „Als Akku-Warnung festlegen“ aus. Fehlt die Datei, wird nichts unterbrochen und nur ein Fehler protokolliert.",
+			"warnSoundOnce": "Nur einmal ansagen",
+			"warnSoundOnceExp": "Ohne diese Option wird die Ansage bei jeder Messung wiederholt, solange der Akku unter der Warnschwelle liegt – also im Takt des eingestellten Messintervalls. Ist diese Option aktiv, so erfolgt die Ansage nur einmal und wird erst wieder erneut abgespielt, wenn die Warnschwelle nach vorheriger Überschreitung im Anschluss erneut unterschritten wird."
 		},
 		"playlist": {
 			"title": "Wiedergabeliste",

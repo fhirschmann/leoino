@@ -128,6 +128,11 @@ static uint8_t AudioPlayer_MaxVolume = AUDIOPLAYER_VOLUME_MAX;
 static uint8_t AudioPlayer_MaxVolumeSpeaker = AUDIOPLAYER_VOLUME_MAX;
 static uint8_t AudioPlayer_MinVolume = AUDIOPLAYER_VOLUME_MIN;
 static uint8_t AudioPlayer_InitVolume = AUDIOPLAYER_VOLUME_INIT;
+// Night-mode volume limit, see AudioPlayer_ApplyNightVolumeCap(). The cap is purely transient: armed
+// when night mode starts, dropped when it ends, never persisted -- night mode is always off after a
+// restart anyway.
+static uint8_t AudioPlayer_NightVolumeCap = 0u; // 0 = no cap active
+static bool AudioPlayer_NightVolumeLimitEnabled = false;
 
 // current playtime
 uint32_t AudioPlayer_CurrentTime = 0;
@@ -206,6 +211,14 @@ struct PendingPlaylist {
 	bool saveLastPlayPosition = false;
 	char rfidTag[13] = "";
 };
+// Announcement state (see AudioPlayer_PlayAnnouncement). The decoder is briefly pointed at another
+// file while gPlayProperties -- playlist, track number, play mode -- stays exactly as it is, so the
+// only thing that has to be remembered is the position inside the interrupted track.
+static uint32_t AudioPlayer_announcementResumePos = 0; // seconds into the interrupted track
+static uint32_t AudioPlayer_announcementStartedAt = 0; // millis() when it started, for the watchdog
+// Backstop in case evt_eof never arrives (a file that opens but decodes to nothing): without it the
+// music would stay silent forever, which is worse than a crash because nothing points at the cause.
+static constexpr uint32_t announcementTimeoutMs = 30000;
 
 static PendingPlaylist gPendingPlaylist;
 static SemaphoreHandle_t gPendingPlaylistMutex = NULL;
@@ -365,6 +378,9 @@ static bool AudioPlayer_SetStationLogoUrl(const String &url, bool onlyIfEmpty = 
 }
 
 void Audio_InfoCallback(Audio::msg_t m) {
+	if (gPlayProperties.announcementActive && m.e != Audio::evt_eof) {
+		return;
+	}
 	switch (m.e) {
 		case Audio::evt_info: {
 			// Log_Printf(LOGLEVEL_INFO, "info:         %s", m.msg); // disabled to reduce log especially from files with numerous comments
@@ -710,6 +726,9 @@ void AudioPlayer_Init(void) {
 	// to this floor, so a non-zero value takes effect for all volume sources (rotary, buttons, BT, web).
 	AudioPlayer_SetMinVolume(gPrefsSettings.getUInt("minVolume", AUDIOPLAYER_VOLUME_MIN));
 
+	// Night-mode volume limit: off by default, so nothing changes for existing devices.
+	AudioPlayer_NightVolumeLimitEnabled = gPrefsSettings.getBool("nightVolLimit", false);
+
 #ifdef HEADPHONE_ADJUST_ENABLE
 	#if (HP_DETECT >= 0 && HP_DETECT <= MAX_GPIO)
 	pinMode(HP_DETECT, INPUT_PULLUP);
@@ -874,6 +893,9 @@ static constexpr uint32_t RESUME_HOLD_CAP_MS = 4000;
 // the reported time is bogus, so callers should skip the save (NVS keeps the correct resume point).
 // Self-clears once the decoder has caught up to the target or the safety timeout elapses.
 static bool AudioPlayer_ResumePositionSettled(void) {
+	if (gPlayProperties.announcementActive) {
+		return false;
+	}
 	if (!gResumeSeekPending) {
 		return true;
 	}
@@ -958,6 +980,13 @@ void AudioPlayer_SetCurrentVolume(uint8_t value) {
 }
 
 uint8_t AudioPlayer_GetMaxVolume(void) {
+	// The night cap is deliberately a separate layer on top of AudioPlayer_MaxVolume instead of a write
+	// into it: that variable is recomputed from the speaker/headphone limits whenever the settings are
+	// saved, a headphone is (un)plugged or the amps are set up, which would silently drop the cap.
+	// Taking the minimum also keeps the lower headphone limit winning while headphones are connected.
+	if (AudioPlayer_NightVolumeCap) {
+		return std::min(AudioPlayer_MaxVolume, AudioPlayer_NightVolumeCap);
+	}
 	return AudioPlayer_MaxVolume;
 }
 
@@ -987,6 +1016,29 @@ void AudioPlayer_ApplyMaxVolumes(uint8_t speaker, uint8_t headphone) {
 	if (AudioPlayer_CurrentVolume > AudioPlayer_MaxVolume) {
 		AudioPlayer_SetVolume(AudioPlayer_MaxVolume);
 	}
+}
+
+// Arms or lifts the night-mode volume ceiling; called by System_SetNightmode() on an actual state
+// change. The ceiling is taken once, on activation, and then frozen: letting it follow the volume down
+// would pin the user to whatever level they briefly dialled in during a quiet passage. A fixed limit
+// configured up front was the obvious alternative, but audiobooks differ so much in loudness that it
+// would have to be set very low -- and then corrected in the web interface all the time.
+void AudioPlayer_ApplyNightVolumeCap(bool enabled) {
+	if (!enabled) {
+		AudioPlayer_NightVolumeCap = 0u;
+		return;
+	}
+	if (!AudioPlayer_NightVolumeLimitEnabled) {
+		return;
+	}
+	// No clamping needed at either end: the headroom keeps the cap at 1 or above, and a cap beyond the
+	// regular maximum is folded away by the std::min() in AudioPlayer_GetMaxVolume().
+	AudioPlayer_NightVolumeCap = AudioPlayer_GetCurrentVolume() + AUDIOPLAYER_NIGHT_VOLUME_HEADROOM;
+	Log_Printf(LOGLEVEL_INFO, nightVolumeCapSet, AudioPlayer_NightVolumeCap);
+}
+
+void AudioPlayer_SetNightVolumeLimitEnabled(bool enabled) {
+	AudioPlayer_NightVolumeLimitEnabled = enabled;
 }
 
 uint8_t AudioPlayer_GetMinVolume(void) {
@@ -1047,6 +1099,10 @@ String AudioPlayer_GetStationLogoUrl(void) {
 }
 
 void Audio_setTitle(const char *format, ...) {
+	if (gPlayProperties.announcementActive) {
+		// Leave the interrupted track's title in place: the announcement must not show up anywhere.
+		return;
+	}
 	va_list args;
 	va_start(args, format);
 	vsnprintf(gPlayProperties.title, sizeof(gPlayProperties.title) / sizeof(gPlayProperties.title[0]), format, args);
@@ -1077,6 +1133,54 @@ static void Audio_SetMeta(char *dest, size_t destSize, const char *line) {
 	strncpy(dest, v, destSize - 1);
 	dest[destSize - 1] = '\0';
 	Web_SendWebsocketData(0, WebsocketCodeType::TrackInfo);
+}
+
+// Interrupts playback with a single local file and returns to the exact position afterwards; see
+// AudioPlayer.h. Everything the outside world reads -- title, position, progress -- is frozen for the
+// duration, and the playlist is never touched, so the interruption leaves no trace anywhere.
+bool AudioPlayer_PlayAnnouncement(const char *path) {
+	if (audio == nullptr || path == nullptr || path[0] == '\0' || gPlayProperties.announcementActive) {
+		return false;
+	}
+	// Deliberately checked before the "is anything playing" guard below: a wrong path has to be reported
+	// even while the player sits idle, otherwise a typo stays invisible until someone happens to be
+	// listening -- and the user is left searching. Still evaluated before stopSong(), so a missing file
+	// never costs the listener a gap of silence either.
+	if (!gFSystem.exists(path)) {
+		Log_Printf(LOGLEVEL_ERROR, announcementFileMissing, path);
+		System_IndicateError();
+		return false;
+	}
+	// Only interrupt something that is actually playing. Idle or paused there is nothing to return to,
+	// and in Bluetooth-sink mode ESPuino does not drive the decoder at all.
+	if (gPlayProperties.playMode == NO_PLAYLIST || gPlayProperties.playlistFinished || gPlayProperties.pausePlay) {
+		return false;
+	}
+	if (System_GetOperationMode() != OPMODE_NORMAL || gPlayProperties.currentSpeechActive
+		|| gPlayProperties.tellMode != TTS_NONE || gPlayProperties.trackFinished
+		|| AudioPlayer_UploadActive.load(std::memory_order_acquire)
+		|| !audio->isRunning() || !AudioPlayer_ResumePositionSettled()) {
+		return false;
+	}
+
+	// Preserve the book before pointing the decoder at the warning file.
+	if (gPlayProperties.saveLastPlayPosition) {
+		AudioPlayer_NvsRfidWriteWrapper(gPlayProperties.playRfidTag, audio->getAudioCurrentTime(), gPlayProperties.playMode, gPlayProperties.currentTrackNumber);
+	}
+	AudioPlayer_announcementResumePos = audio->stopSong(); // stops the decoder and yields the position
+	AudioPlayer_announcementStartedAt = millis();
+	gPlayProperties.announcementActive = true;
+
+	if (!audio->connecttoFS(gFSystem, gFSystem.rawPath(path).c_str())) {
+		// Nothing is playing now, so evt_eof would never arrive on its own. Hand it to the loop, which
+		// takes the announcement branch and puts the interrupted track straight back on.
+		Log_Printf(LOGLEVEL_ERROR, announcementFailed, path);
+		System_IndicateError();
+		gPlayProperties.trackFinished = true;
+		return false;
+	}
+	Log_Printf(LOGLEVEL_NOTICE, announcementPlaying, path);
+	return true;
 }
 
 // Set maxVolume depending on headphone-adjustment is enabled and headphone is/is not connected
@@ -1208,7 +1312,7 @@ void AudioPlayer_Loop() {
 	}
 
 	// Update playtime stats every 250 ms
-	if ((millis() - AudioPlayer_LastPlaytimeStatsTimestamp) > 250) {
+	if (!gPlayProperties.announcementActive && (millis() - AudioPlayer_LastPlaytimeStatsTimestamp) > 250) {
 		AudioPlayer_LastPlaytimeStatsTimestamp = millis();
 		// Update current playtime and duration
 		AudioPlayer_CurrentTime = audio->getAudioCurrentTime();
@@ -1279,9 +1383,26 @@ void AudioPlayer_Loop() {
 		}
 	}
 
+	if (gPlayProperties.announcementActive && (millis() - AudioPlayer_announcementStartedAt) > announcementTimeoutMs) {
+		Log_Println(announcementTimeout, LOGLEVEL_ERROR);
+		System_IndicateError();
+		gPlayProperties.trackFinished = true; // handed to the branch below, which restores playback
+	}
 	// Take exactly one command for this pass. A producer can publish the next command while this
 	// one is handled without having it erased by a later `NO_ACTION` assignment.
 	uint8_t currentTrackCommand = trackCommand.exchange(NO_ACTION, std::memory_order_acq_rel);
+
+	bool resumeAnnouncement = false;
+	if (gPlayProperties.announcementActive && (currentTrackCommand != NO_ACTION || gPlayProperties.tellMode != TTS_NONE || gPlayProperties.seekmode != SEEK_NORMAL || AudioPlayer_PendingSeekSeconds.load(std::memory_order_relaxed) != 0 || gPlayProperties.smartSeekPendingSec != 0)) {
+		gPlayProperties.trackFinished = true;
+		if (currentTrackCommand != NO_ACTION) {
+			// Reopen the book on this pass, then apply the command to it on the next one.
+			// Preserve a newer command if one has already arrived from another producer.
+			uint8_t empty = NO_ACTION;
+			trackCommand.compare_exchange_strong(empty, currentTrackCommand, std::memory_order_acq_rel);
+			currentTrackCommand = NO_ACTION;
+		}
+	}
 
 	// A track-control keypress (play/pause, next, ...) during a running IP-/time-announcement
 	// aborts the announcement and resumes the audiobook, instead of acting on the speech
@@ -1308,6 +1429,7 @@ void AudioPlayer_Loop() {
 
 	if (consumePendingPlaylist || gPlayProperties.trackFinished || currentTrackCommand != NO_ACTION) {
 		if (consumePendingPlaylist) {
+			gPlayProperties.announcementActive = false;
 			audio->stopSong();
 			if (AudioPlayer_ResumeFadeStartMs) {
 				audio->setVolume(AudioPlayer_GetCurrentVolume());
@@ -1351,6 +1473,21 @@ void AudioPlayer_Loop() {
 			publishMqtt(topicRepeatMode, static_cast<uint32_t>(AudioPlayer_GetRepeatMode()), false);
 #endif
 		}
+		// An announcement that ran to its end raises the same evt_eof as a finished track. It has to be
+		// caught before the regular handling below, which would write the announcement's position to
+		// NVS, evaluate the sleep flags and, above all, advance the track number.
+		if (gPlayProperties.trackFinished && gPlayProperties.announcementActive) {
+			gPlayProperties.trackFinished = false;
+			gPlayProperties.announcementActive = false;
+			// Execution continues into the regular track-open path at the end of this block:
+			// currentTrackNumber was never touched, so it re-opens the very same track, and
+			// startAtFilePos seeks back into it through the normal resume machinery (including the
+			// deferred seek for headerless CBR files).
+			gPlayProperties.startAtFilePos = AudioPlayer_announcementResumePos;
+			resumeAnnouncement = true;
+			Log_Println(announcementFinished, LOGLEVEL_INFO);
+		}
+
 		if (gPlayProperties.trackFinished) {
 			gPlayProperties.trackFinished = false;
 			if (gPlayProperties.playMode == NO_PLAYLIST || gPlayProperties.playlist == nullptr) {
@@ -1680,7 +1817,7 @@ void AudioPlayer_Loop() {
 					if (fileStartTime > 65535) {
 						fileStartTime = 65535; // connecttoFS()/setAudioPlayTime() takes a uint16_t (seconds); clamp so an >18h resume can't wrap
 					}
-					if (RESUME_FADEIN_DURATION_MS > 0) {
+					if (RESUME_FADEIN_DURATION_MS > 0 && !resumeAnnouncement) {
 						// Rewind a few seconds so the cold-start glitch (file open + header
 						// decode + seek-flush) lands on already-heard audio, then fade in below.
 						fileStartTime = (fileStartTime > (int32_t) RESUME_FADEIN_REWIND_S) ? (fileStartTime - (int32_t) RESUME_FADEIN_REWIND_S) : 1;
@@ -1962,6 +2099,9 @@ void AudioPlayer_SetVolume(const int32_t _newVolume) {
 		Log_Printf(LOGLEVEL_INFO, newLoudnessReceived, _volume);
 		AudioPlayer_ResumeFadeStartMs = 0; // a manual volume change cancels an active resume fade-in
 		audio->setVolume(_volume);
+		if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
+			Bluetooth_SetVolume(_volume);
+		}
 		Web_SendWebsocketData(0, WebsocketCodeType::Volume);
 #ifdef MQTT_ENABLE
 		publishMqtt(topicLoudness, static_cast<uint32_t>(_volume), false);
@@ -2167,7 +2307,7 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 	// an IP/time announcement is active: the speech-abort branch in AudioPlayer_Loop() would consume the
 	// PAUSEPLAY command below (so pausePlay would never be set and the wait would spin forever), and the
 	// book's position was already saved when the announcement started, so there is nothing to save here.
-	if (gPlayProperties.SavePlayPosRfidChange && !gPlayProperties.pausePlay && !gPlayProperties.currentSpeechActive && (gPlayProperties.playMode == AUDIOBOOK || gPlayProperties.playMode == AUDIOBOOK_LOOP || gPlayProperties.playMode == AUDIOBOOK_RECURSIVE)) {
+	if (gPlayProperties.SavePlayPosRfidChange && !gPlayProperties.pausePlay && !gPlayProperties.currentSpeechActive && !gPlayProperties.announcementActive && (gPlayProperties.playMode == AUDIOBOOK || gPlayProperties.playMode == AUDIOBOOK_LOOP || gPlayProperties.playMode == AUDIOBOOK_RECURSIVE)) {
 		AudioPlayer_SetTrackControl(PAUSEPLAY);
 		// Bounded (~5 s): make sure playback is paused so the position lands in NVS, but never spin the
 		// loop task forever if the PAUSEPLAY command gets swallowed for any reason.
@@ -2261,7 +2401,7 @@ void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPo
 
 		case SINGLE_TRACK_OF_DIR_RANDOM: {
 			pending.sleepAfterCurrentTrack = true;
-			Led_SetNightmode(true);
+			System_SetNightmode(true);
 			Log_Println(modeSingleTrackRandom, LOGLEVEL_NOTICE);
 			AudioPlayer_RandomizePlaylist(list);
 			// we have a random order, so pick the first entry and scrap the rest
@@ -2671,17 +2811,28 @@ void audio_oggimage(File &file, std::vector<uint32_t> v) {
 #endif
 }
 
+// Send raw decoded samples to Bluetooth before the local output processing
+// applies EQ, mono conversion, or the ESPuino volume curve.
+void audio_process_raw_samples(int32_t *outBuff, int16_t validSamples) {
+	if ((System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) && Bluetooth_Device_Connected()) {
+		// audioI2S provides signed 32-bit, left-aligned PCM; A2DP expects interleaved signed 16-bit PCM.
+		int16_t pcm[256];
+		for (int16_t offset = 0; offset < validSamples;) {
+			const int16_t count = std::min<int16_t>(validSamples - offset, 256);
+			for (int16_t i = 0; i < count; i++) {
+				pcm[i] = static_cast<int16_t>(outBuff[offset + i] >> 16);
+			}
+			Bluetooth_Source_SendAudioData(pcm, count);
+			offset += count;
+		}
+	}
+}
+
 // record audiodata or send via BT
 void audio_process_i2s(int32_t *outBuff, int16_t validSamples, bool *continueI2S) {
 	if ((System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) && Bluetooth_Device_Connected()) {
-		// audioI2S provides signed 32-bit, left-aligned PCM; A2DP expects interleaved signed 16-bit PCM.
-		int16_t *outBuff16 = reinterpret_cast<int16_t *>(outBuff);
-		for (int16_t i = 0; i < validSamples; i++) {
-			const int32_t sample = outBuff[i];
-			outBuff16[i] = static_cast<int16_t>(sample >> 16);
-		}
-
-		Bluetooth_Source_SendAudioData(outBuff16, validSamples);
+		// Bluetooth already received the raw samples in audio_process_raw_samples().
+		// Do not write the locally processed copy to the physical I2S output.
 		*continueI2S = false;
 		return;
 	}

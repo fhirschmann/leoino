@@ -345,7 +345,7 @@ paths:
           description: Optional section to retrieve specific settings.
       responses:
         "200":
-          description: Common settings, including general.jumpOffset, general.rotSeekStep, and battery.offsetVoltage (when voltage measurement is enabled).
+          description: Common settings, including general.jumpOffset, general.rotSeekStep, general.nightVolLimit, led.rfidFlash, battery.warnSound, battery.warnSoundOnce, battery.warnSoundFile, and battery.offsetVoltage (when voltage measurement is enabled).
           content:
             application/json:
               schema:
@@ -367,6 +367,10 @@ paths:
                 general:
                   type: object
                   properties:
+                    nightVolLimit:
+                      type: boolean
+                      default: false
+                      description: Limit volume to the activation volume plus one step during night mode. Applies on the next night-mode activation through any control, including MQTT or command 120.
                     jumpOffset:
                       type: integer
                       minimum: 1
@@ -387,7 +391,11 @@ paths:
                   # Include all Wi-Fi settings properties here
                 led:
                   type: object
-                  # Include all LED settings properties here
+                  properties:
+                    rfidFlash:
+                      type: boolean
+                      default: false
+                      description: Flash the LEDs once when an RFID tag is accepted.
                 oled:
                   type: object
                   properties:
@@ -416,6 +424,18 @@ paths:
                 battery:
                   type: object
                   properties:
+                    warnSound:
+                      type: boolean
+                      default: false
+                      description: Interrupt active playback in normal mode with a local low-battery warning, then resume the original track.
+                    warnSoundOnce:
+                      type: boolean
+                      default: false
+                      description: Warn once per discharge; otherwise repeat at each battery measurement while low.
+                    warnSoundFile:
+                      type: string
+                      default: ""
+                      description: Absolute SD path to the local warning audio file. Empty disables playback.
                     offsetVoltage:
                       type: number
                       minimum: -0.5
@@ -748,6 +768,31 @@ paths:
                       type: integer
         "400":
           description: Bluetooth not enabled in this build.
+  /bluetoothstatus:
+    get:
+      summary: Get Bluetooth source connection status.
+      description: >-
+        Returns the current Bluetooth source connection state. When connected,
+        the response also contains the peer MAC address and, when known, its
+        friendly device name.
+      responses:
+        "200":
+          description: Current Bluetooth connection status.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - connected
+                properties:
+                  connected:
+                    type: boolean
+                  address:
+                    type: string
+                    description: "Peer MAC address, formatted as XX:XX:XX:XX:XX:XX. Present only when connected."
+                  name:
+                    type: string
+                    description: "Friendly peer name when known. Present only when connected."
   /bluetoothconnect:
     post:
       summary: Connect to a Bluetooth device.

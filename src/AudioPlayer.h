@@ -11,6 +11,9 @@
 #define AUDIOPLAYER_VOLUME_MAX	21u
 #define AUDIOPLAYER_VOLUME_MIN	0u
 #define AUDIOPLAYER_VOLUME_INIT 3u
+// Headroom the night-mode volume limit leaves above the volume that was in effect when night mode
+// started, so an audiobook that turns out a touch too quiet can still be nudged up one step.
+#define AUDIOPLAYER_NIGHT_VOLUME_HEADROOM 1u
 
 enum class playlistSortMode : uint8_t {
 	STRCMP = 1,
@@ -50,6 +53,7 @@ typedef struct { // Bit field
 	bool stopIfRfidRemoved	   : 1; // When pauseIfRfidRemoved is active: stop playback instead of pausing when RFID is removed.
 	bool dontAcceptRfidTwice   : 1; // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
 	bool resumeOnSameRfid	   : 1; // If pause is active and same RFID is put on again, playback continues (only effective if dontAcceptRfidTwice is enabled)
+	bool announcementActive	   : 1; // Local announcement interrupting playback
 	int16_t jumpToFolderTrack = -1; // track to jump to
 	int32_t smartSeekPendingSec = 0; // accumulated smart-seek offset (seconds, signed) waiting to be applied; coalesces rapid presses
 	uint32_t smartSeekRequestMs = 0; // millis() of the last smart-seek press; the offset is applied once presses settle
@@ -129,11 +133,22 @@ void AudioPlayer_SetMaxVolume(uint8_t value);
 uint8_t AudioPlayer_GetMaxVolumeSpeaker(void);
 void AudioPlayer_SetMaxVolumeSpeaker(uint8_t value);
 void AudioPlayer_ApplyMaxVolumes(uint8_t speaker, uint8_t headphone);
+// Night-mode volume limit: when night mode starts, the volume in effect becomes a temporary ceiling
+// (plus AUDIOPLAYER_NIGHT_VOLUME_HEADROOM) that is lifted again when night mode ends. Driven by
+// System_SetNightmode(); does nothing unless the user enabled the limit in the web interface.
+void AudioPlayer_ApplyNightVolumeCap(bool enabled);
+void AudioPlayer_SetNightVolumeLimitEnabled(bool enabled);
 uint8_t AudioPlayer_GetMinVolume(void);
 void AudioPlayer_SetMinVolume(uint8_t value);
 uint8_t AudioPlayer_GetInitVolume(void);
 void AudioPlayer_SetInitVolume(uint8_t value);
 void AudioPlayer_SetupVolumeAndAmps(void);
+// Interrupts playback to play a single local file (e.g. "battery low"), then returns to the exact
+// position it interrupted. The playlist, track number and play mode are left untouched, and while the
+// announcement runs nothing about it is reported to the web interface or MQTT -- from the outside the
+// interruption is invisible. Returns false (and changes nothing) when there is nothing to interrupt,
+// the file is missing, or it cannot be opened. Call from the main loop task, like AudioPlayer_Cyclic().
+bool AudioPlayer_PlayAnnouncement(const char *path);
 bool Audio_Detect_Mode_HP(bool _state);
 void Audio_setTitle(const char *format, ...);
 time_t AudioPlayer_GetPlayTimeSinceStart(void);

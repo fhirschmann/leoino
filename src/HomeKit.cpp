@@ -542,7 +542,7 @@ void HomeKit_Cyclic(void) {
 		gDesiredRepeat = -1;
 	}
 	if (gDesiredNight >= 0) {
-		Led_SetNightmode(gDesiredNight == 1); // direct setter, no toggle guessing
+		System_SetNightmode(gDesiredNight == 1); // direct setter, no toggle guessing
 		gDesiredNight = -1;
 	}
 	if (gPendingVolume >= 0) {
@@ -597,7 +597,7 @@ void HomeKit_Cyclic(void) {
 		}
 
 		if (gNightPower) {
-			const bool night = Led_GetNightmode();
+			const bool night = System_GetNightmode();
 			if (gNightPower->getVal() != night) {
 				gNightPower->setVal(night);
 			}
