@@ -29,3 +29,6 @@ void Rfid_CardIdToString(const byte *id, char *out);
 // Shared post-read card handling for both RFID drivers (see RfidCommon.cpp). cardType is the ISO
 // protocol string logged on PN5180, or NULL (MFRC522).
 void Rfid_HandleCardDetected(const byte *uid, byte *lastValidcardId, const char *cardType);
+// Writes one card assignment to NVS, see RfidCommon.cpp.
+bool Rfid_SaveAssignment(const char *cardId, const char *fileOrUrl, uint8_t playModeOrModId,
+	uint32_t lastPlayPos = 0, uint16_t trackLastPlayed = 0);

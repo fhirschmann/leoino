@@ -53,7 +53,7 @@ void Ftp_Init(void) {
 		Log_Println(wroteFtpPwdToNvs, LOGLEVEL_ERROR);
 	} else {
 		Ftp_Password = nvsFtpPassword;
-		Log_Printf(LOGLEVEL_INFO, restoredFtpPwdFromNvs, nvsFtpPassword.c_str());
+		Log_Println(restoredFtpPwdFromNvs, LOGLEVEL_INFO);
 	}
 
 #ifdef FTP_ENABLE

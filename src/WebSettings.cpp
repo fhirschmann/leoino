@@ -17,6 +17,7 @@
 #include "IrReceiver.h"
 #include "Led.h"
 #include "Log.h"
+#include "MediaHub.h"
 #include "MemX.h"
 #include "Mqtt.h"
 #include "Playstats.h"
@@ -100,6 +101,10 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		// WiFi settings
 		JsonObject wifiObj = obj["wifi"].to<JsonObject>();
 		wifiObj["hostname"] = Wlan_GetHostname();
+		wifiObj["maxHostnameLength"] = hostnameMaxLength;
+		wifiObj["apSSID"] = Wlan_GetApSSID();
+		wifiObj["apPasswordSet"] = Wlan_GetApPassword().length() > 0;
+		wifiObj["apTimeout"] = Wlan_GetApTimeoutMinutes();
 		wifiObj["scanOnStart"].set(gPrefsSettings.getBool("ScanWiFiOnStart", false));
 	}
 	if (section == "ssids") {
@@ -424,14 +429,19 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		batSettings["voltageCheckInterval"].set(s_batteryCheckInterval);
 #endif
 	}
+	if (section == "" || section == "mediahub") {
+		JsonObject hub = obj["mediahub"].to<JsonObject>();
+		hub["askUnknown"] = MediaHub_IsAskUnknownEnabled();
+		hub["showDir"] = MediaHub_IsShowDirEnabled();
+	}
 // FTP
 #ifdef FTP_ENABLE
 	if ((section == "") || (section == "ftp")) {
 		JsonObject ftpObj = obj["ftp"].to<JsonObject>();
 		ftpObj["username"] = gPrefsSettings.getString("ftpuser", "-1");
-		ftpObj["password"] = gPrefsSettings.getString("ftppassword", "-1");
+		ftpObj["passwordSet"] = gPrefsSettings.getString("ftppassword", "").length() > 0;
 		ftpObj["maxUserLength"].set(ftpUserLength - 1);
-		ftpObj["maxPwdLength"].set(ftpUserLength - 1);
+		ftpObj["maxPwdLength"].set(ftpPasswordLength - 1);
 		ftpObj["enable"] = gPrefsSettings.getBool("ftpEnable", false);
 	}
 #endif
@@ -477,7 +487,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 		mqttObj["server"] = gPrefsSettings.getString("mqttServer", "-1");
 		mqttObj["port"].set(gPrefsSettings.getUInt("mqttPort", 0));
 		mqttObj["username"] = gPrefsSettings.getString("mqttUser", "-1");
-		mqttObj["password"] = gPrefsSettings.getString("mqttPassword", "-1");
+		mqttObj["passwordSet"] = gPrefsSettings.getString("mqttPassword", "").length() > 0;
 		mqttObj["maxUserLength"].set(mqttUserLength - 1);
 		mqttObj["maxPwdLength"].set(mqttPasswordLength - 1);
 		mqttObj["maxClientIdLength"].set(mqttClientIdLength - 1);

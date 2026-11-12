@@ -178,7 +178,7 @@
 	//#################### Settings for optional Modules##############################
 	// (optinal) Neopixel
 	#ifdef NEOPIXEL_ENABLE
-		#define CHIPSET					WS2812B     	// type of Neopixel
+		#define CHIPSET					WS2812B     	// WS2812, WS2812B, WS2813, WS2815, SK6812 or NEOPIXEL
 		#define COLOR_ORDER				GRB
 		#define NUM_LEDS_IDLE_DOTS		4           	// count of LEDs, which are shown when Idle
 		#define IDLE_COLOR			CRGB::White	// color of the idle dots

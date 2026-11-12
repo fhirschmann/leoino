@@ -12,6 +12,9 @@
 	"delete": "Delete",
 	"cancel": "Cancel",
 	"refresh": "Refresh",
+	"maxLengthReached": "At most {{max}} characters - the limit is reached.",
+	"maxLengthCut": "{{dropped}} characters were cut off: at most {{max}} characters are allowed.",
+	"secretStored": "Stored – leave empty to keep it",
 	"ok": "OK",
 	"showhide": "Show/Hide",
 	"infos": "Information",
@@ -33,7 +36,8 @@
 		"saved": "Settings saved.",
 		"error": "Error",
 		"ledCountRestart": "The number of LEDs was changed. ESPuino will restart to apply it.",
-		"settingsInvalid": "Cannot save: please correct these settings first ({{fields}})."
+		"settingsInvalid": "Cannot save: please correct these settings first ({{fields}}).",
+		"saveFailed": "Saving failed. The log says why."
 	},
 	"nav": {
 		"updateAvailable": "Update available",
@@ -346,6 +350,22 @@
 			"placeholder": "espuino",
 			"validation": "Enter a valid hostname",
 			"explanation": "This is the name of your ESPuino as it appears in your network."
+		},
+		"apSSID": {
+			"title": "ESPuino access point name",
+			"placeholder": "ESPuino",
+			"explanation": "Name of the WiFi network ESPuino opens when either no WiFi has been configured yet, or no configured WiFi is in range."
+		},
+		"apPassword": {
+			"title": "ESPuino access point password",
+			"placeholder": "Password",
+			"explanation": "Password of the WiFi network ESPuino opens when either no WiFi has been configured yet, or no configured WiFi is in range.",
+			"clear": "Remove the password (open WiFi)"
+		},
+		"apTimeout": {
+			"title": "Access point closes after (minutes)",
+			"hint": "0 = access point never closes automatically (security risk!)",
+			"explanation": "Duration in minutes for which the WiFi network ESPuino opens (when either no WiFi has been configured yet, or no configured WiFi is in range) stays open."
 		},
 		"static": {
 			"addr": "Static IP-Address",
@@ -669,6 +689,12 @@
 				"delete": {
 					"title": "Delete media server?",
 					"prompt": "Really delete the media server \"{{name}}\"? Cards already assigned to it are left unchanged."
+				},
+				"list": {
+					"webradio": "web radio",
+					"synced": "synced",
+					"stale": "update pending",
+					"notCached": "not played on this device yet"
 				}
 			}
 		}
@@ -716,7 +742,9 @@
 			"title": "MQTT-password (optional)",
 			"placeholder": "password",
 			"validation": "",
-			"explanation": "Password for logging in to the MQTT broker (if it requires authentication)."
+			"explanation": "Password for logging in to the MQTT broker (if it requires authentication).",
+			"clear": "Remove the stored password",
+			"retype": "Server or user changed: please enter the password again."
 		},
 		"port": {
 			"title": "MQTT-port",
@@ -972,7 +1000,7 @@
 			},
 			"description": "Select the type of RFID reader connected to your ESPuino. Auto-detect will try to determine the connected reader type automatically.",
 			"pn5180Lpcd": "Enable PN5180 LPCD",
-			"pn5180LpcdExp": "Enables Low Power Card Detection for the PN5180 RFID reader. PN5180 firmware version 4.0 or newer is required, and the required solder bridges must be configured correctly. More information <a href='https://forum.espuino.de/t/was-ist-lpcd-und-wie-funktioniert-es/1664' target='_blank'>here</a>.",
+			"pn5180LpcdExp": "Enables Low Power Card Detection for the PN5180 RFID reader. At least PN5180 firmware version 4.1 is required, and the required solder bridges must be configured correctly. More information <a href='https://forum.espuino.de/t/was-ist-lpcd-und-wie-funktioniert-es/1664' target='_blank'>here</a>.",
 			"slix2Password": {
 				"title": "SLIX2 Password",
 				"description": "8-digit password in hexadecimal format (e.g. 01020304) for reading SLIX2 tags."
@@ -1215,6 +1243,19 @@
 			"backup": "Backup",
 			"fwupdate": "Firmware"
 		}
+	},
+	"mediahub": {
+		"title": "MediaHub",
+		"intro": "MediaHub is an optional, separately-run add-on: a small local server running as a Docker container on your own network. It lets you manage RFID card assignments centrally for multiple ESPuinos - content and playback mode then come from the server instead of the local NVS configuration. Without a running MediaHub server, this page doesn't do anything useful. Here you register the address(es) of your MediaHub server(s) so they show up in the dropdown when assigning a card. The MediaHub server itself is available on GitHub: <a href='https://github.com/biologist79/ESPuino-Mediahub' target='_blank'>github.com/biologist79/ESPuino-Mediahub</a>.",
+		"serversTitle": "Add media server",
+		"registeredServersTitle": "Registered media servers",
+		"optionsTitle": "Options",
+		"askUnknown": "Ask the MediaHub about unknown cards directly, without teaching them first",
+		"askUnknownExp": "When a card ESPuino doesn't know is placed on the reader, it asks the registered MediaHub servers whether an assignment for it already exists there. If one is found, the card is adopted automatically and played - no need to assign it in the web interface first. If no server knows the card, you get the usual “card unknown” message; the servers remember it as pending in that case, so all that's left is to assign it there.",
+		"showDir": "Show the internal MediaHub folder in the file browser",
+		"showDirExp": "Reveals the otherwise hidden /.mediahub folder in the file browser. It holds the cached manifests and the downloaded media files per card - useful for checking what actually got synced for a card. The folder is meant for looking, not for editing. Be aware that meddling with its contents can have unintended effects.",
+		"saveOptions": "Save options",
+		"orderHint": "With several servers they are asked top to bottom; the first one that knows the card wins. A server that cannot be reached is skipped until the next restart - saving the options lifts that."
 	},
 	"help": {
 		"forum": {

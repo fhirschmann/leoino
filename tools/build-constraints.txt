@@ -1,0 +1,3 @@
+# Platform 55.03.312-1 rejects 6.2.0.post1 after converting it to a prerelease.
+# https://github.com/pioarduino/platform-espressif32/issues/563
+pioarduino==6.2.0

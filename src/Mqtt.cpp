@@ -64,6 +64,7 @@ static bool Mqtt_Enabled = false;
 #ifdef MQTT_ENABLE
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 static void Mqtt_ClientCallback(const char *topic_buf, uint32_t topic_length, const char *payload_buf, uint32_t payload_length);
+static void Mqtt_MakeTopic(char *out, size_t outLen, const char *topic, bool isStateTopic);
 #endif
 
 void Mqtt_Init() {
@@ -143,7 +144,9 @@ void Mqtt_Init() {
 		Log_Println(wroteMqttUserToNvs, LOGLEVEL_ERROR);
 	} else {
 		gMqttUser = nvsMqttUser;
-		Log_Printf(LOGLEVEL_INFO, restoredMqttUserFromNvs, nvsMqttUser.c_str());
+		if (gMqttUser.length() > 0) { // a broker without login has nothing to report here
+			Log_Printf(LOGLEVEL_INFO, restoredMqttUserFromNvs, nvsMqttUser.c_str());
+		}
 	}
 
 	// Get MQTT-password from NVS
@@ -153,7 +156,9 @@ void Mqtt_Init() {
 		Log_Println(wroteMqttPwdToNvs, LOGLEVEL_ERROR);
 	} else {
 		gMqttPassword = nvsMqttPassword;
-		Log_Printf(LOGLEVEL_INFO, restoredMqttPwdFromNvs, nvsMqttPassword.c_str());
+		if (gMqttPassword.length() > 0) {
+			Log_Println(restoredMqttPwdFromNvs, LOGLEVEL_INFO);
+		}
 	}
 
 	// Get MQTT-password from NVS
@@ -177,6 +182,16 @@ void Mqtt_Init() {
 			mqtt_cfg.credentials.username = gMqttUser.c_str();
 			mqtt_cfg.credentials.authentication.password = gMqttPassword.c_str();
 		}
+		// Last will: if the connection drops without a clean shutdown (power cut, crash, out of WiFi range),
+		// the broker publishes "Offline" on topicState itself, once the keepalive has run out.
+		// Keep the topic alive for the client without sharing a publisher buffer.
+		static char lastWillTopic[MQTT_TOPIC_MAX_LENGTH];
+		Mqtt_MakeTopic(lastWillTopic, sizeof(lastWillTopic), topicState, true);
+		mqtt_cfg.session.last_will.topic = lastWillTopic;
+		mqtt_cfg.session.last_will.msg = "Offline";
+		mqtt_cfg.session.last_will.qos = 0;
+		mqtt_cfg.session.last_will.retain = 0; // non-retained, like every other ESPuino topic
+		mqtt_cfg.session.keepalive = 60; // seconds; the broker notices a dead connection after ~1.5x this
 		mqtt_cfg.task.priority = 1; // default is 5, keep it below the audio
 		mqtt_cfg.buffer.size = 2048; //
 		mqtt_cfg.buffer.out_size = 2048; //
@@ -234,6 +249,7 @@ void Mqtt_Exit(void) {
 	}
 	Log_Println("shutdown MQTT..", LOGLEVEL_NOTICE);
 	publishMqtt(topicState, "Offline", false);
+	publishMqtt(topicSleep, "OFF", false);
 	publishMqtt(topicTrack, "---", false);
 	publishMqtt(topicSleepTimerState, "{\"mode\":\"OFF\",\"remainingMinutes\":0,\"remainingTracks\":0}", false);
 	// Allow some time for messages to be sent before stopping the client
@@ -586,6 +602,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 
 			// Publish current state
 			publishMqtt(topicState, "Online", false);
+			publishMqtt(topicSleep, "ON", false);
 			publishMqtt(topicTrack, gPlayProperties.title, false);
 			publishMqtt(topicTrackArtist, gPlayProperties.artist, false);
 			publishMqtt(topicTrackAlbum, gPlayProperties.album, false);
@@ -607,6 +624,7 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			}
 			Mqtt_PublishSleepTimerState(true);
 			publishMqtt(topicLockControls, System_AreControlsLocked() ? "ON" : "OFF", false);
+			publishMqtt(topicAmbientLight, Led_GetAmbientLight() ? "ON" : "OFF", false);
 			publishMqtt(topicPlaymode, static_cast<uint32_t>(gPlayProperties.playMode), false);
 			if (gPlayProperties.playMode == NO_PLAYLIST) { // idle
 				publishMqtt(topicPausePlay, "idle", false);

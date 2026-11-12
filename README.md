@@ -189,7 +189,7 @@ covered in the [upstream handbook](https://biologist79.github.io/ESPuino-Docs/).
   headphone connection status through `/bluetoothstatus`. Improved device names, reconnects,
   discovery shutdown and headphone volume handling are inherited from upstream.
 - SPI-connected SD cards use the compatible FastLED driver; builds without MQTT retain the
-  sleep-timer helper. The CI and release workflows remain pinned to PlatformIO 6.1.19.
+  sleep-timer helper. The CI and release workflows now use PlatformIO 6.2.0 for the Arduino 3.3.12 platform.
 
 - **MediaHub:** register a self-hosted [MediaHub server](https://github.com/biologist79/ESPuino-Mediahub)
   in the MediaHub tab and learn a physical or virtual RFID card there. The hub supplies its
@@ -383,7 +383,7 @@ neon logo that doubles as the SVG favicon ([`7be5254`](../../commit/7be5254)):
 | **Robust playlist hand-off in the audio state machine**: a newly selected playlist is now published to the audio task together with all of its mode/resume/RFID state under one mutex, so rapid card or WebUI changes cannot mix an old playlist with new metadata or free a playlist while it is being adopted. Cross-task LED/OLED/MQTT/WebSocket readers take safe snapshots, upload pause/resume is executed by the audio task itself, and a newly arriving transport command can no longer be erased while the preceding one is handled. Saved track numbers are range-checked, empty playlists can no longer hang behind a TTS announcement, playlists beyond 511 tracks retain the full track index, and browser-started playback never writes the sentinel RFID `000000000000` into NVS | [`bug fix`](../../commits/master) |
 | **Hardened M3U and folder parsing**: imported `.m3u`/`.m3u8` files now handle UTF-8 BOMs, blank lines, indented comments, CRLF, case-insensitive HTTP(S) URLs and paths relative to the playlist folder (including safe `.`/`..` normalization). Oversized lines/lists and unsupported entries are bounded instead of consuming arbitrary heap; an empty M3U stays empty instead of being decoded as audio. Recursive folder scans carry their state per request rather than in shared statics and never mistake a directory named `*.mp3` for a track. The REST writer accepts only validated files below `/Playlists`, rejects newline injection and writes through a temporary/backup file so an SD short-write preserves the previous playlist | [`bug fix`](../../commits/master) |
 | **Reliable WebUI requests and settings state**: settings auto-saves are serialized in edit order, failed writes restore the authoritative device state, and a reconnect can no longer overwrite a pending local edit with stale values. HTTP failures and timeouts are surfaced instead of producing false success messages, empty successful REST responses no longer fail JSON parsing, overlapping progress requests are suppressed, and WebSocket reconnects clean up their timers and tolerate malformed messages | [`bug fix`](../../commits/master) |
-| **Lower decoder load with more free internal heap**: the unused per-sample VU calculation is disabled and the IIR tone filter only runs while the equalizer is non-flat, leaving substantially more core-1 time for expensive AAC/M4A decoding and input handling. The I²S DMA queue uses 40 instead of 48 descriptors (about 232 ms at 44.1 kHz), returning roughly 8 KB of internal RAM while retaining about 46 ms more flash-stall protection than the old 32-descriptor setup | [`performance`](../../commits/master) |
+| **Lower decoder load with more free internal heap**: the unused per-sample VU calculation is disabled and the IIR tone filter only runs while the equalizer is non-flat, leaving substantially more core-1 time for expensive AAC/M4A decoding and input handling. With the upstream 4.0.1 library, I²S DMA uses 20 descriptors at 32-bit stereo (about 116 ms at 44.1 kHz), retaining the former 40 KB payload budget of 40 descriptors at 16-bit stereo | [`performance`](../../commits/master) |
 | **Folder cards play subfolders too (recursive by default)**: assigning a card to a directory now plays every track in that folder *and* its subfolders, for **all** folder play modes (audiobook, all-tracks sorted/random, their loops, and random-subdirectory), not just the dedicated `*_RECURSIVE` modes. Previously a card on a folder ignored its subdirectories entirely — a folder of albums/CDs played nothing but the loose files in the top level. Depth is capped by the existing **playlist recursion depth** setting (default 2); the recursion machinery was already there, only the non-recursive modes were hard-limited to depth 0. Existing cards pick this up automatically — no re-assignment needed | [`bug fix`](../../commits/master) |
 | Tag removal detected via consecutive-miss counter instead of a wall-clock timeout: pause after ~0.5 s, immune to phantom dropouts and task starvation. MFRC522 presence polling now distinguishes a genuinely empty field from a corrupted reply caused by RF noise, and cycles the antenna after removal so a falsely HALTed card can be detected again | [`1fad9cd`](../../commit/1fad9cd) |
 | **Live volume limits**: changed speaker/headphone maximums take effect immediately and clamp the current volume when necessary; no restart is required | |
@@ -471,8 +471,45 @@ git fetch upstream
 git merge upstream/dev
 ```
 
-Last sync: **23 September 2026**, upstream `dev` at `70a95173` (release 3.1 preparation).
-See the September integration above for the newest additions. Earlier inherited features:
+Last sync: **13 November 2026**, upstream `dev` at `3680d108` (release 3.2 preparation).
+
+This integration includes:
+
+- **MediaHub:** optionally adopt unknown cards from registered hubs, fetch only changed files on
+  re-sync, preserve the chosen folder, retry unreachable servers, and show cached title/play-mode/
+  sync status in the RFID list. The MediaHub settings can reveal its internal directory in the
+  file browser. Both options are also available through `GET/POST /settings` (`mediahub` section).
+- **Playback reliability:** queue transport commands and browser playback requests onto the main
+  loop while keeping the fork's protected playlist/metadata handover, listening limits and smart
+  seeking. Releasing seek preview without turning the encoder leaves playback untouched. Audio
+  task placement is configured before starting it, and the volume curve stays cached in RAM.
+- **LEDs and dependencies:** replace FastLED with the upstream SPI/RMT driver, retaining the fork's
+  progress gradients, fading idle animation and state-driven control LEDs. Build with PlatformIO
+  Core **6.2.0**, Arduino **3.3.12**, ESP32-audioI2S **4.0.1** and ESP32Encoder **5.0.0**.
+  Bluetooth no longer reserves BLE/SPP resources. ESPAsyncWebServer **3.12.1** requires AsyncTCP
+  **3.5.0** (pinned); the fork's 7 KB TCP-task stack and other memory settings remain in place.
+  The new 32-bit I²S output uses 20 DMA descriptors to retain the former 40 KB payload budget;
+  buffered audio is now about 116 ms at 44.1 kHz and needs playback/stall testing on hardware.
+- **Web/API:** MQTT, FTP and access-point passwords are represented by presence flags instead of
+  being returned. An omitted MQTT/AP password keeps it; an explicit empty value removes it.
+  Changing the MQTT server/user requires re-entering a stored password. MQTT credentials allow
+  64 characters, input truncation is explained, AP settings are editable, and CORS is opt-in for
+  debug builds. The demo mirrors the new settings and API fields.
+- **MQTT:** publish ambient-light and awake/sleep state on reconnect, and use an `Offline` last
+  will so an interrupted connection is detected by the broker.
+
+For a fresh build environment, keep the platform's own Python bootstrap on the compatible core:
+
+```bash
+python -m pip install "platformio==6.2.0"
+UV_CONSTRAINT="$PWD/tools/build-constraints.txt" pio run -e complete -j 4
+```
+
+CI sets that constraint too. If a previous build already installed `pioarduino 6.2.0.post1`, run
+`python -m pip install "pioarduino==6.2.0"` with the Python interpreter used by `pio` first.
+This works around the platform's [core-version check issue](https://github.com/pioarduino/platform-espressif32/issues/563).
+
+Earlier inherited features:
 
 - **Deterministic RFID presence detection** (WUPA-based polling for MFRC522 and PN5180, plus a
   silent re-init sweep to tell a wedged reader apart from a removed card — see

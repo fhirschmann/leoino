@@ -111,15 +111,18 @@
 		{ id: "0006981923", fileOrUrl: "/Klassik", playMode: 5, lastPlayPos: 0, trackLastPlayed: 0 },
 		{ id: "0212345678", fileOrUrl: "/Hörspiele/Die Robo-Detektive", playMode: 16, lastPlayPos: 318000, trackLastPlayed: 1 },
 		{ id: "0078451200", fileOrUrl: "/Musik/Robo-Beats Vol. 1", playMode: 6, lastPlayPos: 0, trackLastPlayed: 0 },
-		{ id: "0033112299", modId: 110 }
+		{ id: "0033112299", modId: 110 },
+		{ id: "001122334455", fileOrUrl: "mediahub://http://mediahub.local:8080", playMode: 18, lastPlayPos: 0, trackLastPlayed: 0, mediahub: { base: "http://mediahub.local:8080", name: "MediaHub Demo", playMode: 3, isWebstream: false, stale: false } }
 	];
 
 	// Named equalizer rules (POST /eqrule upserts, DELETE /eqrule removes, GET /eqrules lists).
 	var EQRULES = [];
 
-	// Full settings object, shaped like Web.cpp::settingsToJSON("").
+	var DEMO_SETTINGS_OVERRIDES = {};
+
+	// Full settings object, shaped like WebSettings.cpp::settingsToJSON("").
 	function buildSettings() {
-		return {
+		var result = {
 			current: { volume: DEMO_VOLUME, rfidTagId: "0009094506" },
 			general: {
 				initVolume: 3, minVolume: 0, maxVolumeSp: 21, maxVolumeHp: 18, sleepInactivity: 10, jumpOffset: 30, rotSeekStep: 10,
@@ -133,7 +136,8 @@
 				poweredVoltage: 3.5, brandText: ""
 			},
 			equalizer: { gainLowPass: 0, gainBandPass: 0, gainHighPass: 0, profile: "flat" },
-			wifi: { hostname: "espuino-demo", scanOnStart: false },
+			wifi: { hostname: "espuino-demo", maxHostnameLength: 32, scanOnStart: false, apSSID: "AT-1 Demo", apPasswordSet: true, apTimeout: 5 },
+			mediahub: { askUnknown: false, showDir: false },
 			led: {
 				initBrightness: 16, nightBrightness: 2, atmoBrightness: 30, numIndicator: 24,
 				numControl: 0, controlLedsEnabled: true, numIdleDots: 4, idleColor: 16777215,
@@ -158,15 +162,19 @@
 			rotary: { reverse: false, seekPrevDelay: 2000, seekPrevSweep: 40 },
 			playlist: { sortMode: 0, recDepth: 2 },
 			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, offsetVoltage: 0, shutdownOnCritical: false, warnSound: false, warnSoundOnce: false, warnSoundFile: "", voltageCheckInterval: 10 },
-			ftp: { username: "esp32", password: "esp32", maxUserLength: 31, maxPwdLength: 31, enable: false },
+			ftp: { username: "esp32", passwordSet: true, maxUserLength: 64, maxPwdLength: 64, enable: false },
 			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
 			sync: { url: "", username: "", password: "", abortOnButton: true, deleteRemoved: false, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
-			mqtt: { enable: false, clientID: "espuino-demo", deviceId: "espuino-demo", baseTopic: "espuino", server: "", username: "", password: "", port: 1883 },
+			mqtt: { enable: false, clientID: "espuino-demo", deviceId: "espuino-demo", baseTopic: "espuino", server: "", username: "", passwordSet: false, port: 1883, maxUserLength: 64, maxPwdLength: 64, maxServerLength: 64, maxClientIdLength: 15, maxDeviceIdLength: 31, maxBaseTopicLength: 31 },
 			bluetooth: { deviceName: "ESPuino", pinCode: "" },
 			// IR remote: presence of this section reveals the web-UI tab; map = code->command pairs
 			// (cmd = short press, longCmd = long press / hold, 0 = none). longPressMs = hold threshold.
 			ir: { enabled: true, longPressMs: 600, map: [{ code: 12, cmd: 170, longCmd: 182 }, { code: 90, cmd: 176, longCmd: 0 }, { code: 24, cmd: 177, longCmd: 0 }] }
 		};
+		Object.keys(DEMO_SETTINGS_OVERRIDES).forEach(function (section) {
+			result[section] = Object.assign({}, result[section], DEMO_SETTINGS_OVERRIDES[section]);
+		});
+		return result;
 	}
 
 	// The "currently inserted" playlist (public-domain fairy tales). next/prev
@@ -278,7 +286,10 @@
 			if (p === "/explorer") {
 				var path = qs.get("path") || "/";
 				path = path.replace(/\/+$/, "") || "/";
-				return jsonResp(FS[path] || []);
+				var entries = (FS[path] || []).slice();
+				if (path === "/" && buildSettings().mediahub.showDir) entries.push({ name: ".mediahub", dir: true });
+				if (path === "/.mediahub") entries = [{ name: "001122334455", dir: true }];
+				return jsonResp(entries);
 			}
 			// raw file read: the "Edit playlist" builder fetches the .m3u via this route
 			if (p === "/explorerdownload") {
@@ -327,7 +338,7 @@
 			}
 			if (p === "/savedSSIDs") { return jsonResp(["Heimnetz", "Gartenlaube"]); }
 			if (p === "/activeSSID") { return jsonResp({ active: "Heimnetz" }); }
-			if (p === "/wificonfig") { return jsonResp({ hostname: "espuino-demo", scanOnStart: false }); }
+			if (p === "/wificonfig") { return jsonResp(buildSettings().wifi); }
 			if (p === "/eqrules") { return jsonResp(EQRULES); }
 			// HomeKit: enabled so the tab shows in the demo. The setup code is a placeholder
 			// (the QR is the bundled demo-homekit-qr.svg, swapped in by build_demo.py).
@@ -451,6 +462,25 @@
 				FS["/Playlists"].push({ name: name });
 			}
 			return jsonResp({ ok: true, demo: true });
+		}
+
+		// Persist the settings exercised by the upstream integration for this demo session.
+		if (method === "POST" && (p === "/settings" || p === "/wificonfig")) {
+			var update = typeof requestBody === "string" ? JSON.parse(requestBody) : requestBody;
+			if (p === "/wificonfig") update = { wifi: update };
+			Object.keys(update || {}).forEach(function (section) {
+				var values = Object.assign({}, update[section]);
+				if (section === "mqtt" || section === "ftp") {
+					if (values.password !== undefined) values.passwordSet = values.password !== "";
+					delete values.password;
+				}
+				if (section === "wifi") {
+					if (values.apPassword !== undefined) values.apPasswordSet = values.apPassword !== "";
+					delete values.apPassword;
+				}
+				DEMO_SETTINGS_OVERRIDES[section] = Object.assign({}, DEMO_SETTINGS_OVERRIDES[section], values);
+			});
+			return jsonResp({ status: "ok", demo: true });
 		}
 
 		// Everything that writes / triggers an action on the device is a no-op in the demo.

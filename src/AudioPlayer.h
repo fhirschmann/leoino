@@ -21,39 +21,42 @@ enum class playlistSortMode : uint8_t {
 	STRNATCASECMP = 3,
 };
 
-typedef struct { // Bit field
+typedef struct {
+	// No bitfields: the flags are written from several tasks (loop(), async_tcp, MQTT, Bluetooth). A bitfield
+	// write is a read-modify-write of the whole word and loses a neighbouring flag set in between. std::atomic
+	// is no option, the struct lives in PSRAM where the ESP32 has no atomic read-modify-write.
 	uint8_t playMode; // playMode
 	Playlist *playlist; // playlist
 	char title[255]; // current title
 	char artist[255]; // current artist (from ID3/Vorbis tags, empty if none)
 	char album[255]; // current album (from ID3/Vorbis tags, empty if none)
-	bool repeatCurrentTrack : 1; // If current track should be looped
-	bool repeatPlaylist		: 1; // If whole playlist should be looped
+	bool repeatCurrentTrack; // If current track should be looped
+	bool repeatPlaylist; // If whole playlist should be looped
 	uint16_t currentTrackNumber; // Current track number (large playlists may contain more than 511 entries)
 	unsigned long startAtFilePos; // Offset to start play (in seconds)
 	double currentRelPos; // Current relative playPosition (in %)
-	bool sleepAfterCurrentTrack : 1; // If uC should go to sleep after current track
-	bool sleepAfterPlaylist		: 1; // If uC should go to sleep after whole playlist
-	bool saveLastPlayPosition	: 1; // If playposition/current track should be saved (for AUDIOBOOK)
+	bool sleepAfterCurrentTrack; // If uC should go to sleep after current track
+	bool sleepAfterPlaylist; // If uC should go to sleep after whole playlist
+	bool saveLastPlayPosition; // If playposition/current track should be saved (for AUDIOBOOK)
 	char playRfidTag[13]; // ID of RFID-tag that started playlist
-	bool pausePlay		  : 1; // If pause is active
-	bool trackFinished	  : 1; // If current track is finished
-	bool playlistFinished : 1; // If whole playlist is finished
+	bool pausePlay; // If pause is active
+	bool trackFinished; // If current track is finished
+	bool playlistFinished; // If whole playlist is finished
 	uint16_t playUntilTrackNumber; // Track index after which uC goes to sleep
-	uint8_t seekmode		   : 2; // If seekmode is active and if yes: forward or backwards?
-	bool newPlayMono		   : 1; // true if mono; false if stereo (helper)
-	bool currentPlayMono	   : 1; // true if mono; false if stereo
-	bool isWebstream		   : 1; // Indicates if track currenty played is a webstream
-	uint8_t tellMode		   : 2; // Tell mode for text to speech announcments
-	bool currentSpeechActive   : 1; // If speech-play is active
-	bool lastSpeechActive	   : 1; // If speech-play was active
-	bool SavePlayPosRfidChange : 1; // Save last play-position
-	bool pauseOnMinVolume	   : 1; // When playback is active and volume is changed to zero, playback is paused automatically.
-	bool pauseIfRfidRemoved	   : 1; // When playback is active and RFID is removed, playback is paused automatically.
-	bool stopIfRfidRemoved	   : 1; // When pauseIfRfidRemoved is active: stop playback instead of pausing when RFID is removed.
-	bool dontAcceptRfidTwice   : 1; // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
-	bool resumeOnSameRfid	   : 1; // If pause is active and same RFID is put on again, playback continues (only effective if dontAcceptRfidTwice is enabled)
-	bool announcementActive	   : 1; // Local announcement interrupting playback
+	uint8_t seekmode; // If seekmode is active and if yes: forward or backwards?
+	bool newPlayMono; // true if mono; false if stereo (helper)
+	bool currentPlayMono; // true if mono; false if stereo
+	bool isWebstream; // Indicates if track currenty played is a webstream
+	uint8_t tellMode; // Tell mode for text to speech announcments
+	bool currentSpeechActive; // If speech-play is active
+	bool lastSpeechActive; // If speech-play was active
+	bool SavePlayPosRfidChange; // Save last play-position
+	bool pauseOnMinVolume; // When playback is active and volume is changed to zero, playback is paused automatically.
+	bool pauseIfRfidRemoved; // When playback is active and RFID is removed, playback is paused automatically.
+	bool stopIfRfidRemoved; // When pauseIfRfidRemoved is active: stop playback instead of pausing when RFID is removed.
+	bool dontAcceptRfidTwice; // RFID-reader doesn't accept the same RFID-tag twice in a row (unless it's a modification-card or RFID-tag is unknown in NVS). Flag will be ignored silently if PAUSE_WHEN_RFID_REMOVED is active. (https://forum.espuino.de/t/neues-feature-dont-accept-same-rfid-twice/1247)
+	bool resumeOnSameRfid; // If pause is active and same RFID is put on again, playback continues (only effective if dontAcceptRfidTwice is enabled)
+	bool announcementActive; // Local announcement interrupting playback
 	int16_t jumpToFolderTrack = -1; // track to jump to
 	int32_t smartSeekPendingSec = 0; // accumulated smart-seek offset (seconds, signed) waiting to be applied; coalesces rapid presses
 	uint32_t smartSeekRequestMs = 0; // millis() of the last smart-seek press; the offset is applied once presses settle
@@ -103,9 +106,12 @@ String AudioPlayer_GetEqualizerProfile(void);
 void AudioPlayer_ReloadEqRules(void);
 void AudioPlayer_ApplyEqualizerForPath(const char *trackPath);
 void AudioPlayer_SetPlaylist(const char *_itemToPlay, const uint32_t _lastPlayPos, const uint32_t _playMode, const uint16_t _trackLastPlayed);
+bool AudioPlayer_RequestPlaylist(const char *path, uint32_t playMode);
 // Resets a tag's saved play-position + last-played track to the start (preserving folder/mode).
 void AudioPlayer_ResetRfidPos(const char *_rfidCardId, const uint8_t _playMode);
 void AudioPlayer_SetTrackControl(const uint8_t trackCommand);
+// loop() task only: picked up by the very next AudioPlayer_Loop() instead of queueing up behind pending commands
+void AudioPlayer_SetTrackControlNow(const uint8_t trackCommand);
 // Queue a relative seek. Accumulates, so one call per rotary detent scrubs proportionally.
 void AudioPlayer_AddSeekOffset(const int16_t seconds);
 // Seek-preview (CMD_SEEK_PREVIEW rotary gesture): moves a not-yet-committed target position instead of

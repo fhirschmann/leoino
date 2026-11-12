@@ -9,6 +9,7 @@
 #include "ESPAsyncWebServer.h"
 #include "Led.h"
 #include "Log.h"
+#include "MediaHub.h"
 #include "MemX.h"
 #include "Mqtt.h"
 #include "Playstats.h"
@@ -408,11 +409,14 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 
 	if (!root) {
 		Log_Println(failedToOpenDirectory, LOGLEVEL_DEBUG);
+		request->send(404);
 		return;
 	}
 
 	if (!root.isDirectory()) {
 		Log_Println(notADirectory, LOGLEVEL_DEBUG);
+		root.close();
+		request->send(400);
 		return;
 	}
 
@@ -429,11 +433,13 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 		}
 	}
 
+	const bool showMediaHubDir = MediaHub_IsShowDirEnabled();
 	bool isDir = false;
 	String MyfileName = gFSystem.nextFileName(root, &isDir);
 	while (MyfileName != "") {
 		// ignore hidden folders, e.g. MacOS spotlight files
-		if (!MyfileName.startsWith("/.")) {
+		const String entryName = MyfileName.substring(MyfileName.lastIndexOf('/') + 1);
+		if (!entryName.startsWith(".") || (showMediaHubDir && MyfileName.startsWith(MediaHub_RootDir))) {
 			JsonObject entry = obj.add<JsonObject>();
 			entry["name"] = MyfileName.substring(MyfileName.lastIndexOf('/') + 1);
 			if (isDir) {
@@ -441,6 +447,7 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 			}
 		}
 		MyfileName = gFSystem.nextFileName(root, &isDir);
+		esp_task_wdt_reset();
 	}
 	root.close();
 
@@ -904,8 +911,10 @@ void explorerHandleAudioRequest(AsyncWebServerRequest *request) {
 		playModeString = param->value();
 
 		playMode = atoi(playModeString.c_str());
-		Rfid_ResetOldRfid();
-		AudioPlayer_SetPlaylist(filePath, 0, playMode, 0);
+		if (!AudioPlayer_RequestPlaylist(filePath, playMode)) {
+			request->send(400);
+			return;
+		}
 	} else {
 		Log_Println("AUDIO: No path variable set", LOGLEVEL_ERROR);
 	}

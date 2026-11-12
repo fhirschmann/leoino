@@ -11,11 +11,15 @@ on:
       - "**.ini"
       - "**.py"
       - "**.csv"
+      - "tools/build-constraints.txt"
       - ".github/workflows/release-firmware.yml"
 
 # needed so the workflow can create/update the rolling GitHub Release
 permissions:
   contents: write
+
+env:
+  UV_CONSTRAINT: ${{ github.workspace }}/tools/build-constraints.txt
 
 jobs:
   build-and-release:
@@ -31,7 +35,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.platformio
-          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini', '**/dependencies.lock') }}
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini', '**/dependencies.lock', 'tools/build-constraints.txt') }}
           restore-keys: |
             ${{ runner.os }}-pio-
 
@@ -49,9 +53,9 @@ jobs:
           python-version: "3.13"
 
       - name: Install PlatformIO Core
-        # Match firmware-builds.yml: Core 6.2.0 installs SCons 4.11, which breaks
-        # this pioarduino platform with a missing SCons.Tool.FortranCommon module.
-        run: pip install -U "platformio==6.1.19"
+        # Match firmware-builds.yml: platform 55.03.312-1 requires Core 6.2.0.
+        # UV_CONSTRAINT also pins the core installed by the platform itself.
+        run: pip install -U "platformio==6.2.0"
 
       - name: Build complete firmware
         run: platformio run -e complete

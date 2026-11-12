@@ -352,7 +352,7 @@ static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
 			json += ",\"channel\":" + String(WiFi.channel(i));
 			json += ",\"secure\":" + String(WiFi.encryptionType(i));
 			json += ",\"quality\":" + String(quality); // WiFi strength in percent
-			json += ",\"wico\":\"w" + String(int(round(map(quality, 0, 100, 1, 4)))) + "\""; // WiFi strength icon ("w1"-"w4")
+			json += ",\"wico\":\"w" + String(map(quality, 0, 100, 1, 4)) + "\""; // WiFi strength icon ("w1"-"w4")
 			json += ",\"pico\":\"" + String((WIFI_AUTH_OPEN == WiFi.encryptionType(i)) ? "" : "pw") + "\""; // auth icon ("p1" for secured)
 			json += "}";
 		}
@@ -1026,7 +1026,7 @@ void webserverStart(void) {
 		wServer.on("/currenttrack", HTTP_GET, [](AsyncWebServerRequest *request) {
 			AsyncJsonResponse *response = new AsyncJsonResponse(false);
 			JsonObject o = response->getRoot();
-			const bool active = gPlayProperties.playlist && (gPlayProperties.playMode != NO_PLAYLIST) && (gPlayProperties.playMode != BUSY);
+			const bool active = gPlayProperties.playlist && (gPlayProperties.playMode != NO_PLAYLIST) && (gPlayProperties.playMode != PLAYLIST_BUSY);
 			o["active"] = active;
 			o["title"] = gPlayProperties.title;
 			o["artist"] = gPlayProperties.artist;
@@ -1311,10 +1311,13 @@ void webserverStart(void) {
 
 		wServer.onNotFound(notFound);
 
-		// allow cors for local debug (https://github.com/me-no-dev/ESPAsyncWebServer/issues/1080)
+#ifdef ENABLE_CORS_FOR_DEBUG
+		// allow cors for local debug only (https://github.com/me-no-dev/ESPAsyncWebServer/issues/1080):
+		// with these headers any web page in the browser can read and drive the whole API
 		DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Accept, Content-Type, Authorization");
 		DefaultHeaders::Instance().addHeader("Access-Control-Allow-Credentials", "true");
 		DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+#endif
 		Log_Printf(LOGLEVEL_NOTICE, "webserver begin: free internal %u, largest block %u",
 			heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
 			heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
@@ -1456,6 +1459,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		// Takes effect the next time night mode is switched on; an already running night mode keeps the
 		// ceiling it was armed with (or none), so the setting never changes the limit under way.
 		AudioPlayer_SetNightVolumeLimitEnabled(generalObj["nightVolLimit"].as<bool>());
+		AudioPlayer_SetVolumeCurve(generalObj["volumeCurve"].as<uint8_t>());
 
 		gPlayProperties.newPlayMono = generalObj["playMono"].as<bool>();
 		gPlayProperties.SavePlayPosRfidChange = generalObj["savePosRfidChge"].as<bool>();
@@ -1733,6 +1737,10 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			return WebsocketCodeType::Error;
 		}
 	}
+	if (doc["mediahub"].is<JsonObject>()) {
+		MediaHub_SetAskUnknownEnabled(doc["mediahub"]["askUnknown"].as<bool>());
+		MediaHub_SetShowDirEnabled(doc["mediahub"]["showDir"].as<bool>());
+	}
 	if (doc["ftp"].is<JsonObject>()) {
 		// Only the auto-start-on-boot flag is configured here. FTP accepts any username and
 		// uses the shared device password set on the Security tab (see Web_HandlePostSecurity).
@@ -1837,6 +1845,30 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			return WebsocketCodeType::Error;
 		}
 
+		// validate the remaining free-text fields. The web interface already limits them to the
+		// lengths published above, so this only catches requests made directly against /settings.
+		if (String(_mqttServer).length() >= mqttServerLength) {
+			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "mqtt.server too long");
+			return WebsocketCodeType::Error;
+		}
+		if (String(_mqttUser).length() >= mqttUserLength) {
+			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "mqtt.username too long");
+			return WebsocketCodeType::Error;
+		}
+		// The password is write-only (settingsToJSON() only says whether one is stored), so a request
+		// without it keeps the stored one -- but only for the broker it was entered for. Keeping it while
+		// server or username change would let anyone on the network point the box at a broker of their
+		// own and read the password at the next connect, so a new target needs the password again.
+		const bool mqttPwdGiven = doc["mqtt"]["password"].is<const char *>();
+		if (mqttPwdGiven && String(_mqttPwd).length() >= mqttPasswordLength) {
+			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "mqtt.password too long");
+			return WebsocketCodeType::Error;
+		}
+		if (!mqttPwdGiven && gPrefsSettings.getString("mqttPassword", "").length() > 0 && (!String(_mqttServer).equals(gPrefsSettings.getString("mqttServer", "-1")) || !String(_mqttUser).equals(gPrefsSettings.getString("mqttUser", "-1")))) {
+			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "mqtt.password required for a new server or username");
+			return WebsocketCodeType::Error;
+		}
+
 		// store sanitized values
 		gPrefsSettings.putUChar("enableMQTT", _mqttEnable);
 		gPrefsSettings.putString("mqttClientId", mqttClientIdStr);
@@ -1844,7 +1876,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		gPrefsSettings.putString("mqttBaseTopic", mqttBaseTopicStr);
 		gPrefsSettings.putString("mqttServer", (String) _mqttServer);
 		gPrefsSettings.putString("mqttUser", (String) _mqttUser);
-		gPrefsSettings.putString("mqttPassword", (String) _mqttPwd);
+		if (mqttPwdGiven) {
+			gPrefsSettings.putString("mqttPassword", (String) _mqttPwd);
+		}
 		gPrefsSettings.putUInt("mqttPort", _mqttPort);
 
 		// verify writes (include deviceId and baseTopic)
@@ -1872,13 +1906,8 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			// resurrect a modification card removed through the websocket learn dialog.
 			RfidSync_OnDelete(_rfidIdModId);
 		} else {
-			char rfidString[12];
-			snprintf(rfidString, sizeof(rfidString) / sizeof(rfidString[0]), "%s0%s0%s%u%s0", stringDelimiter, stringDelimiter, stringDelimiter, _modId, stringDelimiter);
 			RfidSync_Lock();
-			gPrefsRfid.putString(_rfidIdModId, rfidString);
-
-			String s = gPrefsRfid.getString(_rfidIdModId, "-1");
-			const bool saveOk = (s.compareTo(rfidString) == 0);
+			const bool saveOk = Rfid_SaveAssignment(_rfidIdModId, "0", _modId);
 			if (saveOk) {
 				RfidSync_NoteLocalChange(_rfidIdModId); // stamp the freshly learned modification card
 			}
@@ -1905,10 +1934,7 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			return WebsocketCodeType::Error;
 		}
 		RfidSync_Lock();
-		gPrefsRfid.putString(_rfidIdAssinId, rfidString);
-
-		String s = gPrefsRfid.getString(_rfidIdAssinId, "-1");
-		const bool saveOk = (s.compareTo(rfidString) == 0);
+		const bool saveOk = Rfid_SaveAssignment(_rfidIdAssinId, _fileOrUrlAscii, _playMode);
 		if (saveOk) {
 			RfidSync_NoteLocalChange(_rfidIdAssinId); // stamp the freshly learned music card
 			Rfid_ResetLastTag(); // The tag means something else now: make sure re-applying it is not deduped away
@@ -2665,6 +2691,10 @@ void handlePostSavedSSIDs(AsyncWebServerRequest *request, JsonVariant &json) {
 }
 
 void handleDeleteSavedSSIDs(AsyncWebServerRequest *request) {
+	if (!request->hasParam("ssid")) {
+		request->send(400, "text/plain; charset=utf-8", "missing parameter: ssid");
+		return;
+	}
 	const AsyncWebParameter *p = request->getParam("ssid");
 	if (!p || p->value().isEmpty()) {
 		request->send(400, "text/plain; charset=utf-8", "missing ssid");
@@ -2700,9 +2730,10 @@ void handleGetWiFiConfig(AsyncWebServerRequest *request) {
 	bool scanWifiOnStart = gPrefsSettings.getBool("ScanWiFiOnStart", false);
 
 	obj["hostname"] = Wlan_GetHostname();
+	obj["maxHostnameLength"].set(hostnameMaxLength);
 	obj["scanOnStart"].set(scanWifiOnStart);
 	obj["apSSID"] = Wlan_GetApSSID();
-	obj["apPassword"] = Wlan_GetApPassword();
+	obj["apPasswordSet"].set(Wlan_GetApPassword().length() > 0); // write-only, see handlePostWiFiConfig()
 	obj["apTimeout"] = Wlan_GetApTimeoutMinutes();
 
 	response->setLength();
@@ -2721,7 +2752,7 @@ void handlePostWiFiConfig(AsyncWebServerRequest *request, JsonVariant &json) {
 	}
 
 	// hostname
-	String strHostname = jsonObj["hostname"];
+	String strHostname = jsonObj["hostname"].is<const char *>() ? jsonObj["hostname"].as<String>() : Wlan_GetHostname();
 	if (!Wlan_ValidateHostname(strHostname)) {
 		Log_Println("hostname validation failed", LOGLEVEL_ERROR);
 		request->send(400, "text/plain; charset=utf-8", "hostname validation failed");
@@ -2729,20 +2760,20 @@ void handlePostWiFiConfig(AsyncWebServerRequest *request, JsonVariant &json) {
 	}
 
 	// ESPuino's own access-point (used as fallback when no known WiFi is available)
-	String strApSSID = jsonObj["apSSID"];
+	String strApSSID = jsonObj["apSSID"].is<const char *>() ? jsonObj["apSSID"].as<String>() : Wlan_GetApSSID();
 	if (!Wlan_ValidateApSSID(strApSSID)) {
 		Log_Println("AP SSID validation failed", LOGLEVEL_ERROR);
 		request->send(400, "text/plain; charset=utf-8", "AP SSID validation failed");
 		return;
 	}
-	String strApPassword = jsonObj["apPassword"];
+	String strApPassword = jsonObj["apPassword"].is<const char *>() ? jsonObj["apPassword"].as<String>() : Wlan_GetApPassword();
 	if (!Wlan_ValidateApPassword(strApPassword)) {
 		Log_Println("AP password validation failed", LOGLEVEL_ERROR);
 		request->send(400, "text/plain; charset=utf-8", "AP password validation failed");
 		return;
 	}
 	// minutes the AP stays open before auto-closing; 0 = never close automatically
-	uint32_t apTimeoutMinutes = jsonObj["apTimeout"] | 5;
+	uint32_t apTimeoutMinutes = jsonObj["apTimeout"] | Wlan_GetApTimeoutMinutes();
 
 	bool succ = Wlan_SetHostname(strHostname);
 	succ = succ && Wlan_SetApSSID(strApSSID);

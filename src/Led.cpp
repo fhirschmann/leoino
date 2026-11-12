@@ -42,10 +42,21 @@ static uint8_t Led_savedBrightnessAmbient;
 // global led settings
 static LedSettings gLedSettings;
 
-// the strip buffer bound to FastLED via addLeds(); file-scope (rather than local to Led_Task)
+// the strip buffer bound to Led_Strip via begin(); file-scope (rather than local to Led_Task)
 // so Led_ShowOtaProgress() can draw into it directly while Led_Task is suspended during an
 // OTA upload (see System_PauseTasksDuringUpload())
 static CRGB *leds = nullptr;
+static LedDriver Led_Strip;
+static_assert(LedDriver::isSupported(CHIPSET), "CHIPSET: only WS2812-compatible LEDs are supported");
+
+	// The LEDs prefer the SPI host Arduino calls HSPI (DMA, no CPU load while sending). That host is
+	// only free while the SD card stays off it, i.e. in SD-MMC mode. With SPI-SD, SdCard.cpp's
+	// spiSD(HSPI) and the LEDs would drive the same peripheral concurrently, so RMT is used instead.
+	#ifdef SD_MMC_1BIT_MODE
+static constexpr bool Led_PreferSpi = true;
+	#else
+static constexpr bool Led_PreferSpi = false;
+	#endif
 
 TaskHandle_t Led_TaskHandle;
 static void Led_Task(void *parameter);
@@ -248,7 +259,7 @@ void Led_Exit(void) {
 		Led_TaskHandle = NULL;
 	}
 	// Turn off LEDs in order to avoid LEDs still glowing when ESP32 is in deepsleep
-	FastLED.clear(true);
+	Led_Strip.clear(true);
 #endif
 }
 
@@ -356,6 +367,9 @@ void Led_SetAmbientLight(bool enabled) {
 		Led_SetBrightness(Led_savedBrightnessAmbient);
 		gPrefsSettings.putBool("atmoActive", false);
 	}
+	#ifdef MQTT_ENABLE
+	publishMqtt(topicAmbientLight, enabled ? "ON" : "OFF", false);
+	#endif
 #endif
 }
 
@@ -417,7 +431,7 @@ uint8_t Led_Address(uint8_t number) {
 
 #ifdef NEOPIXEL_ENABLE
 // Resolves the color a control LED should show for its assigned function. The
-// returned color is at full scale; the global FastLED master brightness handles
+// returned color is at full scale; the global driver brightness handles
 // dimming (incl. night mode), keeping legacy static control LEDs unchanged.
 CRGB Led_GetControlColor(LedControlFunction function, uint32_t staticColor) {
 	switch (function) {
@@ -449,7 +463,7 @@ CRGB Led_GetControlColor(LedControlFunction function, uint32_t staticColor) {
 			}
 			// map 0..1 to a hue from red (0) over yellow to green (96 in FastLED's HSV space)
 			const uint8_t hue = static_cast<uint8_t>(constrain(level, 0.0f, 1.0f) * 96.0f);
-			return CRGB(CHSV(hue, 255, 255));
+			return CRGB().setHSV(hue, 255, 255);
 	#else
 			return CRGB(CRGB::Black);
 	#endif
@@ -555,11 +569,11 @@ static void Led_Task(void *parameter) {
 	// Allocate memory for LED arrays
 	leds = new CRGB[numIndicatorLeds + numControlLeds];
 	indicator = new CRGBSet(leds, numIndicatorLeds);
-	// initialize FastLED
-	FastLED.addLeds<CHIPSET, LED_PIN, COLOR_ORDER>(leds, numIndicatorLeds + numControlLeds).setCorrection(TypicalSMD5050);
-	FastLED.setBrightness(gLedSettings.Led_Brightness);
-	FastLED.setDither(DISABLE_DITHER);
-	FastLED.setMaxRefreshRate(200); // limit LED refresh rate to 200Hz (less likely to cause flickering)
+	// initialize the LED output
+	Led_Strip.begin(LED_PIN, COLOR_ORDER, leds, numIndicatorLeds + numControlLeds, Led_PreferSpi);
+	Led_Strip.setCorrection(TypicalSMD5050);
+	Led_Strip.setBrightness(gLedSettings.Led_Brightness);
+	Led_Strip.setMaxRefreshRate(200); // limit LED refresh rate to 200Hz (less likely to cause flickering)
 
 	LedAnimationType activeAnimation = LedAnimationType::NoNewAnimation;
 	LedAnimationType nextAnimation = LedAnimationType::NoNewAnimation;
@@ -574,13 +588,9 @@ static void Led_Task(void *parameter) {
 			Led_LoadSettings(gLedSettings);
 			// number of indicator/control leds changed
 			if (((gLedSettings.numIndicatorLeds + gLedSettings.numControlLeds) != (numIndicatorLeds + numControlLeds)) || (gLedSettings.numControlLeds != numControlLeds)) {
-				// FastLED's SPI/RMT WS2812 driver lazily creates its internal strip object,
-				// sized for whatever pixel count was in effect on the very first show() call,
-				// and never resizes it afterwards. Calling addLeds() again with a different
-				// count here doesn't reset that internal state, so every following show()
-				// call hits a hard FASTLED_ASSERT (mLedStrip->numPixels() != pixels.size()).
+				// Led_Strip's buffers (and the DMA transfer size) are sized once in begin().
 				// Request a clean restart instead of trying to hot-reallocate the strip, and
-				// stop touching leds/indicator/FastLED until then (their sizes no longer
+				// stop touching leds/indicator/Led_Strip until then (their sizes no longer
 				// match gLedSettings).
 				Log_Println("Number of LEDs changed, restarting to apply..", LOGLEVEL_NOTICE);
 				System_Restart();
@@ -631,13 +641,13 @@ static void Led_Task(void *parameter) {
 			nextAnimation = LedAnimationType::Idle;
 		} else if (gPlayProperties.pausePlay && !gPlayProperties.isWebstream) {
 			nextAnimation = LedAnimationType::Pause;
-		} else if ((gPlayProperties.playMode != BUSY) && (gPlayProperties.playMode != NO_PLAYLIST) && gPlayProperties.audioFileDuration > 0) { // progress for a file/stream with known size
+		} else if ((gPlayProperties.playMode != PLAYLIST_BUSY) && (gPlayProperties.playMode != NO_PLAYLIST) && gPlayProperties.audioFileDuration > 0) { // progress for a file/stream with known size
 			nextAnimation = LedAnimationType::Progress;
 		} else if (gPlayProperties.isWebstream) { // webstream animation (for streams with unknown size); pause animation is also handled by the webstream animation function
 			nextAnimation = LedAnimationType::Webstream;
 		} else if (gPlayProperties.playMode == NO_PLAYLIST) {
 			nextAnimation = LedAnimationType::Idle;
-		} else if (gPlayProperties.playMode == BUSY) {
+		} else if (gPlayProperties.playMode == PLAYLIST_BUSY) {
 			nextAnimation = LedAnimationType::Busy;
 		} else {
 			nextAnimation = LedAnimationType::NoNewAnimation; // should not happen
@@ -656,7 +666,7 @@ static void Led_Task(void *parameter) {
 
 		// apply brightness-changes
 		if (lastLedBrightness != gLedSettings.Led_Brightness) {
-			FastLED.setBrightness(gLedSettings.Led_Brightness);
+			Led_Strip.setBrightness(gLedSettings.Led_Brightness);
 			lastLedBrightness = gLedSettings.Led_Brightness;
 		}
 
@@ -733,7 +743,7 @@ static void Led_Task(void *parameter) {
 
 					default:
 						*indicator = CRGB::Black;
-						FastLED.show();
+						Led_Strip.show();
 						ret.animationActive = false;
 						ret.animationDelay = 50;
 						break;
@@ -742,7 +752,7 @@ static void Led_Task(void *parameter) {
 				animationActive = ret.animationActive;
 				animationTimer = ret.animationDelay;
 				if (ret.animationRefresh) {
-					FastLED.show();
+					Led_Strip.show();
 				}
 			}
 		} else {
@@ -755,7 +765,7 @@ static void Led_Task(void *parameter) {
 					leds[i].setHSV(gLedSettings.atmoHue, gLedSettings.atmoSaturation, 255);
 				}
 			}
-			FastLED.show();
+			Led_Strip.show();
 			activeAnimation = LedAnimationType::NoNewAnimation;
 			animationActive = false;
 			animationTimer = 0;
@@ -1544,7 +1554,7 @@ void Led_TaskPause(void) {
 #ifdef NEOPIXEL_ENABLE
 	if (Led_TaskHandle != NULL) {
 		vTaskSuspend(Led_TaskHandle);
-		FastLED.clear(true);
+		Led_Strip.clear(true);
 	}
 #endif
 }
@@ -1560,8 +1570,8 @@ void Led_TaskResume(void) {
 void Led_ShowSyncColor(void) {
 #ifdef NEOPIXEL_ENABLE
 	if (Led_TaskHandle != NULL) {
-		vTaskSuspend(Led_TaskHandle); // make sure nothing else drives FastLED concurrently
-		FastLED.showColor(CRGB::Blue); // one-shot; the LEDs latch and hold this until resume
+		vTaskSuspend(Led_TaskHandle); // make sure nothing else drives the strip concurrently
+		Led_Strip.showColor(CRGB::Blue); // one-shot; the LEDs latch and hold this until resume
 	}
 #endif
 }
@@ -1597,13 +1607,13 @@ void Led_ShowOtaProgress(uint8_t percent) {
 			blinkOn = !blinkOn;
 		}
 		leds[0] = blinkOn ? CRGB::Blue : CRGB::Black;
-		FastLED.show();
+		Led_Strip.show();
 		return;
 	}
 	const uint8_t litCount = (uint8_t) (((uint16_t) percent * gLedSettings.numIndicatorLeds) / 100);
 	for (uint8_t i = 0; i < gLedSettings.numIndicatorLeds; i++) {
 		leds[i] = (i < litCount) ? CRGB::Blue : CRGB::Black;
 	}
-	FastLED.show();
+	Led_Strip.show();
 #endif
 }

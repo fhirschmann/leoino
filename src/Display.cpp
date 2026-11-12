@@ -866,7 +866,7 @@ static bool Display_FormatClock(char *buf, size_t n) {
 static const char *Display_QuickMenuPlayState(void) {
     if (System_GetOperationMode() == OPMODE_BLUETOOTH_SINK) return "BT SPEAKER";
     if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) return "BT HEADSET";
-    if (gPlayProperties.playMode == BUSY) return "LOADING";
+    if (gPlayProperties.playMode == PLAYLIST_BUSY) return "LOADING";
     if (gPlayProperties.playMode == NO_PLAYLIST) return "IDLE";
     return gPlayProperties.pausePlay ? "PAUSED" : "PLAYING";
 }
