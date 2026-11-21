@@ -322,6 +322,17 @@
 			"disable": "Passwortschutz deaktivieren",
 			"nochange": "Nichts zu speichern: neues Passwort eingeben oder „Passwortschutz deaktivieren“ anhaken."
 		},
+		"api": {
+			"title": "API-Schlüssel",
+			"placeholder": "64 Hex-Zeichen – leer lassen zum Behalten",
+			"generate": "Generieren",
+			"desc": "Voller Zugriff auf die HTTP-API über X-API-Key, unabhängig vom Geräte-Passwort. Vor dem Speichern kopieren: der Schlüssel wird danach nicht mehr angezeigt. Er gilt nicht für FTP/WebDAV. Ohne Geräte-Passwort oder im Hotspot-Modus bleibt die API offen.",
+			"revoke": "API-Schlüssel widerrufen",
+			"set": "API-Schlüssel ist eingerichtet.",
+			"unset": "Kein eigener API-Schlüssel eingerichtet.",
+			"invalid": "Bitte einen Schlüssel mit 64 Hex-Zeichen generieren/eintragen oder Widerrufen wählen."
+		},
+
 		"cookie": {
 			"title": "Anmeldung merken",
 			"unlimited": "Unbegrenzt eingeloggt bleiben",
@@ -1300,6 +1311,7 @@
 		"lblI2c": "I²C-Bus",
 		"i2cStatus": "SDA {{sda}}, SCL {{scl}}, Recovery {{successes}}/{{attempts}}",
 		"i2cStartupClear": "Bus-Clear beim Start: {{pulses}} Takte",
+		"coreDumpOtherFirmware": "Dieser Dump stammt von einer anderen Firmware.",
 		"lblCoreDump": "Letzter Absturz",
 		"coreDumpNone": "Bereit, kein Core-Dump gespeichert",
 		"coreDumpMissing": "Core-Dump-Partition fehlt",

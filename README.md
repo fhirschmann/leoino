@@ -525,3 +525,40 @@ Earlier inherited features:
 
 Same as the original: [GPL-3.0](LICENSE). The original README content (hardware, HALs, wiring)
 can be found in the [ESPuino documentation](https://github.com/biologist79/ESPuino#readme).
+
+### Automation and crash diagnosis
+
+A separate **full-access API key** can be generated or replaced under Settings → Security.
+It is independent of the shared web/FTP/WebDAV password, applies to all HTTP API operations,
+and is supplied only in `X-API-Key`. Copy it before saving; the device never reads it back.
+`POST /security` accepts write-only `apiKey` (64 random hex characters, omitted = keep,
+empty = revoke); `GET /security` returns only `apiKeySet`. Existing scripts using the web
+password as their API key still work. With no device password or in AP mode the API remains open.
+
+`tools/espuino_helper.py` loads `ESPUINO_IP` / `ESPUINO_API_KEY`, the local ignored
+`.espuino_config.json`, or `../homelab/secrets.json` (`services.leoino.url` and
+`services.leoino.api_key`). Override the latter path with `HOMELAB_SECRETS_PATH`.
+The global file must remain gitignored and readable only by its owner (mode 0600).
+
+```bash
+python3 tools/espuino_helper.py --api /info
+python3 tools/espuino_helper.py --api /settings --method POST --data-file /private/settings.json
+python3 tools/espuino_helper.py --diagnostics /private/at1-diagnostics
+```
+
+Diagnostics download `/info`, `/debug`, `/log` and, when present, `/coredump` into private
+files. `/debug` includes reset reason (`esp_reset_reason_t`), uptime, heap watermarks,
+volume, task statistics and crash metadata. `/info` also includes the running ELF SHA256
+and the dump's task, PC/backtrace and firmware match status. Old dumps survive updates;
+`firmwareMatches: false` means they must be decoded with their original binary.
+The `.bin` dump contains the ESP-IDF header/checksum around the ELF payload: use
+`esp-coredump --chip esp32 info_corefile -t raw -c coredump.bin firmware.elf`.
+The rolling firmware release now includes `firmware.elf`; CI additionally retains symbols
+per commit for 90 days. Download matching symbols with the diagnostics before updating.
+
+Concurrent logging from volume controls, audio and network tasks now shares a mutex with
+`/log` snapshots. This prevents the third-party ring buffer's wraparound index from being
+corrupted by overlapping writers. `python3 tools/test_log_concurrency.py` exercises the
+real logger and pinned ring-buffer implementation with six writers and a reader under
+AddressSanitizer/UBSan (host g++ required); `python3 tools/test_espuino_helper.py` checks
+credential precedence, API authentication and private diagnostic downloads.

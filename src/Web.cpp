@@ -52,6 +52,7 @@
 #include <WiFiClientSecure.h>
 #include <algorithm>
 #include <atomic>
+#include <esp_app_desc.h>
 #include <esp_random.h>
 #include <esp_task_wdt.h>
 #include <mbedtls/sha256.h>
@@ -419,6 +420,8 @@ static String wwwSessionToken = "";
 // check is a pure RAM compare (like the cookie path) and never reads NVS. Kept current
 // by Web_RefreshSessionToken().
 static String wwwApiKey = "";
+// Independent, write-only automation credential; the web password remains a legacy API key.
+static String wwwAutomationKey = "";
 static uint8_t wwwFailedLogins = 0;
 static uint32_t wwwLoginLockedUntil = 0;
 
@@ -475,6 +478,7 @@ static String Web_SessionCookie(const String &token) {
 static void Web_RefreshSessionToken(void) {
 	String password = gPrefsSettings.getString("wwwPassword", "");
 	wwwApiKey = password; // refresh the RAM-cached API key
+	wwwAutomationKey = gPrefsSettings.getString("wwwApiKey", "");
 	if (password.length() == 0) {
 		wwwSessionToken = "";
 		return;
@@ -491,6 +495,9 @@ static void Web_RefreshSessionToken(void) {
 
 static bool Web_IsAuthenticated(AsyncWebServerRequest *request) {
 	if (wwwSessionToken.length() == 0) {
+		return true;
+	}
+	if (wwwAutomationKey.length() && request->hasHeader("X-API-Key") && request->header("X-API-Key").equals(wwwAutomationKey)) {
 		return true;
 	}
 	// API key for non-browser clients: the web password sent via the X-API-Key header,
@@ -552,6 +559,29 @@ static void Web_HandlePostLogin(AsyncWebServerRequest *request, JsonVariant &jso
 }
 
 static void Web_HandlePostSecurity(AsyncWebServerRequest *request, JsonVariant &json) {
+	// Omitted = keep, empty = revoke. Validate before changing any settings.
+	if (!json["apiKey"].isNull()) {
+		if (!json["apiKey"].is<const char *>()) {
+			request->send(400, "application/json", "{\"error\":\"apiKey must be a string\"}");
+			return;
+		}
+		String key = json["apiKey"].as<String>();
+		bool valid = key.isEmpty() || key.length() == 64;
+		for (size_t i = 0; valid && i < key.length(); ++i) {
+			const char c = key[i];
+			valid = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+		}
+		if (!valid) {
+			request->send(400, "application/json", "{\"error\":\"apiKey must contain 64 hex characters or be empty\"}");
+			return;
+		}
+		const bool saved = key.isEmpty() ? (!gPrefsSettings.isKey("wwwApiKey") || gPrefsSettings.remove("wwwApiKey")) : (gPrefsSettings.putString("wwwApiKey", key) == key.length());
+		if (!saved) {
+			request->send(500, "application/json", "{\"error\":\"could not save API key\"}");
+			return;
+		}
+		wwwAutomationKey = key;
+	}
 	// Session-cookie lifetime in days (0 = unlimited). Independent of the password, so the cookie
 	// form can update just this without touching the password.
 	if (!json["cookieDays"].isNull()) {
@@ -662,6 +692,7 @@ void webserverStart(void) {
 		wServer.on("/security", HTTP_GET, [](AsyncWebServerRequest *request) {
 			JsonDocument doc;
 			doc["enabled"] = (wwwSessionToken.length() > 0);
+			doc["apiKeySet"] = !wwwAutomationKey.isEmpty();
 			doc["cookieDays"] = gPrefsSettings.getUInt("wwwCookieDays", WWW_COOKIE_DAYS_DEFAULT);
 			// The password is deliberately NOT returned: it is the shared web/FTP/WebDAV credential
 			// and echoing it back turns every authenticated read (or any XSS/CSRF that can fetch
@@ -2114,7 +2145,7 @@ static void handleGetCoreDump(AsyncWebServerRequest *request) {
 	AsyncWebServerResponse *response = request->beginResponse("application/octet-stream", status.size, [](uint8_t *buffer, size_t maxLength, size_t index) -> size_t {
 		return CrashDump_Read(index, buffer, maxLength);
 	});
-	response->addHeader("Content-Disposition", "attachment; filename=leoino-coredump.elf");
+	response->addHeader("Content-Disposition", "attachment; filename=leoino-coredump.bin");
 	response->addHeader("Cache-Control", "no-store");
 	request->send(response);
 	System_UpdateActivityTimer();
@@ -2133,6 +2164,33 @@ static void handleDeleteCoreDump(AsyncWebServerRequest *request) {
 	System_UpdateActivityTimer();
 }
 
+static void Web_AddCrashDumpInfo(JsonObject dumpObj) {
+	const CrashDumpStatus &status = CrashDump_GetStatus();
+	dumpObj["partitionPresent"] = status.partitionPresent;
+	dumpObj["available"] = status.available;
+	dumpObj["valid"] = status.valid;
+	dumpObj["size"] = status.size;
+	if (status.panicReason[0]) {
+		dumpObj["panicReason"] = status.panicReason;
+	}
+	if (status.summaryAvailable) {
+		dumpObj["appElfSha256"] = status.appElfSha256;
+		dumpObj["firmwareMatches"] = status.firmwareMatches;
+		dumpObj["task"] = status.task;
+		dumpObj["exceptionPc"] = status.exceptionPc;
+		dumpObj["backtraceCorrupted"] = status.backtraceCorrupted;
+		JsonArray backtrace = dumpObj["backtrace"].to<JsonArray>();
+		for (uint8_t i = 0; i < status.backtraceDepth; ++i) {
+			backtrace.add(status.backtrace[i]);
+		}
+	}
+}
+
+static void Web_AddRuntimeInfo(JsonObject runtimeObj) {
+	runtimeObj["uptimeMs"] = millis();
+	runtimeObj["resetReason"] = static_cast<int>(esp_reset_reason());
+}
+
 // handle get info
 void handleGetInfo(AsyncWebServerRequest *request) {
 
@@ -2148,6 +2206,9 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		JsonObject softwareObj = infoObj["software"].to<JsonObject>();
 		softwareObj["version"] = (String) softwareRevision;
 		softwareObj["git"] = (String) gitRevision;
+		char elfSha[65] = {};
+		esp_app_get_elf_sha256(elfSha, sizeof(elfSha));
+		softwareObj["appElfSha256"] = elfSha;
 		softwareObj["build"] = (String) buildRevision;
 		softwareObj["branch"] = (String) gitBranch;
 		softwareObj["arduino"] = String(ESP_ARDUINO_VERSION_MAJOR) + "." + String(ESP_ARDUINO_VERSION_MINOR) + "." + String(ESP_ARDUINO_VERSION_PATCH);
@@ -2159,6 +2220,9 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 #else
 		softwareObj["otaSupported"] = false;
 #endif
+	}
+	if ((section == "") || (section == "runtime")) {
+		Web_AddRuntimeInfo(infoObj["runtime"].to<JsonObject>());
 	}
 	// hardware
 	if ((section == "") || (section == "hardware")) {
@@ -2178,6 +2242,8 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 	if ((section == "") || (section == "memory")) {
 		JsonObject memoryObj = infoObj["memory"].to<JsonObject>();
 		memoryObj["freeHeap"] = ESP.getFreeHeap();
+		memoryObj["minFreeHeap"] = ESP.getMinFreeHeap();
+		memoryObj["largestFreeInternalBlock"] = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 		memoryObj["largestFreeBlock"] = (uint32_t) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
 		memoryObj["freePSRam"] = ESP.getFreePsram();
 		memoryObj["largestFreePSRamBlock"] = String(ESP.getMaxAllocPsram());
@@ -2230,15 +2296,7 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 	}
 #endif
 	if ((section == "") || (section == "coredump")) {
-		const CrashDumpStatus &status = CrashDump_GetStatus();
-		JsonObject dumpObj = infoObj["coredump"].to<JsonObject>();
-		dumpObj["partitionPresent"] = status.partitionPresent;
-		dumpObj["available"] = status.available;
-		dumpObj["valid"] = status.valid;
-		dumpObj["size"] = status.size;
-		if (status.panicReason[0]) {
-			dumpObj["panicReason"] = status.panicReason;
-		}
+		Web_AddCrashDumpInfo(infoObj["coredump"].to<JsonObject>());
 	}
 #ifdef BATTERY_MEASURE_ENABLE
 	// battery
@@ -2314,10 +2372,20 @@ void handlePostSettings(AsyncWebServerRequest *request, JsonVariant &json) {
 void handleDebugRequest(AsyncWebServerRequest *request) {
 
 	AsyncJsonResponse *response = new AsyncJsonResponse(false);
-#ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
 	JsonObject infoObj = response->getRoot();
+	Web_AddRuntimeInfo(infoObj["runtime"].to<JsonObject>());
+	Web_AddCrashDumpInfo(infoObj["coredump"].to<JsonObject>());
+	char elfSha[65] = {};
+	esp_app_get_elf_sha256(elfSha, sizeof(elfSha));
+	infoObj["appElfSha256"] = elfSha;
+	infoObj["freeHeap"] = ESP.getFreeHeap();
+	infoObj["minFreeHeap"] = ESP.getMinFreeHeap();
+	infoObj["largestFreeInternalBlock"] = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+	infoObj["volume"] = AudioPlayer_GetCurrentVolume();
+	infoObj["maxVolume"] = AudioPlayer_GetMaxVolume();
+#if CONFIG_FREERTOS_USE_TRACE_FACILITY
 	// task runtime info
-	uint32_t pulTotalRunTime;
+	uint32_t pulTotalRunTime = 0;
 	uint32_t taskCount = uxTaskGetNumberOfTasks();
 	std::vector<TaskStatus_t> task_status_arr(taskCount + 5);
 
@@ -2333,7 +2401,7 @@ void handleDebugRequest(AsyncWebServerRequest *request) {
 	for (int i = 0; i < taskNum; i++) {
 		JsonObject taskObj = tasksList.add<JsonObject>();
 
-		float ulStatsAsPercentage = 100.f * ((float) task_status_arr[i].ulRunTimeCounter / (float) pulTotalRunTime);
+		float ulStatsAsPercentage = pulTotalRunTime ? 100.f * ((float) task_status_arr[i].ulRunTimeCounter / (float) pulTotalRunTime) : 0.f;
 
 		taskObj["name"] = task_status_arr[i].pcTaskName;
 		taskObj["runtimeCounter"] = task_status_arr[i].ulRunTimeCounter;

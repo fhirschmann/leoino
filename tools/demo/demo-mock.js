@@ -215,6 +215,7 @@
 	// ---------------------------------------------------------------
 	// REST routing  (returns {status, contentType, body} or null)
 	// ---------------------------------------------------------------
+	var SECURITY = { enabled: false, cookieDays: 90, apiKeySet: false };
 	function jsonResp(obj, status) {
 		return { status: status || 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(obj) };
 	}
@@ -301,7 +302,8 @@
 			}
 			if (p === "/info") {
 				var info = {
-					software: { version: "demo (web preview)", build: "demo", git: "demo", arduino: "3.x", idf: "5.x" },
+					runtime: { uptimeMs: 3600000, resetReason: 1 },
+					software: { appElfSha256: "demo", version: "demo (web preview)", build: "demo", git: "demo", arduino: "3.x", idf: "5.x" },
 					hardware: { model: "ESP32", revision: 3, freq: 240, readerFirmware: "" },
 					memory: { freeHeap: 142336, largestFreeBlock: 110592, freePSRam: 3801088 },
 					wifi: { ip: "192.168.1.34", macAddress: "A0:B1:C2:D3:E4:F5", rssi: -58 },
@@ -344,7 +346,8 @@
 			// (the QR is the bundled demo-homekit-qr.svg, swapped in by build_demo.py).
 			if (p === "/homekit") { return jsonResp({ enabled: true, active: true, paired: false, code: "031-45-154", deviceName: "Leo Industries AT-1", tvName: "AT-1 TV" }); }
 			// password status: the device never echoes the password back (write-only field)
-			if (p === "/security") { return jsonResp({ enabled: false, cookieDays: 90 }); }
+			if (p === "/security") { return jsonResp(SECURITY); }
+			if (p === "/debug") { return jsonResp({ runtime: { uptimeMs: 3600000, resetReason: 1 }, appElfSha256: "demo", freeHeap: 142336, minFreeHeap: 110000, largestFreeInternalBlock: 100000, volume: TRACK.volume, maxVolume: 21, coredump: { partitionPresent: true, available: false, valid: false, size: 0 }, tasks: { taskCount: 0, totalRunTime: 0, tasksList: [] } }); }
 			if (p === "/bluetoothstatus") { return jsonResp(DEMO_MODE === 2 && DEMO_BT_PEER ? { connected: true, name: DEMO_BT_PEER.name, address: DEMO_BT_PEER.address } : { connected: false }); }
 			if (p === "/bluetoothresults") { return jsonResp(DEMO_MODE === 2 ? DEMO_BT_DEVICES : []); }
 			if (p === "/settings") {
@@ -421,6 +424,17 @@
 
 		// The demo advertises an empty core-dump partition in /info. Keep both authenticated device
 		// actions covered without inventing a downloadable crash file in the static preview.
+		if (p === "/security" && method === "POST") {
+			var security = typeof requestBody === "string" ? JSON.parse(requestBody) : (requestBody || {});
+			if (security.apiKey !== undefined) {
+				if (typeof security.apiKey !== "string" || (security.apiKey !== "" && !/^[a-fA-F0-9]{64}$/.test(security.apiKey))) return jsonResp({ error: "invalid API key" }, 400);
+				SECURITY.apiKeySet = security.apiKey.length > 0;
+			}
+			if (security.cookieDays !== undefined) SECURITY.cookieDays = security.cookieDays;
+			if (security.password !== undefined) SECURITY.enabled = security.password.length > 0;
+			return jsonResp({ status: "ok" });
+		}
+
 		if (p === "/coredump") {
 			if (method === "DELETE") { return jsonResp({ status: "ok", demo: true }); }
 			return { status: 404, contentType: "text/plain; charset=utf-8", body: "No core dump stored (demo)." };

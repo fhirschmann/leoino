@@ -3,6 +3,7 @@
 #include "Log.h"
 
 #include <algorithm>
+#include <esp_app_desc.h>
 #include <esp_core_dump.h>
 #include <esp_partition.h>
 #include <sdkconfig.h>
@@ -39,6 +40,22 @@ void refreshStatus(void) {
 #if CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH && CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF
 	if (s_status.valid) {
 		esp_core_dump_get_panic_reason(s_status.panicReason, sizeof(s_status.panicReason));
+		esp_core_dump_summary_t summary = {};
+		if (esp_core_dump_get_summary(&summary) == ESP_OK) {
+			s_status.summaryAvailable = true;
+			snprintf(s_status.task, sizeof(s_status.task), "%.*s", int(sizeof(summary.exc_task)), summary.exc_task);
+			snprintf(s_status.appElfSha256, sizeof(s_status.appElfSha256), "%.*s", int(sizeof(summary.app_elf_sha256)), reinterpret_cast<const char *>(summary.app_elf_sha256));
+			char runningSha[65] = {};
+			esp_app_get_elf_sha256(runningSha, sizeof(runningSha));
+			// IDF may store only a prefix in the core dump (CONFIG_APP_RETRIEVE_LEN_ELF_SHA).
+			s_status.firmwareMatches = s_status.appElfSha256[0] && strncmp(runningSha, s_status.appElfSha256, strlen(s_status.appElfSha256)) == 0;
+			s_status.exceptionPc = summary.exc_pc;
+	#if CONFIG_IDF_TARGET_ARCH_XTENSA
+			s_status.backtraceDepth = std::min<uint32_t>(summary.exc_bt_info.depth, 16);
+			std::copy_n(summary.exc_bt_info.bt, s_status.backtraceDepth, s_status.backtrace);
+			s_status.backtraceCorrupted = summary.exc_bt_info.corrupted;
+	#endif
+		}
 	}
 #endif
 }

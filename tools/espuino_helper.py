@@ -14,38 +14,32 @@ CONFIG_FILE = os.path.join(
 
 
 def load_config():
-    """Loads configuration from environment variables or local json config."""
-    # 1. Try environment variables first
-    ip = os.environ.get("ESPUINO_IP")
-    user = os.environ.get("ESPUINO_USER")
-    password = os.environ.get("ESPUINO_PASS")
+    """Environment > local device config > gitignored Homelab services.leoino."""
+    from pathlib import Path
 
-    # 2. Try local config file if env vars are missing
-    if not (ip and user and password) and os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                ip = ip or data.get("ip")
-                user = user or data.get("user")
-                password = password or data.get("password")
-        except Exception as e:
-            print(f"Warning: Failed to read local config file: {e}", file=sys.stderr)
-
-    # 3. Fallbacks / Defaults
-    user = user or "espuino"
-
-    # Device address and password are deliberately never hard-coded in the repository.
-    if not ip or not password:
-        missing = ", ".join(
-            name for name, value in (("ESPUINO_IP", ip), ("ESPUINO_PASS", password)) if not value
-        )
-        print(
-            f"Error: Missing {missing}. Set the environment variables or create .espuino_config.json",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    return ip, user, password
+    local = {}
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, encoding="utf-8") as f:
+            local = json.load(f)
+    global_path = Path(os.environ.get(
+        "HOMELAB_SECRETS_PATH", Path(__file__).resolve().parents[2] / "homelab" / "secrets.json"
+    ))
+    shared = {}
+    if global_path.is_file():
+        with global_path.open(encoding="utf-8") as f:
+            shared = json.load(f).get("services", {}).get("leoino", {})
+    ip = os.environ.get("ESPUINO_IP") or local.get("ip") or shared.get("url")
+    user = os.environ.get("ESPUINO_USER") or local.get("user") or "espuino"
+    key = (os.environ.get("ESPUINO_API_KEY") or os.environ.get("ESPUINO_PASS")
+           or local.get("api_key") or local.get("password") or shared.get("api_key"))
+    if not ip or not key:
+        raise ValueError("Set ESPUINO_IP / ESPUINO_API_KEY or configure services.leoino in Homelab secrets.json")
+    # Existing playlist/file helpers prepend http://; keep the legacy host format.
+    if ip.startswith("http://"):
+        ip = ip[7:]
+    if "/" in ip.rstrip("/") or "@" in ip:
+        raise ValueError("Device URL must be an HTTP host with optional port")
+    return ip.rstrip("/"), user, key
 
 
 ESPUINO_IP = None
@@ -127,6 +121,51 @@ def create_playlist(playlist_path, tracks):
         sys.exit(1)
 
 
+def api_request(path, method="GET", data=None):
+    """Authenticated access to any device API route; no redirects with credentials."""
+    if not path.startswith("/") or path.startswith("//"):
+        raise ValueError("API path must start with a single /")
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    headers = get_auth_headers()
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(f"http://{ESPUINO_IP}{path}", data=data,
+                                 headers=headers, method=method)
+    with urllib.request.build_opener(NoRedirect).open(req, timeout=30) as response:
+        return response.read()
+
+
+def save_private(path, data):
+    from pathlib import Path
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+
+
+def download_diagnostics(directory):
+    from pathlib import Path
+    import urllib.error
+    target = Path(directory)
+    for endpoint, filename in (("/info", "info.json"), ("/debug", "debug.json"),
+                               ("/log", "log.txt"), ("/coredump", "coredump.bin")):
+        try:
+            data = api_request(endpoint)
+        except urllib.error.HTTPError as error:
+            if endpoint == "/coredump" and error.code == 404:
+                print("No stored core dump.")
+                continue
+            raise
+        save_private(target / filename, data)
+        print(f"Saved {filename} ({len(data)} bytes)")
+
+
 def main():
     global ESPUINO_IP, USER, PASS
 
@@ -139,7 +178,26 @@ def main():
     )
     parser.add_argument("--tracks", nargs="+", help="Space-separated list of track paths")
 
+    parser.add_argument("--api", metavar="PATH", help="Request any API path, e.g. /debug")
+    parser.add_argument("--method", default="GET", choices=["GET", "POST", "PUT", "PATCH", "DELETE"])
+    parser.add_argument("--data-file", help="JSON request body file (keeps secrets out of shell arguments)")
+    parser.add_argument("--output", help="Save raw response to a private file")
+    parser.add_argument("--diagnostics", metavar="DIR", help="Download info, debug, log and stored core dump")
     args = parser.parse_args()
+
+    if args.api or args.diagnostics:
+        from pathlib import Path
+        ESPUINO_IP, USER, PASS = load_config()
+        if args.diagnostics:
+            download_diagnostics(args.diagnostics)
+        else:
+            data = Path(args.data_file).read_bytes() if args.data_file else None
+            result = api_request(args.api, args.method, data)
+            if args.output:
+                save_private(args.output, result)
+            else:
+                print(result.decode("utf-8").replace("/Tonies", "/SLIX2"))
+        return
 
     if args.list:
         ESPUINO_IP, USER, PASS = load_config()
@@ -155,4 +213,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (ValueError, OSError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)

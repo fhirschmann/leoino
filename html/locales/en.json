@@ -322,6 +322,17 @@
 			"disable": "Disable password protection",
 			"nochange": "Nothing to save: enter a new password or tick “Disable password protection”."
 		},
+		"api": {
+			"title": "API key",
+			"placeholder": "64 hex characters – leave blank to keep",
+			"generate": "Generate",
+			"desc": "Full HTTP API access via X-API-Key, independent of the device password. Copy before saving: the key is never shown again. It does not apply to FTP/WebDAV. Without a device password or in hotspot mode, the API remains open.",
+			"revoke": "Revoke API key",
+			"set": "API key configured.",
+			"unset": "No dedicated API key configured.",
+			"invalid": "Generate/enter a 64-character hex key or select Revoke."
+		},
+
 		"cookie": {
 			"title": "Stay logged in",
 			"unlimited": "Stay logged in indefinitely",
@@ -1300,6 +1311,7 @@
 		"lblI2c": "I²C bus",
 		"i2cStatus": "SDA {{sda}}, SCL {{scl}}, recovery {{successes}}/{{attempts}}",
 		"i2cStartupClear": "startup bus clear: {{pulses}} clocks",
+		"coreDumpOtherFirmware": "This dump comes from different firmware.",
 		"lblCoreDump": "Last crash",
 		"coreDumpNone": "Ready, no core dump stored",
 		"coreDumpMissing": "Core dump partition missing",

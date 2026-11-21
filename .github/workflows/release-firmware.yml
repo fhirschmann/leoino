@@ -64,6 +64,7 @@ jobs:
         run: |
           mkdir -p release
           cp .pio/build/complete/firmware.bin release/firmware.bin
+          cp .pio/build/complete/firmware.elf release/firmware.elf
           # `describe` must match what the firmware embeds (gitVersion.py uses the same command),
           # so the device can tell whether it already runs this build.
           DESCRIBE="$(git describe --always --dirty)"
@@ -84,4 +85,12 @@ jobs:
               --title "Latest firmware (rolling)" \
               --prerelease \
               --notes "Rolling 'complete' firmware build from master. See version.json for the exact commit."
-          gh release upload latest release/firmware.bin release/version.json --clobber
+          gh release upload latest release/firmware.bin release/firmware.elf release/version.json --clobber
+          # Keep exact symbols per commit even when the rolling release is replaced.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: firmware-symbols-${{ github.sha }}
+          path: |
+            release/firmware.elf
+            release/version.json
+          retention-days: 90

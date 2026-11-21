@@ -14,8 +14,9 @@ servers:
     description: Development ESPuino
 # When a web password is set, every endpoint (except /login and a few PWA assets)
 # requires authentication. Two options:
-#   * API key (easiest for scripts/curl): send the web password via the "X-API-Key"
-#     header, e.g. `curl -H "X-API-Key: <pw>" ...`.
+#   * API key: send the independent key configured via POST /security in X-API-Key.
+#     It grants full API access, including file uploads, settings, OTA and diagnostics.
+#     The web password remains accepted in the same header for existing clients.
 #   * Session cookie: POST the password to /login (body {"password":"..."}) to get the
 #     ESPUINO_SESSION cookie (used automatically by the browser/Swagger UI).
 # With no web password set, the API is open and authentication is ignored.
@@ -40,7 +41,7 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
-      description: 'Web password sent as an API key in the X-API-Key header.'
+      description: 'Dedicated full-access API key (or legacy web password) in X-API-Key. Never accepted in query parameters.'
     cookieAuth:
       type: apiKey
       in: cookie
@@ -993,11 +994,11 @@ paths:
   /coredump:
     get:
       tags: [Fork]
-      summary: Download the stored ESP-IDF ELF core dump.
+      summary: Download the stored ESP-IDF raw core-dump image.
       description: Requires the normal web session or X-API-Key authentication.
       responses:
         "200":
-          description: Stored ELF core-dump image.
+          description: Raw image containing the ELF core dump plus ESP-IDF header/checksum; decode with esp-coredump -t raw and the matching firmware.elf.
           content:
             application/octet-stream:
               schema:
@@ -1053,7 +1054,14 @@ paths:
   /debug:
     get:
       summary: Get debug information.
-      description: Returns task runtime and debug information as JSON.
+      description: >-
+        Returns runtime.uptimeMs and runtime.resetReason (esp_reset_reason_t), the running
+        appElfSha256, freeHeap/minFreeHeap/largestFreeInternalBlock in bytes, volume/maxVolume,
+        task runtime statistics (when enabled) and coredump metadata. A valid dump summary
+        includes task, exceptionPc, backtrace (numeric PC addresses), backtraceCorrupted,
+        appElfSha256 (possibly a prefix) and firmwareMatches. A false firmwareMatches means
+        the saved dump belongs to a different binary: do not decode it with the running build.
+        /info also exposes runtime, software.appElfSha256 and the same coredump metadata.
       responses:
         "200":
           description: Successful response with debug information.
@@ -1546,7 +1554,7 @@ paths:
       summary: Password-protection status and session-cookie lifetime.
       responses:
         "200":
-          description: Whether a web password is set, plus the cookie lifetime in days (0 = unlimited).
+          description: Whether a web password and independent API key are set, plus the cookie lifetime. Secrets are never returned.
           content:
             application/json:
               schema:
@@ -1554,18 +1562,25 @@ paths:
                 properties:
                   enabled:
                     type: boolean
+                  apiKeySet:
+                    type: boolean
+                    description: Whether an independent API key is configured (not the key itself).
                   cookieDays:
                     type: integer
                     description: Session-cookie lifetime in days; 0 means unlimited.
     post:
       tags: [Fork]
-      summary: Set the shared device password and/or the session-cookie lifetime.
+      summary: Set the device password, independent API key and/or session-cookie lifetime.
       description: >
         Sets one shared password that protects the web interface, FTP and WebDAV at once
         (applied live, no reboot). An empty password is accepted and disables protection
         for all three. Both fields are optional: send only "cookieDays" to change the
         session-cookie lifetime without touching the password. If "password" is omitted the
-        password is left unchanged.
+        password is left unchanged. The independent apiKey grants full API access and survives
+        password changes. Omit apiKey to keep it, supply 64 cryptographically random hex
+        characters to replace it, or an empty string to revoke it immediately. It never
+        grants FTP/WebDAV access and is never returned by GET /security. This does not
+        enable password protection: without a web password (or in AP mode), the API stays open.
       requestBody:
         required: true
         content:
@@ -1575,12 +1590,21 @@ paths:
               properties:
                 password:
                   type: string
+                apiKey:
+                  type: string
+                  writeOnly: true
+                  pattern: '^([a-fA-F0-9]{64})?$'
+                  description: Independent API credential; omitted keeps it, empty revokes it.
                 cookieDays:
                   type: integer
                   description: Session-cookie lifetime in days; 0 means unlimited.
       responses:
         "200":
           description: Settings updated.
+        "400":
+          description: Invalid API key (must be a string, empty or 64 hex characters).
+        "500":
+          description: API key could not be persisted.
   /login:
     post:
       tags: [Fork]

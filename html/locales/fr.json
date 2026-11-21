@@ -315,6 +315,17 @@
 			"disable": "Désactiver la protection par mot de passe",
 			"nochange": "Rien à enregistrer : saisissez un nouveau mot de passe ou cochez « Désactiver la protection par mot de passe »."
 		},
+		"api": {
+			"title": "Clé API",
+			"placeholder": "64 caractères hexadécimaux – vide pour conserver",
+			"generate": "Générer",
+			"desc": "Accès complet à l’API HTTP via X-API-Key, indépendant du mot de passe. Copiez la clé avant de l’enregistrer : elle ne sera plus affichée. Elle ne concerne pas FTP/WebDAV. Sans mot de passe ou en mode point d’accès, l’API reste ouverte.",
+			"revoke": "Révoquer la clé API",
+			"set": "Clé API configurée.",
+			"unset": "Aucune clé API dédiée configurée.",
+			"invalid": "Générez/saisissez une clé de 64 caractères hexadécimaux ou choisissez Révoquer."
+		},
+
 		"cookie": {
 			"title": "Rester connecté",
 			"unlimited": "Rester connecté indéfiniment",
@@ -1289,6 +1300,7 @@
 		"lblI2c": "Bus I²C",
 		"i2cStatus": "SDA {{sda}}, SCL {{scl}}, récupération {{successes}}/{{attempts}}",
 		"i2cStartupClear": "libération au démarrage : {{pulses}} impulsions",
+		"coreDumpOtherFirmware": "Ce dump provient d’un autre firmware.",
 		"lblCoreDump": "Dernier plantage",
 		"coreDumpNone": "Prêt, aucun core dump enregistré",
 		"coreDumpMissing": "Partition core dump absente",
