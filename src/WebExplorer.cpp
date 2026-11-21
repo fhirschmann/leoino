@@ -48,8 +48,11 @@ uint32_t index_buffer_write = 0;
 uint32_t index_buffer_read = 0;
 
 static SemaphoreHandle_t explorerFileUploadFinished;
-static TaskHandle_t fileStorageTaskHandle;
 static std::atomic<bool> uploadAborted = false;
+static std::atomic<bool> uploadStorageActive = false;
+static std::atomic<bool> uploadInputComplete = false;
+// Only the async web task accesses this pointer. A second request may not reset shared buffers.
+static AsyncWebServerRequest *uploadOwner = nullptr;
 class PlaylistWriteGuard {
 public:
 	PlaylistWriteGuard() {
@@ -78,11 +81,10 @@ static bool isManagedPlaylistPath(const String &path) {
 // Aborts a running upload storage task and waits (briefly) for it to release its file
 // handles. Called from Web_Exit during shutdown.
 void WebExplorer_AbortUpload(void) {
-	if (fileStorageTaskHandle != NULL) {
+	if (uploadStorageActive) {
 		uploadAborted = true;
-		xTaskNotify(fileStorageTaskHandle, 2u, eSetValueWithOverwrite);
 		uint32_t startWait = millis();
-		while (fileStorageTaskHandle != NULL && (millis() - startWait < 2000)) {
+		while (uploadStorageActive && (millis() - startWait < 2000)) {
 			vTaskDelay(pdMS_TO_TICKS(50));
 		}
 	}
@@ -95,7 +97,26 @@ void destroyDoubleBuffer() {
 	}
 }
 
+void explorerHandleUploadComplete(AsyncWebServerRequest *request) {
+	const bool owned = uploadOwner == request;
+	if (uploadOwner == request) {
+		uploadOwner = nullptr;
+		// Timed-out/aborted tasks retain their buffers until the next upload sees them stopped.
+		if (!uploadStorageActive) {
+			destroyDoubleBuffer();
+		}
+	}
+	if (!Web_RequestAuthorized(request)) {
+		request->send(401);
+	} else if (!request->_tempObject) {
+		request->send(owned ? 200 : 400); // raw bodies do not invoke the multipart upload callback
+	}
+}
+
 bool allocateDoubleBuffer() {
+	// Called only while no storage task owns these buffers. A previous fallback allocation may
+	// be smaller than start_chunk_size, so never reuse it after resetting chunk_size below.
+	destroyDoubleBuffer();
 	const auto checkAndAlloc = [](uint8_t *&ptr, const size_t memSize) -> bool {
 		if (ptr) {
 			// memory is there, so nothing to do
@@ -148,7 +169,9 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 	// This upload callback runs while the body streams in, before the password middleware. Refuse
 	// to write anything to SD for an unauthenticated client; the completion handler returns 401.
 	if (!Web_RequestAuthorized(request)) {
-		uploadAborted = true;
+		return;
+	}
+	if (request->_tempObject) {
 		return;
 	}
 
@@ -156,8 +179,21 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 	// New File
 	if (!index) {
+		if (uploadStorageActive || (uploadOwner && uploadOwner != request)) {
+			handleUploadError(request, 409);
+			return;
+		}
+		uploadOwner = request;
+		request->onDisconnect([request]() {
+			if (uploadOwner == request) {
+				uploadAborted = true;
+				uploadOwner = nullptr;
+				// Never free buffers here: the storage task may still be inside File::write().
+			}
+		});
 		// reset abort flag
 		uploadAborted = false;
+		uploadInputComplete = false;
 
 		String utf8Folder = "/";
 		String utf8FilePath;
@@ -196,23 +232,31 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 
 		// Create Task for handling the storage of the data
 		const char *filePathCopy = x_strdup(filePath);
-		xTaskCreatePinnedToCore(
+		if (!explorerFileUploadFinished || !filePathCopy) {
+			free((void *) filePathCopy);
+			handleUploadError(request, 503);
+			return;
+		}
+		uploadStorageActive = true;
+		const BaseType_t created = xTaskCreatePinnedToCore(
 			explorerHandleFileStorageTask, /* Function to implement the task */
 			"fileStorageTask", /* Name of the task */
 			4000, /* Stack size in words */
 			(void *) filePathCopy, /* Task input parameter */
 			2 | portPRIVILEGE_BIT, /* Priority of the task */
-			&fileStorageTaskHandle, /* Task handle. */
+			nullptr, /* No external task handle: completion uses flags + semaphore. */
 			1 /* Core where the task should run */
 		);
-
-		// register for early disconnect events
-		request->onDisconnect([]() {
-			// client went away before we were finished...
-			// signal the storage task to abort via the flag it polls; the task may have already
-			// self-deleted (fileStorageTaskHandle set to NULL), so never xTaskNotify() it here.
-			uploadAborted = true;
-		});
+		if (created != pdPASS) {
+			uploadStorageActive = false;
+			free((void *) filePathCopy);
+			handleUploadError(request, 503);
+			return;
+		}
+	}
+	if (uploadOwner != request) {
+		handleUploadError(request, 409);
+		return;
 	}
 
 	if (uploadAborted) {
@@ -222,10 +266,11 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		return;
 	}
 
-	if (len) {
+	while (len) {
 		// wait till buffer is ready
 		while (buffer_full[index_buffer_write]) {
 			if (uploadAborted) {
+				handleUploadError(request, 500);
 				return;
 			}
 			vTaskDelay(2u);
@@ -239,26 +284,14 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		// write content to buffer
 		memcpy(buffer[index_buffer_write] + size_in_buffer[index_buffer_write], data, len_to_write);
 		size_in_buffer[index_buffer_write] = size_in_buffer[index_buffer_write] + len_to_write;
+		data += len_to_write;
+		len -= len_to_write;
 
 		// check if buffer is filled. If full, signal that ready and change buffers
 		if (size_in_buffer[index_buffer_write] == chunk_size) {
 			// signal, that buffer is ready. Increment index
 			buffer_full[index_buffer_write] = true;
 			index_buffer_write = (index_buffer_write + 1) % nr_of_buffers;
-
-			// if still content left, put it into next buffer
-			if (len_to_write < len) {
-				// wait till new buffer is ready
-				while (buffer_full[index_buffer_write]) {
-					if (uploadAborted) {
-						return;
-					}
-					vTaskDelay(2u);
-				}
-				size_t len_left_to_write = len - len_to_write;
-				memcpy(buffer[index_buffer_write], data + len_to_write, len_left_to_write);
-				size_in_buffer[index_buffer_write] = len_left_to_write;
-			}
 		}
 	}
 
@@ -272,20 +305,24 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 			buffer_full[index_buffer_write] = true;
 		}
 		// notify storage task that last data was stored on the ring buffer
-		xTaskNotify(fileStorageTaskHandle, 1u, eSetValueWithOverwrite);
+		uploadInputComplete = true;
 		// watit until the storage task is sending the signal to finish
 		if (xSemaphoreTake(explorerFileUploadFinished, pdMS_TO_TICKS(30000)) != pdTRUE) {
 			// timeout, something went wrong
 			Log_Println(webTxCanceled, LOGLEVEL_ERROR);
+			uploadAborted = true;
 			handleUploadError(request, 500);
 			return;
+		}
+		if (uploadAborted) {
+			handleUploadError(request, 500);
 		}
 	}
 }
 
 // task for writing uploaded data from buffer to SD
 // parameter contains the target file path and must be freed by the task.
-void explorerHandleFileStorageTask(void *parameter) {
+static void explorerStoreFile(void *parameter) {
 	const char *filePath = (const char *) parameter;
 	File uploadFile;
 	size_t bytesOk = 0;
@@ -293,9 +330,6 @@ void explorerHandleFileStorageTask(void *parameter) {
 	uint32_t transferStartTimestamp = millis();
 	uint32_t lastUpdateTimestamp = millis();
 	uint32_t maxUploadDelay = 30; // After this delay (in seconds) task will be deleted as transfer is considered to be finally broken
-
-	BaseType_t uploadFileNotification;
-	uint32_t uploadFileNotificationValue;
 
 	// pause some tasks to get more free CPU time for the upload
 	System_PauseTasksDuringUpload(true);
@@ -313,8 +347,8 @@ void explorerHandleFileStorageTask(void *parameter) {
 			break;
 		}
 		// check buffer is full with enough data or all data already sent
-		uploadFileNotification = xTaskNotifyWait(0, 0, &uploadFileNotificationValue, 0);
-		if ((buffer_full[index_buffer_read]) || (uploadFileNotification == pdPASS && uploadFileNotificationValue == 1u)) {
+		const bool inputComplete = uploadInputComplete;
+		if (buffer_full[index_buffer_read] || inputComplete) {
 
 			while (buffer_full[index_buffer_read]) {
 				chunkCount++;
@@ -327,7 +361,7 @@ void explorerHandleFileStorageTask(void *parameter) {
 							Log_Printf(LOGLEVEL_DEBUG, "Write retry %u for chunk %zu on %s", attempt, chunkCount, filePath);
 							vTaskDelay(pdMS_TO_TICKS(20 * attempt)); // backoff: 20ms, 40ms
 						}
-						written = uploadFile.write(buffer[index_buffer_read], item_size);
+						written += uploadFile.write(buffer[index_buffer_read] + written, item_size - written);
 					}
 				}
 
@@ -351,23 +385,23 @@ void explorerHandleFileStorageTask(void *parameter) {
 				lastUpdateTimestamp = millis();
 			}
 
-			if (uploadFileNotification == pdPASS) {
+			if (inputComplete) {
 				if (uploadFile) {
 					uploadFile.close();
 				}
-				Log_Printf(LOGLEVEL_INFO, fileWritten, filePath, bytesOk, (millis() - transferStartTimestamp), (bytesOk) / (millis() - transferStartTimestamp));
+				const uint32_t elapsed = millis() - transferStartTimestamp;
+				Log_Printf(LOGLEVEL_INFO, fileWritten, filePath, bytesOk, elapsed, bytesOk / std::max(uint32_t(1), elapsed));
 				Log_Printf(LOGLEVEL_DEBUG, "Bytes [ok] %zu, Chunks: %zu\n", bytesOk, chunkCount);
 				// done exit loop to terminate
 				break;
 			}
 		} else {
-			if ((lastUpdateTimestamp + (maxUploadDelay * 1000)) < millis() || ((uploadFileNotification == pdPASS) && (uploadFileNotificationValue == 2u))) {
+			if (millis() - lastUpdateTimestamp > maxUploadDelay * 1000) {
 				Log_Println(webTxCanceled, LOGLEVEL_ERROR);
 				if (uploadFile) {
 					uploadFile.close();
 				}
 				uploadAborted = true;
-				xSemaphoreGive(explorerFileUploadFinished);
 				break;
 			}
 			vTaskDelay(portTICK_PERIOD_MS * 2);
@@ -378,9 +412,14 @@ void explorerHandleFileStorageTask(void *parameter) {
 	// resume the paused tasks
 	System_PauseTasksDuringUpload(false);
 	System_UpdateActivityTimer();
+	// Return normally so File's C++ destructor runs before deleting the FreeRTOS task.
+}
+
+void explorerHandleFileStorageTask(void *parameter) {
+	explorerStoreFile(parameter);
 	// send signal to upload function to terminate
 	xSemaphoreGive(explorerFileUploadFinished);
-	fileStorageTaskHandle = NULL;
+	uploadStorageActive = false;
 	vTaskDelete(NULL);
 }
 

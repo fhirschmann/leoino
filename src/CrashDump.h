@@ -19,6 +19,7 @@ struct CrashDumpStatus {
 };
 
 void CrashDump_Init(void);
+void CrashDump_GetRunningElfSha256(char (&output)[65]);
 const CrashDumpStatus &CrashDump_GetStatus(void);
 size_t CrashDump_Read(size_t offset, uint8_t *buffer, size_t length);
 bool CrashDump_Erase(void);

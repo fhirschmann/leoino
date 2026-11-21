@@ -140,7 +140,7 @@ private:
 	bool beginSpi(uint8_t pin);
 	bool beginRmt(uint8_t pin);
 	void transmit(bool force);
-	void waitDone();
+	bool waitDone();
 	void updateAdjustment();
 
 	CRGB *mLeds = nullptr;
@@ -154,6 +154,7 @@ private:
 	uint32_t mLastShowUs = 0;
 	uint32_t mLastSentMs = 0;
 	bool mTransferPending = false;
+	bool mFrameDirty = true;
 	uint8_t *mFrame = nullptr; // scaled and ordered bytes of the last frame (only read by the CPU)
 	uint8_t *mRmtBuffer = nullptr; // copy of mFrame being sent via RMT
 	uint8_t *mSpiBuffer = nullptr; // frame encoded as SPI bit stream (DMA capable)

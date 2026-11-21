@@ -41,6 +41,7 @@ bool DumpNvsToArrayCallback(const char *key, void *data); // collects NVS keys i
 bool Web_DumpNvsToSd(const char *_namespace, const char *_destFile); // mirror an NVS namespace to a backup file on SD
 
 // File-browser handlers (registered as routes in Web.cpp::webserverStart).
+void explorerHandleUploadComplete(AsyncWebServerRequest *request);
 void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final);
 void explorerHandleFileStorageTask(void *parameter);
 void explorerHandleListRequest(AsyncWebServerRequest *request);

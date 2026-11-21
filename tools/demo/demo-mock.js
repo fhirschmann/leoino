@@ -444,6 +444,12 @@
 		// acknowledges the start; /sdmaint (in the GET branch) then reports "done".
 		if (p === "/sdclean" || p === "/sdformat") { return jsonResp({ status: 1 }); }
 
+		if (p === "/explorer" && method === "POST") {
+			var hasFile = typeof FormData !== "undefined" && requestBody instanceof FormData &&
+				Array.from(requestBody.values()).some(function (value) { return typeof File !== "undefined" && value instanceof File; });
+			return hasFile ? jsonResp({ ok: true, demo: true }) : jsonResp({ error: "multipart file required" }, 400);
+		}
+
 		// Match the firmware's bounded /Playlists-only playlist writer and keep the demo fixture
 		// mutable so create/edit can be exercised end-to-end without a device.
 		if (p === "/playlist" && method === "POST") {

@@ -1,0 +1,18 @@
+name: Host stability simulations
+on:
+  push:
+    paths: ["src/**", "tools/test_*", ".github/workflows/host-stability.yml"]
+  pull_request:
+    paths: ["src/**", "tools/test_*", ".github/workflows/host-stability.yml"]
+jobs:
+  sanitizers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: python3 tools/test_stability.py
+      - run: python3 tools/test_upload_stability.py
+      - run: python3 tools/test_espuino_helper.py

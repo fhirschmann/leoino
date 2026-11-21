@@ -555,13 +555,29 @@ bool System_IsColdStart() {
 	return (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED);
 }
 
-void System_esp_print_tasks(void) {
+void System_PrintTaskStats(Print &output) {
 #ifdef CONFIG_FREERTOS_USE_TRACE_FACILITY
-	char *pbuffer = x_calloc(2048, 1);
-	vTaskGetRunTimeStats(pbuffer);
-	Serial.printf("=====\n%s\n=====", pbuffer);
-	free(pbuffer);
+	const UBaseType_t capacity = uxTaskGetNumberOfTasks() + 8;
+	TaskStatus_t *tasks = reinterpret_cast<TaskStatus_t *>(x_calloc(capacity, sizeof(TaskStatus_t)));
+	if (!tasks) {
+		output.println("Task statistics unavailable: out of memory");
+		return;
+	}
+	uint32_t total = 0;
+	const UBaseType_t count = uxTaskGetSystemState(tasks, capacity, &total);
+	output.println("Task\tState\tPriority\tStack\tRuntime\tPercent");
+	for (UBaseType_t i = 0; i < count; ++i) {
+		const TaskStatus_t &task = tasks[i];
+		const unsigned percent = total ? uint64_t(task.ulRunTimeCounter) * 100 / total : 0;
+		output.printf("%s\t%u\t%u\t%u\t%lu\t%u%%\n", task.pcTaskName, unsigned(task.eCurrentState),
+			unsigned(task.uxCurrentPriority), unsigned(task.usStackHighWaterMark), (unsigned long) task.ulRunTimeCounter, percent);
+	}
+	free(tasks);
 #else
-	Serial.println("Enable CONFIG_FREERTOS_USE_TRACE_FACILITY to use vTaskGetRunTimeStats()!");
+	output.println("Enable CONFIG_FREERTOS_USE_TRACE_FACILITY to use task statistics!");
 #endif
+}
+
+void System_esp_print_tasks(void) {
+	System_PrintTaskStats(Serial);
 }

@@ -993,21 +993,8 @@ void webserverStart(void) {
 			response->println("Largest PSRAM block: " + String(ESP.getMaxAllocPsram()));
 			response->println("</pre></div><br>");
 
-			uint32_t taskCount = uxTaskGetNumberOfTasks();
-			size_t bufferSize = (taskCount + 10) * 80; // Provide safer margin for vTaskList
-			char *pbuffer = (char *) x_calloc(bufferSize, 1);
-			if (pbuffer) {
-				// show tasklist
-				response->println("Tasklist:<div class='text'><pre>");
-				response->println("Taskname\tState\tPrio\tStack\tNum\tCore");
-				vTaskList(pbuffer);
-				response->println(pbuffer);
-				response->println("</pre></div><br><br>Runtime statistics:<div class='text'><pre>");
-				response->println("Taskname\tRuntime\tPercentage");
-				vTaskGetRunTimeStats(pbuffer);
-				response->println(pbuffer);
-				free(pbuffer);
-			}
+			response->println("Tasks:<div class='text'><pre>");
+			System_PrintTaskStats(*response);
 			response->println("</pre></div></body></html>");
 			// send the response last
 			request->send(response);
@@ -1202,21 +1189,7 @@ void webserverStart(void) {
 		// Fileexplorer (realtime)
 		wServer.on("/explorer", HTTP_GET, explorerHandleListRequest);
 
-		wServer.on(
-			"/explorer", HTTP_POST, [](AsyncWebServerRequest *request) {
-				// clean up buffers
-				request->onDisconnect([]() { destroyDoubleBuffer(); });
-				// the upload handler writes to SD before the middleware runs, so re-check auth here
-				if (!Web_RequestAuthorized(request)) {
-					request->send(401);
-					return;
-				}
-				// we are finished with the upload
-				if (!request->_tempObject) {
-					request->send(200);
-				}
-			},
-			explorerHandleFileUpload);
+		wServer.on("/explorer", HTTP_POST, explorerHandleUploadComplete, explorerHandleFileUpload);
 
 		wServer.on("/explorerdownload", HTTP_GET, explorerHandleDownloadRequest);
 
@@ -2207,7 +2180,7 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 		softwareObj["version"] = (String) softwareRevision;
 		softwareObj["git"] = (String) gitRevision;
 		char elfSha[65] = {};
-		esp_app_get_elf_sha256(elfSha, sizeof(elfSha));
+		CrashDump_GetRunningElfSha256(elfSha);
 		softwareObj["appElfSha256"] = elfSha;
 		softwareObj["build"] = (String) buildRevision;
 		softwareObj["branch"] = (String) gitBranch;
@@ -2376,7 +2349,7 @@ void handleDebugRequest(AsyncWebServerRequest *request) {
 	Web_AddRuntimeInfo(infoObj["runtime"].to<JsonObject>());
 	Web_AddCrashDumpInfo(infoObj["coredump"].to<JsonObject>());
 	char elfSha[65] = {};
-	esp_app_get_elf_sha256(elfSha, sizeof(elfSha));
+	CrashDump_GetRunningElfSha256(elfSha);
 	infoObj["appElfSha256"] = elfSha;
 	infoObj["freeHeap"] = ESP.getFreeHeap();
 	infoObj["minFreeHeap"] = ESP.getMinFreeHeap();

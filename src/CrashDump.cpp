@@ -46,7 +46,7 @@ void refreshStatus(void) {
 			snprintf(s_status.task, sizeof(s_status.task), "%.*s", int(sizeof(summary.exc_task)), summary.exc_task);
 			snprintf(s_status.appElfSha256, sizeof(s_status.appElfSha256), "%.*s", int(sizeof(summary.app_elf_sha256)), reinterpret_cast<const char *>(summary.app_elf_sha256));
 			char runningSha[65] = {};
-			esp_app_get_elf_sha256(runningSha, sizeof(runningSha));
+			CrashDump_GetRunningElfSha256(runningSha);
 			// IDF may store only a prefix in the core dump (CONFIG_APP_RETRIEVE_LEN_ELF_SHA).
 			s_status.firmwareMatches = s_status.appElfSha256[0] && strncmp(runningSha, s_status.appElfSha256, strlen(s_status.appElfSha256)) == 0;
 			s_status.exceptionPc = summary.exc_pc;
@@ -60,6 +60,17 @@ void refreshStatus(void) {
 #endif
 }
 } // namespace
+
+void CrashDump_GetRunningElfSha256(char (&output)[65]) {
+	// esp_app_get_elf_sha256 truncates to CONFIG_APP_RETRIEVE_LEN_ELF_SHA even with a larger buffer.
+	const uint8_t *sha = esp_app_get_description()->app_elf_sha256;
+	static constexpr char hex[] = "0123456789abcdef";
+	for (size_t i = 0; i < 32; ++i) {
+		output[i * 2] = hex[sha[i] >> 4];
+		output[i * 2 + 1] = hex[sha[i] & 15];
+	}
+	output[64] = '\0';
+}
 
 void CrashDump_Init(void) {
 	refreshStatus();

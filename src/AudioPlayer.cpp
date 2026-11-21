@@ -425,11 +425,12 @@ void Audio_InfoCallback(Audio::msg_t m) {
 			// Log_Printf(LOGLEVEL_INFO, "ID3 data:     %s", m.msg); // disabled to prevent log spam from files with numerous metadata
 			// get title
 			if (startsWith((char *) m.msg, "Title") || startsWith((char *) m.msg, "TITLE=") || startsWith((char *) m.msg, "title=")) { // ID3v1, ID3v2.3 and ID3v2.4: "Title:", VORBISCOMMENT: "TITLE=", "title=", "Title="
-				int titleStart = 6;
-				if (m.msg[5] == '/') { // ID3v2.2 "Title/Songname/Content description:"
-					titleStart = 36;
+				// Use the actual delimiter: truncated ID3 labels must never form an out-of-bounds pointer.
+				const char *titleVal = strchr(m.msg, ':');
+				if (!titleVal) {
+					titleVal = strchr(m.msg, '=');
 				}
-				const char *titleVal = (const char *) m.msg + titleStart;
+				titleVal = titleVal ? titleVal + 1 : "";
 				while (*titleVal == ' ') { // trim the leading space after "Title:"
 					titleVal++;
 				}
@@ -511,7 +512,7 @@ void Audio_InfoCallback(Audio::msg_t m) {
 			if (file.readBytes(fileType, 4) == 4) {
 				if (strncmp(fileType, "OggS", 4) == 0) {
 					audio_oggimage(file, m.vec1);
-				} else {
+				} else if (m.vec1.size() >= 2) {
 					audio_id3image(file, m.vec1[0], m.vec1[1]);
 				}
 			}
@@ -540,8 +541,11 @@ float Audio_GetVolume(float t) {
 	if (curve_type >= VOL_LUT_CURVES) {
 		curve_type = VOL_CURVE_PERCEPTUAL;
 	}
-	if (t <= 0.0f) {
+	if (!(t > 0.0f)) { // also handles NaN before converting to an integer index
 		return pgm_read_float(&(VOLUME_TABLE[curve_type][0]));
+	}
+	if (t >= 1.0f) {
+		return pgm_read_float(&(VOLUME_TABLE[curve_type][VOL_LUT_STEPS - 1]));
 	}
 
 	// 2. Calculate indices
@@ -2801,6 +2805,52 @@ void audio_id3image(File &file, const size_t pos, const size_t size) {
 #endif
 }
 
+// Decode only complete, in-file segment pairs. Short reads/writes never create a cached cover.
+static bool Audio_DecodeCoverSegments(File &source, File &target, const std::vector<uint32_t> &segments, uint8_t *buffer, size_t capacity) {
+	if (segments.empty() || segments.size() % 2 || !buffer || capacity < 4 || capacity % 4) {
+		return false;
+	}
+	const size_t sourceSize = source.size();
+	for (size_t i = 0; i < segments.size(); i += 2) {
+		if (segments[i] > sourceSize || segments[i + 1] > sourceSize - segments[i]) {
+			return false;
+		}
+	}
+	constexpr uint8_t flacMarker[] = "fLaC";
+	if (target.write(flacMarker, sizeof(flacMarker) - 1) != sizeof(flacMarker) - 1) {
+		return false;
+	}
+	size_t used = 0;
+	for (size_t i = 0; i < segments.size(); i += 2) {
+		if (!source.seek(segments[i])) {
+			return false;
+		}
+		size_t remaining = segments[i + 1];
+		while (remaining) {
+			const size_t count = std::min(remaining, capacity - used);
+			if (source.readBytes(reinterpret_cast<char *>(buffer + used), count) != count) {
+				return false;
+			}
+			used += count;
+			remaining -= count;
+			if (used == capacity) {
+				const size_t decoded = b64decode(buffer, buffer, used);
+				if (!decoded || target.write(buffer, decoded) != decoded) {
+					return false;
+				}
+				used = 0;
+			}
+		}
+	}
+	if (used) {
+		const size_t decoded = b64decode(buffer, buffer, used);
+		if (!decoded || target.write(buffer, decoded) != decoded) {
+			return false;
+		}
+	}
+	return true;
+}
+
 // encoded blockpicture cover image segments (all ogg, vorbis, opus files, some flac files)
 void audio_oggimage(File &file, std::vector<uint32_t> v) {
 	// save decoded cover in /.cache/file.path()
@@ -2816,10 +2866,6 @@ void audio_oggimage(File &file, std::vector<uint32_t> v) {
 			return;
 		}
 
-		// write fLaC marker in order to use flac Routine, since decoded cover has METADATA_BLOCK_PICTURE like flac
-		constexpr uint8_t flacMarker[] = "fLaC";
-		coverFile.write(flacMarker, std::char_traits<uint8_t>::length(flacMarker));
-
 		const size_t chunkSize = 2048; // must be base64 compatible, i.e. a multiple of 4
 		uint8_t *encodedChunk = (uint8_t *) x_malloc(chunkSize);
 		if (!encodedChunk) {
@@ -2829,38 +2875,16 @@ void audio_oggimage(File &file, std::vector<uint32_t> v) {
 			gFSystem.remove(tmpDecodedCover);
 			return;
 		}
-		size_t decodedLength;
-		size_t currentRemainder = 0;
-		size_t currentPosition = file.position(); // save current position in audio file otherwise playback will result in an error
-
-		for (size_t i = 0; i < v.size(); i += 2) {
-			// calculate the number of chunks needed to read the segment
-			size_t numChunks = (v[i + 1] + currentRemainder) / chunkSize;
-			size_t remainder = currentRemainder;
-
-			// read and decode the segment chunk by chunk, write decodedChunk into encodedChunk to save memory
-			file.seek(v[i]);
-			for (size_t chunk = 0; chunk < numChunks; chunk++) {
-				file.readBytes(reinterpret_cast<char *>(&encodedChunk[remainder]), chunkSize - remainder);
-				decodedLength = b64decode(encodedChunk, encodedChunk, chunkSize);
-				coverFile.write(encodedChunk, decodedLength);
-				remainder = 0;
-			}
-
-			// calculate new remainder, read it, and if it is the end of file, decode it
-			currentRemainder = (v[i + 1] + currentRemainder) % chunkSize;
-			if (currentRemainder) {
-				file.readBytes(reinterpret_cast<char *>(&encodedChunk[remainder]), currentRemainder - remainder);
-				if (i == v.size() - 2) {
-					decodedLength = b64decode(encodedChunk, encodedChunk, currentRemainder);
-					coverFile.write(encodedChunk, decodedLength);
-				}
-			}
-		}
+		const size_t currentPosition = file.position();
+		const bool decoded = Audio_DecodeCoverSegments(file, coverFile, v, encodedChunk, chunkSize);
 		free(encodedChunk);
 		coverFile.close();
 		file.seek(currentPosition);
-		gFSystem.rename(tmpDecodedCover, decodedCover);
+		if (!decoded || !gFSystem.rename(tmpDecodedCover, decodedCover)) {
+			gFSystem.remove(tmpDecodedCover);
+			Log_Println("Invalid or incomplete cover image", LOGLEVEL_ERROR);
+			return;
+		}
 		Log_Printf(LOGLEVEL_DEBUG, "Cover decoded and cached in %s", decodedCover.c_str());
 	}
 	gPlayProperties.coverFilePos = 4; // flacMarker gives 4 Bytes before METADATA_BLOCK_PICTURE (audioI2S points to METADATA_BLOCK_PICTURE since 6241daa)

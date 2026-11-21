@@ -265,17 +265,22 @@ void LedDriver::updateAdjustment() {
 	}
 }
 
-void LedDriver::waitDone() {
+bool LedDriver::waitDone() {
 	if (!mTransferPending) {
-		return;
+		return true;
 	}
+	esp_err_t result;
 	if (mBackend == Backend::Spi) {
 		spi_transaction_t *transaction;
-		spi_device_get_trans_result(mSpiDevice, &transaction, transferTimeout);
+		result = spi_device_get_trans_result(mSpiDevice, &transaction, transferTimeout);
 	} else {
-		rmt_tx_wait_all_done(mRmtChannel, transferTimeout);
+		result = rmt_tx_wait_all_done(mRmtChannel, 100); // RMT expects milliseconds, SPI expects ticks
 	}
-	mTransferPending = false;
+	// A timeout does not return ownership of the DMA buffer or transaction descriptor.
+	if (result == ESP_OK) {
+		mTransferPending = false;
+	}
+	return !mTransferPending;
 }
 
 void LedDriver::transmit(bool force) {
@@ -283,7 +288,7 @@ void LedDriver::transmit(bool force) {
 		return;
 	}
 	// mFrame is never read by the hardware, so an unchanged frame returns here without any waiting
-	bool changed = force;
+	bool changed = force || mFrameDirty;
 	uint8_t *out = mFrame;
 	for (uint16_t led = 0; led < mNumLeds; led++) {
 		for (uint8_t slot = 0; slot < 3; slot++) {
@@ -304,9 +309,10 @@ void LedDriver::transmit(bool force) {
 		}
 	}
 	// the send buffers are read by the hardware until the running transfer has finished
-	waitDone();
-	mLastShowUs = micros();
-	mLastSentMs = millis();
+	mFrameDirty = true;
+	if (!waitDone()) {
+		return;
+	}
 
 	const size_t frameLen = size_t(mNumLeds) * 3;
 	if (mBackend == Backend::Spi) {
@@ -325,6 +331,11 @@ void LedDriver::transmit(bool force) {
 		memcpy(mRmtBuffer, mFrame, frameLen);
 		rmt_transmit_config_t transmitConfig = {};
 		mTransferPending = (rmt_transmit(mRmtChannel, mRmtEncoder, mRmtBuffer, frameLen, &transmitConfig) == ESP_OK);
+	}
+	mFrameDirty = !mTransferPending;
+	if (mTransferPending) {
+		mLastShowUs = micros();
+		mLastSentMs = millis();
 	}
 }
 

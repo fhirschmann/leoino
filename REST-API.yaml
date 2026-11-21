@@ -82,24 +82,36 @@ paths:
     post:
       summary: Upload a file.
       description: >-
-        Uploads a single file, given as a raw binary body (not multipart/
-        form-data). To upload several files, send one request per file.
+        Uploads files using multipart/form-data. Send one request per file;
+        concurrent uploads receive HTTP 409 until the active storage task finishes.
       parameters:
         - in: query
           name: path
           schema:
             type: string
-          description: Full target path, including the filename, to upload the file to.
+          description: Target directory; the multipart filename supplies the file name.
       requestBody:
         required: true
         content:
-          application/octet-stream:
+          multipart/form-data:
             schema:
-              type: string
-              format: binary
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
       responses:
         "200":
           description: File successfully uploaded.
+        "400":
+          description: No multipart file supplied.
+        "409":
+          description: Another upload is still active.
+        "500":
+          description: Upload aborted or SD write failed.
+        "503":
+          description: Insufficient memory or worker task could not start.
     delete:
       summary: Delete a file or directory.
       description: Delete a file or directory in the specified path.

@@ -562,3 +562,18 @@ corrupted by overlapping writers. `python3 tools/test_log_concurrency.py` exerci
 real logger and pinned ring-buffer implementation with six writers and a reader under
 AddressSanitizer/UBSan (host g++ required); `python3 tools/test_espuino_helper.py` checks
 credential precedence, API authentication and private diagnostic downloads.
+
+The stability audit also hardens audio metadata/cover decoding, LED transfer ownership,
+and the SD upload worker. Non-finite volume inputs are clamped before LUT indexing;
+truncated title labels and incomplete/out-of-file cover segments are rejected safely.
+SPI/RMT timeouts retain ownership of in-flight buffers and retry pending frames. Uploads
+have one request owner, bounded chunk splitting, checked worker creation, safe disconnect
+handling and correct partial-write retries. Competing uploads return HTTP 409; raw bodies
+without multipart files return HTTP 400. Task statistics use bounded snapshots rather
+than an unchecked text buffer.
+
+Run the host fault simulations with `python3 tools/test_stability.py` and
+`python3 tools/test_upload_stability.py` (g++, ASan and UBSan). CI runs these plus the API
+helper tests. They execute production functions with simulated platform/file/transfer
+APIs; they do not emulate ESP32 timing, I2S, power delivery or physical encoder contacts.
+See [the audit evidence and limits](docs/stability-audit-2026-11.md).

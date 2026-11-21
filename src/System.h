@@ -61,6 +61,7 @@ static inline bool System_UsesLocalAudio(void) {
 }
 uint8_t System_GetOperationModeFromNvs(void);
 void System_esp_print_tasks(void);
+void System_PrintTaskStats(Print &output);
 void System_ShowWakeUpReason();
 void System_PauseTasksDuringUpload(bool pause);
 bool System_IsColdStart();
