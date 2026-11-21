@@ -9,8 +9,10 @@ ESP32 audio player with a fully reworked, cyberpunk web interface. Firmware in C
 
 > 🔐 **Credentials are NOT in this file.** Read `AGENTS_LOCAL.md` first (not checked in)
 > for local device IPs, the web UI password, and personal settings. The helper script
-> pulls the same credentials from `.espuino_config.json` (also gitignored) or the env
-> vars `ESPUINO_IP` / `ESPUINO_USER` / `ESPUINO_PASS`.
+> loads credentials from the env vars `ESPUINO_IP` / `ESPUINO_API_KEY` (legacy
+> `ESPUINO_PASS`), `.espuino_config.json`, or the sibling Homelab repo's ignored
+> `secrets.json` (`services.leoino.url` / `services.leoino.api_key`). Override that path
+> with `HOMELAB_SECRETS_PATH`. Never print or commit secrets.
 
 ## Build & Deploy
 - Always use the **`complete` environment** to build and flash the ESP32
@@ -60,3 +62,9 @@ Automatically filters forbidden words out of its output and translates them back
 - List files: `python3 tools/espuino_helper.py --list`
 - Create a playlist:
   `python3 tools/espuino_helper.py --playlist "/Playlists/NAME" --tracks "/Path1" "/Path2"`
+
+- Any HTTP API route: `python3 tools/espuino_helper.py --api /info`
+- Private diagnostic bundle: `python3 tools/espuino_helper.py --diagnostics /private/at1-debug`
+- JSON writes: `--api /settings --method POST --data-file /private/request.json`
+- Core dumps survive OTA: compare `coredump.appElfSha256` / `firmwareMatches` with the
+  running build before decoding. Save the matching release `firmware.elf` with the dump.
