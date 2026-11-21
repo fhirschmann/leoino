@@ -9,9 +9,12 @@
 #include <new>
 
 static LogRingBuffer *Log_RingBuffer = NULL;
+static StaticSemaphore_t Log_RingMutexStorage;
+static SemaphoreHandle_t Log_RingMutex = nullptr;
 
 void Log_Init(void) {
 	Serial.begin(115200);
+	Log_RingMutex = xSemaphoreCreateMutexStatic(&Log_RingMutexStorage);
 	// LogRingBuffer defines a malloc/PSRAM-backed class-specific operator new but no matching delete,
 	// which makes constructor-failure cleanup undefined and triggers -Wmismatched-new-delete. Allocate
 	// the storage explicitly, retain an internal-heap fallback, and construct it in place.
@@ -51,8 +54,10 @@ void Log_Println(const char *_logBuffer, const uint8_t _minLogLevel) {
 		Serial.printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
 		Serial.println(_logBuffer);
 		if (Log_RingBuffer != nullptr) {
+			xSemaphoreTake(Log_RingMutex, portMAX_DELAY);
 			Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
 			Log_RingBuffer->println(_logBuffer);
+			xSemaphoreGive(Log_RingMutex);
 		}
 	}
 }
@@ -60,19 +65,21 @@ void Log_Println(const char *_logBuffer, const uint8_t _minLogLevel) {
 /* Wrapper-function for serial-logging (without newline) */
 void Log_Print(const char *_logBuffer, const uint8_t _minLogLevel, bool printTimestamp) {
 	if (SERIAL_LOGLEVEL >= _minLogLevel) {
+		const uint32_t ctime = millis();
+		const String sLogLevel = getLoglevel(_minLogLevel);
 		if (printTimestamp) {
-			uint32_t ctime = millis();
-			const String sLogLevel = getLoglevel(_minLogLevel);
 			Serial.printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
 			Serial.print(_logBuffer);
-			if (Log_RingBuffer != nullptr) {
-				Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
-			}
 		} else {
 			Serial.print(_logBuffer);
 		}
 		if (Log_RingBuffer != nullptr) {
+			xSemaphoreTake(Log_RingMutex, portMAX_DELAY);
+			if (printTimestamp) {
+				Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+			}
 			Log_RingBuffer->print(_logBuffer);
+			xSemaphoreGive(Log_RingMutex);
 		}
 	}
 }
@@ -100,5 +107,14 @@ int Log_Printf(const uint8_t _minLogLevel, const char *format, ...) {
 }
 
 String Log_GetRingBuffer(void) {
-	return Log_RingBuffer != nullptr ? Log_RingBuffer->get() : String();
+	if (Log_RingBuffer == nullptr) {
+		return String();
+	}
+	// LogRingBuffer is not thread-safe: its write increments the index before wrapping it.
+	// Concurrent volume/audio/network logs can otherwise overwrite the index at the buffer end
+	// and subsequently corrupt arbitrary memory. Readers must take the same lock as writers.
+	xSemaphoreTake(Log_RingMutex, portMAX_DELAY);
+	String result = Log_RingBuffer->get();
+	xSemaphoreGive(Log_RingMutex);
+	return result;
 }
