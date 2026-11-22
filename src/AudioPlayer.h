@@ -113,7 +113,7 @@ void AudioPlayer_SetTrackControl(const uint8_t trackCommand);
 // loop() task only: picked up by the very next AudioPlayer_Loop() instead of queueing up behind pending commands
 void AudioPlayer_SetTrackControlNow(const uint8_t trackCommand);
 // Queue a relative seek. Accumulates, so one call per rotary detent scrubs proportionally.
-void AudioPlayer_AddSeekOffset(const int16_t seconds);
+void AudioPlayer_AddSeekOffset(const int32_t seconds);
 // Seek-preview (CMD_SEEK_PREVIEW rotary gesture): moves a not-yet-committed target position instead of
 // jumping immediately; commits via the existing SEEK_POS_PERCENT path (see RotaryEncoder.cpp).
 void AudioPlayer_SeekPreviewStart(void);

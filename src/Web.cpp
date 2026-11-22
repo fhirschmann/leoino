@@ -2138,9 +2138,24 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 				return WebsocketCodeType::Silent;
 			}
 		}
-		if (controlsObj["action"].is<uint8_t>()) {
-			uint8_t cmd = controlsObj["action"].as<uint8_t>();
+		if (controlsObj["action"].is<uint16_t>()) {
+			uint16_t cmd = controlsObj["action"].as<uint16_t>();
 			Cmd_Action(cmd);
+		}
+		if (controlsObj["button_edge"].is<JsonObject>()) {
+			const JsonObject edgeObj = controlsObj["button_edge"].as<JsonObject>();
+			if (edgeObj["button"].is<uint8_t>() && edgeObj["pressed"].is<bool>()) {
+				Button_InjectEdge(edgeObj["button"].as<uint8_t>(), edgeObj["pressed"].as<bool>());
+			}
+			if (!controlsObj["action"].is<uint16_t>() && !controlsObj["sleep_timer"].is<uint8_t>()) {
+				return WebsocketCodeType::Silent;
+			}
+		}
+		if (controlsObj["rotary"].is<int16_t>()) {
+			RotaryEncoder_InjectDetents(controlsObj["rotary"].as<int16_t>());
+			if (!controlsObj["action"].is<uint16_t>() && !controlsObj["sleep_timer"].is<uint8_t>()) {
+				return WebsocketCodeType::Silent;
+			}
 		}
 		if (controlsObj["sleep_timer"].is<uint8_t>()) {
 			uint8_t minutes = controlsObj["sleep_timer"].as<uint8_t>();

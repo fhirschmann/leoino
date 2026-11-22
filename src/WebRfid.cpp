@@ -313,8 +313,8 @@ void handleDeleteRFIDRequest(AsyncWebServerRequest *request) {
 	}
 	if (gPrefsRfid.isKey(tagId.c_str())) {
 		if (tagId.equals(gCurrentRfidTagId)) {
-			// stop playback, tag to delete is in use
-			Cmd_Action(CMD_STOP);
+			// stop playback, tag to delete is in use (even if child lock is enabled)
+			Cmd_Action(CMD_STOP, true);
 		}
 		// OnDelete removes the tag and writes its deletion tombstone atomically (single lock), then propagates.
 		const String nvsValue = gPrefsRfid.getString(tagId.c_str(), "");

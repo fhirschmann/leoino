@@ -42,10 +42,17 @@
 EXT_RAM_BSS_ATTR playProps gPlayProperties;
 
 // Pending relative seek in seconds, written from the button/rotary/web tasks and drained by the audio loop.
-static std::atomic<int16_t> AudioPlayer_PendingSeekSeconds {0};
+static std::atomic<int32_t> AudioPlayer_PendingSeekSeconds {0};
 
-void AudioPlayer_AddSeekOffset(const int16_t seconds) {
-	AudioPlayer_PendingSeekSeconds.fetch_add(seconds, std::memory_order_relaxed);
+void AudioPlayer_AddSeekOffset(const int32_t seconds) {
+	int32_t cur = AudioPlayer_PendingSeekSeconds.load(std::memory_order_relaxed);
+	while (true) {
+		const int64_t next64 = static_cast<int64_t>(cur) + static_cast<int64_t>(seconds);
+		const int32_t clamped = static_cast<int32_t>(std::clamp<int64_t>(next64, -86400, 86400));
+		if (AudioPlayer_PendingSeekSeconds.compare_exchange_weak(cur, clamped, std::memory_order_relaxed)) {
+			break;
+		}
+	}
 }
 
 static bool AudioPlayer_IsPersistableRfid(const char *rfidTagId) {
@@ -2078,10 +2085,10 @@ void AudioPlayer_Loop() {
 	// Relative seek. Accumulated in an atomic so that firing CMD_SEEK_* once per rotary detent scrubs
 	// proportionally instead of collapsing into a single jump (seekmode was a single overwrite-able enum
 	// consumed once per iteration, so rapid repeats were lost).
-	const int16_t seekOffset = AudioPlayer_PendingSeekSeconds.exchange(0, std::memory_order_relaxed);
+	const int32_t seekOffset = AudioPlayer_PendingSeekSeconds.exchange(0, std::memory_order_relaxed);
 	if (seekOffset != 0) {
 		if (audio->setTimeOffset(seekOffset)) {
-			Log_Printf(LOGLEVEL_NOTICE, (seekOffset > 0) ? secondsJumpForward : secondsJumpBackward, abs(seekOffset));
+			Log_Printf(LOGLEVEL_NOTICE, (seekOffset > 0) ? secondsJumpForward : secondsJumpBackward, (seekOffset > 0) ? seekOffset : -seekOffset);
 		}
 	}
 

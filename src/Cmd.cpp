@@ -23,6 +23,41 @@
 #include "Wlan.h"
 
 #include <algorithm>
+#include <freertos/queue.h>
+#include <freertos/task.h>
+
+namespace {
+struct PendingCmdItem {
+	uint16_t mod;
+	bool bypassLock;
+};
+
+constexpr size_t kPendingCmdQueueLen = 32;
+StaticQueue_t sPendingCmdQueueStruct;
+uint8_t sPendingCmdQueueStorage[kPendingCmdQueueLen * sizeof(PendingCmdItem)];
+QueueHandle_t sPendingCmdQueue = nullptr;
+TaskHandle_t sCmdOwnerTask = nullptr;
+} // namespace
+
+void Cmd_Init(void) {
+	sCmdOwnerTask = xTaskGetCurrentTaskHandle();
+	if (!sPendingCmdQueue) {
+		sPendingCmdQueue = xQueueCreateStatic(kPendingCmdQueueLen, sizeof(PendingCmdItem), sPendingCmdQueueStorage, &sPendingCmdQueueStruct);
+	}
+}
+
+void Cmd_Cyclic(void) {
+	if (!sPendingCmdQueue) {
+		return;
+	}
+	if (!sCmdOwnerTask) {
+		sCmdOwnerTask = xTaskGetCurrentTaskHandle();
+	}
+	PendingCmdItem item {};
+	while (xQueueReceive(sPendingCmdQueue, &item, 0) == pdTRUE) {
+		Cmd_Action(item.mod, item.bypassLock);
+	}
+}
 
 static void Cmd_HandleSleepAction(bool enable, const char *enLogMsg, const char *enMqttMsg) {
 	System_SetNightmode(enable);
@@ -56,6 +91,15 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 	// short/long press set to "- (None)". Treat it as a genuine no-op instead of falling through
 	// to the unknown-command error indication in the default case below.
 	if (mod == CMD_NOTHING) {
+		return;
+	}
+	// Serialize cross-task callers (e.g. WebSocket/HTTP on async_tcp) onto loopTask so gPlayProperties,
+	// SeekPreview, equalizer/NVS state, and Wi-Fi/sleep transitions never race AudioPlayer_Cyclic().
+	if (sCmdOwnerTask && xTaskGetCurrentTaskHandle() != sCmdOwnerTask && sPendingCmdQueue) {
+		const PendingCmdItem item {mod, bypassLock};
+		if (xQueueSend(sPendingCmdQueue, &item, 0) != pdTRUE) {
+			Log_Printf(LOGLEVEL_NOTICE, "Command queue full; dropping cmd %u", (unsigned) mod);
+		}
 		return;
 	}
 	// The child lock only blocks physical controls (buttons/IR call with bypassLock=false). Internal

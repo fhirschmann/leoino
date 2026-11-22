@@ -29,3 +29,5 @@ void Button_Init(void);
 void Button_StartSampler(void); // start after shared I2C/peripherals are initialized
 void Button_StopSampler(void); // stop before shutdown tears down the shared I2C bus
 void Button_Cyclic(void);
+// Inject a synthetic physical button edge into the debounced edge ring buffer (buttonIndex 0..6).
+bool Button_InjectEdge(uint8_t buttonIndex, bool pressed);

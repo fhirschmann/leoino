@@ -195,6 +195,7 @@ void setup() {
 	Battery_Init();
 
 	// Init audio before power on to avoid speaker noise
+	Cmd_Init();
 	AudioPlayer_Init();
 	Backup_Init(); // daily auto-backup of the full config to the sync server
 	RfidSync_Init(); // open the RFID-sync NVS namespaces + mutex/push-task once, single-threaded (avoids the lazy-init race)
@@ -311,6 +312,7 @@ void loop() {
 		Bluetooth_Cyclic();
 	}
 	Button_Cyclic(); // apply buffered button edges before rotary gestures and audio consume their command
+	Cmd_Cyclic(); // drain cross-task commands (WebSocket/HTTP/MQTT) onto loopTask
 	RotaryEncoder_Cyclic();
 	Ftp_Cyclic();
 	Webdav_Cyclic();

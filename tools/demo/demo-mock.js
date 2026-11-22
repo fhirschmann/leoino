@@ -698,6 +698,14 @@
 			this._emit({ status: "ok" });
 			return;
 		}
+		if ("rotary" in controls) {
+			DEMO_VOLUME = Math.max(0, Math.min(21, DEMO_VOLUME + (Number(controls.rotary) || 0)));
+			this._emit({ volume: DEMO_VOLUME });
+			return;
+		}
+		if ("button_edge" in controls) {
+			return;
+		}
 		if ("sleep_timer" in controls) {
 			TRACK.sleepTimerDuration = Number(controls.sleep_timer) || 0;
 			this._emit({ trackinfo: TRACK });

@@ -590,6 +590,8 @@ Run the host ASan/UBSan fault simulations with `python3 tools/test_stability.py`
 `python3 tools/test_upload_stability.py`, and `python3 tools/test_log_concurrency.py`, run full
 dual-core Xtensa ESP32 firmware emulation (with PSRAM, FAT32 `SD_MMC`, and OpenCores Ethernet
 under live HTTP/WebSocket/WebDAV fuzzing) via `python3 tools/test_qemu_esp32.py` (`[env:qemu]`),
-and stress-test physical development hardware across all subsystems (multi-codec audio, NVS flash
-writes, uploads, WebDAV, FTP, and WebSockets) via `python3 tools/test_hardware_stress.py`.
+and stress-test physical development hardware across all subsystems via
+`python3 tools/test_hardware_stress.py` and `python3 tools/test_music_button_stress.py`
+(continuous multi-album music playback under physical button-edge mashing, long-press/smart-hold
+repeats, multi-button chords, rotary volume, and `CMD_SEEK_PREVIEW` gestures).
 See [the audit evidence and limits](docs/stability-audit-2026-11.md).

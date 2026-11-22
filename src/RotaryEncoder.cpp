@@ -11,6 +11,8 @@
 #include "Log.h"
 #include "System.h"
 
+#include <atomic>
+
 #ifdef USEROTARY_ENABLE
 	#include <ESP32Encoder.h>
 #endif
@@ -22,7 +24,26 @@ ESP32Encoder encoder;
 int32_t lastEncoderValue;
 int32_t currentEncoderValue;
 int32_t lastVolume = -1; // Don't change -1 as initial-value!
+static std::atomic<int32_t> sInjectedHalfSteps {0};
 #endif
+
+void RotaryEncoder_InjectDetents(int16_t detents) {
+#ifdef USEROTARY_ENABLE
+	if (detents == 0) {
+		return;
+	}
+	int32_t cur = sInjectedHalfSteps.load(std::memory_order_relaxed);
+	while (true) {
+		const int64_t next64 = static_cast<int64_t>(cur) + static_cast<int64_t>(detents) * 2;
+		const int32_t clamped = static_cast<int32_t>(next64 < -2000 ? -2000 : (next64 > 2000 ? 2000 : next64));
+		if (sInjectedHalfSteps.compare_exchange_weak(cur, clamped, std::memory_order_relaxed)) {
+			break;
+		}
+	}
+#else
+	(void) detents;
+#endif
+}
 
 void RotaryEncoder_Init(void) {
 // Init rotary encoder
@@ -63,6 +84,7 @@ void RotaryEncoder_Cyclic(void) {
 			lastModifier = BUTTON_NONE;
 		}
 		encoder.clearCount();
+		sInjectedHalfSteps.store(0, std::memory_order_relaxed);
 		return;
 	}
 	#endif
@@ -79,10 +101,11 @@ void RotaryEncoder_Cyclic(void) {
 		lastModifier = BUTTON_NONE;
 		menuWasActive = menuActive;
 		encoder.clearCount();
+		sInjectedHalfSteps.store(0, std::memory_order_relaxed);
 		return;
 	}
 	if (menuActive) {
-		const int32_t menuEncoderValue = encoder.getCount();
+		const int32_t menuEncoderValue = encoder.getCount() + sInjectedHalfSteps.exchange(0, std::memory_order_relaxed);
 		if ((menuEncoderValue != 0) && (menuEncoderValue % 2 == 0)) {
 			System_UpdateActivityTimer();
 			encoder.clearCount();
@@ -107,6 +130,7 @@ void RotaryEncoder_Cyclic(void) {
 		}
 		lastModifier = modifier;
 		encoder.clearCount();
+		sInjectedHalfSteps.store(0, std::memory_order_relaxed);
 		if (modifier != BUTTON_NONE) {
 			// Either direction mapping to CMD_SEEK_PREVIEW makes the whole hold a preview session -- a
 			// preview is inherently bidirectional, so a button with only one direction assigned to it
@@ -120,7 +144,7 @@ void RotaryEncoder_Cyclic(void) {
 		return;
 	}
 
-	int32_t encoderValue = encoder.getCount();
+	int32_t encoderValue = encoder.getCount() + sInjectedHalfSteps.exchange(0, std::memory_order_relaxed);
 	// Only if initial run or value has changed. And only after "full step" of rotary encoder
 	if ((encoderValue != 0) && (encoderValue % 2 == 0)) {
 		System_UpdateActivityTimer(); // Set inactivity back if rotary encoder was used
@@ -150,7 +174,7 @@ void RotaryEncoder_Cyclic(void) {
 					// a user who maps CW to backwards still gets backwards.
 					const int32_t step = gPrefsSettings.getUChar("rotSeekStep", SEEK_STEP_ROTARY_DEFAULT);
 					const int32_t magnitude = abs(detents) * step;
-					AudioPlayer_AddSeekOffset(static_cast<int16_t>((cmd == CMD_SEEK_FORWARDS) ? magnitude : -magnitude));
+					AudioPlayer_AddSeekOffset((cmd == CMD_SEEK_FORWARDS) ? magnitude : -magnitude);
 					return;
 				}
 

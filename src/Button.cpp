@@ -77,6 +77,7 @@ static ButtonEdge Button_EdgeBuffer[buttonEdgeBufferSize];
 static std::atomic<uint8_t> Button_EdgeWriteIndex {0};
 static std::atomic<uint8_t> Button_EdgeReadIndex {0};
 static std::atomic<uint32_t> Button_DroppedEdges {0};
+static portMUX_TYPE sButtonEdgeMux = portMUX_INITIALIZER_UNLOCKED;
 static std::atomic<TaskHandle_t> Button_SamplerTaskHandle {nullptr};
 static std::atomic<bool> Button_AsyncSamplerRunning {false};
 static std::atomic<bool> Button_StopSamplerRequested {false};
@@ -224,15 +225,25 @@ static const char *buttonNames[] = {
 	"DUMMY"}; // index 7 matches the dummy slot in gButtons[8]
 
 static bool Button_PushEdge(const ButtonEdge &edge) {
+	portENTER_CRITICAL(&sButtonEdgeMux);
 	const uint8_t writeIndex = Button_EdgeWriteIndex.load(std::memory_order_relaxed);
 	const uint8_t nextWriteIndex = (writeIndex + 1) & buttonEdgeBufferMask;
 	if (nextWriteIndex == Button_EdgeReadIndex.load(std::memory_order_acquire)) {
+		portEXIT_CRITICAL(&sButtonEdgeMux);
 		Button_DroppedEdges.fetch_add(1, std::memory_order_relaxed);
 		return false;
 	}
 	Button_EdgeBuffer[writeIndex] = edge;
 	Button_EdgeWriteIndex.store(nextWriteIndex, std::memory_order_release);
+	portEXIT_CRITICAL(&sButtonEdgeMux);
 	return true;
+}
+
+bool Button_InjectEdge(uint8_t buttonIndex, bool pressed) {
+	if (buttonIndex >= 7) {
+		return false;
+	}
+	return Button_PushEdge({millis(), buttonIndex, pressed});
 }
 
 static bool Button_PopEdge(ButtonEdge &edge) {

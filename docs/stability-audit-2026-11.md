@@ -23,6 +23,8 @@ and physical hardware stress testing.
 | Task diagnostics | Fixed 2048-byte unchecked formatter buffer on command path; `/stats` relied on estimated text capacity; 32-bit `pulTotalRunTime` wrapped after ~71.6 min uptime (`>1400%` reported CPU). | Bounded `uxTaskGetSystemState` PSRAM snapshot (`x_calloc`), checked allocation, and 64-bit summed `totalTaskTicks` denominator so `/debug` and `/stats` percentages remain bounded across multi-hour uptimes. |
 | FTP passive ALG & Wi-Fi DTIM | `FTPCommand::SendResponse` emitted `Code`, `" "`, and `Text` in three separate TCP `write()` calls, splitting `227 Entering Passive Mode (...)` across segments and stalling stateful router `nf_conntrack_ftp` ALGs across VLANs; `passiveAcceptTimeoutMs = 100` raced Wi-Fi DTIM (`102.4 ms`) power-save handshakes; `MLSD` issued 10 TCP writes per file. | Coalesced `SendResponse` and `MLSD` entries into single contiguous `write()` calls, closed per-entry `File` handles, and raised `passiveAcceptTimeoutMs` to `1500 ms`. Verified live across inter-VLAN `nf_conntrack_ftp` under 6-worker load on `AT-2`. |
 
+| Cross-task command & seek races | `Cmd_Action` was invoked directly from `async_tcp` (WebSocket `controls.action`, `/WebRfid`) on Core 0 while `loopTask` ran `Button_Cyclic()`, `RotaryEncoder_Cyclic()`, and `AudioPlayer_Cyclic()` on Core 1 — racing `gPlayProperties`, `AudioPlayer_SeekPreview*`, NVS/equalizer profiles, and Wi-Fi/sleep transitions. `AudioPlayer_PendingSeekSeconds` used 16-bit `int16_t` without clamping. | Added static 32-slot `loopTask` command queue (`Cmd_Init` / `Cmd_Cyclic`) so all cross-task commands serialize deterministically with physical buttons and rotary gestures; widened `AudioPlayer_PendingSeekSeconds` to clamped `int32_t`; added MPSC-safe `Button_InjectEdge` + `RotaryEncoder_InjectDetents` exercised by `test_music_button_stress.py`. |
+
 ## Reproduction
 
 ```sh
@@ -34,6 +36,7 @@ python3 tools/check_demo_endpoints.py
 UV_CONSTRAINT="$PWD/tools/build-constraints.txt" pio run -e complete -j 4
 python3 tools/test_qemu_esp32.py       # builds [env:qemu] and runs dual-core ESP32 QEMU stress suite
 ESPUINO_IP=<dev-ip> python3 tools/test_hardware_stress.py --duration 240 --serial /dev/ttyUSB-espuino
+ESPUINO_IP=<dev-ip> python3 tools/test_music_button_stress.py --duration 180 --serial /dev/ttyUSB-espuino
 ```
 
 `tools/test_stability.py`, `tools/test_upload_stability.py`, and `tools/test_log_concurrency.py`
