@@ -239,8 +239,8 @@ def generate_music_albums(workdir):
     for album_name, pair in chords:
         albums[album_name] = {}
         (f1, f2, f3), (g1, g2, g3) = pair
-        expr_l = f"0.22*sin(2*PI*{f1}*t)+0.18*sin(2*PI*{f2}*t)+0.14*sin(2*PI*{f3}*t)"
-        expr_r = f"0.22*sin(2*PI*{g1}*t)+0.18*sin(2*PI*{g2}*t)+0.14*sin(2*PI*{g3}*t)"
+        expr_l = f"0.38*sin(2*PI*{f1}*t)+0.32*sin(2*PI*{f2}*t)+0.25*sin(2*PI*{f3}*t)"
+        expr_r = f"0.38*sin(2*PI*{g1}*t)+0.32*sin(2*PI*{g2}*t)+0.25*sin(2*PI*{g3}*t)"
         lavfi = f"aevalsrc='{expr_l}|{expr_r}':s=44100:d=32"
 
         mp3_p = os.path.join(workdir, f"{album_name}_01.mp3")
@@ -323,6 +323,7 @@ def main():
     parser.add_argument("--host", default=os.environ.get("ESPUINO_IP", ""), help="Device IP or hostname")
     parser.add_argument("--api-key", default=os.environ.get("ESPUINO_API_KEY", ""), help="Optional API key")
     parser.add_argument("--duration", type=int, default=180, help="Stress duration in seconds")
+    parser.add_argument("--max-volume", type=int, default=21, help="Peak volume for 0..N..0 rail-to-rail & max/back-off sweeps")
     parser.add_argument("--serial", default="", help="Optional USB serial device for passive panic monitoring")
     args = parser.parse_args()
 
@@ -392,6 +393,7 @@ def main():
     assert st == 200
     settings0 = json.loads(settings_raw)
     orig_buttons = dict(settings0["buttons"])
+    orig_general = dict(settings0.get("general", {}))
     orig_eq = dict(settings0.get("equalizer", {"gainLowPass": 0, "gainBandPass": 0, "gainHighPass": 0}))
     orig_dav_running = bool(settings0.get("webdav", {}).get("running", False))
 
@@ -412,6 +414,9 @@ def main():
         "smart_hold_sessions": 0,
         "multi_chords": 0,
         "rotary_volume_turns": 0,
+        "full_rail_volume_sweeps": 0,
+        "max_backoff_cycles": 0,
+        "button_volume_steps": 0,
         "rotary_seek_gestures": 0,
         "seek_preview_release_commits": 0,
         "seek_preview_idle_commits": 0,
@@ -520,13 +525,54 @@ def main():
                         time.sleep(0.5)
 
                     elif kind == 2:
-                        # Rotary volume spin choreography (+1, +2, +1, -2, -2, +1 detents)
-                        for det in (1, 2, -2, 1, -3, 2, -1):
+                        # Full 0 -> max_volume (21) -> rail overshoot -> rapid max/back-off -> 0 -> rail undershoot!
+                        peak = max(1, min(21, args.max_volume))
+                        # 1. Stepwise rotary spin all the way up from 0 to peak + overshoot (+5 against max rail)
+                        ws_ctrl.send_json({"controls": {"set_volume": 0}})
+                        time.sleep(0.04)
+                        for _ in range(peak):
+                            ws_ctrl.rotary_turn(1)
+                            bump("rotary_volume_turns")
+                            time.sleep(0.03)
+                        for over in (1, 3, 5):
+                            ws_ctrl.rotary_turn(over)  # Overshoot past maxVolume=21!
+                            bump("rotary_volume_turns")
+                            time.sleep(0.03)
+
+                        # 2. Rapid max-volume / back-off oscillation (21 -> 20 -> 19 -> 21 -> 18 -> 21 -> 20 -> 21)
+                        for det in (-1, -1, 2, -3, 3, -1, 1, -2, 2, 4, -1, 1):
                             ws_ctrl.rotary_turn(det)
                             bump("rotary_volume_turns")
-                            time.sleep(0.12)
-                        # Keep volume in safe range (3..6)
-                        ws_ctrl.send_json({"controls": {"set_volume": 4}})
+                            bump("max_backoff_cycles")
+                            time.sleep(0.035)
+
+                        # 3. Mute at peak (21 -> 0) and unmute (0 -> 21) via CMD_MUTE (192)
+                        ws_ctrl.cmd_action(192)
+                        time.sleep(0.08)
+                        ws_ctrl.cmd_action(192)
+                        time.sleep(0.08)
+
+                        # 4. Stepwise rotary + CMD_VOLUMEDOWN (177) / CMD_VOLUMEUP (176) down to 0 + undershoot (-5)
+                        for _ in range(peak // 2):
+                            ws_ctrl.cmd_action(177)  # CMD_VOLUMEDOWN
+                            bump("button_volume_steps")
+                            time.sleep(0.025)
+                        for det in (-4, -4, -6, -5):
+                            ws_ctrl.rotary_turn(det)  # Hit 0 and undershoot below min rail!
+                            bump("rotary_volume_turns")
+                            time.sleep(0.03)
+                        for _ in range(6):
+                            ws_ctrl.cmd_action(176)  # CMD_VOLUMEUP back up from 0
+                            bump("button_volume_steps")
+                            time.sleep(0.025)
+
+                        # 5. Interleaved WebSocket slider 0 <-> peak ramp
+                        for v in (peak, peak - 1, peak, peak - 2, peak, 0, peak, 5):
+                            ws_ctrl.send_json({"controls": {"set_volume": max(0, v)}})
+                            bump("max_backoff_cycles")
+                            time.sleep(0.03)
+
+                        bump("full_rail_volume_sweeps")
 
                     elif kind == 3:
                         # Hold Button 1 + Turn Rotary -> CMD_SEEK_PREVIEW with immediate release-commit!
@@ -581,11 +627,38 @@ def main():
                         bump("long_presses")
                         time.sleep(0.35)
 
-                        # Long-press Button 4 (VOLUMEUP hold) & Button 5 (VOLUMEDOWN hold)
-                        ws_ctrl.long_press(4, hold_sec=0.95)
-                        ws_ctrl.long_press(5, hold_sec=0.95)
+                        # Continuous physical hold-ramp on Button 4 (VOLUMEUP hold) & Button 5 (VOLUMEDOWN hold)
+                        ws_ctrl.long_press(4, hold_sec=1.85)
+                        ws_ctrl.long_press(5, hold_sec=1.85)
                         bump("long_presses", 2)
-                        ws_ctrl.send_json({"controls": {"set_volume": 4}})
+                        bump("button_volume_steps", 6)
+
+                        # Alternate volumeCurve (0 = perceptual, 1 = logarithmic) & test nightVolLimit + pauseOnMinVol
+                        curve = (phase // 10) % 2
+                        gen_patch = dict(orig_general)
+                        gen_patch["volumeCurve"] = curve
+                        gen_patch["nightVolLimit"] = True
+                        gen_patch["pauseOnMinVol"] = True
+                        client.http_req(
+                            "POST", "/settings",
+                            body=json.dumps({"general": gen_patch}).encode(),
+                            headers={"Content-Type": "application/json"},
+                            timeout=8,
+                        )
+                        # Drop to 0 -> triggers pauseOnMinVol auto-pause, then turn rotary up -> resumes!
+                        ws_ctrl.send_json({"controls": {"set_volume": 0}})
+                        time.sleep(0.12)
+                        ws_ctrl.rotary_turn(5)
+                        bump("rotary_volume_turns")
+                        time.sleep(0.12)
+                        ws_ctrl.cmd_action(170)  # Ensure playing if paused
+                        # Restore general settings immediately after sub-test
+                        client.http_req(
+                            "POST", "/settings",
+                            body=json.dumps({"general": orig_general}).encode(),
+                            headers={"Content-Type": "application/json"},
+                            timeout=8,
+                        )
 
                     elif kind == 7:
                         # Multi-button chord (Button 0 + Button 2 simultaneously) + First/Last track long presses
@@ -721,6 +794,7 @@ def main():
             client.http_req(
                 "POST", "/settings",
                 body=json.dumps({
+                    "general": orig_general,
                     "buttons": restore_btns,
                     "equalizer": {
                         "gainLowPass": orig_eq.get("gainLowPass", 0),

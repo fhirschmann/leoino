@@ -58,13 +58,13 @@ malformed close-frame fuzzing while asserting zero panics, zero reboots, and int
    untouched rather than decoded against mismatching symbols.
 
 2. **Development board (`AT-2`, `ESP32-D0WD-V3`, 16 MB Flash, 4 MB PSRAM, 64 GB SD_MMC) telemetry:**
-   Across a >6-hour continuous soak plus a 240-second 6-thread full-subsystem torture run
-   (`tools/test_hardware_stress.py`: MP3/FLAC/M4A/WAV + adversarial XING/ILST/FLAC/ID3/PLS files,
-   289 seeks, 239 NVS flash EQ writes + 1,912 WebSocket volume changes during active dual-core
-   ISRs, mid-upload TCP disconnect abort, 13.2 MB SHA-256-verified WebDAV + FTP `STOR`/`RETR`/`MLSD`
-   cycles, 1,096 WebSocket sessions with 857 malformed `WS_DISCONNECT` close frames, and 110
-   chunked `X-Expected-Entity-Length` overflow payloads), `AT-2` recorded **0 crashes, 0 resets,
-   0 core dumps, and 0 heap leaks** (`freeHeap` `96,727 B` before -> `96,767 B` after):
+   Across >5–6 hours of continuous uptime plus a 240-second 6-thread full-subsystem torture run
+   (`tools/test_hardware_stress.py`) and full rail-to-rail `0 <-> 21` music + physical button/rotary
+   torture (`tools/test_music_button_stress.py --max-volume 21`: full-scale stereo MP3/FLAC/M4A +
+   SD music albums, `0 -> 21` ramps + rail overshoot/undershoot, 140 rapid `21 <-> 18..20`
+   max/back-off oscillations, `VOL+`/`VOL-` button clicks & hold-repeats, `Mute` at 21, both
+   volume curves, `pauseOnMinVol`, `nightVolLimit`, `CMD_SEEK_PREVIEW`, and rapid button mashing),
+   `AT-2` recorded **0 crashes, 0 resets, 0 core dumps, and 0 heap leaks**:
 
    | Metric (`AT-2` `/debug`) | Before hardening | After hardening (idle / 6-thread torture) |
    | --- | --- | --- |
