@@ -565,10 +565,17 @@ void System_PrintTaskStats(Print &output) {
 	}
 	uint32_t total = 0;
 	const UBaseType_t count = uxTaskGetSystemState(tasks, capacity, &total);
+	uint64_t totalTaskTicks = 0;
+	for (UBaseType_t i = 0; i < count; ++i) {
+		totalTaskTicks += tasks[i].ulRunTimeCounter;
+	}
+	if (totalTaskTicks == 0) {
+		totalTaskTicks = total;
+	}
 	output.println("Task\tState\tPriority\tStack\tRuntime\tPercent");
 	for (UBaseType_t i = 0; i < count; ++i) {
 		const TaskStatus_t &task = tasks[i];
-		const unsigned percent = total ? uint64_t(task.ulRunTimeCounter) * 100 / total : 0;
+		const unsigned percent = totalTaskTicks ? static_cast<unsigned>((uint64_t(task.ulRunTimeCounter) * 100ULL) / totalTaskTicks) : 0;
 		output.printf("%s\t%u\t%u\t%u\t%lu\t%u%%\n", task.pcTaskName, unsigned(task.eCurrentState),
 			unsigned(task.uxCurrentPriority), unsigned(task.usStackHighWaterMark), (unsigned long) task.ulRunTimeCounter, percent);
 	}

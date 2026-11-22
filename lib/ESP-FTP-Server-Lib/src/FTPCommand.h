@@ -28,10 +28,17 @@ public:
 
   virtual void run(FTPPath &WorkDirectory, const std::vector<String> &Line) = 0;
 
-  void SendResponse(int Code, String Text) {
-    _Client->print(Code);
-    _Client->print(" ");
-    _Client->println(Text);
+  void SendResponse(int Code, const String &Text) {
+    // Emit the entire FTP control reply in one write() so stateful router/firewall FTP ALGs
+    // (such as Linux nf_conntrack_ftp inspecting "227 Entering Passive Mode (...)\r\n") never
+    // see "227" split into a separate 3-byte TCP segment without CRLF.
+    String line;
+    line.reserve(Text.length() + 8);
+    line += String(Code);
+    line += ' ';
+    line += Text;
+    line += "\r\n";
+    _Client->write(reinterpret_cast<const uint8_t *>(line.c_str()), line.length());
   }
 
   bool ConnectDataConnection() {
@@ -47,7 +54,7 @@ public:
         return false;
       }
       WiFiServer         *server                 = *_PassiveServer;
-      const unsigned long passiveAcceptTimeoutMs = 100;
+      const unsigned long passiveAcceptTimeoutMs = 1500;
       const unsigned long passivePollDelayMs     = 5;
       unsigned long       start                  = millis();
       while (!server->hasClient() && millis() - start < passiveAcceptTimeoutMs) {

@@ -129,12 +129,6 @@ bool FTPConnection::handle() {
   if (!readUntilLineEnd()) {
     return true;
   }
-  // we have a new command in the queue:
-#ifndef NO_GLOBAL_INSTANCES
-  Serial.println(_Line);
-#else
-  logPrintlnD(_Line);
-#endif
   String command = _LineSplited[0];
   command.toUpperCase();
 

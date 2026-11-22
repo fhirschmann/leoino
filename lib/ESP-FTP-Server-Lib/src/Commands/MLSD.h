@@ -45,43 +45,36 @@ public:
     int  cnt = 0;
     File f   = root.openNextFile();
     while (f) {
-      // type=
-      data_print("type=");
-      if (f.isDirectory())
-        data_print("dir;");
-      else
-        data_print("file;");
-
-      // size=
-      if (f.isDirectory())
-        data_print("sizd=");
-      else
-        data_print("size=");
-      data_print(String(f.size()));
-      data_print(";");
-
-      // modify=YYYYMMDDHHMMSS; // GMT
-      char      buf[128];
-      time_t    ft    = f.getLastWrite();
-      struct tm tmBuf = {};
+      const bool isDir = f.isDirectory();
+      char       modifyBuf[32];
+      time_t     ft    = f.getLastWrite();
+      struct tm  tmBuf = {};
       if (gmtime_r(&ft, &tmBuf) != nullptr) {
-        snprintf(buf, sizeof(buf), "modify=%04d%02d%02d%02d%02d%02d;", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec);
+        snprintf(modifyBuf, sizeof(modifyBuf), "modify=%04d%02d%02d%02d%02d%02d;", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec);
       } else {
-        snprintf(buf, sizeof(buf), "modify=19700101000000;");
+        snprintf(modifyBuf, sizeof(modifyBuf), "modify=19700101000000;");
       }
-      data_print(String(buf));
 
-      // UNIX.mode=
-      data_print("UNIX.mode=0700;");
-
-      // <filename>
-      data_print(" ");
       String filename = f.name();
       filename.remove(0, filename.lastIndexOf('/') + 1);
       filename = listPath.reparse(filename);
-      data_println(filename);
 
+      String line;
+      line.reserve(96 + filename.length());
+      line += isDir ? "type=dir;sizd=" : "type=file;size=";
+      line += String(f.size());
+      line += ';';
+      line += modifyBuf;
+      line += "UNIX.mode=0700; ";
+      line += filename;
+      line += "\r\n";
+      data_send(reinterpret_cast<uint8_t *>(const_cast<char *>(line.c_str())), line.length());
+
+      f.close();
       cnt++;
+      if ((cnt & 0x0F) == 0) {
+        yield();
+      }
       f = root.openNextFile();
     }
 

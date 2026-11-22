@@ -587,7 +587,9 @@ overflows, and brownouts:
   scope to local SD operations; and hardens SD upload, WebDAV, and FTP workers.
 
 Run the host ASan/UBSan fault simulations with `python3 tools/test_stability.py`,
-`python3 tools/test_upload_stability.py`, and `python3 tools/test_log_concurrency.py`, and run
-full dual-core Xtensa ESP32 firmware emulation (with PSRAM, FAT32 `SD_MMC`, and OpenCores
-Ethernet under live HTTP/WebSocket/WebDAV fuzzing) via `python3 tools/test_qemu_esp32.py`
-(`[env:qemu]`). See [the audit evidence and limits](docs/stability-audit-2026-11.md).
+`python3 tools/test_upload_stability.py`, and `python3 tools/test_log_concurrency.py`, run full
+dual-core Xtensa ESP32 firmware emulation (with PSRAM, FAT32 `SD_MMC`, and OpenCores Ethernet
+under live HTTP/WebSocket/WebDAV fuzzing) via `python3 tools/test_qemu_esp32.py` (`[env:qemu]`),
+and stress-test physical development hardware across all subsystems (multi-codec audio, NVS flash
+writes, uploads, WebDAV, FTP, and WebSockets) via `python3 tools/test_hardware_stress.py`.
+See [the audit evidence and limits](docs/stability-audit-2026-11.md).

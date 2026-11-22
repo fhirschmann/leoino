@@ -20,7 +20,8 @@ and physical hardware stress testing.
 | ID3 title & cover parser | Truncated `Title/` strings caused an ASan heap-buffer-overflow; cover endpoints lacked EOF/FLAC-wraparound/short-read guards. | Delimiter search, paired range validation, bounded reads/writes, EOF and 24-bit FLAC length wraparound checks; verified in `test_stability.py` and QEMU `/cover` fuzzing. |
 | LED SPI/RMT | With a timeout injected, the old driver overwrites/requeues a pending transfer. | Preserve DMA buffer/transaction ownership until success, retain dirty frames, retry failed enqueue; guarded `numIdleDots == 0` / `dimmableStates == 0`. |
 | Upload buffers & errors | Shared global buffers could be reset or freed on disconnect; unchecked worker startup, partial-write duplication, and `free()` allocator mismatch on error objects. | PSRAM upload buffers, single request owner, `x_malloc` + static `uploadFailedRequest` fallback matching `~AsyncWebServerRequest`, 250 ms WDT-safe wait slices, disconnect-safe response. Verified in `test_upload_stability.py`. |
-| Task diagnostics | Fixed 2048-byte unchecked formatter buffer on command path; `/stats` relied on estimated text capacity. | Bounded `uxTaskGetSystemState` snapshot, checked allocation, direct output and zero-runtime guard. |
+| Task diagnostics | Fixed 2048-byte unchecked formatter buffer on command path; `/stats` relied on estimated text capacity; 32-bit `pulTotalRunTime` wrapped after ~71.6 min uptime (`>1400%` reported CPU). | Bounded `uxTaskGetSystemState` PSRAM snapshot (`x_calloc`), checked allocation, and 64-bit summed `totalTaskTicks` denominator so `/debug` and `/stats` percentages remain bounded across multi-hour uptimes. |
+| FTP passive ALG & Wi-Fi DTIM | `FTPCommand::SendResponse` emitted `Code`, `" "`, and `Text` in three separate TCP `write()` calls, splitting `227 Entering Passive Mode (...)` across segments and stalling stateful router `nf_conntrack_ftp` ALGs across VLANs; `passiveAcceptTimeoutMs = 100` raced Wi-Fi DTIM (`102.4 ms`) power-save handshakes; `MLSD` issued 10 TCP writes per file. | Coalesced `SendResponse` and `MLSD` entries into single contiguous `write()` calls, closed per-entry `File` handles, and raised `passiveAcceptTimeoutMs` to `1500 ms`. Verified live across inter-VLAN `nf_conntrack_ftp` under 6-worker load on `AT-2`. |
 
 ## Reproduction
 
@@ -32,6 +33,7 @@ python3 tools/test_espuino_helper.py
 python3 tools/check_demo_endpoints.py
 UV_CONSTRAINT="$PWD/tools/build-constraints.txt" pio run -e complete -j 4
 python3 tools/test_qemu_esp32.py       # builds [env:qemu] and runs dual-core ESP32 QEMU stress suite
+ESPUINO_IP=<dev-ip> python3 tools/test_hardware_stress.py --duration 240 --serial /dev/ttyUSB-espuino
 ```
 
 `tools/test_stability.py`, `tools/test_upload_stability.py`, and `tools/test_log_concurrency.py`
@@ -53,17 +55,21 @@ malformed close-frame fuzzing while asserting zero panics, zero reboots, and int
    untouched rather than decoded against mismatching symbols.
 
 2. **Development board (`AT-2`, `ESP32-D0WD-V3`, 16 MB Flash, 4 MB PSRAM, 64 GB SD_MMC) telemetry:**
-   Flashing `complete` over USB serial and running simultaneous SD WAV loop playback, 3-thread
-   rapid WebSocket volume sweeps, malformed `WS_DISCONNECT` frames, chunked `X-Expected-Entity-Length`
-   overflow payloads, and `/cover` ID3v2/FLAC fuzzing produced **0 crashes, 0 resets, and 0 core dumps**:
+   Across a >6-hour continuous soak plus a 240-second 6-thread full-subsystem torture run
+   (`tools/test_hardware_stress.py`: MP3/FLAC/M4A/WAV + adversarial XING/ILST/FLAC/ID3/PLS files,
+   289 seeks, 239 NVS flash EQ writes + 1,912 WebSocket volume changes during active dual-core
+   ISRs, mid-upload TCP disconnect abort, 13.2 MB SHA-256-verified WebDAV + FTP `STOR`/`RETR`/`MLSD`
+   cycles, 1,096 WebSocket sessions with 857 malformed `WS_DISCONNECT` close frames, and 110
+   chunked `X-Expected-Entity-Length` overflow payloads), `AT-2` recorded **0 crashes, 0 resets,
+   0 core dumps, and 0 heap leaks** (`freeHeap` `96,727 B` before -> `96,767 B` after):
 
-   | Metric (`AT-2` `/debug`) | Before hardening | After hardening (post-stress) |
+   | Metric (`AT-2` `/debug`) | Before hardening | After hardening (idle / 6-thread torture) |
    | --- | --- | --- |
-   | Internal `freeHeap` | `49,731 B` | `99,207 B` idle / `96,659 B` post-stress (`minFreeHeap`: `84,132 B`, `largestFreeInternalBlock`: `65,536 B`) |
-   | `ipc0` stack free watermark | `264 B` | `856 B` |
+   | Internal `freeHeap` | `49,731 B` | `107,239 B` boot / `96,767 B` post-torture (`minFreeHeap`: `68,500 B`, `largestFreeInternalBlock`: `59,392 B`) |
+   | `ipc0` / `ipc1` stack free watermarks | `264 B` / `488 B` | `776 B` / `992 B` |
    | `tiT` (lwIP) stack free watermark | `992 B` | `2,192 B` |
-   | `sys_evt` stack free watermark | `1,556 B` | `2,416 B` |
-   | `loopTask` / `PeriodicTask` / `async_tcp` free watermarks | `2,140 B` /tight /shared | `9,276 B` / `3,959 B` / `3,256 B` |
+   | `sys_evt` stack free watermark | `1,556 B` | `2,496 B` |
+   | `loopTask` / `PeriodicTask` / `async_tcp` / `webdav` free watermarks | `2,140 B` / tight / shared / tight | `9,076 B` / `3,783 B` / `3,172 B` / `3,116 B` |
 
 3. **Remaining physical limits:**
    High-current speaker transients on battery power, physical rotary-encoder contact bounce, and

@@ -5,6 +5,9 @@
 #include <WiFiServer.h>
 #if defined(ESP32)
 #include <WiFi.h>
+#ifdef ESPUINO_QEMU
+#include <ETH.h>
+#endif
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #endif
@@ -25,6 +28,11 @@ public:
       *_PassiveServer = 0;
     }
     IPAddress localIP = WiFi.localIP();
+#ifdef ESPUINO_QEMU
+    if (localIP == IPAddress(0, 0, 0, 0)) {
+      localIP = ETH.localIP();
+    }
+#endif
     if (localIP == IPAddress(0, 0, 0, 0)) {
       if (_PassiveMode != 0) {
         *_PassiveMode = false;

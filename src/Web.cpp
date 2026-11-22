@@ -2490,22 +2490,29 @@ void handleDebugRequest(AsyncWebServerRequest *request) {
 #if CONFIG_FREERTOS_USE_TRACE_FACILITY
 	// task runtime info
 	uint32_t pulTotalRunTime = 0;
-	uint32_t taskCount = uxTaskGetNumberOfTasks();
-	std::vector<TaskStatus_t> task_status_arr(taskCount + 5);
+	const UBaseType_t capacity = uxTaskGetNumberOfTasks() + 8;
+	TaskStatus_t *task_status_arr = reinterpret_cast<TaskStatus_t *>(x_calloc(capacity, sizeof(TaskStatus_t)));
 
-	Log_Printf(LOGLEVEL_DEBUG, "number of tasks: %u", taskCount);
+	Log_Printf(LOGLEVEL_DEBUG, "number of tasks: %u", (unsigned) (capacity - 8));
 
-	uint32_t taskNum = uxTaskGetSystemState(task_status_arr.data(), task_status_arr.size(), &pulTotalRunTime);
+	uint32_t taskNum = task_status_arr ? uxTaskGetSystemState(task_status_arr, capacity, &pulTotalRunTime) : 0;
+	uint64_t totalTaskTicks = 0;
+	for (uint32_t i = 0; i < taskNum; i++) {
+		totalTaskTicks += task_status_arr[i].ulRunTimeCounter;
+	}
+	if (totalTaskTicks == 0) {
+		totalTaskTicks = pulTotalRunTime;
+	}
 
 	JsonObject tasksObj = infoObj["tasks"].to<JsonObject>();
 	tasksObj["taskCount"] = taskNum;
 	tasksObj["totalRunTime"] = pulTotalRunTime;
 	JsonArray tasksList = tasksObj["tasksList"].to<JsonArray>();
 
-	for (int i = 0; i < taskNum; i++) {
+	for (uint32_t i = 0; i < taskNum; i++) {
 		JsonObject taskObj = tasksList.add<JsonObject>();
 
-		float ulStatsAsPercentage = pulTotalRunTime ? 100.f * ((float) task_status_arr[i].ulRunTimeCounter / (float) pulTotalRunTime) : 0.f;
+		float ulStatsAsPercentage = totalTaskTicks ? static_cast<float>((100.0 * static_cast<double>(task_status_arr[i].ulRunTimeCounter)) / static_cast<double>(totalTaskTicks)) : 0.f;
 
 		taskObj["name"] = task_status_arr[i].pcTaskName;
 		taskObj["runtimeCounter"] = task_status_arr[i].ulRunTimeCounter;
@@ -2513,6 +2520,7 @@ void handleDebugRequest(AsyncWebServerRequest *request) {
 		taskObj["runtimePercentage"] = ulStatsAsPercentage;
 		taskObj["stackHighWaterMark"] = task_status_arr[i].usStackHighWaterMark;
 	}
+	free(task_status_arr);
 #endif
 	if (response->overflowed()) {
 		// JSON buffer too small for data
