@@ -210,7 +210,8 @@ static bool rfidParseTag(const String &tagId, String &fileOrUrl, uint32_t &mode)
 	char buf[512];
 	strncpy(buf, s.c_str(), sizeof(buf) - 1);
 	buf[sizeof(buf) - 1] = '\0';
-	char *tok = strtok(buf, stringDelimiter);
+	char *saveptr = nullptr;
+	char *tok = strtok_r(buf, stringDelimiter, &saveptr);
 	uint8_t i = 1;
 	fileOrUrl = "";
 	mode = 0;
@@ -221,7 +222,7 @@ static bool rfidParseTag(const String &tagId, String &fileOrUrl, uint32_t &mode)
 			mode = strtoul(tok, NULL, 10);
 		}
 		i++;
-		tok = strtok(NULL, stringDelimiter);
+		tok = strtok_r(NULL, stringDelimiter, &saveptr);
 	}
 	return (mode > 0);
 }
@@ -603,13 +604,14 @@ static void rfidFullSyncTask(void *param) {
 
 		if (docOk) {
 			JsonArray tags = doc["rfid"].is<JsonArray>() ? doc["rfid"].as<JsonArray>() : doc.as<JsonArray>();
-			RfidSync_Lock(); // serialize the merge RMW against the async /rfid web handlers
 			for (JsonObject t : tags) {
 				String id = t["id"].as<String>();
 				if (id.length() == 0) {
 					continue;
 				}
 				uint32_t inTs = t["timestamp"].as<uint32_t>();
+				bool didWrite = false;
+				RfidSync_Lock(); // serialize each tag's RMW without holding the lock across vTaskDelay
 				uint32_t localNewest = rfidLocalNewest(id.c_str());
 				const bool localExists = gPrefsRfid.isKey(id.c_str());
 				if (t["deleted"].as<bool>()) {
@@ -621,6 +623,7 @@ static void rfidFullSyncTask(void *param) {
 						gPrefsRfidTs.remove(id.c_str());
 						RfidSync_SetDeleteTimestamp(id.c_str(), inTs);
 						merged++;
+						didWrite = true;
 					}
 				} else if (inTs > localNewest || (!localExists && localNewest == 0)) {
 					// Incoming assignment wins only if it is strictly newer than everything we know locally
@@ -629,13 +632,15 @@ static void rfidFullSyncTask(void *param) {
 					// still-present server copy undo a local deletion on the next sync.
 					rfidWriteTag(id, t["fileOrUrl"].as<String>(), rfidModeFromJson(t), inTs);
 					merged++;
-					// Each merged tag costs several NVS flash writes; pace them so a large
-					// catch-up sync right after boot can't monopolize the flash (every write
-					// freezes the cache for both cores — audible while music plays).
+					didWrite = true;
+				}
+				RfidSync_Unlock();
+				if (didWrite) {
+					// Each merged tag costs several NVS flash writes; pace them outside the lock so a large
+					// catch-up sync neither monopolizes flash nor blocks /rfid web requests.
 					vTaskDelay(pdMS_TO_TICKS(10));
 				}
 			}
-			RfidSync_Unlock();
 		}
 	}
 
@@ -743,8 +748,9 @@ void RfidSync_TriggerFull(void) {
 		Log_Printf(LOGLEVEL_NOTICE, "RFID-sync: another network job is running, deferring");
 		return;
 	}
-	if (xTaskCreatePinnedToCore(rfidFullSyncTask, "rfidSync", 16384, NULL, 1, NULL, 1) != pdPASS) {
+	if (xTaskCreatePinnedToCore(rfidFullSyncTask, "rfidSync", 10240, NULL, 1, NULL, 1) != pdPASS) {
 		Net_ReleaseBgJob(); // task never started -> hand the slot back before releasing the status
+		rfidSyncSetMsg("out of memory");
 		gRfidSyncStatus = 3; // couldn't spawn -> release the slot as failed
 	}
 }
@@ -768,9 +774,9 @@ void RfidSync_Cyclic(void) {
 		return;
 	}
 	RfidSync_TriggerFull();
-	// A busy global network slot defers the trigger and resets the status to idle. Only mark the
-	// one-shot catch-up complete after its worker was actually launched, otherwise it is lost forever.
-	if (gRfidSyncStatus == 1) {
+	// A busy global network slot defers the trigger and resets the status to idle. Mark the
+	// one-shot catch-up complete once the worker launched (or finished synchronously / failed OOM).
+	if (gRfidSyncStatus != 0) {
 		gCatchupDone = true;
 		Log_Println("RFID-sync: running catch-up sync after coming online", LOGLEVEL_NOTICE);
 	}

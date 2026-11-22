@@ -449,7 +449,7 @@ void settingsToJSON(JsonObject obj, const String &section) {
 	if ((section == "") || (section == "webdav")) {
 		JsonObject wdObj = obj["webdav"].to<JsonObject>();
 		wdObj["username"] = gPrefsSettings.getString("webdavUser", "esp32");
-		wdObj["password"] = gPrefsSettings.getString("webdavPwd", "esp32");
+		wdObj["passwordSet"] = gPrefsSettings.getString("webdavPwd", "").length() > 0;
 		wdObj["enable"] = gPrefsSettings.getBool("webdavEnable", false);
 		wdObj["running"] = Webdav_IsServerRunning();
 		wdObj["port"].set(webdavPort);
@@ -540,7 +540,11 @@ void handleGetSettings(AsyncWebServerRequest *request) {
 		section = request->getParam("section")->value();
 	}
 
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject settingsObj = response->getRoot();
 	settingsToJSON(settingsObj, section);
 	if (response->overflowed()) {
@@ -576,7 +580,8 @@ void handleSetEqRule(AsyncWebServerRequest *request) {
 	const int8_t high = request->hasParam("high") ? (int8_t) request->getParam("high")->value().toInt() : 0;
 	const String profile = request->hasParam("profile") ? request->getParam("profile")->value() : String("");
 
-	JsonDocument doc;
+	SpiRamAllocator allocator;
+	JsonDocument doc(&allocator);
 	deserializeJson(doc, gPrefsSettings.getString("eqRules", "[]"));
 	if (!doc.is<JsonArray>()) {
 		doc.to<JsonArray>();
@@ -624,7 +629,8 @@ void handleDeleteEqRule(AsyncWebServerRequest *request) {
 	}
 	const String path = request->getParam("path")->value();
 
-	JsonDocument doc;
+	SpiRamAllocator allocator;
+	JsonDocument doc(&allocator);
 	deserializeJson(doc, gPrefsSettings.getString("eqRules", "[]"));
 	JsonArray arr = doc.as<JsonArray>();
 	for (size_t i = 0; i < arr.size();) {
@@ -643,7 +649,11 @@ void handleDeleteEqRule(AsyncWebServerRequest *request) {
 
 // handle get operation mode
 void handleGetOperationMode(AsyncWebServerRequest *request) {
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject object = response->getRoot();
 	object["mode"] = System_GetOperationMode();
 	response->setLength();

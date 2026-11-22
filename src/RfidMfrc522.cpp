@@ -116,6 +116,18 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 	static byte lastValidcardId[cardIdSize];
 
 	for (;;) {
+		if (Rfid_ShouldExitTask()) {
+			Rfid_AckTaskPaused(false);
+			rfidTaskHandle = NULL;
+			vTaskDelete(NULL);
+		}
+		if (Rfid_ShouldPauseTask()) {
+			Rfid_AckTaskPaused(true);
+			vTaskDelay(pdMS_TO_TICKS(10));
+			continue;
+		}
+		Rfid_AckTaskPaused(false);
+
 		if (mfrcTaskResetRequested) {
 			memset(lastValidcardId, 0, sizeof(lastValidcardId));
 			mfrcTaskResetRequested = false;
@@ -182,7 +194,7 @@ static void RfidMfrc522_TaskImpl(Reader &reader) {
 				constexpr uint32_t noAnswerTimeoutMs = 1500;
 				uint8_t consecutiveMisses = 0;
 				uint32_t lastAnswerAt = millis();
-				while (true) {
+				while (!Rfid_ShouldExitTask() && !Rfid_ShouldPauseTask()) {
 					if (rfidScanInterval / 2 >= 20) {
 						vTaskDelay(portTICK_PERIOD_MS * (rfidScanInterval / 2));
 					} else {
@@ -244,12 +256,15 @@ void RfidMfrc522_Cyclic(void) {
 
 void RfidMfrc522_Exit(void) {
 	Log_Println("shutdown MFRC522..", LOGLEVEL_NOTICE);
+	if (rfidTaskHandle != NULL) {
+		Rfid_RequestTaskExit();
+		const uint32_t start = millis();
+		while (rfidTaskHandle != NULL && (millis() - start < 500u)) {
+			vTaskDelay(pdMS_TO_TICKS(10));
+		}
+	}
 	if (RfidConfig_GetReaderType() != RfidReaderType::TYPE_MFRC522_I2C) {
 		mfrc522.PCD_SoftPowerDown();
-	}
-	if (rfidTaskHandle != NULL) {
-		vTaskDelete(rfidTaskHandle);
-		rfidTaskHandle = NULL;
 	}
 }
 

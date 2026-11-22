@@ -20,8 +20,15 @@
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
+#include <freertos/semphr.h>
 #include <list>
 #include <nvs.h>
+#ifdef ESPUINO_QEMU
+	#include <esp_eth.h>
+	#include <esp_eth_mac_openeth.h>
+	#include <esp_event.h>
+	#include <esp_netif.h>
+#endif
 
 #define WIFI_STATE_INIT			0u
 #define WIFI_STATE_CONNECT_LAST 1u
@@ -92,6 +99,91 @@ static constexpr const char *nvsWiFiNamespace = "wifi-settings";
 static constexpr const char *nvsWiFiKey = "wifi-";
 static constexpr const char *nvsWiFiKeyFormat = "wifi-%02u";
 static Preferences prefsWifiSettings;
+static StaticSemaphore_t s_wlanMutexStorage;
+static SemaphoreHandle_t s_wlanMutex = nullptr;
+static portMUX_TYPE s_wlanMutexInitMux = portMUX_INITIALIZER_UNLOCKED;
+
+class WlanLockGuard {
+public:
+	WlanLockGuard() {
+		portENTER_CRITICAL(&s_wlanMutexInitMux);
+		SemaphoreHandle_t mtx = s_wlanMutex;
+		portEXIT_CRITICAL(&s_wlanMutexInitMux);
+		if (mtx == nullptr) {
+			SemaphoreHandle_t created = xSemaphoreCreateRecursiveMutexStatic(&s_wlanMutexStorage);
+			portENTER_CRITICAL(&s_wlanMutexInitMux);
+			if (s_wlanMutex == nullptr) {
+				s_wlanMutex = created;
+			}
+			mtx = s_wlanMutex;
+			portEXIT_CRITICAL(&s_wlanMutexInitMux);
+		}
+		mMutex = mtx;
+		if (mMutex != nullptr) {
+			xSemaphoreTakeRecursive(mMutex, portMAX_DELAY);
+		}
+	}
+	~WlanLockGuard() {
+		if (mMutex != nullptr) {
+			xSemaphoreGiveRecursive(mMutex);
+		}
+	}
+
+private:
+	SemaphoreHandle_t mMutex = nullptr;
+};
+
+#ifdef ESPUINO_QEMU
+static esp_netif_t *s_qemuEthNetif = nullptr;
+static esp_eth_handle_t s_qemuEthHandle = nullptr;
+static IPAddress s_qemuEthIp(0, 0, 0, 0);
+
+static void qemuEthGotIpHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+	(void) arg;
+	(void) event_base;
+	(void) event_id;
+	const auto *event = static_cast<const ip_event_got_ip_t *>(event_data);
+	const uint32_t addr = event->ip_info.ip.addr;
+	s_qemuEthIp = IPAddress(addr & 0xFF, (addr >> 8) & 0xFF, (addr >> 16) & 0xFF, (addr >> 24) & 0xFF);
+	if (wifiState != WIFI_STATE_CONNECTED) {
+		wifiState = WIFI_STATE_CONN_SUCCESS;
+	}
+}
+
+static void qemuStartOpenEth(void) {
+	if (s_qemuEthHandle != nullptr) {
+		return;
+	}
+	esp_netif_init();
+	const esp_err_t evErr = esp_event_loop_create_default();
+	if (evErr != ESP_OK && evErr != ESP_ERR_INVALID_STATE) {
+		Log_Printf(LOGLEVEL_ERROR, "QEMU ETH: event loop init failed (%d)", evErr);
+		return;
+	}
+	esp_netif_config_t netifCfg = ESP_NETIF_DEFAULT_ETH();
+	s_qemuEthNetif = esp_netif_new(&netifCfg);
+	const String hostname = gPrefsSettings.getString("Hostname", "ESPuino");
+	if (s_qemuEthNetif && hostname.length() > 0) {
+		esp_netif_set_hostname(s_qemuEthNetif, hostname.c_str());
+	}
+
+	eth_mac_config_t macCfg = ETH_MAC_DEFAULT_CONFIG();
+	eth_phy_config_t phyCfg = ETH_PHY_DEFAULT_CONFIG();
+	phyCfg.autonego_timeout_ms = 100;
+	phyCfg.reset_gpio_num = -1;
+	esp_eth_mac_t *mac = esp_eth_mac_new_openeth(&macCfg);
+	esp_eth_phy_t *phy = esp_eth_phy_new_dp83848(&phyCfg);
+	esp_eth_config_t ethCfg = ETH_DEFAULT_CONFIG(mac, phy);
+	if (esp_eth_driver_install(&ethCfg, &s_qemuEthHandle) != ESP_OK) {
+		Log_Println("QEMU ETH: driver install failed", LOGLEVEL_ERROR);
+		return;
+	}
+	esp_netif_attach(s_qemuEthNetif, esp_eth_new_netif_glue(s_qemuEthHandle));
+	esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &qemuEthGotIpHandler, nullptr);
+	esp_eth_start(s_qemuEthHandle);
+	Log_Println("QEMU ETH: started OpenCores Ethernet", LOGLEVEL_NOTICE);
+}
+#endif
 
 struct NvsEntry {
 	String key;
@@ -116,9 +208,15 @@ const String getHostname() {
  * @return WiFiSettings The deserialized settings from the key
  */
 static WiFiSettings loadWiFiSettingsFromNvs(const char *key) {
-	std::vector<uint8_t> buffer;
-	buffer.resize(prefsWifiSettings.getBytesLength(key));
-	prefsWifiSettings.getBytes(key, buffer.data(), buffer.size());
+	WlanLockGuard lock;
+	const size_t len = prefsWifiSettings.getBytesLength(key);
+	if (len == 0) {
+		return WiFiSettings {};
+	}
+	std::vector<uint8_t> buffer(len);
+	if (prefsWifiSettings.getBytes(key, buffer.data(), buffer.size()) != len) {
+		return WiFiSettings {};
+	}
 	return WiFiSettings(buffer);
 }
 [[maybe_unused]] static WiFiSettings loadWiFiSettingsFromNvs(const String &key) {
@@ -133,6 +231,7 @@ static WiFiSettings loadWiFiSettingsFromNvs(const char *key) {
  * @return false When the WiFISettings was inValid or the NVS write failed
  */
 static bool storeWiFiSettingsToNvs(const char *key, const WiFiSettings &s) {
+	WlanLockGuard lock;
 	auto buffer = s.serialize();
 	if (!buffer) {
 		// Invalid WiFiSettings instance
@@ -149,6 +248,7 @@ static bool storeWiFiSettingsToNvs(const char *key, const WiFiSettings &s) {
  * @param handler The function to be called, it receives the key and the WiFiSettings object loaded from NVS
  */
 static void iterateNvsEntries(std::function<bool(const char *, const WiFiSettings &)> handler) {
+	WlanLockGuard lock;
 #if (defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3))
 	nvs_iterator_t it = nullptr;
 	esp_err_t res = nvs_entry_find("nvs", nvsWiFiNamespace, NVS_TYPE_BLOB, &it);
@@ -323,6 +423,7 @@ void Wlan_Init(void) {
 	// WiFi.useStaticBuffers(true);
 
 	// capture the reason code of station disconnects (see lastDisconnectReason)
+#ifndef ESPUINO_QEMU
 	WiFi.onEvent([](WiFiEvent_t event, arduino_event_info_t info) {
 		const uint8_t reason = info.wifi_sta_disconnected.reason;
 		// The connect state machine tears down its own attempts (WiFi.disconnect()
@@ -335,6 +436,7 @@ void Wlan_Init(void) {
 		lastDisconnectReason = reason;
 	},
 		WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+#endif
 
 	wifiState = WIFI_STATE_INIT;
 	handleWifiStateInit();
@@ -370,6 +472,12 @@ void handleWifiStateInit() {
 		return;
 	}
 
+#ifdef ESPUINO_QEMU
+	qemuStartOpenEth();
+	connectStartTimestamp = millis();
+	wifiState = WIFI_STATE_CONNECT_LAST;
+	return;
+#else
 	WiFi.mode(WIFI_STA);
 
 	scanIndex = 0;
@@ -385,9 +493,16 @@ void handleWifiStateInit() {
 		// quick connect without additional scan
 		wifiState = WIFI_STATE_CONNECT_LAST;
 	}
+#endif
 }
 
 void handleWifiStateConnectLast() {
+#ifdef ESPUINO_QEMU
+	if (s_qemuEthIp != IPAddress(0, 0, 0, 0)) {
+		wifiState = WIFI_STATE_CONN_SUCCESS;
+	}
+	return;
+#endif
 	if (WiFi.status() == WL_CONNECTED) {
 		wifiState = WIFI_STATE_CONN_SUCCESS;
 		return;
@@ -531,6 +646,11 @@ static bool initialStart = true;
 // executed once after successfully connecting
 void handleWifiStateConnectionSuccess() {
 	initialStart = false;
+#ifdef ESPUINO_QEMU
+	IPAddress myIP = s_qemuEthIp;
+	String mySSID = Wlan_GetCurrentSSID();
+	Log_Printf(LOGLEVEL_NOTICE, wifiCurrentIp, myIP.toString().c_str());
+#else
 	IPAddress myIP = WiFi.localIP();
 	String mySSID = Wlan_GetCurrentSSID();
 
@@ -549,6 +669,7 @@ void handleWifiStateConnectionSuccess() {
 		gPrefsSettings.putBytes("LAST_BSSID", bssid, 6);
 		gPrefsSettings.putInt("LAST_CHANNEL", WiFi.channel());
 	}
+#endif
 
 	// get current time and date
 	Log_Println(syncingViaNtp, LOGLEVEL_NOTICE);
@@ -578,8 +699,11 @@ void handleWifiStateConnectionSuccess() {
 		}
 	}
 #endif
-	delete dnsServer;
-	dnsServer = nullptr;
+	if (dnsServer) {
+		dnsServer->stop();
+		delete dnsServer;
+		dnsServer = nullptr;
+	}
 
 	// A webstream-tag applied while WiFi was not yet connected (e.g. right after boot, or restored via
 	// the "play last RFID after reboot" setting) could not be started. Now that WiFi is up, re-inject that tag into the
@@ -609,6 +733,9 @@ void handleWifiStateConnectionSuccess() {
 unsigned long lastRssiTimestamp;
 
 void handleWifiStateConnected() {
+#ifdef ESPUINO_QEMU
+	return;
+#endif
 	static int8_t lastRssiValue = 0;
 
 	switch (WiFi.status()) {
@@ -684,23 +811,34 @@ void handleWifiStateAP() {
 
 	// close the AP after the desired time has passed; set to 0 to keep on forever
 	if (closeWifiAPTimeout != 0 && millis() - wifiAPStartedTimestamp > closeWifiAPTimeout) {
+		if (dnsServer) {
+			dnsServer->stop();
+			delete dnsServer;
+			dnsServer = nullptr;
+		}
 		WiFi.mode(WIFI_OFF);
 		wifiState = WIFI_STATE_DISCONNECTED;
 		return;
 	}
 
 	switch (testPhase) {
-		case WifiTestPhase::Pending:
+		case WifiTestPhase::Pending: {
 			// bring the station interface up next to the AP and try the
 			// credentials. The AP may hop to the target network's channel,
 			// briefly interrupting the portal client — the page just keeps
 			// polling.
 			wifiAPStartedTimestamp = millis(); // user is mid-setup: keep AP alive
+			WiFiSettings pendingSettings;
+			{
+				WlanLockGuard lock;
+				pendingSettings = testSettings;
+			}
 			WiFi.mode(WIFI_AP_STA);
-			connectToKnownNetwork(testSettings);
+			connectToKnownNetwork(pendingSettings);
 			testStartTimestamp = millis();
 			testPhase = WifiTestPhase::Connecting;
 			break;
+		}
 		case WifiTestPhase::Connecting:
 			wifiAPStartedTimestamp = millis();
 			if (WiFi.status() == WL_CONNECTED) {
@@ -711,14 +849,16 @@ void handleWifiStateAP() {
 					gPrefsSettings.remove(nvsFailReasonKey);
 					gPrefsSettings.remove(nvsFailSsidKey);
 				}
-				Log_Printf(LOGLEVEL_NOTICE, "WiFi-test: connected to %s, IP: %s", testSettings.ssid.c_str(), WiFi.localIP().toString().c_str());
+				const String testedSsid = Wlan_GetTestSsid();
+				Log_Printf(LOGLEVEL_NOTICE, "WiFi-test: connected to %s, IP: %s", testedSsid.c_str(), WiFi.localIP().toString().c_str());
 			} else if (millis() - testStartTimestamp > testTimeout) {
 				// reason stays 0 when association worked but no IP arrived
 				testFailReason = lastDisconnectReason;
 				testPhase = WifiTestPhase::Failed;
-				gPrefsSettings.putString(nvsFailSsidKey, testSettings.ssid);
+				const String testedSsid = Wlan_GetTestSsid();
+				gPrefsSettings.putString(nvsFailSsidKey, testedSsid);
 				gPrefsSettings.putUChar(nvsFailReasonKey, testFailReason);
-				Log_Printf(LOGLEVEL_ERROR, "WiFi-test: failed for %s (reason %u)", testSettings.ssid.c_str(), testFailReason);
+				Log_Printf(LOGLEVEL_ERROR, "WiFi-test: failed for %s (reason %u)", testedSsid.c_str(), testFailReason);
 				WiFi.disconnect(true, true);
 				WiFi.mode(WIFI_AP);
 			}
@@ -729,6 +869,11 @@ void handleWifiStateAP() {
 			// continue as a normally connected station
 			if (millis() - testSuccessTimestamp > testSuccessLinger) {
 				testPhase = WifiTestPhase::Idle;
+				if (dnsServer) {
+					dnsServer->stop();
+					delete dnsServer;
+					dnsServer = nullptr;
+				}
 				WiFi.softAPdisconnect(false);
 				WiFi.mode(WIFI_STA);
 				wifiState = WIFI_STATE_CONN_SUCCESS;
@@ -740,7 +885,9 @@ void handleWifiStateAP() {
 			break;
 	}
 
-	dnsServer->processNextRequest();
+	if (dnsServer) {
+		dnsServer->processNextRequest();
+	}
 }
 
 void Wlan_Cyclic(void) {
@@ -770,8 +917,12 @@ void Wlan_Cyclic(void) {
 			handleWifiStateAP();
 			return;
 		case WIFI_STATE_END:
-			WiFi.disconnect(true, true);
-			WiFi.mode(WIFI_OFF);
+#ifndef ESPUINO_QEMU
+			if (WiFi.getMode() != WIFI_OFF) {
+				WiFi.disconnect(true, true);
+				WiFi.mode(WIFI_OFF);
+			}
+#endif
 			return;
 	}
 }
@@ -849,11 +1000,12 @@ bool Wlan_SetApTimeoutMinutes(uint32_t minutes) {
 }
 
 bool Wlan_AddNetworkSettings(const WiFiSettings &settings) {
+	WlanLockGuard lock;
 	// find the entry if the network already exists
 	auto nvsSetting = getNvsWifiSettings(settings.ssid);
 	if (nvsSetting) {
 		// we are updating an existing entry
-		Log_Printf(LOGLEVEL_NOTICE, wifiUpdateNetwork, settings.ssid);
+		Log_Printf(LOGLEVEL_NOTICE, wifiUpdateNetwork, settings.ssid.c_str());
 		return storeWiFiSettingsToNvs(nvsSetting->key, settings);
 	}
 
@@ -863,7 +1015,7 @@ bool Wlan_AddNetworkSettings(const WiFiSettings &settings) {
 		snprintf(key, NVS_KEY_NAME_MAX_SIZE, nvsWiFiKeyFormat, i);
 		if (!prefsWifiSettings.isKey(key)) {
 			// we found a slot, use it
-			Log_Printf(LOGLEVEL_NOTICE, wifiAddNetwork, settings.ssid);
+			Log_Printf(LOGLEVEL_NOTICE, wifiAddNetwork, settings.ssid.c_str());
 			return storeWiFiSettingsToNvs(key, settings);
 		}
 	}
@@ -891,7 +1043,11 @@ void Wlan_GetSavedNetworks(std::function<void(const WiFiSettings &)> handler) {
 }
 
 const String Wlan_GetCurrentSSID() {
+#ifdef ESPUINO_QEMU
+	return "QEMU-ETH";
+#else
 	return WiFi.SSID();
+#endif
 }
 
 const String Wlan_GetHostname() {
@@ -909,6 +1065,7 @@ const String Wlan_GetMacAddress() {
 }
 
 bool Wlan_DeleteNetwork(String ssid) {
+	WlanLockGuard lock;
 	Log_Printf(LOGLEVEL_NOTICE, wifiDeleteNetwork, ssid.c_str());
 
 	const auto entry = getNvsWifiSettings(ssid);
@@ -950,6 +1107,7 @@ bool Wlan_StartConnectionTest(const String &ssid) {
 	if (testPhase == WifiTestPhase::Pending || testPhase == WifiTestPhase::Connecting) {
 		return false;
 	}
+	WlanLockGuard lock;
 	const auto entry = getNvsWifiSettings(ssid);
 	if (!entry) {
 		return false;
@@ -979,6 +1137,7 @@ uint8_t Wlan_GetTestReason(void) {
 }
 
 const String Wlan_GetTestSsid(void) {
+	WlanLockGuard lock;
 	return testSettings.ssid;
 }
 
@@ -993,11 +1152,19 @@ bool Wlan_GetLastFailure(String &ssid, uint8_t &reason) {
 }
 
 String Wlan_GetIpAddress(void) {
+#ifdef ESPUINO_QEMU
+	return s_qemuEthIp.toString();
+#else
 	return WiFi.localIP().toString();
+#endif
 }
 
 int8_t Wlan_GetRssi(void) {
+#ifdef ESPUINO_QEMU
+	return -42;
+#else
 	return WiFi.RSSI();
+#endif
 }
 
 // Initialize soft access-point
@@ -1058,10 +1225,18 @@ bool Wlan_IsConnected(void) {
 	return (wifiState == WIFI_STATE_CONNECTED);
 }
 
+bool Wlan_IsApMode(void) {
+	return (wifiState == WIFI_STATE_AP);
+}
+
 // Enable/disable WiFi modem power-save. Power-save (WIFI_PS_MIN_MODEM, the Arduino default) saves power
 // when idle but inflates latency and cripples TCP throughput - so it is temporarily disabled during
 // bulk transfers (e.g. web-uploads, see System_PauseTasksDuringUpload()) and re-enabled afterwards.
 void Wlan_SetPowerSave(bool enabled) {
+#ifdef ESPUINO_QEMU
+	(void) enabled;
+	return;
+#else
 	// Callers re-assert the wanted state periodically (Web_Cyclic) -- only touch the
 	// driver and log on actual changes, so the re-asserts are free and the log stays clean.
 	static int8_t lastState = -1;
@@ -1071,6 +1246,7 @@ void Wlan_SetPowerSave(bool enabled) {
 	lastState = (int8_t) enabled;
 	WiFi.setSleep(enabled);
 	Log_Printf(LOGLEVEL_NOTICE, "WiFi power-save %s", enabled ? "on" : "off");
+#endif
 }
 
 std::optional<std::vector<uint8_t>> WiFiSettings::serialize() const {
@@ -1101,50 +1277,82 @@ std::optional<std::vector<uint8_t>> WiFiSettings::serialize() const {
 }
 
 void WiFiSettings::deserialize(const std::vector<uint8_t> &buffer) {
-	// prepare the read iterator
 	auto it = buffer.cbegin();
+	const auto end = buffer.cend();
+	String parsedSsid;
+	String parsedPassword;
+	StaticIp parsedIp;
 
-	// read the ssid
-	deserializeString(it, ssid);
+	if (!deserializeString(it, end, parsedSsid) || !deserializeString(it, end, parsedPassword) || !deserializeStaticIp(it, end, parsedIp) || it != end) {
+		ssid = String();
+		password = String();
+		staticIp = StaticIp {};
+		return;
+	}
 
-	// read the password
-	deserializeString(it, password);
-
-	// read the static ip settings
-	deserializeStaticIp(it, staticIp);
+	ssid = std::move(parsedSsid);
+	password = std::move(parsedPassword);
+	staticIp = parsedIp;
 }
 
 void WiFiSettings::serializeString(std::vector<uint8_t>::iterator &it, const String &s) const {
-	*it = s.length();
+	*it = static_cast<uint8_t>(s.length());
 	it++;
 	it = std::copy(s.begin(), s.end(), it);
 	*it = '\0';
 	it++;
-};
+}
 
-void WiFiSettings::deserializeString(std::vector<uint8_t>::const_iterator &it, String &s) {
+bool WiFiSettings::deserializeString(std::vector<uint8_t>::const_iterator &it, std::vector<uint8_t>::const_iterator end, String &s) {
+	if (it == end) {
+		return false;
+	}
 	const uint8_t len = *it;
-	s.reserve(len + 1);
-	it++;
-	s = (char *) &(*it);
-	it += len + 1;
-};
+	++it;
+	if (static_cast<size_t>(end - it) < static_cast<size_t>(len) + 1) {
+		return false;
+	}
+	if (*(it + len) != '\0') {
+		return false;
+	}
+	for (size_t i = 0; i < len; ++i) {
+		if (*(it + i) == '\0') {
+			return false;
+		}
+	}
+	s = String(reinterpret_cast<const char *>(&(*it)), len);
+	it += static_cast<size_t>(len) + 1;
+	return true;
+}
 
 void WiFiSettings::serializeStaticIp(std::vector<uint8_t>::iterator &it, const StaticIp &ip) const {
 	*it = ip.isValid();
 	it++;
 	if (ip.isValid()) {
-		// serialize the whole thing
-		ip.serialize((uint32_t *) &(*it));
+		ip.serialize(&(*it));
 		it += StaticIp::numFields * sizeof(uint32_t);
 	}
-};
+}
 
-void WiFiSettings::deserializeStaticIp(std::vector<uint8_t>::const_iterator &it, StaticIp &ip) {
-	const bool hasStatisIp = *it;
-	it++;
-	if (hasStatisIp) {
-		ip.deserialize((uint32_t *) &(*it));
-		it += sizeof(uint32_t) * StaticIp::numFields;
+bool WiFiSettings::deserializeStaticIp(std::vector<uint8_t>::const_iterator &it, std::vector<uint8_t>::const_iterator end, StaticIp &ip) {
+	if (it == end) {
+		return false;
 	}
-};
+	const uint8_t flag = *it;
+	if (flag > 1) {
+		return false;
+	}
+	const bool hasStaticIp = (flag != 0);
+	++it;
+	if (hasStaticIp) {
+		constexpr size_t ipBytes = sizeof(uint32_t) * StaticIp::numFields;
+		if (static_cast<size_t>(end - it) < ipBytes) {
+			return false;
+		}
+		ip.deserialize(&(*it));
+		it += ipBytes;
+	} else {
+		ip = StaticIp {};
+	}
+	return true;
+}

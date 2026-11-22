@@ -61,21 +61,12 @@ void Ftp_Init(void) {
 #endif
 }
 
-// Re-reads the FTP credentials from NVS into the in-memory globals the running
-// server uses. Called after the credentials are changed via the web UI so the
-// change takes effect without a reboot.
+// Requests a deferred credentials reload on the loop task. Called from async_tcp
+// when the shared device password changes via the web UI so we never mutate Ftp_User /
+// Ftp_Password String objects across cores while loopTask is inside ftpSrv->handle().
 void Ftp_ReloadCredentials(void) {
-	Ftp_User = gPrefsSettings.getString("ftpuser", Ftp_User);
-	Ftp_Password = gPrefsSettings.getString("ftppassword", Ftp_Password);
 #ifdef FTP_ENABLE
-	// FTPServer captures its user list at creation time, so an already-running
-	// server keeps the old credentials. This runs on the async_tcp web task, so we
-	// must not delete ftpSrv here (the loop task may be inside ftpSrv->handle()).
-	// Request a deferred restart; Ftp_Cyclic() (loop task) drops the instance and
-	// lets ftpManager() re-create it with the updated globals when it is safe.
-	if (ftpEnableCurrentStatus && (ftpSrv != NULL)) {
-		ftpRestartPending = true;
-	}
+	ftpRestartPending = true;
 #endif
 }
 
@@ -100,6 +91,11 @@ void Ftp_Cyclic(void) {
 		Ftp_EnableServer();
 	}
 
+	if (ftpRestartPending) {
+		Ftp_User = gPrefsSettings.getString("ftpuser", Ftp_User);
+		Ftp_Password = gPrefsSettings.getString("ftppassword", Ftp_Password);
+	}
+
 	// Consume deferred teardown requests raised by the web/websocket task. We are on the
 	// loop task here and outside ftpSrv->handle() (called further down), so deleting the
 	// server object is safe -- no transfer can be in flight on this task at this point.
@@ -119,15 +115,15 @@ void Ftp_Cyclic(void) {
 
 	ftpManager();
 
-	if (WL_CONNECTED == WiFi.status()) {
-		if (ftpEnableLastStatus && ftpEnableCurrentStatus) {
+	if (Wlan_IsConnected()) {
+		if (ftpEnableLastStatus && ftpEnableCurrentStatus && ftpSrv != NULL) {
 			ftpSrv->handle();
 		}
 	}
 
-	if (ftpEnableLastStatus && ftpEnableCurrentStatus) {
-		if (ftpSrv->countConnections() > 0) {
-			System_UpdateActivityTimer(); // Re-adjust timer while client is connected to avoid ESP falling asleep
+	if (ftpEnableLastStatus && ftpEnableCurrentStatus && ftpSrv != NULL) {
+		if (ftpSrv->hasActiveSession(60000UL)) {
+			System_UpdateActivityTimer(); // Keep device awake during active FTP transfers/commands, not forever on idle sockets
 		}
 	}
 #endif

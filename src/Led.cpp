@@ -226,6 +226,20 @@ void Led_PrepareForBoot(void) {
 #endif
 }
 
+#ifdef NEOPIXEL_ENABLE
+static std::atomic<bool> sLedPauseRequested {false};
+static std::atomic<bool> sLedPauseAck {false};
+static std::atomic<bool> sLedExitRequested {false};
+
+static void Led_WaitForCooperativePause(void) {
+	sLedPauseRequested.store(true, std::memory_order_release);
+	const uint32_t start = millis();
+	while (Led_TaskHandle != NULL && !sLedPauseAck.load(std::memory_order_acquire) && (millis() - start < 250u)) {
+		vTaskDelay(pdMS_TO_TICKS(5));
+	}
+}
+#endif
+
 void Led_Init(void) {
 #ifdef NEOPIXEL_ENABLE
 
@@ -235,6 +249,10 @@ void Led_Init(void) {
 		xQueueSend(gLedQueue, &ledSettingsChanged, 0);
 		return;
 	}
+
+	sLedPauseRequested.store(false, std::memory_order_relaxed);
+	sLedPauseAck.store(false, std::memory_order_relaxed);
+	sLedExitRequested.store(false, std::memory_order_relaxed);
 
 	// load led settings from NVS
 	Led_LoadSettings(gLedSettings);
@@ -255,8 +273,12 @@ void Led_Exit(void) {
 #ifdef NEOPIXEL_ENABLE
 	Log_Println("shutdown LED..", LOGLEVEL_NOTICE);
 	if (Led_TaskHandle) {
-		vTaskDelete(Led_TaskHandle);
-		Led_TaskHandle = NULL;
+		sLedExitRequested.store(true, std::memory_order_release);
+		sLedPauseRequested.store(false, std::memory_order_release);
+		const uint32_t start = millis();
+		while (Led_TaskHandle != NULL && (millis() - start < 500u)) {
+			vTaskDelay(pdMS_TO_TICKS(10));
+		}
 	}
 	// Turn off LEDs in order to avoid LEDs still glowing when ESP32 is in deepsleep
 	Led_Strip.clear(true);
@@ -503,17 +525,20 @@ void Led_SetButtonLedsEnabled(boolean value) {
 
 #ifdef NEOPIXEL_ENABLE
 CRGB Led_DimColor(CRGB color, uint8_t brightness) {
-	const uint8_t factor = uint16_t(brightness * __UINT8_MAX__) / gLedSettings.dimmableStates;
+	const uint8_t states = std::max<uint8_t>(1u, gLedSettings.dimmableStates);
+	const uint8_t factor = uint16_t(brightness * __UINT8_MAX__) / states;
 	return color.nscale8(factor);
 }
 static void Led_QuantizeToBar(uint32_t value, uint32_t inMax, size_t numLeds, uint8_t &fullLeds, uint8_t &lastLed) {
-	const uint32_t outMax = numLeds * gLedSettings.dimmableStates;
-	const uint32_t ledValue = std::clamp<uint32_t>(map(value, 0, inMax, 0, outMax), 0, outMax);
-	fullLeds = ledValue / gLedSettings.dimmableStates;
-	lastLed = ledValue % gLedSettings.dimmableStates;
+	const uint8_t states = std::max<uint8_t>(1u, gLedSettings.dimmableStates);
+	const uint32_t safeMax = std::max<uint32_t>(1u, inMax);
+	const uint32_t outMax = numLeds * states;
+	const uint32_t ledValue = std::clamp<uint32_t>(map(value, 0, safeMax, 0, outMax), 0, outMax);
+	fullLeds = ledValue / states;
+	lastLed = ledValue % states;
 }
 static uint8_t Led_PauseOffset(CRGBSet &leds) {
-	if (!gLedSettings.offsetLedPause) {
+	if (!gLedSettings.offsetLedPause || gLedSettings.numIdleDots == 0) {
 		return 0;
 	}
 	return ((leds.size() / gLedSettings.numIdleDots) / 2) - 1;
@@ -540,7 +565,7 @@ CRGB::HTMLColorCode Led_GetIdleColor() {
 }
 
 void Led_DrawIdleDots(CRGBSet &leds, uint8_t offset, CRGB::HTMLColorCode color) {
-	if (leds.size() == 0) { // guard against "% 0" on a zero-length strip
+	if (leds.size() == 0 || gLedSettings.numIdleDots == 0) { // guard against "% 0" / "/ 0"
 		return;
 	}
 	const uint8_t Led_IdleDotDistance = gLedSettings.numIndicatorLeds / gLedSettings.numIdleDots;
@@ -582,6 +607,16 @@ static void Led_Task(void *parameter) {
 	uint8_t ledSettingsChanged;
 
 	for (;;) {
+		if (sLedExitRequested.load(std::memory_order_acquire)) {
+			Led_TaskHandle = NULL;
+			vTaskDelete(NULL);
+		}
+		if (sLedPauseRequested.load(std::memory_order_acquire)) {
+			sLedPauseAck.store(true, std::memory_order_release);
+			vTaskDelay(pdMS_TO_TICKS(10));
+			continue;
+		}
+		sLedPauseAck.store(false, std::memory_order_release);
 
 		if (xQueueReceive(gLedQueue, &ledSettingsChanged, 0) == pdPASS) {
 			// load led settings from NVS
@@ -590,11 +625,11 @@ static void Led_Task(void *parameter) {
 			if (((gLedSettings.numIndicatorLeds + gLedSettings.numControlLeds) != (numIndicatorLeds + numControlLeds)) || (gLedSettings.numControlLeds != numControlLeds)) {
 				// Led_Strip's buffers (and the DMA transfer size) are sized once in begin().
 				// Request a clean restart instead of trying to hot-reallocate the strip, and
-				// stop touching leds/indicator/Led_Strip until then (their sizes no longer
-				// match gLedSettings).
+				// exit this task cleanly so System_Restart() -> Led_Exit() never blocks.
 				Log_Println("Number of LEDs changed, restarting to apply..", LOGLEVEL_NOTICE);
+				Led_TaskHandle = NULL;
 				System_Restart();
-				vTaskDelay(portMAX_DELAY);
+				vTaskDelete(NULL);
 			}
 		}
 
@@ -1553,7 +1588,7 @@ AnimationReturnType Animation_BatteryMeasurement(const bool startNewAnimation, C
 void Led_TaskPause(void) {
 #ifdef NEOPIXEL_ENABLE
 	if (Led_TaskHandle != NULL) {
-		vTaskSuspend(Led_TaskHandle);
+		Led_WaitForCooperativePause();
 		Led_Strip.clear(true);
 	}
 #endif
@@ -1561,16 +1596,14 @@ void Led_TaskPause(void) {
 
 void Led_TaskResume(void) {
 #ifdef NEOPIXEL_ENABLE
-	if (Led_TaskHandle != NULL) {
-		vTaskResume(Led_TaskHandle);
-	}
+	sLedPauseRequested.store(false, std::memory_order_release);
 #endif
 }
 
 void Led_ShowSyncColor(void) {
 #ifdef NEOPIXEL_ENABLE
 	if (Led_TaskHandle != NULL) {
-		vTaskSuspend(Led_TaskHandle); // make sure nothing else drives the strip concurrently
+		Led_WaitForCooperativePause(); // make sure nothing else drives the strip concurrently
 		Led_Strip.showColor(CRGB::Blue); // one-shot; the LEDs latch and hold this until resume
 	}
 #endif

@@ -17,6 +17,11 @@ void Rfid_Exit(void);
 void Rfid_TaskPause(void);
 void Rfid_TaskResume(void);
 void Rfid_TaskReset(void);
+bool Rfid_ShouldPauseTask(void);
+void Rfid_AckTaskPaused(bool paused);
+bool Rfid_ShouldExitTask(void);
+void Rfid_RequestTaskExit(void);
+void Rfid_ClearTaskLifecycleFlags(void);
 void Rfid_WakeupCheck(void);
 void Rfid_PreferenceLookupHandler(void);
 const char *Rfid_GetReaderFirmwareVersion(void); // PN5180 reader firmware version (RFID_READER_TYPE_RUNTIME builds only)

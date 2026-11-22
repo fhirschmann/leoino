@@ -166,3 +166,5 @@ uint32_t AudioPlayer_GetSampleRate(void); // current sample rate (Hz), 0 if unkn
 uint8_t AudioPlayer_GetChannels(void); // channel count (1=mono, 2=stereo), 0 if unknown
 const char *AudioPlayer_GetCodecName(void); // codec name (e.g. "MP3", "FLAC"), "" if unknown
 String AudioPlayer_GetStationLogoUrl(void);
+bool AudioPlayer_IsRunning(void);
+void AudioPlayer_CopyTrackMetadata(char *title, size_t titleLen, char *artist, size_t artistLen, char *album, size_t albumLen);

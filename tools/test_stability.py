@@ -155,3 +155,184 @@ int main(){for(auto backend:{LedDriver::Backend::Spi,LedDriver::Backend::Rmt}){
  puts("PASS LED: SPI/RMT timeout preserves DMA buffer, pending transfer and retry; failed enqueue recovers");
 }
 ''', temp)
+    # Real WiFiSettings::serialize / deserialize under ASan/UBSan on empty, truncated, and malformed NVS blobs.
+    wlan_h = (SRC / 'Wlan.h').read_text()
+    wlan_struct = wlan_h[wlan_h.index('struct WiFiSettings {'):wlan_h.index('\nvoid Wlan_Init')]
+    wlan_cpp = (SRC / 'Wlan.cpp').read_text()
+    wlan_ser = wlan_cpp[wlan_cpp.index('std::optional<std::vector<uint8_t>> WiFiSettings::serialize()'):]
+    run('wifi_deserialize', r'''
+#include <functional>
+#include <optional>
+constexpr uint32_t INADDR_NONE = 0xFFFFFFFFu;
+constexpr int LOGLEVEL_ERROR = 1;
+void Log_Println(const char*, int) {}
+struct IPAddress {
+ uint32_t v{INADDR_NONE};
+ IPAddress() = default;
+ IPAddress(uint32_t x) : v(x) {}
+ IPAddress(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+  : v(uint32_t(a) | (uint32_t(b) << 8) | (uint32_t(c) << 16) | (uint32_t(d) << 24)) {}
+ operator uint32_t() const { return v; }
+ bool operator==(uint32_t o) const { return v == o; }
+ bool operator!=(uint32_t o) const { return v != o; }
+ bool operator==(const IPAddress &o) const { return v == o.v; }
+};
+struct String : std::string {
+ using std::string::string;
+ String(const char *p, size_t n) : std::string(p, n) {}
+ bool isEmpty() const { return empty(); }
+};
+''' + wlan_struct + '\n' + wlan_ser + r'''
+int main() {
+ // Empty 0-byte NVS blob (used to dereference *nullptr on boot)
+ { WiFiSettings empty(std::vector<uint8_t>{}); assert(!empty.isValid()); }
+ // Valid round-trips (DHCP + Static IP) and every truncated prefix
+ WiFiSettings dhcp; dhcp.ssid = "HomeWiFi"; dhcp.password = "supersecret123";
+ auto dhcpBlob = dhcp.serialize(); assert(dhcpBlob.has_value());
+ { WiFiSettings rt(*dhcpBlob); assert(rt.isValid() && rt.ssid == "HomeWiFi" && rt.password == "supersecret123" && !rt.staticIp.isValid()); }
+ for (size_t cut = 0; cut < dhcpBlob->size(); ++cut) {
+  std::vector<uint8_t> prefix(dhcpBlob->begin(), dhcpBlob->begin() + cut);
+  WiFiSettings bad(prefix);
+  assert(!bad.isValid());
+ }
+ WiFiSettings st; st.ssid = "LabNet"; st.password = "";
+ st.staticIp = WiFiSettings::StaticIp(IPAddress(192,168,1,50), IPAddress(255,255,255,0), IPAddress(192,168,1,1), IPAddress(1,1,1,1), IPAddress(8,8,8,8));
+ auto stBlob = st.serialize(); assert(stBlob.has_value());
+ { WiFiSettings rt(*stBlob); assert(rt.isValid() && rt.staticIp.isValid() && rt.staticIp.addr == IPAddress(192,168,1,50) && rt.staticIp.dns2 == IPAddress(8,8,8,8)); }
+ for (size_t cut = 0; cut < stBlob->size(); ++cut) {
+  std::vector<uint8_t> prefix(stBlob->begin(), stBlob->begin() + cut);
+  WiFiSettings bad(prefix);
+  assert(!bad.isValid());
+ }
+ // Missing NUL, embedded NUL, invalid staticIp flag, trailing garbage
+ { auto b = *dhcpBlob; b[1 + 8] = 'X'; WiFiSettings bad(b); assert(!bad.isValid()); }
+ { auto b = *dhcpBlob; b[3] = '\0'; WiFiSettings bad(b); assert(!bad.isValid()); }
+ { auto b = *dhcpBlob; b.back() = 2; WiFiSettings bad(b); assert(!bad.isValid()); }
+ { auto b = *dhcpBlob; b.push_back(0xAA); WiFiSettings bad(b); assert(!bad.isValid()); }
+ { std::vector<uint8_t> overLen = {255, 'a', 0}; WiFiSettings bad(overLen); assert(!bad.isValid()); }
+ puts("PASS WiFiSettings: 0-byte blob, all truncated prefixes, missing/embedded NUL, bad flags, round-trip");
+}
+''', temp)
+    # Real SafeJsonWebHandler under ASan/UBSan against chunked X-Expected-Entity-Length overflow lies + auth bypass.
+    arduino_json_inc = ROOT / '.pio/libdeps/complete/ArduinoJson/src'
+    if arduino_json_inc.is_dir():
+        web_internal = (SRC / 'WebInternal.h').read_text()
+        safe_cls = web_internal[web_internal.index('class SafeJsonWebHandler'):web_internal.index('// RFID tag-assignment handlers')]
+        path = temp / 'safe_json.cpp'
+        path.write_text(PRELUDE + r'''
+#include <cstdlib>
+#include <functional>
+#include <ArduinoJson.h>
+struct SpiRamAllocator : ArduinoJson::Allocator {
+ void* allocate(size_t n) override { return malloc(n); }
+ void deallocate(void* p) override { free(p); }
+ void* reallocate(void* p, size_t n) override { return realloc(p, n); }
+};
+void* x_malloc(size_t n) { return malloc(n); }
+void* x_realloc(void* p, size_t n) { return realloc(p, n); }
+struct String : std::string {
+ using std::string::string;
+ bool equalsIgnoreCase(const char* o) const {
+  if (size() != strlen(o)) return false;
+  for (size_t i = 0; i < size(); ++i) if (tolower((*this)[i]) != tolower(o[i])) return false;
+  return true;
+ }
+};
+namespace asyncsrv { static constexpr const char* T_application_json = "application/json"; }
+enum AsyncWebRequestMethod : uint8_t { HTTP_GET = 1, HTTP_POST = 2, HTTP_PUT = 4, HTTP_PATCH = 8 };
+struct WebRequestMethodComposite {
+ uint8_t m;
+ WebRequestMethodComposite(uint8_t v) : m(v) {}
+ bool matches(uint8_t v) const { return (m & v) != 0; }
+};
+struct AsyncWebServerRequest {
+ void* _tempObject = nullptr;
+ bool authorized = true;
+ bool aborted = false;
+ int status = 0;
+ uint8_t _method = HTTP_POST;
+ size_t _contentLen = 0;
+ String _uri = "/settings";
+ String _ct = "application/json";
+ ~AsyncWebServerRequest() { free(_tempObject); }
+ bool isHTTP() const { return true; }
+ uint8_t method() const { return _method; }
+ const String& contentType() const { return _ct; }
+ size_t contentLength() const { return _contentLen; }
+ void abort() { aborted = true; }
+ void send(int c) { status = c; }
+};
+struct AsyncURIMatcher {
+ std::string u;
+ AsyncURIMatcher(const char* s) : u(s) {}
+ bool matches(AsyncWebServerRequest* r) const { return r->_uri == u; }
+};
+class AsyncWebHandler {
+public:
+ virtual ~AsyncWebHandler() = default;
+ virtual bool canHandle(AsyncWebServerRequest*) const { return false; }
+ virtual void handleUpload(AsyncWebServerRequest*, const String&, size_t, uint8_t*, size_t, bool) {}
+ virtual void handleBody(AsyncWebServerRequest*, uint8_t*, size_t, size_t, size_t) {}
+ virtual void handleRequest(AsyncWebServerRequest*) {}
+ virtual bool isRequestHandlerTrivial() const { return true; }
+};
+using ArJsonRequestHandlerFunction = std::function<void(AsyncWebServerRequest*, JsonVariant&)>;
+bool Web_RequestAuthorized(AsyncWebServerRequest* r) { return r->authorized; }
+''' + safe_cls + r'''
+int main() {
+ int seenVal = -1;
+ SafeJsonWebHandler h("/settings", [&](AsyncWebServerRequest* r, JsonVariant& j) {
+  seenVal = j["ok"] | -1;
+  r->send(200);
+ }, 1024, true);
+
+ // 1) HTTP_GET is rejected by canHandle
+ { AsyncWebServerRequest r; r._method = HTTP_GET; assert(!h.canHandle(&r)); }
+
+ // 2) Unauthenticated request allocates zero body memory and returns 401
+ {
+  AsyncWebServerRequest r; r.authorized = false;
+  std::string body = "{\"ok\":1}";
+  h.handleBody(&r, (uint8_t*)body.data(), body.size(), 0, body.size());
+  assert(r._tempObject == nullptr);
+  h.handleRequest(&r);
+  assert(r.status == 401 && seenVal == -1);
+ }
+
+ // 3) Lie: X-Expected-Entity-Length says total=4, chunked stream sends 600 bytes -> grows safely within cap!
+ {
+  AsyncWebServerRequest r;
+  std::string body = "{\"ok\":42,\"pad\":\"" + std::string(550, 'x') + "\"}";
+  h.handleBody(&r, (uint8_t*)body.data(), 200, 0, 4);
+  h.handleBody(&r, (uint8_t*)body.data() + 200, body.size() - 200, 200, 4);
+  h.handleRequest(&r);
+  assert(r.status == 200 && seenVal == 42 && r._tempObject == nullptr);
+ }
+
+ // 4) Lie exceeding maxContentLength (1024): rejected cleanly with 413, zero heap overflow!
+ {
+  AsyncWebServerRequest r;
+  std::vector<uint8_t> huge(2048, 'A');
+  h.handleBody(&r, huge.data(), 500, 0, 4);
+  h.handleBody(&r, huge.data(), 800, 500, 4);
+  h.handleRequest(&r);
+  assert(r.status == 413);
+ }
+
+ // 5) Standard chunked transfer without Content-Length (total=0 across multiple chunks)
+ {
+  AsyncWebServerRequest r; seenVal = -1;
+  std::string body = "{\"ok\":99}";
+  h.handleBody(&r, (uint8_t*)body.data(), 4, 0, 0);
+  h.handleBody(&r, (uint8_t*)body.data() + 4, body.size() - 4, 4, 0);
+  h.handleRequest(&r);
+  assert(r.status == 200 && seenVal == 99 && r._tempObject == nullptr);
+ }
+ puts("PASS SafeJsonWebHandler: GET block, pre-body auth, X-Expected-Entity-Length overflow lie, 413 cap, chunked JSON");
+}
+''')
+        binary = temp / 'safe_json'
+        subprocess.run(['g++', '-std=c++17', '-O1', '-g', '-fsanitize=address,undefined',
+                        '-fno-sanitize-recover=all', '-fno-omit-frame-pointer', '-no-pie',
+                        '-I' + str(temp), '-I' + str(arduino_json_inc), str(path), '-o', str(binary)], check=True)
+        subprocess.run([str(binary)], check=True)

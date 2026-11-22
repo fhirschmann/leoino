@@ -14,6 +14,7 @@
 #include "Mqtt.h"
 #include "Playstats.h"
 #include "Rfid.h"
+#include "RfidSync.h"
 #include "SdCard.h"
 #include "StatusMessage.h"
 #include "Sync.h"
@@ -53,6 +54,14 @@ static std::atomic<bool> uploadStorageActive = false;
 static std::atomic<bool> uploadInputComplete = false;
 // Only the async web task accesses this pointer. A second request may not reset shared buffers.
 static AsyncWebServerRequest *uploadOwner = nullptr;
+static AsyncWebServerRequest *uploadFailedRequest = nullptr;
+
+static inline void resetWdtIfSubscribed(void) {
+	if (esp_task_wdt_status(NULL) == ESP_OK) {
+		esp_task_wdt_reset();
+	}
+}
+
 class PlaylistWriteGuard {
 public:
 	PlaylistWriteGuard() {
@@ -106,9 +115,13 @@ void explorerHandleUploadComplete(AsyncWebServerRequest *request) {
 			destroyDoubleBuffer();
 		}
 	}
+	const bool hadError = (request->_tempObject != nullptr) || (uploadFailedRequest == request);
+	if (uploadFailedRequest == request) {
+		uploadFailedRequest = nullptr;
+	}
 	if (!Web_RequestAuthorized(request)) {
 		request->send(401);
-	} else if (!request->_tempObject) {
+	} else if (!hadError) {
 		request->send(owned ? 200 : 400); // raw bodies do not invoke the multipart upload callback
 	}
 }
@@ -122,9 +135,8 @@ bool allocateDoubleBuffer() {
 			// memory is there, so nothing to do
 			return true;
 		}
-		// try to allocate buffer in faster internal RAM, not in PSRAM
-		// ptr = (uint8_t *) malloc(memSize);
-		ptr = (uint8_t *) heap_caps_aligned_alloc(32, memSize, MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL);
+		// Prefer PSRAM so three 16 KB upload buffers (48 KB total) do not starve lwIP/AsyncTCP in internal DRAM.
+		ptr = static_cast<uint8_t *>(x_malloc(memSize));
 		return (ptr != nullptr);
 	};
 
@@ -153,12 +165,18 @@ bool allocateDoubleBuffer() {
 }
 
 void handleUploadError(AsyncWebServerRequest *request, int code) {
-	if (request->_tempObject) {
+	if (request->_tempObject || uploadFailedRequest == request) {
 		// we already have an error entered
 		return;
 	}
-	// send the error to the client and record it in the request
-	request->_tempObject = new int(code);
+	// AsyncWebServerRequest::~AsyncWebServerRequest() cleans up _tempObject with free(), so allocate via malloc.
+	int *err = static_cast<int *>(x_malloc(sizeof(int)));
+	if (err) {
+		*err = code;
+		request->_tempObject = err;
+	} else {
+		uploadFailedRequest = request;
+	}
 	request->send(code);
 }
 
@@ -267,13 +285,16 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 	}
 
 	while (len) {
-		// wait till buffer is ready
+		// wait till buffer is ready (feed async_tcp WDT and cap wait at 30 s)
+		uint32_t waitStart = millis();
 		while (buffer_full[index_buffer_write]) {
-			if (uploadAborted) {
+			if (uploadAborted || (millis() - waitStart > 30000u)) {
+				uploadAborted = true;
 				handleUploadError(request, 500);
 				return;
 			}
-			vTaskDelay(2u);
+			resetWdtIfSubscribed();
+			vTaskDelay(pdMS_TO_TICKS(2));
 		}
 
 		size_t len_to_write = len;
@@ -306,8 +327,19 @@ void explorerHandleFileUpload(AsyncWebServerRequest *request, String filename, s
 		}
 		// notify storage task that last data was stored on the ring buffer
 		uploadInputComplete = true;
-		// watit until the storage task is sending the signal to finish
-		if (xSemaphoreTake(explorerFileUploadFinished, pdMS_TO_TICKS(30000)) != pdTRUE) {
+		// Wait in WDT-safe 250 ms slices (up to 30 s total) so async_tcp's 5 s TWDT never panics.
+		bool finished = false;
+		for (uint32_t slice = 0; slice < 120; ++slice) {
+			resetWdtIfSubscribed();
+			if (xSemaphoreTake(explorerFileUploadFinished, pdMS_TO_TICKS(250)) == pdTRUE) {
+				finished = true;
+				break;
+			}
+			if (uploadAborted) {
+				break;
+			}
+		}
+		if (!finished) {
 			// timeout, something went wrong
 			Log_Println(webTxCanceled, LOGLEVEL_ERROR);
 			uploadAborted = true;
@@ -459,7 +491,12 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 		return;
 	}
 
-	AsyncJsonResponse *response = new AsyncJsonResponse(true);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(true);
+	if (!response) {
+		root.close();
+		request->send(503);
+		return;
+	}
 	JsonArray obj = response->getRoot();
 
 	// For root directory, add volume label as first element if available
@@ -486,7 +523,7 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 			}
 		}
 		MyfileName = gFSystem.nextFileName(root, &isDir);
-		esp_task_wdt_reset();
+		resetWdtIfSubscribed();
 	}
 	root.close();
 
@@ -501,23 +538,25 @@ void explorerHandleListRequest(AsyncWebServerRequest *request) {
 	request->send(response);
 }
 
-bool explorerDeleteDirectory(File dir) {
-
+static bool explorerDeleteDirectoryBounded(File dir, uint8_t depth) {
+	if (depth > 12) {
+		return false;
+	}
 	File file = dir.openNextFile();
 	while (file) {
-
 		if (file.isDirectory()) {
-			explorerDeleteDirectory(file);
+			explorerDeleteDirectoryBounded(file, depth + 1);
 		} else {
 			gFSystem.remove(file);
 		}
-
 		file = dir.openNextFile();
-
-		esp_task_wdt_reset();
+		resetWdtIfSubscribed();
 	}
-
 	return gFSystem.rmdir(dir);
+}
+
+bool explorerDeleteDirectory(File dir) {
+	return explorerDeleteDirectoryBounded(dir, 0);
 }
 
 // macOS metadata junk: Finder/Spotlight droppings that are useless on a music box
@@ -525,7 +564,10 @@ static bool Web_IsMacJunkName(const char *name) {
 	return (strcmp(name, ".DS_Store") == 0) || (strncmp(name, "._", 2) == 0) || (strcmp(name, ".Spotlight-V100") == 0) || (strcmp(name, ".fseventsd") == 0) || (strcmp(name, ".Trashes") == 0) || (strcmp(name, ".TemporaryItems") == 0);
 }
 
-static void Web_CleanDirectory(File dir, uint32_t &deletedCount) {
+static void Web_CleanDirectory(File dir, uint32_t &deletedCount, uint8_t depth = 0) {
+	if (depth > 12) {
+		return;
+	}
 	File file = dir.openNextFile();
 	while (file) {
 		const String path = file.path();
@@ -534,20 +576,20 @@ static void Web_CleanDirectory(File dir, uint32_t &deletedCount) {
 			file.close();
 			if (isDir) {
 				File junkDir = gFSystem.open(path);
-				if (junkDir && explorerDeleteDirectory(junkDir)) {
+				if (junkDir && explorerDeleteDirectoryBounded(junkDir, depth + 1)) {
 					deletedCount++;
 				}
 			} else if (gFSystem.remove(path)) {
 				deletedCount++;
 			}
 		} else if (isDir) {
-			Web_CleanDirectory(file, deletedCount);
+			Web_CleanDirectory(file, deletedCount, depth + 1);
 			file.close();
 		} else {
 			file.close();
 		}
 		file = dir.openNextFile();
-		esp_task_wdt_reset();
+		resetWdtIfSubscribed();
 	}
 }
 
@@ -567,6 +609,10 @@ static void sdMaintTask(void *parameter) {
 	// Pause the RFID/LED/audio tasks so nothing else touches the SD bus during the operation.
 	if (isFormat) {
 		Cmd_Action(CMD_STOP, true); // stop playback before recreating the filesystem, even if locked
+		uint32_t stopWait = millis();
+		while ((gPlayProperties.playMode != NO_PLAYLIST || AudioPlayer_IsRunning()) && (millis() - stopWait < 1000u)) {
+			vTaskDelay(pdMS_TO_TICKS(20));
+		}
 		System_PauseTasksDuringUpload(true);
 		ok = SdCard_Format();
 		System_PauseTasksDuringUpload(false);
@@ -614,7 +660,11 @@ static void sdMaintStart(AsyncWebServerRequest *request, bool isFormat) {
 		request->send(500, "text/plain; charset=utf-8", "could not start SD maintenance");
 		return;
 	}
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(200, "application/json", "{\"status\":1}");
+		return;
+	}
 	response->getRoot()["status"] = 1; // running; the UI polls /sdmaint from here
 	response->setLength();
 	request->send(response);
@@ -634,7 +684,11 @@ void handleFormatSdRequest(AsyncWebServerRequest *request) {
 void handleSdMaintStatusRequest(AsyncWebServerRequest *request) {
 	char msg[StatusMessage::Capacity];
 	gSdMaintMsg.copy(msg, sizeof(msg));
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject root = response->getRoot();
 	root["status"] = gSdMaintStatus;
 	root["deleted"] = gSdMaintDeleted;
@@ -664,47 +718,18 @@ void explorerHandleDownloadRequest(AsyncWebServerRequest *request) {
 	}
 	// check is file and not a directory
 	file = gFSystem.open(filePath);
-	if (file.isDirectory()) {
+	if (!file || file.isDirectory()) {
 		Log_Printf(LOGLEVEL_ERROR, "DOWNLOAD:  Cannot download a directory %s", filePath);
+		if (file) {
+			file.close();
+		}
 		request->send(404);
-		file.close();
 		return;
 	}
 
-	// ready to serve the file for download.
-	String dataType = "application/octet-stream";
-	struct fileBlk {
-		File dataFile;
-	};
-	fileBlk *fileObj = new fileBlk;
-	fileObj->dataFile = file;
-	request->_tempObject = (void *) fileObj;
-
-	// If the client aborts mid-download, the chunk callback that closes+deletes fileObj never runs and
-	// the request destructor only free()s _tempObject (skipping the File destructor) -> leaked SD handle,
-	// which exhausts SD_MMC's open-file limit after a few aborts. Clean up here instead; idempotent since
-	// the callback NULLs _tempObject on the final chunk (onDisconnect also fires after a successful send).
-	request->onDisconnect([request]() {
-		fileBlk *obj = (fileBlk *) request->_tempObject;
-		if (obj) {
-			request->_tempObject = NULL;
-			obj->dataFile.close();
-			delete obj;
-		}
-	});
-
-	AsyncWebServerResponse *response = request->beginResponse(dataType, fileObj->dataFile.size(), [request](uint8_t *buffer, size_t maxlen, size_t index) -> size_t {
-		fileBlk *fileObj = (fileBlk *) request->_tempObject;
-		size_t thisSize = fileObj->dataFile.read(buffer, maxlen);
-		if ((index + thisSize) >= fileObj->dataFile.size()) {
-			fileObj->dataFile.close();
-			request->_tempObject = NULL;
-			delete fileObj;
-		}
-		return thisSize;
-	});
-	String filename = String(param->value().c_str());
-	response->addHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+	// AsyncFileResponse owns `file`, sets Content-Disposition with the basename, handles EOF/shrunk
+	// files cleanly, and closes `file` automatically on completion or client disconnect.
+	AsyncWebServerResponse *response = request->beginResponse(file, param->value(), "application/octet-stream", true);
 	request->send(response);
 }
 
@@ -737,13 +762,16 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 			// stop playback, file to delete might be in use
 			Cmd_Action(CMD_STOP, true); // stop playback before touching the file, even if controls are locked
 			file = gFSystem.open(filePath);
-			if (file.isDirectory()) {
+			if (file && file.isDirectory()) {
 				if (explorerDeleteDirectory(file)) {
 					Log_Printf(LOGLEVEL_INFO, "DELETE:  %s deleted", filePath);
 				} else {
 					Log_Printf(LOGLEVEL_ERROR, "DELETE:  Cannot delete %s", filePath);
 				}
 			} else {
+				if (file) {
+					file.close();
+				}
 				if (gFSystem.remove(filePath)) {
 					Log_Printf(LOGLEVEL_INFO, "DELETE:  %s deleted", filePath);
 				} else {
@@ -761,7 +789,7 @@ void explorerHandleDeleteRequest(AsyncWebServerRequest *request) {
 		Log_Println("DELETE:  No path variable set", LOGLEVEL_ERROR);
 	}
 	request->send(200);
-	esp_task_wdt_reset();
+	resetWdtIfSubscribed();
 }
 
 // Handles create request of a directory
@@ -965,20 +993,41 @@ void explorerHandleAudioRequest(AsyncWebServerRequest *request) {
 void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
 	static File tmpFile;
 	static size_t fileIndex = 0;
-	static char tmpFileName[13];
+	static char tmpFileName[16];
+	static AsyncWebServerRequest *tmpOwner = nullptr;
 	// Runs before the password middleware (body streams in first), so an unauthenticated client
 	// could otherwise inject RFID assignments into NVS. Refuse to buffer or import anything.
 	if (!Web_RequestAuthorized(request)) {
 		return;
 	}
-	esp_task_wdt_reset();
+	resetWdtIfSubscribed();
 	if (!index) {
-		// reset the write offset here too: an aborted upload never reaches the final branch, so a
-		// stale fileIndex would otherwise seek past the start of the next upload and corrupt it.
+		if (tmpOwner && tmpOwner != request) {
+			return;
+		}
+		if (tmpFile) {
+			tmpFile.close();
+		}
 		fileIndex = 0;
-		snprintf(tmpFileName, 13, "/_%lu", millis());
+		tmpOwner = request;
+		snprintf(tmpFileName, sizeof(tmpFileName), "/_%lu", (unsigned long) millis());
 		tmpFile = gFSystem.open(tmpFileName, FILE_WRITE);
-	} else {
+		request->onDisconnect([request]() {
+			if (tmpOwner == request) {
+				tmpOwner = nullptr;
+				if (tmpFile) {
+					tmpFile.close();
+				}
+				if (tmpFileName[0] != '\0') {
+					gFSystem.remove(tmpFileName);
+					tmpFileName[0] = '\0';
+				}
+				fileIndex = 0;
+			}
+		});
+	} else if (tmpOwner != request) {
+		return;
+	} else if (tmpFile) {
 		tmpFile.seek(fileIndex);
 	}
 
@@ -990,31 +1039,44 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 	size_t wrote = tmpFile.write(data, len);
 	if (wrote != len) {
 		// we did not write all bytes --> fail
-		Log_Printf(LOGLEVEL_ERROR, "Error writing %s. Expected %u, wrote %u (error: %u)!", tmpFile.path(), len, wrote, tmpFile.getWriteError());
+		Log_Printf(LOGLEVEL_ERROR, "Error writing %s. Expected %u, wrote %u (error: %u)!", tmpFile.path(), (unsigned) len, (unsigned) wrote, tmpFile.getWriteError());
 		return;
 	}
 	fileIndex += wrote;
 
 	if (final) {
+		tmpOwner = nullptr;
 		tmpFile.close();
 		Web_DumpSdToNvs(tmpFileName);
+		tmpFileName[0] = '\0';
 		fileIndex = 0;
 	}
 }
 
 // Parses content of temporary backup-file and writes payload into NVS
 void Web_DumpSdToNvs(const char *_filename) {
-	char ebuf[526];
 	uint16_t j = 0;
-	char *token;
-	bool count = false;
 	uint16_t importCount = 0;
 	uint16_t invalidCount = 0;
-	nvs_t nvsEntry[1];
 	File tmpFile = gFSystem.open(_filename);
 
 	if (!tmpFile || (tmpFile.available() < 3)) {
+		if (tmpFile) {
+			tmpFile.close();
+		}
 		Log_Println(errorReadingTmpfile, LOGLEVEL_ERROR);
+		return;
+	}
+
+	constexpr size_t EBUF_SIZE = 526;
+	char *ebuf = static_cast<char *>(x_malloc(EBUF_SIZE));
+	nvs_t *nvsEntry = reinterpret_cast<nvs_t *>(x_calloc(1, sizeof(nvs_t)));
+	if (!ebuf || !nvsEntry) {
+		free(ebuf);
+		free(nvsEntry);
+		tmpFile.close();
+		gFSystem.remove(_filename);
+		Log_Println(unableToAllocateMem, LOGLEVEL_ERROR);
 		return;
 	}
 
@@ -1032,45 +1094,66 @@ void Web_DumpSdToNvs(const char *_filename) {
 	}
 
 	while (tmpFile.available() > 0) {
-		if (j >= sizeof(ebuf)) {
+		resetWdtIfSubscribed();
+		if (j >= EBUF_SIZE - 1) {
 			// over-long line: don't bail out (that would leave the LED task paused and the temp
 			// file orphaned). Drain to the next newline, drop the line, and carry on.
 			Log_Println(errorReadingTmpfile, LOGLEVEL_ERROR);
-			while (tmpFile.available() > 0 && tmpFile.read() != '\n') {
-				esp_task_wdt_reset();
+			while (tmpFile.available() > 0) {
+				int d = tmpFile.read();
+				resetWdtIfSubscribed();
+				if (d < 0 || d == '\n') {
+					break;
+				}
 			}
 			j = 0;
 			invalidCount++;
 			continue;
 		}
-		char buf = tmpFile.read();
+		int raw = tmpFile.read();
+		if (raw < 0) {
+			break;
+		}
+		char buf = static_cast<char>(raw);
+		if (buf == '\r') {
+			continue;
+		}
 		if (buf != '\n') {
 			ebuf[j++] = buf;
 		} else {
 			ebuf[j] = '\0';
 			j = 0;
-			token = strtok(ebuf, stringOuterDelimiter);
-			while (token != NULL) {
+			memset(nvsEntry, 0, sizeof(nvs_t));
+			bool count = false;
+			bool gotEntry = false;
+			char *saveptr = nullptr;
+			char *token = strtok_r(ebuf, stringOuterDelimiter, &saveptr);
+			while (token != nullptr) {
 				if (!count) {
 					count = true;
-					size_t keyLen = std::min(strlen(token), sizeof(nvsEntry[0].nvsKey) - 1);
-					memcpy(nvsEntry[0].nvsKey, token, keyLen);
-					nvsEntry[0].nvsKey[keyLen] = '\0';
+					size_t keyLen = std::min(strlen(token), sizeof(nvsEntry->nvsKey) - 1);
+					memcpy(nvsEntry->nvsKey, token, keyLen);
+					nvsEntry->nvsKey[keyLen] = '\0';
 				} else {
 					count = false;
+					gotEntry = true;
 					if (isUtf8) {
-						size_t entryLen = std::min(strlen(token), sizeof(nvsEntry[0].nvsEntry) - 1);
-						memcpy(nvsEntry[0].nvsEntry, token, entryLen);
-						nvsEntry[0].nvsEntry[entryLen] = '\0';
+						size_t entryLen = std::min(strlen(token), sizeof(nvsEntry->nvsEntry) - 1);
+						memcpy(nvsEntry->nvsEntry, token, entryLen);
+						nvsEntry->nvsEntry[entryLen] = '\0';
 					} else {
-						convertAsciiToUtf8(String(token), nvsEntry[0].nvsEntry, sizeof(nvsEntry[0].nvsEntry));
+						convertAsciiToUtf8(String(token), nvsEntry->nvsEntry, sizeof(nvsEntry->nvsEntry));
 					}
+					break;
 				}
-				token = strtok(NULL, stringOuterDelimiter);
+				token = strtok_r(nullptr, stringOuterDelimiter, &saveptr);
 			}
-			if (isNumber(nvsEntry[0].nvsKey) && nvsEntry[0].nvsEntry[0] == '#') {
-				Log_Printf(LOGLEVEL_NOTICE, writeEntryToNvs, ++importCount, nvsEntry[0].nvsKey, nvsEntry[0].nvsEntry);
-				gPrefsRfid.putString(nvsEntry[0].nvsKey, nvsEntry[0].nvsEntry);
+			if (gotEntry && nvsEntry->nvsKey[0] != '\0' && isNumber(nvsEntry->nvsKey) && nvsEntry->nvsEntry[0] == '#') {
+				Log_Printf(LOGLEVEL_NOTICE, writeEntryToNvs, ++importCount, nvsEntry->nvsKey, nvsEntry->nvsEntry);
+				RfidSync_Lock();
+				gPrefsRfid.putString(nvsEntry->nvsKey, nvsEntry->nvsEntry);
+				RfidSync_NoteLocalChange(nvsEntry->nvsKey);
+				RfidSync_Unlock();
 			} else {
 				invalidCount++;
 			}
@@ -1081,5 +1164,7 @@ void Web_DumpSdToNvs(const char *_filename) {
 	Log_Printf(LOGLEVEL_NOTICE, importCountNokNvs, invalidCount);
 	tmpFile.close();
 	gFSystem.remove(_filename);
+	free(ebuf);
+	free(nvsEntry);
 	System_PauseTasksDuringUpload(false);
 }

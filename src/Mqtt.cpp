@@ -244,7 +244,8 @@ static void Mqtt_MakeTopic(char *out, size_t outLen, const char *topic, bool isS
 
 void Mqtt_Exit(void) {
 #ifdef MQTT_ENABLE
-	if (Mqtt_Enabled == false || mqtt_client == NULL) {
+	esp_mqtt_client_handle_t client = mqtt_client;
+	if (Mqtt_Enabled == false || client == NULL) {
 		return;
 	}
 	Log_Println("shutdown MQTT..", LOGLEVEL_NOTICE);
@@ -255,10 +256,10 @@ void Mqtt_Exit(void) {
 	// Allow some time for messages to be sent before stopping the client
 	vTaskDelay(pdMS_TO_TICKS(10));
 
-	esp_mqtt_client_disconnect(mqtt_client);
-	esp_mqtt_client_stop(mqtt_client);
-	esp_mqtt_client_destroy(mqtt_client);
 	mqtt_client = NULL;
+	esp_mqtt_client_disconnect(client);
+	esp_mqtt_client_stop(client);
+	esp_mqtt_client_destroy(client);
 #endif
 }
 
@@ -413,13 +414,19 @@ void Mqtt_PublishSleepTimerState(bool force) {
 	char payload[96];
 	snprintf(payload, sizeof(payload), "{\"mode\":\"%s\",\"remainingMinutes\":%u,\"remainingTracks\":%u}", Mqtt_SleepTimerModeToString(mode), remainingMinutes, remainingTracks);
 
+	static portMUX_TYPE lastPayloadMux = portMUX_INITIALIZER_UNLOCKED;
 	static char lastPayload[96] = "";
-	if (!force && strcmp(payload, lastPayload) == 0) {
+	portENTER_CRITICAL(&lastPayloadMux);
+	const bool unchanged = !force && strcmp(payload, lastPayload) == 0;
+	portEXIT_CRITICAL(&lastPayloadMux);
+	if (unchanged) {
 		return;
 	}
 	if (publishMqtt(topicSleepTimerState, payload, false)) {
+		portENTER_CRITICAL(&lastPayloadMux);
 		strncpy(lastPayload, payload, sizeof(lastPayload) - 1);
 		lastPayload[sizeof(lastPayload) - 1] = '\0';
+		portEXIT_CRITICAL(&lastPayloadMux);
 	}
 #else
 	(void) force;
@@ -603,9 +610,15 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			// Publish current state
 			publishMqtt(topicState, "Online", false);
 			publishMqtt(topicSleep, "ON", false);
-			publishMqtt(topicTrack, gPlayProperties.title, false);
-			publishMqtt(topicTrackArtist, gPlayProperties.artist, false);
-			publishMqtt(topicTrackAlbum, gPlayProperties.album, false);
+			{
+				char titleBuf[256] = {};
+				char artistBuf[128] = {};
+				char albumBuf[128] = {};
+				AudioPlayer_CopyTrackMetadata(titleBuf, sizeof(titleBuf), artistBuf, sizeof(artistBuf), albumBuf, sizeof(albumBuf));
+				publishMqtt(topicTrack, titleBuf, false);
+				publishMqtt(topicTrackArtist, artistBuf, false);
+				publishMqtt(topicTrackAlbum, albumBuf, false);
+			}
 			publishMqtt(topicCoverChanged, "", false);
 			publishMqtt(topicLoudness, static_cast<uint32_t>(AudioPlayer_GetCurrentVolume()), false);
 			const SleepTimerMode reconnectMode = Mqtt_CurrentSleepTimerMode();
@@ -673,7 +686,8 @@ void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event
 			break;
 		}
 		case MQTT_EVENT_ERROR: {
-			Log_Printf(LOGLEVEL_ERROR, "MQTT_EVENT_ERROR. Last errno string (%s)", strerror(event->error_handle->esp_transport_sock_errno));
+			const char *errStr = (event && event->error_handle) ? strerror(event->error_handle->esp_transport_sock_errno) : "unknown";
+			Log_Printf(LOGLEVEL_ERROR, "MQTT_EVENT_ERROR. Last errno string (%s)", errStr);
 			break;
 		}
 		default: {
@@ -729,9 +743,16 @@ void Mqtt_ClientCallback(const char *topic_buf, uint32_t topic_length, const cha
 		}
 		// New track to play? Take RFID-ID as input
 		else if (reduced_topic_str == topicRfid) {
-			if (payload_str.size() >= (cardIdStringSize - 1)) {
+			std::string trimmed = payload_str;
+			while (!trimmed.empty() && (trimmed.back() == '\r' || trimmed.back() == '\n' || trimmed.back() == ' ')) {
+				trimmed.pop_back();
+			}
+			if (trimmed.size() == (cardIdStringSize - 1)) {
+				char cardId[cardIdStringSize];
+				memcpy(cardId, trimmed.data(), cardIdStringSize - 1);
+				cardId[cardIdStringSize - 1] = '\0';
 				Rfid_ResetOldRfid();
-				xQueueSend(gRfidCardQueue, payload_str.data(), 0);
+				xQueueSend(gRfidCardQueue, cardId, 0);
 			} else {
 				System_IndicateError();
 			}

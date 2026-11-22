@@ -55,7 +55,7 @@ ALLOWLIST = {
 
 def firmware_endpoints():
     paths = set()
-    pat = re.compile(r'(?:\.on|AsyncCallbackJsonWebHandler)\(\s*"(/[^"]*)"')
+    pat = re.compile(r'(?:\.on|AsyncCallbackJsonWebHandler|SafeJsonWebHandler)\(\s*"(/[^"]*)"')
     for f in glob.glob(os.path.join(ROOT, "src", "Web*.cpp")):
         with open(f, encoding="utf-8") as fh:
             for m in pat.finditer(fh.read()):

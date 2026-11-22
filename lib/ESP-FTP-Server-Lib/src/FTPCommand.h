@@ -104,18 +104,17 @@ public:
 
   int data_read(uint8_t *c, size_t l) {
     if ((_DataConnection != 0) && (_DataConnection->available() > 0)) {
-      return _DataConnection->readBytes(c, l);
-    }
-    // Brief wait for initial data (max 500ms in 1ms intervals)
-    if (_DataConnection != 0) {
-      for (int i = 0; i < 500; i++) {
-        delay(1);
-        if (_DataConnection->available() > 0) {
-          return _DataConnection->readBytes(c, l);
-        }
-      }
+      return _DataConnection->read(c, l);
     }
     return 0;
+  }
+
+  bool isDataConnected() const {
+    return (_DataConnection != 0) && (_DataConnection->connected() || _DataConnection->available() > 0);
+  }
+
+  bool isControlConnected() const {
+    return (_Client != 0) && _Client->connected();
   }
 
   void CloseDataConnection() {
@@ -162,7 +161,7 @@ public:
     return _file;
   }
 
-  void abort() {
+  virtual void abort() {
     if (_file) {
       CloseDataConnection();
       SendResponse(FtpCodes::CONNECTION_CLOSED, "Transfer aborted");

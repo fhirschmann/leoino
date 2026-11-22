@@ -35,10 +35,21 @@ bool isNotConnected(const std::shared_ptr<FTPConnection> &con) {
   return !con->connected();
 }
 
+static constexpr size_t FTP_MAX_CONNECTIONS = 4;
+
 void FTPServer::handle() {
+  _Connections.remove_if(isNotConnected);
   if (_Server.hasClient()) {
-    std::shared_ptr<FTPConnection> connection = std::shared_ptr<FTPConnection>(new FTPConnection(_Server.accept(), _UserList, _Filesystem));
-    _Connections.push_back(connection);
+    WiFiClient incoming = _Server.accept();
+    if (incoming) {
+      if (_Connections.size() >= FTP_MAX_CONNECTIONS) {
+        incoming.println("421 Too many connections");
+        incoming.stop();
+      } else {
+        std::shared_ptr<FTPConnection> connection = std::shared_ptr<FTPConnection>(new FTPConnection(incoming, _UserList, _Filesystem));
+        _Connections.push_back(connection);
+      }
+    }
   }
   for (std::shared_ptr<FTPConnection> con : _Connections) {
     con->handle();
@@ -48,4 +59,13 @@ void FTPServer::handle() {
 
 size_t FTPServer::countConnections() const {
   return _Connections.size();
+}
+
+bool FTPServer::hasActiveSession(unsigned long windowMs) const {
+  for (const std::shared_ptr<FTPConnection> &con : _Connections) {
+    if (con && con->hasRecentActivity(windowMs)) {
+      return true;
+    }
+  }
+  return false;
 }

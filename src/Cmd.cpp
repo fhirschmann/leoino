@@ -445,14 +445,16 @@ void Cmd_Action(const uint16_t mod, bool bypassLock) {
 
 		case CMD_MUTE: {
 			// Toggle mute: drop the volume to 0 and remember the previous level, restoring it on the
-			// next press. Local audio only (Bluetooth handles its own volume on the sink/source side).
+			// next press. Route through AudioPlayer_SetVolume() so the audio codec, WebSocket, and MQTT
+			// all reflect the mute/unmute state.
 			static uint8_t lastVolume = 0;
 			if (AudioPlayer_GetCurrentVolume() > 0) {
 				lastVolume = AudioPlayer_GetCurrentVolume();
-				AudioPlayer_SetCurrentVolume(0u);
+				AudioPlayer_SetVolume(0);
 				Log_Println("Mute", LOGLEVEL_NOTICE);
 			} else {
-				AudioPlayer_SetCurrentVolume(lastVolume); // Reset to last value if mute is pressed again
+				const uint8_t restoreVol = (lastVolume > 0) ? lastVolume : AudioPlayer_GetInitVolume();
+				AudioPlayer_SetVolume(restoreVol);
 				Log_Println("Unmute", LOGLEVEL_NOTICE);
 			}
 			break;

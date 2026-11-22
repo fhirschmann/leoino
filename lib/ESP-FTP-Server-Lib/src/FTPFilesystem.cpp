@@ -90,7 +90,10 @@ void FTPFilesystem::printFilesystems() {
 }
 
 FS *FTPFilesystem::getFilesystem(String path) {
-  std::list<String>                    splitted = FTPPath::splitPath(path);
+  std::list<String> splitted = FTPPath::splitPath(path);
+  if (splitted.empty()) {
+    return 0;
+  }
   String                               name     = *(splitted.begin());
   std::map<String, fs::FS *>::iterator iter     = _Filesystems.find(name);
   if (iter == _Filesystems.end()) {
@@ -106,6 +109,9 @@ FS *FTPFilesystem::getFilesystem(String path) {
 
 String FTPFilesystem::getPathWithoutFS(String path) {
   std::list<String> splitted = FTPPath::splitPath(path);
+  if (splitted.empty()) {
+    return "/";
+  }
   splitted.pop_front();
   String path_without = FTPPath::createPath(splitted);
   return path_without;

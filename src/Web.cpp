@@ -324,6 +324,10 @@ static String Web_JsonEscape(const String &in) {
 }
 
 static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
+#ifdef ESPUINO_QEMU
+	request->send(200, "application/json", "[]");
+	return;
+#endif
 	String json = "[";
 	int n = WiFi.scanComplete();
 	if (n == -2) {
@@ -368,6 +372,65 @@ static void handleWiFiScanRequest(AsyncWebServerRequest *request) {
 }
 
 unsigned long lastCleanupClientsTimestamp;
+static bool sWebOtaUploadActive = false;
+
+extern "C" TaskHandle_t espuino_async_tcp_task_handle(void);
+extern "C" void espuino_async_tcp_wake(void);
+
+struct WsDirectedPending {
+	uint32_t client;
+	WebsocketCodeType code;
+};
+
+static portMUX_TYPE sWsDispatchMux = portMUX_INITIALIZER_UNLOCKED;
+static uint32_t sPendingWsBroadcastMask = 0;
+static bool sPendingWsCleanup = false;
+static constexpr size_t WS_DIRECTED_QUEUE_CAP = 8;
+static WsDirectedPending sPendingWsDirected[WS_DIRECTED_QUEUE_CAP];
+static size_t sPendingWsDirectedCount = 0;
+
+static void Web_SendWebsocketDataNow(uint32_t client, WebsocketCodeType code);
+
+extern "C" void espuino_async_tcp_service_hook(void) {
+	if (!webserverStarted) {
+		portENTER_CRITICAL(&sWsDispatchMux);
+		sPendingWsCleanup = false;
+		sPendingWsBroadcastMask = 0;
+		sPendingWsDirectedCount = 0;
+		portEXIT_CRITICAL(&sWsDispatchMux);
+		return;
+	}
+
+	bool doCleanup = false;
+	uint32_t broadcastMask = 0;
+	WsDirectedPending directed[WS_DIRECTED_QUEUE_CAP];
+	size_t directedCount = 0;
+
+	portENTER_CRITICAL(&sWsDispatchMux);
+	doCleanup = sPendingWsCleanup;
+	sPendingWsCleanup = false;
+	broadcastMask = sPendingWsBroadcastMask;
+	sPendingWsBroadcastMask = 0;
+	directedCount = sPendingWsDirectedCount;
+	for (size_t i = 0; i < directedCount; ++i) {
+		directed[i] = sPendingWsDirected[i];
+	}
+	sPendingWsDirectedCount = 0;
+	portEXIT_CRITICAL(&sWsDispatchMux);
+
+	if (doCleanup) {
+		ws.cleanupClients();
+	}
+	for (size_t i = 0; i < directedCount; ++i) {
+		Web_SendWebsocketDataNow(directed[i].client, directed[i].code);
+	}
+	for (uint8_t bit = 0; broadcastMask != 0 && bit < 32; ++bit) {
+		if (broadcastMask & (1u << bit)) {
+			broadcastMask &= ~(1u << bit);
+			Web_SendWebsocketDataNow(0, static_cast<WebsocketCodeType>(bit));
+		}
+	}
+}
 
 void Web_Cyclic(void) {
 	webserverStart();
@@ -394,10 +457,14 @@ void Web_Cyclic(void) {
 		versionCheckKicked = true;
 		Web_CheckForUpdate();
 	}
-	if ((millis() - lastCleanupClientsTimestamp) > 1000u) {
-		// cleanup closed/deserted websocket clients once per second
+	if (webserverStarted && ((millis() - lastCleanupClientsTimestamp) > 1000u)) {
+		// Schedule websocket client cleanup on async_tcp so AsyncClient teardown never races
+		// in-flight lwIP/AsyncTCP callbacks across cores.
 		lastCleanupClientsTimestamp = millis();
-		ws.cleanupClients();
+		portENTER_CRITICAL(&sWsDispatchMux);
+		sPendingWsCleanup = true;
+		portEXIT_CRITICAL(&sWsDispatchMux);
+		espuino_async_tcp_wake();
 	}
 }
 
@@ -406,8 +473,13 @@ void Web_Exit(void) {
 	if (webserverStarted) {
 		WebExplorer_AbortUpload(); // gracefully abort an active file-storage task and wait for it to release its files
 		Log_Println("shutdown webserver..", LOGLEVEL_NOTICE);
-		wServer.end();
 		webserverStarted = false;
+		portENTER_CRITICAL(&sWsDispatchMux);
+		sPendingWsCleanup = false;
+		sPendingWsBroadcastMask = 0;
+		sPendingWsDirectedCount = 0;
+		portEXIT_CRITICAL(&sWsDispatchMux);
+		wServer.end();
 	}
 }
 // ************************** Webinterface password protection ***************************
@@ -529,7 +601,7 @@ static bool Web_IsAuthenticated(AsyncWebServerRequest *request) {
 // and POST /explorer (SD write) must enforce auth themselves before touching flash/NVS/SD.
 // Mirrors the middleware: allowed in AP-mode or when no password is configured.
 bool Web_RequestAuthorized(AsyncWebServerRequest *request) {
-	if (WiFi.getMode() == WIFI_AP) {
+	if (Wlan_IsApMode()) {
 		return true;
 	}
 	return Web_IsAuthenticated(request);
@@ -654,11 +726,11 @@ static void Web_SendStatusJson(AsyncWebServerRequest *request, uint8_t status, i
 }
 
 void webserverStart(void) {
-	if (!webserverStarted && (Wlan_IsConnected() || (WiFi.getMode() == WIFI_AP))) {
+	if (!webserverStarted && (Wlan_IsConnected() || Wlan_IsApMode())) {
 		// password protection (no-op when no password is set or in accesspoint-mode)
 		Web_RefreshSessionToken();
 		wServer.addMiddleware([](AsyncWebServerRequest *request, ArMiddlewareNext next) {
-			if ((wwwSessionToken.length() == 0) || (WiFi.getMode() == WIFI_AP)) {
+			if ((wwwSessionToken.length() == 0) || Wlan_IsApMode()) {
 				return next();
 			}
 			const String &url = request->url();
@@ -683,7 +755,7 @@ void webserverStart(void) {
 			}
 			request->send(200, "text/html", wwwLoginPage);
 		});
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/login", Web_HandlePostLogin));
+		wServer.addHandler(new SafeJsonWebHandler("/login", Web_HandlePostLogin, 512, false));
 		wServer.on("/logout", HTTP_POST, [](AsyncWebServerRequest *request) {
 			AsyncWebServerResponse *response = request->beginResponse(200, "application/json", "{\"status\":\"ok\"}");
 			response->addHeader("Set-Cookie", "ESPUINO_SESSION=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax");
@@ -701,7 +773,7 @@ void webserverStart(void) {
 			serializeJson(doc, out);
 			request->send(200, "application/json", out);
 		});
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/security", Web_HandlePostSecurity));
+		wServer.addHandler(new SafeJsonWebHandler("/security", Web_HandlePostSecurity, 1024));
 
 		// attach AsyncWebSocket for Mgmt-Interface
 		ws.onEvent(onWebsocketEvent);
@@ -727,7 +799,7 @@ void webserverStart(void) {
 			// load-time budget the heavy Bootstrap/jQuery/jstree/WebSocket app can exceed - causing the OS
 			// to report the connection attempt as failed. So AP-mode keeps serving the minimal,
 			// framework-free accesspoint.html, which is known to work reliably in that sandbox.
-			if (WiFi.getMode() == WIFI_STA) {
+			if (Wlan_IsConnected() || !Wlan_IsApMode()) {
 				// serve management.html in station-mode
 #ifdef NO_SDCARD
 				if (etag) {
@@ -860,11 +932,27 @@ void webserverStart(void) {
 				}
 
 				if (!index) {
+					if (sWebOtaUploadActive) {
+						return;
+					}
+					sWebOtaUploadActive = true;
+					request->onDisconnect([]() {
+						if (sWebOtaUploadActive) {
+							sWebOtaUploadActive = false;
+							Update.abort();
+							System_PauseTasksDuringUpload(false);
+							Log_Println("OTA upload aborted by client disconnect", LOGLEVEL_ERROR);
+						}
+					});
 					// pause some tasks to get more free CPU time for the upload
 					System_PauseTasksDuringUpload(true);
 					System_UpdateActivityTimer();
 					Update.begin();
 					Log_Println(fwStart, LOGLEVEL_NOTICE);
+				}
+
+				if (!sWebOtaUploadActive) {
+					return;
 				}
 
 				Update.write(data, len);
@@ -876,6 +964,7 @@ void webserverStart(void) {
 				}
 
 				if (final) {
+					sWebOtaUploadActive = false;
 					Update.end(true);
 					// resume the paused tasks
 					System_PauseTasksDuringUpload(false);
@@ -1020,7 +1109,7 @@ void webserverStart(void) {
 		// RFID
 		wServer.on("/rfid", HTTP_GET, handleGetRFIDRequest);
 		wServer.addRewrite(new OneParamRewrite("/rfid/ids-only", "/rfid?ids-only=true"));
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/rfid", handlePostRFIDRequest));
+		wServer.addHandler(new SafeJsonWebHandler("/rfid", handlePostRFIDRequest));
 		wServer.addRewrite(new OneParamRewrite("/rfid/{id}", "/rfid?id={id}"));
 		wServer.on("/rfid", HTTP_DELETE, handleDeleteRFIDRequest);
 		// reset an audiobook tag's saved play-position back to the start (flat path so it
@@ -1042,13 +1131,21 @@ void webserverStart(void) {
 		// ID3 title/artist/album, file path + size, play mode, track x/y, position/duration and the
 		// RFID tag that started the playlist. Computed on demand so it doesn't bloat the websocket.
 		wServer.on("/currenttrack", HTTP_GET, [](AsyncWebServerRequest *request) {
-			AsyncJsonResponse *response = new AsyncJsonResponse(false);
+			PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+			if (!response) {
+				request->send(503);
+				return;
+			}
 			JsonObject o = response->getRoot();
 			const bool active = gPlayProperties.playlist && (gPlayProperties.playMode != NO_PLAYLIST) && (gPlayProperties.playMode != PLAYLIST_BUSY);
+			char titleBuf[256] = {};
+			char artistBuf[128] = {};
+			char albumBuf[128] = {};
+			AudioPlayer_CopyTrackMetadata(titleBuf, sizeof(titleBuf), artistBuf, sizeof(artistBuf), albumBuf, sizeof(albumBuf));
 			o["active"] = active;
-			o["title"] = gPlayProperties.title;
-			o["artist"] = gPlayProperties.artist;
-			o["album"] = gPlayProperties.album;
+			o["title"] = titleBuf;
+			o["artist"] = artistBuf;
+			o["album"] = albumBuf;
 			o["playMode"] = gPlayProperties.playMode;
 			o["isWebstream"] = gPlayProperties.isWebstream;
 			o["rfidTag"] = gPlayProperties.playRfidTag;
@@ -1090,7 +1187,11 @@ void webserverStart(void) {
 
 		// Listening-stats ring buffer (for backup/restore). GET returns it, POST restores it.
 		wServer.on("/playstats", HTTP_GET, [](AsyncWebServerRequest *request) {
-			AsyncJsonResponse *response = new AsyncJsonResponse(false);
+			PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+			if (!response) {
+				request->send(503);
+				return;
+			}
 			JsonObject o = response->getRoot();
 			o["lastDay"] = Playstats_GetRingLastDay();
 			JsonArray a = o["days"].to<JsonArray>();
@@ -1101,9 +1202,13 @@ void webserverStart(void) {
 			response->setLength();
 			request->send(response);
 		});
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/playstats", [](AsyncWebServerRequest *request, JsonVariant &json) {
+		wServer.addHandler(new SafeJsonWebHandler("/playstats", [](AsyncWebServerRequest *request, JsonVariant &json) {
 			JsonObject o = json.as<JsonObject>();
-			static uint32_t buf[365];
+			uint32_t *buf = static_cast<uint32_t *>(x_malloc(365 * sizeof(uint32_t)));
+			if (!buf) {
+				request->send(503);
+				return;
+			}
 			uint16_t c = 0;
 			if (o["days"].is<JsonArray>()) {
 				JsonArray daysArr = o["days"].as<JsonArray>();
@@ -1114,6 +1219,7 @@ void webserverStart(void) {
 				}
 			}
 			Playstats_RestoreRing(o["lastDay"].as<uint32_t>(), buf, c);
+			free(buf);
 			request->send(200, "text/plain; charset=utf-8", "ok");
 		}));
 
@@ -1159,7 +1265,11 @@ void webserverStart(void) {
 				ranked.push_back({Playstats_GetCardPlays(id.c_str()), id});
 			}
 			std::sort(ranked.begin(), ranked.end(), [](const std::pair<uint32_t, String> &a, const std::pair<uint32_t, String> &b) { return a.first > b.first; });
-			AsyncJsonResponse *response = new AsyncJsonResponse(true);
+			PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(true);
+			if (!response) {
+				request->send(503);
+				return;
+			}
 			JsonArray arr = response->getRoot();
 			for (size_t i = 0; i < ranked.size() && i < 10; i++) {
 				JsonObject o = arr.add<JsonObject>();
@@ -1179,7 +1289,7 @@ void webserverStart(void) {
 
 		// MediaHub registered servers (concept §5.1)
 		wServer.on("/mediahubservers", HTTP_GET, handleGetMediaHubServers);
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/mediahubservers", handlePostMediaHubServers));
+		wServer.addHandler(new SafeJsonWebHandler("/mediahubservers", handlePostMediaHubServers));
 		wServer.addRewrite(new OneParamRewrite("/mediahubservers/{name}", "/mediahubservers?name={name}"));
 		wServer.on("/mediahubservers", HTTP_DELETE, handleDeleteMediaHubServers);
 
@@ -1207,21 +1317,21 @@ void webserverStart(void) {
 
 		wServer.on("/exploreraudio", HTTP_POST, explorerHandleAudioRequest);
 
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/playlist", handleCreatePlaylistRequest));
+		wServer.addHandler(new SafeJsonWebHandler("/playlist", handleCreatePlaylistRequest, 65536));
 
 		wServer.on("/trackprogress", HTTP_GET, handleTrackProgressRequest);
 
 		wServer.on("/savedSSIDs", HTTP_GET, handleGetSavedSSIDs);
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/savedSSIDs", handlePostSavedSSIDs));
+		wServer.addHandler(new SafeJsonWebHandler("/savedSSIDs", handlePostSavedSSIDs, 2048));
 
 		wServer.addRewrite(new OneParamRewrite("/savedSSIDs/{ssid}", "/savedSSIDs?ssid={ssid}"));
 		wServer.on("/savedSSIDs", HTTP_DELETE, handleDeleteSavedSSIDs);
 		wServer.on("/activeSSID", HTTP_GET, handleGetActiveSSID);
 		wServer.on("/wifistatus", HTTP_GET, handleGetWifiStatus);
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/wifitest", handlePostWifiTest));
+		wServer.addHandler(new SafeJsonWebHandler("/wifitest", handlePostWifiTest, 512));
 
 		wServer.on("/wificonfig", HTTP_GET, handleGetWiFiConfig);
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/wificonfig", handlePostWiFiConfig));
+		wServer.addHandler(new SafeJsonWebHandler("/wificonfig", handlePostWiFiConfig, 2048));
 
 		// current cover image
 		wServer.on("/cover", HTTP_GET, handleCoverImageRequest);
@@ -1230,7 +1340,7 @@ void webserverStart(void) {
 		wServer.on("/bluetoothscan", HTTP_GET, handleBluetoothScanRequest);
 		wServer.on("/bluetoothresults", HTTP_GET, handleBluetoothResultsRequest);
 		wServer.on("/bluetoothstatus", HTTP_GET, handleBluetoothStatusRequest);
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/bluetoothconnect", handleBluetoothConnectRequest));
+		wServer.addHandler(new SafeJsonWebHandler("/bluetoothconnect", handleBluetoothConnectRequest, 512));
 
 		// ESPuino logo: user-provided SD override takes precedence, otherwise fall back to the default
 		// logo embedded in the firmware (previously an external redirect to espuino.de, which failed
@@ -1262,7 +1372,7 @@ void webserverStart(void) {
 		});
 		// ESPuino settings
 		wServer.on("/settings", HTTP_GET, handleGetSettings);
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/settings", handlePostSettings));
+		wServer.addHandler(new SafeJsonWebHandler("/settings", handlePostSettings, 32768));
 		// per-path equalizer rules (directory/file -> EQ profile)
 		wServer.on("/eqrules", HTTP_GET, handleGetEqRules);
 		wServer.on("/eqrule", HTTP_POST, handleSetEqRule);
@@ -1276,7 +1386,7 @@ void webserverStart(void) {
 		});
 		// operation mode
 		wServer.on("/mode", HTTP_GET, handleGetOperationMode);
-		wServer.addHandler(new AsyncCallbackJsonWebHandler("/mode", handlePostOperationMode));
+		wServer.addHandler(new SafeJsonWebHandler("/mode", handlePostOperationMode, 512));
 		// Init HallEffectSensor Value
 #ifdef HALLEFFECT_SENSOR_ENABLE
 		wServer.on("/inithalleffectsensor", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -1556,7 +1666,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			gPrefsSettings.putUChar("numControl", 0);
 		} else {
 			std::vector<uint32_t> controlLedColors;
-			for (uint8_t controlLed = 0; controlLed < colorArr.size(); controlLed++) {
+			const size_t numControlLeds = std::min<size_t>(colorArr.size(), 255);
+			controlLedColors.reserve(numControlLeds);
+			for (size_t controlLed = 0; controlLed < numControlLeds; controlLed++) {
 				controlLedColors.push_back(colorArr[controlLed].as<uint32_t>());
 			}
 			gPrefsSettings.putBytes("controlColors", controlLedColors.data(), controlLedColors.size() * sizeof(uint32_t));
@@ -1564,8 +1676,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 			// write led control function array to NVS (defaults to Static when absent)
 			JsonArray funcArr = ledObj["controlFuncs"].as<JsonArray>();
 			std::vector<uint8_t> controlLedFunctions;
-			for (uint8_t controlLed = 0; controlLed < colorArr.size(); controlLed++) {
-				controlLedFunctions.push_back((controlLed < funcArr.size()) ? funcArr[controlLed].as<uint8_t>() : 0);
+			controlLedFunctions.reserve(numControlLeds);
+			for (size_t controlLed = 0; controlLed < numControlLeds; controlLed++) {
+				controlLedFunctions.push_back((!funcArr.isNull() && controlLed < funcArr.size()) ? funcArr[controlLed].as<uint8_t>() : 0);
 			}
 			gPrefsSettings.putBytes("controlFuncs", controlLedFunctions.data(), controlLedFunctions.size() * sizeof(uint8_t));
 		}
@@ -1893,10 +2006,10 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 	}
 	if (doc["bluetooth"].is<JsonObject>()) {
 		// bluetooth settings
-		const char *_btDeviceName = doc["bluetooth"]["deviceName"];
-		gPrefsSettings.putString("btDeviceName", (String) _btDeviceName);
-		const char *btPinCode = doc["bluetooth"]["pinCode"];
-		gPrefsSettings.putString("btPinCode", (String) btPinCode);
+		const char *_btDeviceName = doc["bluetooth"]["deviceName"] | "";
+		gPrefsSettings.putString("btDeviceName", String(_btDeviceName));
+		const char *btPinCode = doc["bluetooth"]["pinCode"] | "";
+		gPrefsSettings.putString("btPinCode", String(btPinCode));
 		// Check if settings were written successfully
 		if (gPrefsSettings.getString("btDeviceName", "") != _btDeviceName || gPrefsSettings.getString("btPinCode", "") != btPinCode) {
 			Log_Printf(LOGLEVEL_ERROR, webSaveSettingsError, "bluetooth");
@@ -1904,6 +2017,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 		}
 	} else if (doc["rfidMod"].is<JsonObject>()) {
 		const char *_rfidIdModId = doc["rfidMod"]["rfidIdMod"];
+		if (!_rfidIdModId || _rfidIdModId[0] == '\0') {
+			return WebsocketCodeType::Error;
+		}
 		uint8_t _modId = doc["rfidMod"]["modId"];
 		if (_modId <= 0) {
 			// Use the same atomic delete+tombstone path as DELETE /rfid so a full sync cannot
@@ -1926,6 +2042,9 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 	} else if (doc["rfidAssign"].is<JsonObject>()) {
 		const char *_rfidIdAssinId = doc["rfidAssign"]["rfidIdMusic"];
 		const char *_fileOrUrlAscii = doc["rfidAssign"]["fileOrUrl"];
+		if (!_rfidIdAssinId || _rfidIdAssinId[0] == '\0' || !_fileOrUrlAscii) {
+			return WebsocketCodeType::Error;
+		}
 		uint8_t _playMode = doc["rfidAssign"]["playMode"];
 		if (_playMode <= 0) {
 			Log_Println("rfidAssign: Invalid playmode", LOGLEVEL_ERROR);
@@ -2063,7 +2182,11 @@ WebsocketCodeType JSONToSettings(JsonObject doc) {
 // Registered MediaHub servers (concept §5.1): pure Web-UI enrollment
 // convenience, never read by the runtime playback flow.
 static void handleGetMediaHubServers(AsyncWebServerRequest *request) {
-	AsyncJsonResponse *response = new AsyncJsonResponse(true);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(true);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonArray arr = response->getRoot();
 	for (const MediaHubServer &server : MediaHub_GetServers()) {
 		JsonObject obj = arr.add<JsonObject>();
@@ -2172,7 +2295,11 @@ void handleGetInfo(AsyncWebServerRequest *request) {
 	if (request->hasParam("section")) {
 		section = request->getParam("section")->value();
 	}
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject infoObj = response->getRoot();
 	// software
 	if ((section == "") || (section == "software")) {
@@ -2344,7 +2471,11 @@ void handlePostSettings(AsyncWebServerRequest *request, JsonVariant &json) {
 // returns memory and task runtime information as JSON
 void handleDebugRequest(AsyncWebServerRequest *request) {
 
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject infoObj = response->getRoot();
 	Web_AddRuntimeInfo(infoObj["runtime"].to<JsonObject>());
 	Web_AddCrashDumpInfo(infoObj["coredump"].to<JsonObject>());
@@ -2396,14 +2527,14 @@ void handleDebugRequest(AsyncWebServerRequest *request) {
 
 // Takes inputs from webgui, parses JSON and saves values in NVS
 // If operation was successful (NVS-write is verified) true is returned
-WebsocketCodeType processJsonRequest(char *_serialJson) {
-	if (!_serialJson) {
+static WebsocketCodeType processJsonRequest(const char *_serialJson, size_t _len) {
+	if (!_serialJson || _len == 0) {
 		return WebsocketCodeType::Error;
 	}
 	SpiRamAllocator allocator;
 	JsonDocument doc(&allocator);
 
-	DeserializationError error = deserializeJson(doc, _serialJson);
+	DeserializationError error = deserializeJson(doc, _serialJson, _len);
 
 	if (error) {
 		Log_Printf(LOGLEVEL_ERROR, jsonErrorMsg, error.c_str());
@@ -2414,8 +2545,37 @@ WebsocketCodeType processJsonRequest(char *_serialJson) {
 	return JSONToSettings(obj);
 }
 
-// Sends JSON-answers via websocket
+// Dispatches WebSocket sends exclusively onto async_tcp so AsyncWebSocket/AsyncClient buffers and
+// lwIP PCBs are never mutated concurrently across cores, while coalescing rapid broadcasts (such as
+// rotary-encoder volume detents and track-progress ticks).
 void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
+	if (!webserverStarted || code == WebsocketCodeType::Silent) {
+		return;
+	}
+	const uint8_t codeIdx = static_cast<uint8_t>(code);
+	if (codeIdx >= 32) {
+		return;
+	}
+	TaskHandle_t asyncTask = espuino_async_tcp_task_handle();
+	if (!asyncTask) {
+		return;
+	}
+	if (xTaskGetCurrentTaskHandle() == asyncTask) {
+		Web_SendWebsocketDataNow(client, code);
+		return;
+	}
+	portENTER_CRITICAL(&sWsDispatchMux);
+	if (client == 0) {
+		sPendingWsBroadcastMask |= (1u << codeIdx);
+	} else if (sPendingWsDirectedCount < WS_DIRECTED_QUEUE_CAP) {
+		sPendingWsDirected[sPendingWsDirectedCount++] = {client, code};
+	}
+	portEXIT_CRITICAL(&sWsDispatchMux);
+	espuino_async_tcp_wake();
+}
+
+// Sends JSON-answers via websocket (must only run on async_tcp)
+static void Web_SendWebsocketDataNow(uint32_t client, WebsocketCodeType code) {
 	if (!webserverStarted) {
 		// webserver not yet started
 		return;
@@ -2470,13 +2630,17 @@ void Web_SendWebsocketData(uint32_t client, WebsocketCodeType code) {
 		}
 		currentTrackNumber = gPlayProperties.currentTrackNumber;
 		AudioPlayer_UnlockPlaylist();
+		char titleBuf[256] = {};
+		char artistBuf[128] = {};
+		char albumBuf[128] = {};
+		AudioPlayer_CopyTrackMetadata(titleBuf, sizeof(titleBuf), artistBuf, sizeof(artistBuf), albumBuf, sizeof(albumBuf));
 		entry["pausePlay"] = gPlayProperties.pausePlay;
 		entry["currentTrackNumber"] = currentTrackNumber + 1;
 		entry["numberOfTracks"] = playlistSize;
 		entry["volume"] = AudioPlayer_GetCurrentVolume();
-		entry["name"] = gPlayProperties.title;
-		entry["artist"] = gPlayProperties.artist; // ID3/Vorbis artist (empty if none)
-		entry["album"] = gPlayProperties.album; // ID3/Vorbis album (empty if none)
+		entry["name"] = titleBuf;
+		entry["artist"] = artistBuf; // ID3/Vorbis artist (empty if none)
+		entry["album"] = albumBuf; // ID3/Vorbis album (empty if none)
 		entry["posPercent"] = gPlayProperties.currentRelPos;
 		entry["playMode"] = gPlayProperties.playMode;
 		entry["controlsLocked"] = System_AreControlsLocked();
@@ -2554,28 +2718,23 @@ void onWebsocketEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsE
 		// Send initial operation mode and RSSI to newly connected client
 		Web_SendWebsocketData(client->id(), WebsocketCodeType::OperationMode);
 		Web_SendWebsocketData(client->id(), WebsocketCodeType::FtpStatus);
-		// client->printf("Hello Client %u :)", client->id());
-		// client->ping();
 	} else if (type == WS_EVT_DISCONNECT) {
 		// client disconnected
 		Log_Printf(LOGLEVEL_DEBUG, "ws[%s][%u] disconnect", server->url(), client->id());
 	} else if (type == WS_EVT_ERROR) {
-		// error was received from the other end
-		Log_Printf(LOGLEVEL_DEBUG, "ws[%s][%u] error(%u): %s", server->url(), client->id(), *((uint16_t *) arg), (char *) data);
+		// error was received from the other end (payload is NOT NUL-terminated)
+		Log_Printf(LOGLEVEL_DEBUG, "ws[%s][%u] error(%u): %.*s", server->url(), client->id(), arg ? *((uint16_t *) arg) : 0u, (int) len, (len && data) ? (const char *) data : "");
 	} else if (type == WS_EVT_PONG) {
-		// pong message was received (in response to a ping request maybe)
-		Log_Printf(LOGLEVEL_DEBUG, "ws[%s][%u] pong[%u]: %s", server->url(), client->id(), len, (len) ? (char *) data : "");
+		// pong message was received (payload is NOT NUL-terminated)
+		Log_Printf(LOGLEVEL_DEBUG, "ws[%s][%u] pong[%u]: %.*s", server->url(), client->id(), (unsigned) len, (int) len, (len && data) ? (const char *) data : "");
 	} else if (type == WS_EVT_DATA) {
 		// data packet
 		const AwsFrameInfo *info = (AwsFrameInfo *) arg;
-		// only act on a complete single-frame text message. The JSON parser treats data as a
-		// C string, so it MUST be NUL-terminated *before* parsing - the AsyncWebSocket buffer is
-		// not terminated itself, and terminating it afterwards (as before) let the parser read
-		// past the payload, rejecting otherwise-valid commands. Binary frames are not JSON.
-		if (info && info->final && info->index == 0 && info->len == len && client && len > 0 && info->opcode == WS_TEXT) {
-			data[len] = 0;
-
-			WebsocketCodeType result = processJsonRequest((char *) data);
+		// Only act on a complete single-frame text message, capped at 32 KB. Pass exact length `len`
+		// directly to ArduinoJson instead of writing `data[len] = 0`, which wrote 1 byte past the
+		// frame / pbuf boundary.
+		if (info && info->final && info->index == 0 && info->len == len && client && data && len > 0 && len <= 32768 && info->opcode == WS_TEXT) {
+			WebsocketCodeType result = processJsonRequest((const char *) data, len);
 			if (result != WebsocketCodeType::Error && result != WebsocketCodeType::Silent) {
 				Web_SendWebsocketData(client->id(), result);
 			}
@@ -2596,7 +2755,11 @@ void handleTrackProgressRequest(AsyncWebServerRequest *request) {
 void handleGetSavedSSIDs(AsyncWebServerRequest *request) {
 	// optional parameter to include credentials & static-ip config (used for backups)
 	const bool withCredentials = request->hasParam("credentials");
-	AsyncJsonResponse *response = new AsyncJsonResponse(true);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(true);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonArray json_ssids = response->getRoot();
 	Wlan_GetSavedNetworks([json_ssids, withCredentials](const WiFiSettings &network) {
 		if (!withCredentials) {
@@ -2655,7 +2818,11 @@ static const char *classifyDisconnectReason(uint8_t reason) {
 // Used by the accesspoint page to tell the user why their credentials didn't
 // work instead of silently falling back to the setup AP.
 void handleGetWifiStatus(AsyncWebServerRequest *request) {
-	AsyncJsonResponse *response = new AsyncJsonResponse();
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse();
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject obj = response->getRoot();
 
 	obj["state"] = Wlan_GetConnectState();
@@ -2706,8 +2873,8 @@ void handlePostWifiTest(AsyncWebServerRequest *request, JsonVariant &json) {
 void handlePostSavedSSIDs(AsyncWebServerRequest *request, JsonVariant &json) {
 	WiFiSettings networkSettings;
 
-	networkSettings.ssid = json["ssid"].as<const char *>();
-	networkSettings.password = json["pwd"].as<const char *>();
+	networkSettings.ssid = json["ssid"] | "";
+	networkSettings.password = json["pwd"] | "";
 
 	if (json["static"].as<bool>()) {
 		networkSettings.staticIp.addr = json["static_addr"].as<IPAddress>();
@@ -2753,7 +2920,11 @@ void handleDeleteSavedSSIDs(AsyncWebServerRequest *request) {
 }
 
 void handleGetActiveSSID(AsyncWebServerRequest *request) {
-	AsyncJsonResponse *response = new AsyncJsonResponse();
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse();
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject obj = response->getRoot();
 
 	if (Wlan_IsConnected()) {
@@ -2766,7 +2937,11 @@ void handleGetActiveSSID(AsyncWebServerRequest *request) {
 }
 
 void handleGetWiFiConfig(AsyncWebServerRequest *request) {
-	AsyncJsonResponse *response = new AsyncJsonResponse();
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse();
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject obj = response->getRoot();
 	bool scanWifiOnStart = gPrefsSettings.getBool("ScanWiFiOnStart", false);
 
@@ -2911,6 +3086,7 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 	}
 	AudioPlayer_UnlockPlaylist();
 	if (coverFileName.length() == 0) {
+		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
 		return;
 	}
 
@@ -2942,17 +3118,53 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 	} else {
 		coverFile = gFSystem.open(coverFileName, FILE_READ);
 	}
+	if (!coverFile) {
+		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
+		return;
+	}
+	const auto failPlaceholder = [&]() {
+		coverFile.close();
+		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
+	};
+	const auto readBe32 = [](File &f, uint32_t &out) -> bool {
+		uint32_t val = 0;
+		for (int i = 0; i < 4; ++i) {
+			int b = f.read();
+			if (b < 0) {
+				return false;
+			}
+			val = (val << 8) | static_cast<uint8_t>(b);
+		}
+		out = val;
+		return true;
+	};
+
+	const size_t totalFileSize = coverFile.size();
 	char mimeType[256] {0};
-	char fileType[4];
+	char fileType[4] {0};
 	size_t flacImageSize = 0; // set only by the FLAC branch below
-	coverFile.readBytes(fileType, 4);
+	if (totalFileSize < 12 || coverFile.readBytes(fileType, 4) != 4) {
+		failPlaceholder();
+		return;
+	}
 	if (strncmp(fileType, "ID3", 3) == 0) { // mp3 (ID3v2) Routine
-		// seek to start position
-		coverFile.seek(coverPos);
-		uint8_t encoding = coverFile.read();
+		if (coverPos >= totalFileSize || !coverFile.seek(coverPos)) {
+			failPlaceholder();
+			return;
+		}
+		int encByte = coverFile.read();
+		if (encByte < 0) {
+			failPlaceholder();
+			return;
+		}
+		uint8_t encoding = static_cast<uint8_t>(encByte);
 		if (fileType[3] == 0x02) {
 			// image format (3 Bytes) for ID3v2.2
-			coverFile.readBytes(mimeType, 3);
+			if (coverFile.readBytes(mimeType, 3) != 3) {
+				failPlaceholder();
+				return;
+			}
+			mimeType[3] = '\0';
 			if (strcmp(mimeType, "JPG") == 0) {
 				strcpy(mimeType, "image/jpeg");
 			} else if (strcmp(mimeType, "PNG") == 0) {
@@ -2962,77 +3174,122 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 			}
 		} else {
 			// mime-type (null terminated) for ID3v2.3 and ID3v2.4
+			bool mimeTerminated = false;
 			for (uint8_t i = 0u; i < 255; i++) {
-				mimeType[i] = coverFile.read();
-				if (uint8_t(mimeType[i]) == 0) {
+				int c = coverFile.read();
+				if (c < 0) {
+					failPlaceholder();
+					return;
+				}
+				mimeType[i] = static_cast<char>(c);
+				if (c == 0) {
+					mimeTerminated = true;
 					break;
 				}
 			}
+			if (!mimeTerminated) {
+				failPlaceholder();
+				return;
+			}
 		}
 		// skip image type (1 Byte)
-		coverFile.read();
-		// skip description (null terminated)
-		if (encoding == 0 || encoding == 3) { // ISO-8859-1 and UTF-8: 00 terminated
-			while (coverFile.read() != 0) { }
-		} else if (encoding == 1 || encoding == 2) { // UTF-16 and UTF-16BE: 00 00 terminated
-			while ((coverFile.read() | (coverFile.read() << 8)) != 0) { }
-		}
-	} else if (strncmp(fileType, "fLaC", 4) == 0) { // flac Routine
-		uint32_t length = 0; // length of strings: MIME type, description of the picture, binary picture data
-		coverFile.seek(coverPos + 4); // pass only picture type (4 Bytes) (audioI2S points to METADATA_BLOCK_PICTURE since 6241daa)
-		for (int i = 0; i < 4; ++i) { // length of mime type string
-			length = (length << 8) | coverFile.read();
-		}
-		if (length > 255) {
-			Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type string length (%u > 255). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", length, (unsigned) coverPos);
-			request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
-			coverFile.close();
+		if (coverFile.read() < 0) {
+			failPlaceholder();
 			return;
 		}
-		for (uint8_t i = 0u; i < length; i++) {
-			mimeType[i] = coverFile.read();
+		// skip description (null terminated, bounded to avoid WDT panic on truncated/corrupt tags)
+		bool descTerminated = false;
+		if (encoding == 0 || encoding == 3) { // ISO-8859-1 and UTF-8: 00 terminated
+			for (size_t n = 0; n < 4096; ++n) {
+				int c = coverFile.read();
+				if (c < 0) {
+					failPlaceholder();
+					return;
+				}
+				if (c == 0) {
+					descTerminated = true;
+					break;
+				}
+			}
+		} else if (encoding == 1 || encoding == 2) { // UTF-16 and UTF-16BE: 00 00 terminated
+			for (size_t n = 0; n < 4096; ++n) {
+				int b0 = coverFile.read();
+				int b1 = coverFile.read();
+				if (b0 < 0 || b1 < 0) {
+					failPlaceholder();
+					return;
+				}
+				if (b0 == 0 && b1 == 0) {
+					descTerminated = true;
+					break;
+				}
+			}
+		} else {
+			failPlaceholder();
+			return;
+		}
+		if (!descTerminated) {
+			failPlaceholder();
+			return;
+		}
+	} else if (strncmp(fileType, "fLaC", 4) == 0) { // flac Routine
+		if (coverPos > totalFileSize || (totalFileSize - coverPos) < 32 || !coverFile.seek(coverPos + 4)) {
+			failPlaceholder();
+			return;
+		}
+		uint32_t length = 0;
+		if (!readBe32(coverFile, length) || length > 255 || (totalFileSize - coverFile.position()) < length) {
+			Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type string length (%u). Aborting cover extraction.", length);
+			failPlaceholder();
+			return;
+		}
+		if (length > 0 && coverFile.readBytes(mimeType, length) != length) {
+			failPlaceholder();
+			return;
 		}
 		mimeType[length] = '\0';
 
-		length = 0;
-		for (int i = 0; i < 4; ++i) { // length of description string
-			length = (length << 8) | coverFile.read();
+		uint32_t descLen = 0;
+		if (!readBe32(coverFile, descLen) || descLen > totalFileSize || (totalFileSize - coverFile.position()) < (static_cast<size_t>(descLen) + 20)) {
+			failPlaceholder();
+			return;
 		}
-		coverFile.seek(length + 16, SeekCur); // pass description, width, height, color depth, number of colors
+		if (!coverFile.seek(descLen + 16, SeekCur)) { // pass description, width, height, color depth, number of colors
+			failPlaceholder();
+			return;
+		}
 
-		length = 0;
-		for (int i = 0; i < 4; ++i) { // length of picture data
-			length = (length << 8) | coverFile.read();
+		uint32_t picLen = 0;
+		if (!readBe32(coverFile, picLen) || picLen == 0 || picLen > (totalFileSize - coverFile.position())) {
+			failPlaceholder();
+			return;
 		}
-		flacImageSize = length; // FLAC carries the size right here; don't write webserver-task
+		flacImageSize = picLen; // FLAC carries the size right here; don't write webserver-task
 								// state into gPlayProperties (the audio task owns that struct)
 	} else {
 		// test for M4A header
-		coverFile.seek(8);
-		coverFile.readBytes(fileType, 3);
-		if (strncmp(fileType, "M4A", 3) == 0) {
+		if (totalFileSize >= 12 && coverFile.seek(8) && coverFile.readBytes(fileType, 3) == 3 && strncmp(fileType, "M4A", 3) == 0 && coverPos < totalFileSize && coverFile.seek(coverPos)) {
 			strcpy(mimeType, "application/octet-stream");
-			coverFile.seek(coverPos);
 		}
 	}
 	if (strncmp(mimeType, "image", 5) != 0 && strncmp(mimeType, "application/octet-stream", 24) != 0) {
 		Log_Printf(LOGLEVEL_ERROR, "Unexpected MIME type (%s). Possible corrupted cover image or wrong coverFilePos (%u). Aborting extraction.", mimeType, (unsigned) coverPos);
-		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
-		coverFile.close();
+		failPlaceholder();
 		return;
 	}
 	Log_Printf(LOGLEVEL_NOTICE, "serve cover image (%s): %s", mimeType, gFSystem.name(coverFile).c_str());
 
-	int imageSize = flacImageSize ? flacImageSize : (int) coverSizeSnapshot;
-	if (imageSize <= 0 || imageSize > (8 * 1024 * 1024)) { // implausible: raced a track change or corrupt tag
-		request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
-		coverFile.close();
+	const size_t remainingInFile = (totalFileSize > coverFile.position()) ? (totalFileSize - coverFile.position()) : 0;
+	const size_t rawImageSize = flacImageSize ? flacImageSize : coverSizeSnapshot;
+	if (rawImageSize == 0 || rawImageSize > (8 * 1024 * 1024) || rawImageSize > remainingInFile) {
+		failPlaceholder();
 		return;
 	}
+	const size_t imageSize = rawImageSize;
 
 	// populate the PSRAM cache: one burst read instead of 1 KB SD nibbles per TCP chunk,
 	// and every further request for this track is served without touching the card
-	if (imageSize > 0 && (size_t) imageSize <= COVER_CACHE_MAX) {
+	if (imageSize <= COVER_CACHE_MAX) {
 		if (sCoverCacheBuf == nullptr) {
 			sCoverCacheBuf = (uint8_t *) ps_malloc(COVER_CACHE_MAX);
 		}
@@ -3040,7 +3297,7 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 			sCoverCacheLen = 0; // invalidate while the slot is being rewritten
 			const size_t got = coverFile.read(sCoverCacheBuf, imageSize);
 			coverFile.close();
-			if (got == (size_t) imageSize) {
+			if (got == imageSize) {
 				sCoverCacheKey = cacheKey;
 				sCoverCacheMime = mimeType;
 				sCoverCacheLen = got;
@@ -3049,28 +3306,36 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 				request->send(response);
 				return;
 			}
-			Log_Printf(LOGLEVEL_ERROR, "cover cache: short read (%u of %d bytes), serving placeholder", (unsigned) got, imageSize);
+			Log_Printf(LOGLEVEL_ERROR, "cover cache: short read (%u of %u bytes), serving placeholder", (unsigned) got, (unsigned) imageSize);
 			request->send(200, "image/svg+xml", PLACEHOLDER_COVER_SVG);
 			return;
 		}
 	}
 
 	// fallback: cover larger than the cache slot (or PSRAM alloc failed) -> stream from SD
-	AsyncWebServerResponse *response = request->beginChunkedResponse(mimeType, [coverFile, imageSize](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+	request->onDisconnect([coverFile]() mutable {
+		if (coverFile) {
+			coverFile.close();
+		}
+	});
+	AsyncWebServerResponse *response = request->beginChunkedResponse(mimeType, [coverFile, imageSize](uint8_t *buffer, size_t maxLen, size_t index) mutable -> size_t {
 		// some kind of webserver bug with actual size available, reduce the len
 		if (maxLen > 1024) {
 			maxLen = 1024;
 		}
-		File file = coverFile; // local copy of file pointer
-		size_t leftToWrite = imageSize - index;
-		if (!leftToWrite) {
-			file.close();
+		if (index >= imageSize || !coverFile) {
+			if (coverFile) {
+				coverFile.close();
+			}
 			return 0; // end of transfer
 		}
+		size_t leftToWrite = imageSize - index;
 		size_t willWrite = (leftToWrite > maxLen) ? maxLen : leftToWrite;
-		file.read(buffer, willWrite);
-		index += willWrite;
-		return willWrite;
+		size_t got = coverFile.read(buffer, willWrite);
+		if (got == 0 || (index + got) >= imageSize) {
+			coverFile.close();
+		}
+		return got;
 	});
 	response->addHeader("Cache-Control", "no-cache, must-revalidate");
 	request->send(response);
@@ -3081,7 +3346,11 @@ static void handleCoverImageRequest(AsyncWebServerRequest *request) {
 // does not depend on having witnessed the A2DP connection event via websocket.
 static void handleBluetoothStatusRequest(AsyncWebServerRequest *request) {
 #ifdef BLUETOOTH_ENABLE
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject object = response->getRoot();
 
 	String name;
@@ -3126,23 +3395,26 @@ static void handleBluetoothResultsRequest(AsyncWebServerRequest *request) {
 #ifdef BLUETOOTH_ENABLE
 	std::vector<ScannedBluetoothDevice> devices = Bluetooth_GetScannedDevices();
 
-	JsonDocument doc;
-	JsonArray jsonArray = doc.to<JsonArray>();
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(true);
+	if (!response) {
+		request->send(503);
+		return;
+	}
+	JsonArray jsonArray = response->getRoot();
 
 	for (const auto &device : devices) {
 		JsonObject obj = jsonArray.add<JsonObject>();
 		obj["name"] = device.name;
 		char addr_str[18];
-		sprintf(addr_str, "%02X:%02X:%02X:%02X:%02X:%02X",
+		snprintf(addr_str, sizeof(addr_str), "%02X:%02X:%02X:%02X:%02X:%02X",
 			device.address[0], device.address[1], device.address[2],
 			device.address[3], device.address[4], device.address[5]);
 		obj["address"] = addr_str;
 		obj["rssi"] = device.rssi;
 	}
 
-	String output;
-	serializeJson(doc, output);
-	request->send(200, "application/json", output);
+	response->setLength();
+	request->send(response);
 #else
 	request->send(400, "text/plain", "Bluetooth is not enabled.");
 #endif
@@ -3156,10 +3428,15 @@ static void handleBluetoothConnectRequest(AsyncWebServerRequest *request, JsonVa
 		return;
 	}
 
-	String addressStr = json["address"].as<String>();
-	esp_bd_addr_t address;
-	sscanf(addressStr.c_str(), "%hhX:%hhX:%hhX:%hhX:%hhX:%hhX",
-		&address[0], &address[1], &address[2], &address[3], &address[4], &address[5]);
+	const char *addressStr = json["address"] | "";
+	esp_bd_addr_t address = {};
+	if (strlen(addressStr) != 17
+		|| sscanf(addressStr, "%hhX:%hhX:%hhX:%hhX:%hhX:%hhX",
+			   &address[0], &address[1], &address[2], &address[3], &address[4], &address[5])
+			!= 6) {
+		request->send(400, "text/plain", "Invalid Bluetooth MAC address.");
+		return;
+	}
 	Bluetooth_ConnectToAddress(address);
 	request->send(200, "text/plain", "Connecting to device.");
 #else

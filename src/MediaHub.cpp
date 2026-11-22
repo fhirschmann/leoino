@@ -7,6 +7,7 @@
 #include "Common.h"
 #include "Led.h"
 #include "Log.h"
+#include "MemX.h"
 #include "Rfid.h"
 #include "RfidSync.h"
 #include "SdCard.h"
@@ -139,6 +140,12 @@ static bool MediaHub_IsSingleFilePlayMode(uint32_t playMode) {
 	return playMode == SINGLE_TRACK || playMode == SINGLE_TRACK_LOOP;
 }
 
+static void MediaHub_ResetWdtIfSubscribed() {
+	if (esp_task_wdt_status(NULL) == ESP_OK) {
+		esp_task_wdt_reset();
+	}
+}
+
 // Local integrity check is size-only, never a hash (concept §9): hashing a
 // possibly 100 MB file on every tap just to confirm what the hub already
 // verified at download time isn't an option on this hardware.
@@ -150,6 +157,9 @@ static bool MediaHub_FileFullySynced(const String &mediaDir, JsonVariantConst fi
 	const uint32_t expectedSize = fileEntry["size"] | 0;
 	File f = gFSystem.open(mediaDir + "/" + path);
 	if (!f || f.isDirectory()) {
+		if (f) {
+			f.close();
+		}
 		return false;
 	}
 	const bool sizeMatches = (uint32_t) f.size() == expectedSize;
@@ -263,35 +273,45 @@ static String MediaHub_BuildItemToPlay(const String &mediaDir, uint32_t playMode
 // Mirrors explorerDeleteDirectory() in Web.cpp: recurse via File objects only,
 // never rebuild string paths for entries, so SanitizedFS's percent-encoding
 // (FileSystem.h) can't be applied twice to an already-sanitized name.
-static bool MediaHub_DeleteDirRecursive(File dir) {
+static bool MediaHub_DeleteDirRecursive(File dir, uint8_t depth = 0) {
+	if (depth >= 16) {
+		dir.close();
+		return false;
+	}
 	bool ok = true;
 	File entry = dir.openNextFile();
 	while (entry) {
 		if (entry.isDirectory()) {
-			ok &= MediaHub_DeleteDirRecursive(entry);
+			ok &= MediaHub_DeleteDirRecursive(entry, depth + 1);
 		} else {
 			ok &= gFSystem.remove(entry);
 		}
 		entry = dir.openNextFile();
-		esp_task_wdt_reset();
+		MediaHub_ResetWdtIfSubscribed();
 	}
 	return gFSystem.rmdir(dir) && ok;
 }
 
 // Same File-object-based recursion as MediaHub_DeleteDirRecursive(), for the
 // same reason: avoids re-sanitizing an already-sanitized on-disk path.
-static uint64_t MediaHub_DirSizeRecursive(File dir) {
+static uint64_t MediaHub_DirSizeRecursive(File dir, uint8_t depth = 0) {
+	if (depth >= 16) {
+		dir.close();
+		return 0;
+	}
 	uint64_t total = 0;
 	File entry = dir.openNextFile();
 	while (entry) {
 		if (entry.isDirectory()) {
-			total += MediaHub_DirSizeRecursive(entry);
+			total += MediaHub_DirSizeRecursive(entry, depth + 1);
 		} else {
 			total += entry.size();
 		}
+		entry.close();
 		entry = dir.openNextFile();
-		esp_task_wdt_reset();
+		MediaHub_ResetWdtIfSubscribed();
 	}
+	dir.close();
 	return total;
 }
 
@@ -299,6 +319,9 @@ static uint64_t MediaHub_DirSizeRecursive(File dir) {
 static uint64_t MediaHub_DirSize(const String &path) {
 	File dir = gFSystem.open(path);
 	if (!dir || !dir.isDirectory()) {
+		if (dir) {
+			dir.close();
+		}
 		return 0;
 	}
 	return MediaHub_DirSizeRecursive(dir);
@@ -359,7 +382,7 @@ static constexpr size_t MediaHub_DownloadNumBuffers = 2;
 static uint8_t *MediaHub_DownloadBuffers[MediaHub_DownloadNumBuffers] = {nullptr, nullptr};
 static std::atomic<uint32_t> MediaHub_DownloadBufferBytes[MediaHub_DownloadNumBuffers];
 static std::atomic<bool> MediaHub_DownloadBufferFull[MediaHub_DownloadNumBuffers];
-static TaskHandle_t MediaHub_DownloadWriterTaskHandle = NULL;
+static std::atomic<TaskHandle_t> MediaHub_DownloadWriterTaskHandle {NULL};
 static SemaphoreHandle_t MediaHub_DownloadWriterDone = NULL;
 static volatile bool MediaHub_DownloadWriterError = false;
 
@@ -368,10 +391,7 @@ static bool MediaHub_EnsureDownloadBuffersAllocated() {
 		if (MediaHub_DownloadBuffers[i] != nullptr) {
 			continue;
 		}
-		MediaHub_DownloadBuffers[i] = static_cast<uint8_t *>(heap_caps_malloc(MediaHub_DownloadBufferSize, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
-		if (MediaHub_DownloadBuffers[i] == nullptr) {
-			MediaHub_DownloadBuffers[i] = static_cast<uint8_t *>(heap_caps_malloc(MediaHub_DownloadBufferSize, MALLOC_CAP_SPIRAM));
-		}
+		MediaHub_DownloadBuffers[i] = static_cast<uint8_t *>(x_malloc(MediaHub_DownloadBufferSize));
 		if (MediaHub_DownloadBuffers[i] == nullptr) {
 			return false;
 		}
@@ -420,7 +440,7 @@ static void MediaHub_DownloadWriterTask(void *parameter) {
 				if (MediaHub_DownloadWriterError) {
 					break; // don't keep writing to a file that just failed
 				}
-				esp_task_wdt_reset();
+				MediaHub_ResetWdtIfSubscribed();
 			}
 			if (MediaHub_DownloadWriterError || (notified == pdPASS && notifyValue == 1u)) {
 				break; // write failed, or that was the last (partial) buffer
@@ -432,7 +452,7 @@ static void MediaHub_DownloadWriterTask(void *parameter) {
 		}
 	}
 	file.close();
-	MediaHub_DownloadWriterTaskHandle = NULL;
+	MediaHub_DownloadWriterTaskHandle.store(NULL);
 	xSemaphoreGive(MediaHub_DownloadWriterDone);
 	vTaskDelete(NULL);
 }
@@ -442,6 +462,10 @@ static void MediaHub_DownloadWriterTask(void *parameter) {
 // over local files afterwards). Renames into place only once size and hash
 // both match; leaves no partial/renamed file behind on any failure.
 static bool MediaHub_DownloadAndVerifyFile(const String &fileUrl, const String &finalPath, uint32_t expectedSize, const char *expectedSha256Hex, uint64_t &completedBytes, uint64_t totalBytes) {
+	if (MediaHub_DownloadWriterTaskHandle.load() != NULL) {
+		Log_Printf(LOGLEVEL_ERROR, mediaHubDownloadFailed, fileUrl.c_str());
+		return false;
+	}
 	HTTPClient http;
 	http.setConnectTimeout(MediaHub_ConnectTimeoutMs);
 	http.setTimeout(MediaHub_DownloadStallTimeoutMs);
@@ -487,11 +511,30 @@ static bool MediaHub_DownloadAndVerifyFile(const String &fileUrl, const String &
 	MediaHub_DownloadWriterError = false;
 	if (MediaHub_DownloadWriterDone == NULL) {
 		MediaHub_DownloadWriterDone = xSemaphoreCreateBinary();
+		if (MediaHub_DownloadWriterDone == NULL) {
+			tmpFile.close();
+			gFSystem.remove(tmpPath);
+			http.end();
+			mbedtls_sha256_free(&shaCtx);
+			MediaHub_FreeDownloadBuffers();
+			return false;
+		}
 	} else {
 		xSemaphoreTake(MediaHub_DownloadWriterDone, 0); // make sure it's empty before this run
 	}
-	auto *writerArgs = new MediaHub_WriterTaskArgs {tmpFile};
-	xTaskCreatePinnedToCore(MediaHub_DownloadWriterTask, "MediaHubWriter", 3072, writerArgs, 2, &MediaHub_DownloadWriterTaskHandle, 1);
+	auto *writerArgs = new (std::nothrow) MediaHub_WriterTaskArgs {tmpFile};
+	TaskHandle_t writerHandle = NULL;
+	if (!writerArgs || xTaskCreatePinnedToCore(MediaHub_DownloadWriterTask, "MediaHubWriter", 4096, writerArgs, 2, &writerHandle, 1) != pdPASS) {
+		delete writerArgs;
+		tmpFile.close();
+		gFSystem.remove(tmpPath);
+		http.end();
+		mbedtls_sha256_free(&shaCtx);
+		MediaHub_FreeDownloadBuffers();
+		Log_Printf(LOGLEVEL_ERROR, mediaHubDownloadFailed, fileUrl.c_str());
+		return false;
+	}
+	MediaHub_DownloadWriterTaskHandle.store(writerHandle);
 
 	auto *stream = http.getStreamPtr();
 	size_t totalRead = 0;
@@ -541,7 +584,8 @@ static bool MediaHub_DownloadAndVerifyFile(const String &fileUrl, const String &
 
 		const size_t bufferedSoFar = MediaHub_DownloadBufferBytes[writeIndex];
 		const size_t spaceLeft = MediaHub_DownloadBufferSize - bufferedSoFar;
-		const size_t toRead = std::min((size_t) avail, spaceLeft);
+		const size_t remainingExpected = expectedSize - totalRead;
+		const size_t toRead = std::min((size_t) avail, std::min(spaceLeft, remainingExpected));
 		const size_t got = stream->readBytes(MediaHub_DownloadBuffers[writeIndex] + bufferedSoFar, toRead);
 		if (got == 0) {
 			transferError = true;
@@ -559,7 +603,7 @@ static bool MediaHub_DownloadAndVerifyFile(const String &fileUrl, const String &
 			MediaHub_DownloadBufferFull[writeIndex] = true;
 			writeIndex = (writeIndex + 1) % MediaHub_DownloadNumBuffers;
 		}
-		esp_task_wdt_reset();
+		MediaHub_ResetWdtIfSubscribed();
 	}
 	http.end();
 
@@ -568,7 +612,9 @@ static bool MediaHub_DownloadAndVerifyFile(const String &fileUrl, const String &
 	if (MediaHub_DownloadBufferBytes[writeIndex] > 0 && !MediaHub_DownloadBufferFull[writeIndex]) {
 		MediaHub_DownloadBufferFull[writeIndex] = true;
 	}
-	xTaskNotify(MediaHub_DownloadWriterTaskHandle, (transferError || restartRequested) ? 2u : 1u, eSetValueWithOverwrite);
+	if (writerHandle != NULL) {
+		xTaskNotify(writerHandle, (transferError || restartRequested) ? 2u : 1u, eSetValueWithOverwrite);
+	}
 	if (xSemaphoreTake(MediaHub_DownloadWriterDone, pdMS_TO_TICKS(30000)) != pdTRUE) {
 		// writer task got stuck somehow - don't hang forever, just report failure
 		transferError = true;
@@ -577,10 +623,11 @@ static bool MediaHub_DownloadAndVerifyFile(const String &fileUrl, const String &
 		transferError = true;
 	}
 
-	// The writer task has now stopped touching the buffers either way (done
-	// or aborted) - safe to release them before this file's next steps run,
-	// so a following file's TLS handshake doesn't have to compete with them.
-	MediaHub_FreeDownloadBuffers();
+	// Only release the buffers once the writer task has actually exited; freeing
+	// them while a stalled SD write is still in progress would be a heap UAF.
+	if (MediaHub_DownloadWriterTaskHandle.load() == NULL) {
+		MediaHub_FreeDownloadBuffers();
+	}
 
 	uint8_t digest[32];
 	mbedtls_sha256_finish(&shaCtx, digest);
@@ -728,6 +775,9 @@ static bool MediaHub_SyncAndPlay(const char *cardId, JsonDocument &doc, uint32_t
 static bool MediaHub_LoadCachedSyncState(const char *cardId, JsonDocument &out) {
 	File file = gFSystem.open(MediaHub_ManifestCachePath(cardId));
 	if (!file || file.isDirectory()) {
+		if (file) {
+			file.close();
+		}
 		return false;
 	}
 	JsonDocument filter;
@@ -1004,6 +1054,8 @@ struct MediaHub_VersionCheckArgs {
 	String hostPort;
 };
 
+static std::atomic<bool> MediaHub_VersionCheckRunning {false};
+
 // Runs on its own short-lived task so it never delays returning from
 // MediaHub_HandleCardTapped (concept §9/§11: "Hintergrund"-check must not
 // block the tap that's already playing). Only ever compares/marks — it
@@ -1027,6 +1079,8 @@ static void MediaHub_VersionCheckTask(void *pvParameters) {
 		if (!deserializeJson(cachedDoc, cacheFile, DeserializationOption::Filter(filter))) {
 			cachedVersion = String((const char *) (cachedDoc["version"] | ""));
 		}
+		cacheFile.close();
+	} else if (cacheFile) {
 		cacheFile.close();
 	}
 
@@ -1060,13 +1114,20 @@ static void MediaHub_VersionCheckTask(void *pvParameters) {
 	}
 
 	delete args;
+	MediaHub_VersionCheckRunning.store(false);
 	vTaskDelete(NULL);
 }
 
 // Spawns MediaHub_VersionCheckTask() and returns immediately.
 static void MediaHub_StartBackgroundVersionCheck(const char *cardId, const String &hostPort) {
-	auto *args = new MediaHub_VersionCheckArgs {String(cardId), hostPort};
-	xTaskCreatePinnedToCore(MediaHub_VersionCheckTask, "MediaHubVerChk", 4096, args, 1, NULL, 1);
+	if (MediaHub_VersionCheckRunning.exchange(true)) {
+		return;
+	}
+	auto *args = new (std::nothrow) MediaHub_VersionCheckArgs {String(cardId), hostPort};
+	if (!args || xTaskCreatePinnedToCore(MediaHub_VersionCheckTask, "MediaHubVerChk", 6144, args, 1, NULL, 1) != pdPASS) {
+		delete args;
+		MediaHub_VersionCheckRunning.store(false);
+	}
 }
 
 // Local-first fast path (concept §3 principle 1): if a manifest is already
@@ -1079,6 +1140,9 @@ static void MediaHub_StartBackgroundVersionCheck(const char *cardId, const Strin
 static bool MediaHub_TryPlayFromLocalCache(const char *cardId, uint32_t lastPlayPos, uint16_t trackLastPlayed) {
 	File manifestFile = gFSystem.open(MediaHub_ManifestCachePath(cardId));
 	if (!manifestFile || manifestFile.isDirectory()) {
+		if (manifestFile) {
+			manifestFile.close();
+		}
 		return false;
 	}
 
@@ -1260,6 +1324,9 @@ static bool MediaHub_WipeCard(const char *cardId) {
 	MediaHub_ClearStale(cardId);
 	File mediaDir = gFSystem.open(MediaHub_MediaDir(cardId));
 	if (!mediaDir || !mediaDir.isDirectory()) {
+		if (mediaDir) {
+			mediaDir.close();
+		}
 		return true; // nothing to wipe
 	}
 	return MediaHub_DeleteDirRecursive(mediaDir);
@@ -1368,6 +1435,9 @@ bool MediaHub_DeleteServer(const String &name) {
 bool MediaHub_GetCachedCardInfo(const char *cardId, MediaHubCardInfo &info) {
 	File file = gFSystem.open(MediaHub_ManifestCachePath(cardId));
 	if (!file || file.isDirectory()) {
+		if (file) {
+			file.close();
+		}
 		return false;
 	}
 	// Filtered on purpose: the files[] array with its SHA-256 sums is the bulk of

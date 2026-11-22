@@ -27,6 +27,8 @@ uint8_t maxRecursionDepth;
 static SdCardHealth s_sdHealth;
 
 namespace {
+constexpr uint8_t sdMaxOpenFiles = 12;
+constexpr uint8_t kMaxAllowedRecursionDepth = 8;
 #ifdef SD_MMC_1BIT_MODE
 constexpr uint32_t sdFastFrequencyKhz = SDMMC_FREQ_HIGHSPEED;
 constexpr uint32_t sdFallbackFrequencyKhz = SDMMC_FREQ_DEFAULT;
@@ -37,18 +39,23 @@ constexpr uint32_t sdFallbackFrequencyHz = 1000000UL;
 
 bool SdCard_MountAttempt(bool fallbackFrequency) {
 	s_sdHealth.mountAttempts++;
+#ifdef ESPUINO_QEMU
+	constexpr bool formatIfMountFailed = true;
+#else
+	constexpr bool formatIfMountFailed = false;
+#endif
 #ifdef SD_MMC_1BIT_MODE
 	const uint32_t frequency = fallbackFrequency ? sdFallbackFrequencyKhz : sdFastFrequencyKhz;
 	s_sdHealth.frequencyKhz = frequency;
-	return SD_MMC.begin("/sdcard", true, false, frequency);
+	return SD_MMC.begin("/sdcard", true, formatIfMountFailed, frequency, sdMaxOpenFiles);
 #else
 	const uint32_t frequency = fallbackFrequency ? sdFallbackFrequencyHz : sdFastFrequencyHz;
 	s_sdHealth.frequencyKhz = frequency / 1000;
 	#ifndef SINGLE_SPI_ENABLE
 	spiSD.begin(SPISD_SCK, SPISD_MISO, SPISD_MOSI, SPISD_CS);
-	return SD.begin(SPISD_CS, spiSD, frequency);
+	return SD.begin(SPISD_CS, spiSD, frequency, "/sd", sdMaxOpenFiles);
 	#else
-	return SD.begin(SPISD_CS, SPI, frequency);
+	return SD.begin(SPISD_CS, SPI, frequency, "/sd", sdMaxOpenFiles);
 	#endif
 #endif
 }
@@ -120,6 +127,13 @@ void SdCard_Init(void) {
 		Log_Println(unableToMountSd, LOGLEVEL_ERROR);
 		Log_Printf(LOGLEVEL_ERROR, "SD recovery: attempt %u failed at %u kHz", s_sdHealth.mountAttempts, s_sdHealth.frequencyKhz);
 		SdCard_ResetDriver();
+#ifdef ESPUINO_QEMU
+		if (s_sdHealth.mountAttempts >= 2) {
+			Log_Println("SD: continuing unmounted under QEMU", LOGLEVEL_NOTICE);
+			maxRecursionDepth = 2;
+			return;
+		}
+#endif
 
 		// The first retry lowers the bus clock. If that is still insufficient, fully remove power
 		// from the card/controller; repeat the power cycle only every third later failure to avoid
@@ -145,6 +159,9 @@ void SdCard_Init(void) {
 	if (maxRecursionDepth == 255) {
 		gPrefsSettings.putUInt("nvsRecDepth", 2);
 		maxRecursionDepth = 2;
+	} else if (maxRecursionDepth > kMaxAllowedRecursionDepth) {
+		maxRecursionDepth = kMaxAllowedRecursionDepth;
+		gPrefsSettings.putUInt("nvsRecDepth", maxRecursionDepth);
 	}
 
 	// Prime FatFs' free-cluster count now: with a stale FSINFO sector the first f_getfree
@@ -229,10 +246,13 @@ uint64_t SdCard_GetSize() {
 
 uint64_t SdCard_GetFreeSize() {
 #ifdef SD_MMC_1BIT_MODE
-	return SD_MMC.cardSize() - SD_MMC.usedBytes();
+	const uint64_t total = SD_MMC.cardSize();
+	const uint64_t used = SD_MMC.usedBytes();
 #else
-	return SD.cardSize() - SD.usedBytes();
+	const uint64_t total = SD.cardSize();
+	const uint64_t used = SD.usedBytes();
 #endif
+	return (total > used) ? (total - used) : 0ULL;
 }
 
 uint8_t SdCard_GetMaxRecursionDepth(void) {
@@ -241,7 +261,7 @@ uint8_t SdCard_GetMaxRecursionDepth(void) {
 
 // Returns recursion depth that's used then playlists are generated for recursive playmodes
 size_t SdCard_SetMaxRecursionDepth(uint8_t _maxRecursionDepth) {
-	maxRecursionDepth = _maxRecursionDepth;
+	maxRecursionDepth = std::min<uint8_t>(_maxRecursionDepth, kMaxAllowedRecursionDepth);
 	return gPrefsSettings.putUInt("nvsRecDepth", SdCard_GetMaxRecursionDepth());
 }
 
@@ -352,6 +372,20 @@ bool fileValid(const char *_fileItem) {
 	// miss, we did not find the extension
 	// Log_Printf(LOGLEVEL_DEBUG, "File not supported: %s", _fileItem);
 	return false;
+}
+
+static bool fileValidAudioTrack(const char *_fileItem) {
+	if (!fileValid(_fileItem)) {
+		return false;
+	}
+	if (strncasecmp(_fileItem, "http://", strlen("http://")) == 0 || strncasecmp(_fileItem, "https://", strlen("https://")) == 0) {
+		return true;
+	}
+	const char *ext = strrchr(_fileItem, '.');
+	if (!ext) {
+		return false;
+	}
+	return strcasecmp(ext, ".m3u") != 0 && strcasecmp(ext, ".m3u8") != 0 && strcasecmp(ext, ".pls") != 0 && strcasecmp(ext, ".asx") != 0;
 }
 
 // Takes a directory as input and returns a random subdirectory from it
@@ -514,7 +548,7 @@ static std::optional<Playlist *> SdCard_ParseM3UPlaylist(File file) {
 			line = "";
 			return;
 		}
-		if (!fileValid(entry.c_str())) {
+		if (!fileValidAudioTrack(entry.c_str())) {
 			Log_Printf(LOGLEVEL_ERROR, "M3U: skipped unsupported entry %s", entry.c_str());
 			line = "";
 			return;
@@ -569,7 +603,7 @@ static bool SdCard_AppendDirectory(File &directory, Playlist *playlist, const ui
 			}
 			continue; // a directory whose name ends in .mp3 is never an audio track
 		}
-		if (fileValid(name.c_str())) {
+		if (fileValidAudioTrack(name.c_str())) {
 			if (!SdCard_allocAndSave(playlist, name)) {
 				return false;
 			}
@@ -602,11 +636,14 @@ std::optional<Playlist *> SdCard_ReturnPlaylist(const char *fileName, const uint
 		}
 		// Empty playlists intentionally parse to an empty vector; the player reports them instead of
 		// trying to decode the .m3u file itself as audio.
-		return SdCard_ParseM3UPlaylist(fileOrDirectory);
+		auto parsed = SdCard_ParseM3UPlaylist(fileOrDirectory);
+		fileOrDirectory.close();
+		return parsed;
 	}
 
 	// if we reach this code, it was not a m3u
 
+	const uint8_t cappedRecursionDepth = std::min<uint8_t>(_maxRecursionDepth, kMaxAllowedRecursionDepth);
 	Log_Printf(LOGLEVEL_DEBUG, freeMemory, ESP.getFreeHeap());
 	Playlist *playlist = allocatePlaylist();
 	if (!playlist) {
@@ -614,7 +651,7 @@ std::optional<Playlist *> SdCard_ReturnPlaylist(const char *fileName, const uint
 		Log_Println(unableToAllocateMemForLinearPlaylist, LOGLEVEL_ERROR);
 		return std::nullopt;
 	}
-	Log_Printf(LOGLEVEL_NOTICE, playlistRecDepth, _maxRecursionDepth);
+	Log_Printf(LOGLEVEL_NOTICE, playlistRecDepth, cappedRecursionDepth);
 
 	// File-mode
 	if (!fileOrDirectory.isDirectory()) {
@@ -630,7 +667,7 @@ std::optional<Playlist *> SdCard_ReturnPlaylist(const char *fileName, const uint
 	// Directory-mode (linear-playlist)
 	playlist->reserve(64); // reserve a sane amount of memory to reduce the number of reallocs
 	size_t hiddenFiles = 0;
-	if (!SdCard_AppendDirectory(fileOrDirectory, playlist, _maxRecursionDepth, 0, hiddenFiles)) {
+	if (!SdCard_AppendDirectory(fileOrDirectory, playlist, cappedRecursionDepth, 0, hiddenFiles)) {
 		fileOrDirectory.close();
 		freePlaylist(playlist);
 		return std::nullopt;
@@ -672,11 +709,13 @@ int16_t SdCard_findNextOrPrevDirectoryTrack(const Playlist &_playlist, size_t cu
 	// Look forwards
 	if (direction == SearchDirection::Forward) {
 		if (_playlist[currentTrackIndexInPlaylist] != nullptr) {
-			for (uint16_t i = (currentTrackIndexInPlaylist + 1); i < _playlist.size(); ++i) { // Iterate through playlist and start with current track +1
+			const size_t limit = std::min<size_t>(_playlist.size(), 32767);
+			for (size_t i = (currentTrackIndexInPlaylist + 1); i < limit; ++i) { // Iterate through playlist and start with current track +1
 				std::string_view basepathOfTrackToLookUp = SdCard_Basepath(_playlist[i]);
 				if (basepathOfTrackToLookUp != basepathOfCurrentTrack) {
-					Log_Printf(LOGLEVEL_DEBUG, jumpForwardsToFolder, basepathOfTrackToLookUp.data(), "\n");
-					return i; // Return first track after basepath change
+					const String folder(basepathOfTrackToLookUp.data(), basepathOfTrackToLookUp.size());
+					Log_Printf(LOGLEVEL_DEBUG, jumpForwardsToFolder, folder.c_str());
+					return static_cast<int16_t>(i); // Return first track after basepath change
 				}
 			}
 		} else {
@@ -687,18 +726,19 @@ int16_t SdCard_findNextOrPrevDirectoryTrack(const Playlist &_playlist, size_t cu
 	} else if (direction == SearchDirection::Backward) {
 		//  Go back as long as we don't hit 0
 		if (!currentTrackIndexInPlaylist) {
-			return currentTrackIndexInPlaylist;
+			return 0;
 		}
 
 		if (_playlist[currentTrackIndexInPlaylist] != nullptr) {
-			for (uint16_t i = (currentTrackIndexInPlaylist - 1); i > 0; i--) {
+			for (size_t i = (currentTrackIndexInPlaylist - 1); i > 0; i--) {
 				std::string_view basepathOfTrackToLookUp = SdCard_Basepath(_playlist[i]);
 				if (basepathOfTrackToLookUp != basepathOfCurrentTrack) { // Look for the 1st basepath change...
-					for (uint16_t j = i - 1; j > 0; j--) {
+					for (size_t j = i - 1; j > 0; j--) {
 						std::string_view basepathOfTrackToLookUpInner = SdCard_Basepath(_playlist[j]);
 						if (basepathOfTrackToLookUpInner != basepathOfTrackToLookUp) { // ...but keep on looking for the 2nd change...
-							Log_Printf(LOGLEVEL_DEBUG, jumpBackwardsToFolder, basepathOfTrackToLookUpInner.data(), "\n");
-							return j + 1; // ...just to add +1 to get the previous element before the 2nd change
+							const String folder(basepathOfTrackToLookUpInner.data(), basepathOfTrackToLookUpInner.size());
+							Log_Printf(LOGLEVEL_DEBUG, jumpBackwardsToFolder, folder.c_str());
+							return (j + 1 <= 32767) ? static_cast<int16_t>(j + 1) : -1; // ...just to add +1 to get the previous element before the 2nd change
 						}
 					}
 				}

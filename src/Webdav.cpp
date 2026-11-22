@@ -5,6 +5,7 @@
 
 #include "Common.h"
 #include "Log.h"
+#include "MemX.h"
 #include "SdCard.h"
 #include "System.h"
 #include "Web.h"
@@ -265,17 +266,25 @@ static void webdavSendStatus(WiFiClient &client, int code, const char *reason) {
 	client.print("Content-Length: 0\r\n\r\n");
 }
 
-// Discard up to <n> bytes of a request body we don't consume, so the client receives our full
-// response before the socket is closed (a reset with unread data can truncate the reply).
-static void webdavDrain(WiFiClient &client, long n) {
+// Discard up to <n> bytes of a request body we don't consume, bounded by <maxBytes> and <maxMs>,
+// so an unauthenticated or oversized body cannot stall a WebDAV worker or starve Core 0 IDLE0.
+static void webdavDrain(WiFiClient &client, long n, long maxBytes = (4L * 1024L * 1024L), uint32_t maxMs = 2000) {
 	uint8_t tmp[256];
-	while (n > 0 && client.connected()) {
+	if (n > maxBytes) {
+		n = maxBytes;
+	}
+	const uint32_t startMs = millis();
+	while (n > 0 && client.connected() && (millis() - startMs) < maxMs) {
 		int want = (n > (long) sizeof(tmp)) ? (int) sizeof(tmp) : (int) n;
 		int got = client.read(tmp, want);
 		if (got <= 0) {
 			if (!client.available()) {
-				break;
+				vTaskDelay(pdMS_TO_TICKS(2));
+				if (!client.available()) {
+					break;
+				}
 			}
+			vTaskDelay(pdMS_TO_TICKS(1));
 			continue;
 		}
 		n -= got;
@@ -287,13 +296,15 @@ static void webdavDrain(WiFiClient &client, long n) {
 // the socket with the body still unread, which RSTs the connection and can truncate our reply -
 // Finder then never sees a valid response and retries in a tight loop. We don't need the decoded
 // content, so just read until the terminating 0-length chunk or the peer stops sending.
-static void webdavDrainChunked(WiFiClient &client) {
+static void webdavDrainChunked(WiFiClient &client, size_t maxBytes = (256u * 1024u), uint32_t maxIdleMs = 2000) {
 	uint8_t tmp[256];
 	uint32_t idle = millis();
-	while (client.connected() && (millis() - idle) < 2000) {
+	size_t drained = 0;
+	while (client.connected() && drained < maxBytes && (millis() - idle) < maxIdleMs) {
 		int got = client.read(tmp, sizeof(tmp));
 		if (got > 0) {
 			idle = millis();
+			drained += (size_t) got;
 			// the last chunk is "0\r\n\r\n"; once we see a standalone 0-size chunk trailer we're done
 			if (got >= 5 && tmp[0] == '0' && (tmp[1] == '\r' || tmp[1] == '\n')) {
 				break;
@@ -370,6 +381,7 @@ static void webdavHandlePropfind(WiFiClient &client, const String &path, const S
 	if (listChildren) {
 		fs::File dir = gFSystem.open(path);
 		fs::File child;
+		uint32_t childIdx = 0;
 		while ((child = dir.openNextFile())) {
 			String cp = gFSystem.path(child);
 			bool cDir = child.isDirectory();
@@ -379,6 +391,9 @@ static void webdavHandlePropfind(WiFiClient &client, const String &path, const S
 			String entry;
 			webdavAppendResponse(entry, cp, cDir, cs, cm);
 			total += entry.length();
+			if ((++childIdx & 15u) == 0u) {
+				vTaskDelay(1);
+			}
 		}
 		dir.close();
 	}
@@ -394,6 +409,7 @@ static void webdavHandlePropfind(WiFiClient &client, const String &path, const S
 	if (listChildren) {
 		fs::File dir = gFSystem.open(path);
 		fs::File child;
+		uint32_t childIdx = 0;
 		while ((child = dir.openNextFile())) {
 			String cp = gFSystem.path(child);
 			bool cDir = child.isDirectory();
@@ -405,6 +421,9 @@ static void webdavHandlePropfind(WiFiClient &client, const String &path, const S
 			client.print(entry);
 			if (!client.connected()) {
 				break;
+			}
+			if ((++childIdx & 15u) == 0u) {
+				vTaskDelay(1);
 			}
 		}
 		dir.close();
@@ -471,9 +490,10 @@ static void webdavHandleGet(WiFiClient &client, const String &path, bool headOnl
 
 	if (!headOnly && length > 0) {
 		f.seek(start);
-		uint8_t *buf = (uint8_t *) malloc(WEBDAV_BUFFER_SIZE);
+		uint8_t *buf = static_cast<uint8_t *>(x_malloc(WEBDAV_BUFFER_SIZE));
 		if (buf) {
 			uint32_t remaining = length;
+			uint32_t chunkIdx = 0;
 			while (remaining > 0 && client.connected() && webdavShouldRun) { // abort a big GET promptly on shutdown
 				size_t want = (remaining > WEBDAV_BUFFER_SIZE) ? WEBDAV_BUFFER_SIZE : remaining;
 				int got = f.read(buf, want);
@@ -483,6 +503,9 @@ static void webdavHandleGet(WiFiClient &client, const String &path, bool headOnl
 				client.write(buf, got);
 				remaining -= got;
 				System_UpdateActivityTimer(); // an active download keeps the device awake (idle polling does not)
+				if ((++chunkIdx & 15u) == 0u) {
+					vTaskDelay(1);
+				}
 			}
 			free(buf);
 		}
@@ -500,10 +523,11 @@ static void webdavHandlePut(WiFiClient &client, const String &path, long content
 		webdavSendStatus(client, 409, "Conflict"); // parent collection missing or open failed
 		return;
 	}
-	uint8_t *buf = (uint8_t *) malloc(WEBDAV_BUFFER_SIZE);
+	uint8_t *buf = static_cast<uint8_t *>(x_malloc(WEBDAV_BUFFER_SIZE));
 	bool ok = (buf != nullptr);
 	long remaining = contentLength;
 	uint32_t idleStart = millis();
+	uint32_t chunkIdx = 0;
 	while (ok && remaining > 0 && client.connected() && webdavShouldRun) { // abort a big PUT promptly on shutdown
 		int avail = client.available();
 		if (avail <= 0) {
@@ -532,6 +556,9 @@ static void webdavHandlePut(WiFiClient &client, const String &path, long content
 		}
 		remaining -= got;
 		System_UpdateActivityTimer(); // an active upload keeps the device awake (idle polling does not)
+		if ((++chunkIdx & 15u) == 0u) {
+			vTaskDelay(1);
+		}
 	}
 	if (buf) {
 		free(buf);
@@ -547,10 +574,23 @@ static void webdavHandlePut(WiFiClient &client, const String &path, long content
 
 // ---------------------------------------------------------------------------- DELETE / MKCOL
 
+static bool webdavIsProtectedPath(const String &path) {
+	if (path.isEmpty() || path == "/") {
+		return true;
+	}
+	if (path.equalsIgnoreCase("/System") || (path.length() > 8 && path.substring(0, 8).equalsIgnoreCase("/System/"))) {
+		return true;
+	}
+	if (path.equalsIgnoreCase("/Playlists")) {
+		return true;
+	}
+	return false;
+}
+
 static bool webdavDeleteRecursive(const String &path, uint8_t depth = 0) {
-	// Bound the recursion: the WebDAV task has an 8 kB stack and each frame holds a File + a String,
+	// Bound the recursion: the WebDAV task has a 6 kB stack and each frame holds a File + a String,
 	// so a pathologically deep tree could otherwise overflow it (mirrors syncMirrorDir in Sync.cpp).
-	if (depth >= 20) {
+	if (depth >= 10) {
 		return false;
 	}
 	fs::File f = gFSystem.open(path);
@@ -565,11 +605,15 @@ static bool webdavDeleteRecursive(const String &path, uint8_t depth = 0) {
 	fs::File dir = gFSystem.open(path);
 	bool childIsDir = false;
 	String child;
+	uint32_t childIdx = 0;
 	while ((child = gFSystem.nextFileName(dir, &childIsDir)).length() > 0) {
 		if (childIsDir) {
 			webdavDeleteRecursive(child, depth + 1);
 		} else {
 			gFSystem.remove(child);
+		}
+		if ((++childIdx & 15u) == 0u) {
+			vTaskDelay(1);
 		}
 	}
 	dir.close();
@@ -577,6 +621,10 @@ static bool webdavDeleteRecursive(const String &path, uint8_t depth = 0) {
 }
 
 static void webdavHandleDelete(WiFiClient &client, const String &path) {
+	if (webdavIsProtectedPath(path)) {
+		webdavSendStatus(client, 403, "Forbidden");
+		return;
+	}
 	if (!gFSystem.exists(path)) {
 		webdavSendStatus(client, 404, "Not Found");
 		return;
@@ -603,9 +651,9 @@ static void webdavHandleMkcol(WiFiClient &client, const String &path) {
 // ---------------------------------------------------------------------------- MOVE / COPY
 
 static bool webdavCopyRecursive(const String &src, const String &dst, uint8_t depth = 0) {
-	// Bound the recursion: the WebDAV task has an 8 kB stack and each frame holds two Files + Strings,
+	// Bound the recursion: the WebDAV task has a 6 kB stack and each frame holds two Files + Strings,
 	// so a pathologically deep tree could otherwise overflow it (mirrors syncMirrorDir in Sync.cpp).
-	if (depth >= 20) {
+	if (depth >= 10) {
 		return false;
 	}
 	fs::File sf = gFSystem.open(src);
@@ -623,6 +671,7 @@ static bool webdavCopyRecursive(const String &src, const String &dst, uint8_t de
 		bool ok = true;
 		while ((child = gFSystem.nextFileName(dir, &childIsDir)).length() > 0) {
 			ok = webdavCopyRecursive(child, dst + "/" + webdavBaseName(child), depth + 1) && ok;
+			vTaskDelay(1);
 		}
 		dir.close();
 		return ok;
@@ -633,8 +682,9 @@ static bool webdavCopyRecursive(const String &src, const String &dst, uint8_t de
 		sf.close();
 		return false;
 	}
-	uint8_t *buf = (uint8_t *) malloc(WEBDAV_BUFFER_SIZE);
+	uint8_t *buf = static_cast<uint8_t *>(x_malloc(WEBDAV_BUFFER_SIZE));
 	bool ok = (buf != nullptr);
+	uint32_t chunkIdx = 0;
 	while (ok) {
 		int got = sf.read(buf, WEBDAV_BUFFER_SIZE);
 		if (got <= 0) {
@@ -642,6 +692,9 @@ static bool webdavCopyRecursive(const String &src, const String &dst, uint8_t de
 		}
 		if (df.write(buf, got) != (size_t) got) {
 			ok = false;
+		}
+		if ((++chunkIdx & 15u) == 0u) {
+			vTaskDelay(1);
 		}
 	}
 	if (buf) {
@@ -658,6 +711,10 @@ static void webdavHandleMoveCopy(WiFiClient &client, const String &path, const S
 		return;
 	}
 	String dest = webdavUriToPath(destHeader);
+	if ((isMove && webdavIsProtectedPath(path)) || webdavIsProtectedPath(dest)) {
+		webdavSendStatus(client, 403, "Forbidden");
+		return;
+	}
 	if (!gFSystem.exists(path)) {
 		webdavSendStatus(client, 404, "Not Found");
 		return;
@@ -838,9 +895,9 @@ static void webdavHandleClient(WiFiClient &client) {
 	// When no password is configured the drive is open.
 	if (!webdavCheckAuth(authz)) {
 		if (transferEncoding.indexOf("hunked") >= 0) {
-			webdavDrainChunked(client);
+			webdavDrainChunked(client, 4096, 250);
 		} else {
-			webdavDrain(client, contentLength);
+			webdavDrain(client, contentLength, 4096, 250);
 		}
 		client.print("HTTP/1.1 401 Unauthorized\r\n");
 		client.print("WWW-Authenticate: Basic realm=\"ESPuino WebDAV\"\r\n");
@@ -1127,7 +1184,7 @@ void Webdav_EnableServer(void) {
 	}
 	for (int i = 0; i < WEBDAV_WORKER_COUNT; i++) {
 		TaskHandle_t createdTask = nullptr;
-		if (xTaskCreatePinnedToCore(webdavTask, "webdav", 8192, (void *) (intptr_t) i, 1, &createdTask, 0) != pdPASS) {
+		if (xTaskCreatePinnedToCore(webdavTask, "webdav", 6144, (void *) (intptr_t) i, 1, &createdTask, 0) != pdPASS) {
 			Log_Println("WebDAV: failed to create worker task", LOGLEVEL_ERROR);
 			// Stop whichever workers already started and wait for them to unwind before giving up,
 			// so we don't leave a partially-started server (and its listener) behind.

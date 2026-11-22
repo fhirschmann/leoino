@@ -12,9 +12,12 @@ public:
   }
 
   void run(FTPPath &WorkDirectory, const std::vector<String> &Line) override {
-    if (Line[0] == "RNFR") {
+    if (Line.empty()) {
+      return;
+    }
+    if (Line[0].equalsIgnoreCase("RNFR")) {
       from(WorkDirectory, Line);
-    } else if (Line[0] == "RNTO") {
+    } else if (Line[0].equalsIgnoreCase("RNTO")) {
       to(WorkDirectory, Line);
     }
   }

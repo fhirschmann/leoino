@@ -60,11 +60,15 @@ public:
       data_print(String(f.size()));
       data_print(";");
 
-      // modify=YYYYMMDDHHMMSS; // GMT (!!!!)
-      char             buf[128];
-      time_t           ft = f.getLastWrite();
-      const struct tm *t  = localtime(&ft);
-      sprintf(buf, "modify=%4d%02d%02d%02d%02d%02d;", (t->tm_year) + 1900, (t->tm_mon) + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec);
+      // modify=YYYYMMDDHHMMSS; // GMT
+      char      buf[128];
+      time_t    ft    = f.getLastWrite();
+      struct tm tmBuf = {};
+      if (gmtime_r(&ft, &tmBuf) != nullptr) {
+        snprintf(buf, sizeof(buf), "modify=%04d%02d%02d%02d%02d%02d;", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec);
+      } else {
+        snprintf(buf, sizeof(buf), "modify=19700101000000;");
+      }
       data_print(String(buf));
 
       // UNIX.mode=

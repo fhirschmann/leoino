@@ -17,6 +17,7 @@
 #include "Port.h"
 #include "Queues.h"
 #include "Rfid.h"
+#include "RfidSync.h"
 #include "RotaryEncoder.h"
 #include "SdCard.h"
 #include "Sync.h"
@@ -189,6 +190,14 @@ public:
 };
 
 Audio *audio = nullptr;
+static TaskHandle_t sAudioOwnerTask = nullptr;
+static portMUX_TYPE sPendingDspMux = portMUX_INITIALIZER_UNLOCKED;
+static bool sPendingVolumeDirty = false;
+static uint8_t sPendingVolumeValue = 0;
+static bool sPendingToneDirty = false;
+static int8_t sPendingToneLow = 0;
+static int8_t sPendingToneBand = 0;
+static int8_t sPendingToneHigh = 0;
 
 // new old varibles
 constexpr uint32_t playbackTimeout = 2000;
@@ -572,6 +581,18 @@ float Audio_GetVolume(float t) {
 // -- the same core loop() polls buttons/rotary on, which is why heavy decoders (AAC/m4a) starve input.
 // See https://forum.espuino.de/t/keine-bedienung-bei-bestimmten-dateien-moeglich/4675
 static void AudioPlayer_ApplyTone(int8_t gainLowPass, int8_t gainBandPass, int8_t gainHighPass) {
+	if (!audio) {
+		return;
+	}
+	if (sAudioOwnerTask && xTaskGetCurrentTaskHandle() != sAudioOwnerTask) {
+		portENTER_CRITICAL(&sPendingDspMux);
+		sPendingToneLow = gainLowPass;
+		sPendingToneBand = gainBandPass;
+		sPendingToneHigh = gainHighPass;
+		sPendingToneDirty = true;
+		portEXIT_CRITICAL(&sPendingDspMux);
+		return;
+	}
 	audio->settings.IIR_FILTER = (gainLowPass != 0 || gainBandPass != 0 || gainHighPass != 0);
 	audio->setTone(gainLowPass, gainBandPass, gainHighPass);
 }
@@ -716,6 +737,7 @@ void AudioPlayer_Init(void) {
 	}
 
 	// create audio object
+	sAudioOwnerTask = xTaskGetCurrentTaskHandle();
 	audio = new AudioCustom();
 
 	// guards the playlist pointer between the audio task and the web readers (created before the web server starts)
@@ -910,8 +932,9 @@ void AudioPlayer_Exit(void) {
 		// Call the loop explicitely to make sure that PAUSE is set (because this saves the current playpos)
 		AudioPlayer_Loop();
 	}
-	delete audio;
+	Audio *oldAudio = audio;
 	audio = nullptr;
+	delete oldAudio;
 	if (gPendingPlaylistMutex) {
 		xSemaphoreTake(gPendingPlaylistMutex, portMAX_DELAY);
 		freePlaylist(gPendingPlaylist.playlist);
@@ -1156,20 +1179,54 @@ String AudioPlayer_GetStationLogoUrl(void) {
 	return url;
 }
 
+bool AudioPlayer_IsRunning(void) {
+	return audio != nullptr && audio->isRunning();
+}
+
+void AudioPlayer_CopyTrackMetadata(char *title, size_t titleLen, char *artist, size_t artistLen, char *album, size_t albumLen) {
+	if (gMetadataMutex) {
+		xSemaphoreTake(gMetadataMutex, portMAX_DELAY);
+	}
+	if (title && titleLen > 0) {
+		strncpy(title, gPlayProperties.title, titleLen - 1);
+		title[titleLen - 1] = '\0';
+	}
+	if (artist && artistLen > 0) {
+		strncpy(artist, gPlayProperties.artist, artistLen - 1);
+		artist[artistLen - 1] = '\0';
+	}
+	if (album && albumLen > 0) {
+		strncpy(album, gPlayProperties.album, albumLen - 1);
+		album[albumLen - 1] = '\0';
+	}
+	if (gMetadataMutex) {
+		xSemaphoreGive(gMetadataMutex);
+	}
+}
+
 void Audio_setTitle(const char *format, ...) {
 	if (gPlayProperties.announcementActive) {
 		// Leave the interrupted track's title in place: the announcement must not show up anywhere.
 		return;
 	}
+	char titleCopy[sizeof(gPlayProperties.title)] = {};
 	va_list args;
 	va_start(args, format);
-	vsnprintf(gPlayProperties.title, sizeof(gPlayProperties.title) / sizeof(gPlayProperties.title[0]), format, args);
+	vsnprintf(titleCopy, sizeof(titleCopy), format, args);
 	va_end(args);
+
+	if (gMetadataMutex) {
+		xSemaphoreTake(gMetadataMutex, portMAX_DELAY);
+	}
+	memcpy(gPlayProperties.title, titleCopy, sizeof(gPlayProperties.title));
+	if (gMetadataMutex) {
+		xSemaphoreGive(gMetadataMutex);
+	}
 
 	// notify web ui and mqtt
 	Web_SendWebsocketData(0, WebsocketCodeType::TrackInfo);
 #ifdef MQTT_ENABLE
-	publishMqtt(topicTrack, gPlayProperties.title, false);
+	publishMqtt(topicTrack, titleCopy, false);
 #endif
 }
 
@@ -1188,8 +1245,14 @@ static void Audio_SetMeta(char *dest, size_t destSize, const char *line) {
 	} else {
 		v = "";
 	}
+	if (gMetadataMutex) {
+		xSemaphoreTake(gMetadataMutex, portMAX_DELAY);
+	}
 	strncpy(dest, v, destSize - 1);
 	dest[destSize - 1] = '\0';
+	if (gMetadataMutex) {
+		xSemaphoreGive(gMetadataMutex);
+	}
 	Web_SendWebsocketData(0, WebsocketCodeType::TrackInfo);
 }
 
@@ -1321,6 +1384,36 @@ void AudioPlayer_HeadphoneVolumeManager(void) {
 
 // Function to play music as task
 void AudioPlayer_Loop() {
+	if (!audio) {
+		return;
+	}
+	{
+		bool applyVol = false;
+		uint8_t volVal = 0;
+		bool applyTone = false;
+		int8_t low = 0, band = 0, high = 0;
+		portENTER_CRITICAL(&sPendingDspMux);
+		if (sPendingVolumeDirty) {
+			sPendingVolumeDirty = false;
+			applyVol = true;
+			volVal = sPendingVolumeValue;
+		}
+		if (sPendingToneDirty) {
+			sPendingToneDirty = false;
+			applyTone = true;
+			low = sPendingToneLow;
+			band = sPendingToneBand;
+			high = sPendingToneHigh;
+		}
+		portEXIT_CRITICAL(&sPendingDspMux);
+		if (applyVol) {
+			audio->setVolume(volVal);
+		}
+		if (applyTone) {
+			audio->settings.IIR_FILTER = (low != 0 || band != 0 || high != 0);
+			audio->setTone(low, band, high);
+		}
+	}
 	// Resume fade-in: ramp the output volume from 0 back to the user's volume over
 	// RESUME_FADEIN_DURATION_MS after a rewound audiobook-resume, so the brief cold-start
 	// glitch is masked. Only the audio-lib gain is ramped; AudioPlayer_CurrentVolume (and
@@ -2041,23 +2134,26 @@ void AudioPlayer_Loop() {
 	// Handle time-announcement
 	if (gPlayProperties.tellMode == TTS_CURRENT_TIME) {
 		gPlayProperties.tellMode = TTS_NONE;
-		struct tm timeinfo;
-		getLocalTime(&timeinfo);
-		static char timeStringBuff[64];
-		bool speechOk;
-#if (LANGUAGE == DE)
-		snprintf(timeStringBuff, sizeof(timeStringBuff), "Es ist %02d:%02d Uhr", timeinfo.tm_hour, timeinfo.tm_min);
-		speechOk = audio->connecttospeech(timeStringBuff, "de");
-#else
-		if (timeinfo.tm_hour > 12) {
-			snprintf(timeStringBuff, sizeof(timeStringBuff), "It is %02d:%02d PM", timeinfo.tm_hour - 12, timeinfo.tm_min);
-		} else {
-			snprintf(timeStringBuff, sizeof(timeStringBuff), "It is %02d:%02d AM", timeinfo.tm_hour, timeinfo.tm_min);
-		}
-		speechOk = audio->connecttospeech(timeStringBuff, "en");
-#endif
-		if (!speechOk) {
+		struct tm timeinfo = {};
+		if (!getLocalTime(&timeinfo, 10)) {
 			System_IndicateError();
+		} else {
+			static char timeStringBuff[64];
+			bool speechOk;
+#if (LANGUAGE == DE)
+			snprintf(timeStringBuff, sizeof(timeStringBuff), "Es ist %02d:%02d Uhr", timeinfo.tm_hour, timeinfo.tm_min);
+			speechOk = audio->connecttospeech(timeStringBuff, "de");
+#else
+			if (timeinfo.tm_hour > 12) {
+				snprintf(timeStringBuff, sizeof(timeStringBuff), "It is %02d:%02d PM", timeinfo.tm_hour - 12, timeinfo.tm_min);
+			} else {
+				snprintf(timeStringBuff, sizeof(timeStringBuff), "It is %02d:%02d AM", timeinfo.tm_hour, timeinfo.tm_min);
+			}
+			speechOk = audio->connecttospeech(timeStringBuff, "en");
+#endif
+			if (!speechOk) {
+				System_IndicateError();
+			}
 		}
 	}
 
@@ -2148,10 +2244,13 @@ void AudioPlayer_SetVolume(const int32_t _newVolume) {
 	int32_t clampedVolume = _newVolume;
 	if (clampedVolume < AudioPlayer_GetMinVolume()) {
 		clampedVolume = AudioPlayer_GetMinVolume();
-		Log_Println(minLoudnessReached, LOGLEVEL_INFO);
+		Log_Println(minLoudnessReached, LOGLEVEL_DEBUG);
 	} else if (clampedVolume > AudioPlayer_GetMaxVolume()) {
 		clampedVolume = AudioPlayer_GetMaxVolume();
-		Log_Println(maxLoudnessReached, LOGLEVEL_INFO);
+		Log_Println(maxLoudnessReached, LOGLEVEL_DEBUG);
+	}
+	if (clampedVolume == _volumeBuf) {
+		return; // Avoid redundant DSP, WebSocket, MQTT, and log storms when spinning against min/max rail
 	}
 	{
 		_volume = clampedVolume;
@@ -2159,7 +2258,16 @@ void AudioPlayer_SetVolume(const int32_t _newVolume) {
 
 		Log_Printf(LOGLEVEL_INFO, newLoudnessReceived, _volume);
 		AudioPlayer_ResumeFadeStartMs = 0; // a manual volume change cancels an active resume fade-in
-		audio->setVolume(_volume);
+		if (audio) {
+			if (sAudioOwnerTask && xTaskGetCurrentTaskHandle() != sAudioOwnerTask) {
+				portENTER_CRITICAL(&sPendingDspMux);
+				sPendingVolumeValue = static_cast<uint8_t>(_volume);
+				sPendingVolumeDirty = true;
+				portEXIT_CRITICAL(&sPendingDspMux);
+			} else {
+				audio->setVolume(_volume);
+			}
+		}
 		if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
 			Bluetooth_SetVolume(_volume);
 		}
@@ -2598,10 +2706,10 @@ bool AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _pl
 		Log_Printf(LOGLEVEL_ERROR, modeInvalid, _playMode);
 		return 0;
 	}
-	if (!AudioPlayer_IsPersistableRfid(_rfidCardId) || !gPrefsRfid.isKey(_rfidCardId)) {
+	if (!AudioPlayer_IsPersistableRfid(_rfidCardId)) {
 		// Browser-started playback deliberately carries no RFID. Never manufacture a
 		// "000000000000" assignment while saving an audiobook checkpoint.
-		return 0;
+		return false;
 	}
 	Led_SetPause(true); // Workaround to prevent exceptions due to Neopixel-signalisation while NVS-write
 	char firstPart[275] = {0};
@@ -2632,10 +2740,22 @@ bool AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _pl
 		}
 	}
 
+	RfidSync_Lock();
+	if (!gPrefsRfid.isKey(_rfidCardId)) {
+		RfidSync_Unlock();
+		Led_SetPause(false);
+		return false;
+	}
 	gPrefsRfid.getString(_rfidCardId, firstPart, sizeof(firstPart)); // read back previous value from NVS
+	const size_t delimLen = strlen(stringDelimiter);
+	if (strncmp(firstPart, stringDelimiter, delimLen) != 0) {
+		RfidSync_Unlock();
+		Led_SetPause(false);
+		return false;
+	}
 
 	// Remove everything after the first part (after the first stringDelimiter)
-	char *pos = strchr(firstPart + strlen(stringDelimiter), stringDelimiter[0]);
+	char *pos = strchr(firstPart + delimLen, stringDelimiter[0]);
 	if (pos != NULL) {
 		*pos = '\0'; // Terminate the string at this position
 	}
@@ -2645,15 +2765,16 @@ bool AudioPlayer_NvsRfidWriteWrapper(const char *_rfidCardId, const uint32_t _pl
 	// real mode by the time playback reaches this wrapper, so writing it back
 	// verbatim would silently overwrite the marker on the first position-save.
 	uint8_t playModeToStore = _playMode;
-	if (MediaHub_IsMediaHubPath(firstPart + strlen(stringDelimiter))) {
+	if (MediaHub_IsMediaHubPath(firstPart + delimLen)) {
 		playModeToStore = MEDIAHUB;
 	}
 
 	// firstPart is "#<path>" at this point; Rfid_SaveAssignment() adds the
 	// delimiters itself, so hand it the path without the leading one.
-	const char *pathOnly = firstPart + strlen(stringDelimiter);
-	Log_Printf(LOGLEVEL_INFO, wroteLastTrackToNvs, pathOnly, playPosition, _rfidCardId, playModeToStore, _trackLastPlayed);
+	const char *pathOnly = firstPart + delimLen;
 	const bool saved = Rfid_SaveAssignment(_rfidCardId, pathOnly, playModeToStore, playPosition, _trackLastPlayed);
+	RfidSync_Unlock();
+	Log_Printf(LOGLEVEL_INFO, wroteLastTrackToNvs, pathOnly, playPosition, _rfidCardId, playModeToStore, _trackLastPlayed);
 	Led_SetPause(false);
 	return saved;
 
@@ -2782,8 +2903,14 @@ void AudioPlayer_ClearCover(void) {
 	AudioPlayer_SetStationLogoUrl("");
 	// reset per-track metadata too (called at the start of every track), so artist/album from a
 	// previous track don't linger if the new one carries no ID3/Vorbis tags
+	if (gMetadataMutex) {
+		xSemaphoreTake(gMetadataMutex, portMAX_DELAY);
+	}
 	gPlayProperties.artist[0] = '\0';
 	gPlayProperties.album[0] = '\0';
+	if (gMetadataMutex) {
+		xSemaphoreGive(gMetadataMutex);
+	}
 	// websocket and mqtt notify cover image has changed
 	Web_SendWebsocketData(0, WebsocketCodeType::CoverImg);
 #ifdef MQTT_ENABLE

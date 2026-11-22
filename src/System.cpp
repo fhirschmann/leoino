@@ -332,7 +332,7 @@ void System_SetOperationMode(uint8_t opMode) {
 	if (currentOperationMode != opMode) {
 		if (gPrefsSettings.putUChar("operationMode", opMode)) {
 			Log_Println(restartAfterOperationModeChange, LOGLEVEL_INFO);
-			ESP.restart();
+			System_Restart();
 		}
 	}
 }

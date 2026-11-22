@@ -182,7 +182,11 @@ static void HomeKit_DoRegenerate(void) {
 		snprintf(gSetupCode, sizeof(gSetupCode), "%08u", (unsigned) (esp_random() % 100000000UL));
 	} while (!HomeKit_CodeAllowed(gSetupCode));
 	gPrefsSettings.putString("hkSetupCode", gSetupCode);
-	homeSpan.setPairingCode(gSetupCode);
+	{
+		homeSpanPAUSE;
+		homeSpan.setPairingCode(gSetupCode);
+		homeSpanRESUME;
+	}
 	Log_Printf(LOGLEVEL_NOTICE, "HomeKit: pairing code regenerated -> %.3s-%.2s-%.3s", gSetupCode, gSetupCode + 3, gSetupCode + 5);
 }
 
@@ -464,6 +468,9 @@ void HomeKit_Cyclic(void) {
 			return;
 		}
 		initialized = true;
+	#ifdef ESPUINO_QEMU
+		return;
+	#endif
 		if (HomeKit_IsEnabled()) {
 			HomeKit_Init();
 		} else {
@@ -487,11 +494,15 @@ void HomeKit_Cyclic(void) {
 	if (!pairedSynced && gInitMillis != 0 && (millis() - gInitMillis) > 3000) {
 		pairedSynced = true;
 		bool paired = false;
-		for (auto it = homeSpan.controllerListBegin(); it != homeSpan.controllerListEnd(); ++it) {
-			if (it->isAdmin()) {
-				paired = true;
-				break;
+		{
+			homeSpanPAUSE;
+			for (auto it = homeSpan.controllerListBegin(); it != homeSpan.controllerListEnd(); ++it) {
+				if (it->isAdmin()) {
+					paired = true;
+					break;
+				}
 			}
+			homeSpanRESUME;
 		}
 		gPaired = paired;
 	}
@@ -697,15 +708,23 @@ static void HomeKit_QrToSvg(esp_qrcode_handle_t qr) {
 }
 
 String HomeKit_GetQrSvg(void) {
+	static StaticSemaphore_t sQrMutexBuf;
+	static SemaphoreHandle_t sQrMutex = xSemaphoreCreateMutexStatic(&sQrMutexBuf);
 	const String payload = HomeKit_GetSetupPayload();
 
 	String svg;
+	if (sQrMutex) {
+		xSemaphoreTake(sQrMutex, portMAX_DELAY);
+	}
 	gQrSvgTarget = &svg;
 	esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
 	cfg.display_func = HomeKit_QrToSvg;
 	cfg.qrcode_ecc_level = ESP_QRCODE_ECC_LOW;
 	esp_qrcode_generate(&cfg, payload.c_str());
 	gQrSvgTarget = nullptr;
+	if (sQrMutex) {
+		xSemaphoreGive(sQrMutex);
+	}
 	return svg;
 }
 

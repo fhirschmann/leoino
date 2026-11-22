@@ -387,7 +387,7 @@ paths:
     get:
       summary: Get common settings.
       description: >-
-        Get common settings, optionally for a specific section. MQTT, FTP and access-point passwords
+        Get common settings, optionally for a specific section. MQTT, FTP, WebDAV and access-point passwords
         are not returned; passwordSet and apPasswordSet only tell whether one is stored.
       parameters:
         - in: query
@@ -430,13 +430,42 @@ paths:
                       apTimeout:
                         type: integer
                   ftp:
-                  type: object
-                  description: FTP uses the shared device password configured through /security.
-                  properties:
-                    enable:
-                      type: boolean
-                      description: Start FTP automatically on boot.
-                mqtt:
+                    type: object
+                    description: FTP uses the shared device password configured through /security.
+                    properties:
+                      enable:
+                        type: boolean
+                        description: Start FTP automatically on boot.
+                      username:
+                        type: string
+                      passwordSet:
+                        type: boolean
+                        description: Whether an FTP password is stored.
+                      maxUserLength:
+                        type: integer
+                      maxPwdLength:
+                        type: integer
+                  webdav:
+                    type: object
+                    description: Only present if the firmware was built with WebDAV support. WebDAV uses the shared device password configured through /security.
+                    properties:
+                      enable:
+                        type: boolean
+                        description: Start WebDAV automatically on boot.
+                      running:
+                        type: boolean
+                      port:
+                        type: integer
+                      username:
+                        type: string
+                      passwordSet:
+                        type: boolean
+                        description: Whether a WebDAV password is stored.
+                      maxUserLength:
+                        type: integer
+                      maxPwdLength:
+                        type: integer
+                  mqtt:
                     type: object
                     description: Only present if the firmware was built with MQTT support.
                     properties:
@@ -578,6 +607,13 @@ paths:
                         Write-only. Leave out to keep the stored password, otherwise it is replaced.
                   required:
                     - username
+                webdav:
+                  type: object
+                  description: WebDAV uses the shared device password configured through /security.
+                  properties:
+                    enable:
+                      type: boolean
+                      description: Start WebDAV automatically on boot.
                 mqtt:
                   type: object
                   properties:

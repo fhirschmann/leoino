@@ -59,6 +59,8 @@ bool testSPIRAM(void) {
 	return true;
 }
 
+SET_LOOP_TASK_STACK_SIZE(12288);
+
 bool recoverLastRfid = true;
 bool recoverBootCount = true;
 bool resetBootCount = false;
@@ -112,12 +114,15 @@ void recoverLastRfidPlayedFromNvs(bool force) {
 		}
 		recoverLastRfid = false;
 		String lastRfidPlayed = gPrefsSettings.getString("lastRfid", "-1");
-		if (!lastRfidPlayed.compareTo("-1")) {
+		if (!lastRfidPlayed.compareTo("-1") || lastRfidPlayed.length() != (cardIdStringSize - 1)) {
 			Log_Println(unableToRestoreLastRfidFromNVS, LOGLEVEL_INFO);
 		} else {
+			char cardId[cardIdStringSize];
+			memcpy(cardId, lastRfidPlayed.c_str(), cardIdStringSize - 1);
+			cardId[cardIdStringSize - 1] = '\0';
 			Rfid_ResetOldRfid();
-			xQueueSend(gRfidCardQueue, lastRfidPlayed.c_str(), 0);
-			Log_Printf(LOGLEVEL_INFO, restoredLastRfidFromNVS, lastRfidPlayed.c_str());
+			xQueueSend(gRfidCardQueue, cardId, 0);
+			Log_Printf(LOGLEVEL_INFO, restoredLastRfidFromNVS, cardId);
 		}
 	}
 }
@@ -167,10 +172,14 @@ void setup() {
 	// to RTC/OLED devices on this same bus, reducing traffic during the cold-start window. Hardware
 	// must still avoid I2C pull-ups to the initially-off switched rail, which can hold the bus down
 	// when that rail also supplies a connected Neopixel chain.
+#ifdef ESPUINO_QEMU
+	Port_Init();
+#else
 	while (!Port_Init()) {
 		I2cSupervisor_Recover("port-expander startup probe");
 		delay(250);
 	}
+#endif
 
 	// Init RTC after PE114 is in a defined safe-OFF state, but still early enough to seed the system
 	// clock before WiFi/NTP.
@@ -191,6 +200,9 @@ void setup() {
 	RfidSync_Init(); // open the RFID-sync NVS namespaces + mutex/push-task once, single-threaded (avoids the lazy-init race)
 
 	// All checks that could send us to sleep are done, power up fully
+#ifdef ESPUINO_QEMU
+	Power_PeripheralOn();
+#else
 	while (!Power_PeripheralOn()) {
 		Log_Println("Unable to enable peripheral power via port-expander; retrying", LOGLEVEL_ERROR);
 		I2cSupervisor_Recover("peripheral power write");
@@ -200,6 +212,7 @@ void setup() {
 			delay(250);
 		}
 	}
+#endif
 
 	// Needs power first
 	SdCard_Init();

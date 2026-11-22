@@ -49,7 +49,25 @@ static portMUX_TYPE pendingConnectMux = portMUX_INITIALIZER_UNLOCKED;
 RingbufHandle_t audioSourceRingBuffer;
 static std::atomic<bool> bluetoothSourceConnected = false;
 String btDeviceName;
-static portMUX_TYPE scannedDevicesMux = portMUX_INITIALIZER_UNLOCKED;
+static StaticSemaphore_t sScannedDevicesMutexBuf;
+static SemaphoreHandle_t sScannedDevicesMutex = xSemaphoreCreateMutexStatic(&sScannedDevicesMutexBuf);
+static constexpr size_t MAX_SCANNED_BT_DEVICES = 32;
+static StaticSemaphore_t sRingbufMutexBuf;
+static SemaphoreHandle_t sRingbufMutex = xSemaphoreCreateMutexStatic(&sRingbufMutexBuf);
+static std::atomic<bool> sPendingAmpsSetup {false};
+static std::atomic<int16_t> sPendingBtVolume {-1};
+
+static inline void lockScannedDevices(void) {
+	if (sScannedDevicesMutex) {
+		xSemaphoreTake(sScannedDevicesMutex, portMAX_DELAY);
+	}
+}
+
+static inline void unlockScannedDevices(void) {
+	if (sScannedDevicesMutex) {
+		xSemaphoreGive(sScannedDevicesMutex);
+	}
+}
 // Suppresses auto-connect via scan_bluetooth_device_callback while a manual
 // connect is pending (i.e. user picked a device from a scan result).
 static std::atomic<bool> manualConnectPending = false;
@@ -180,10 +198,16 @@ static void Bluetooth_Source_FlushRingbuffer(void) {
 	if (!audioSourceRingBuffer) {
 		return;
 	}
+	if (sRingbufMutex) {
+		xSemaphoreTake(sRingbufMutex, portMAX_DELAY);
+	}
 	size_t bytesRead = 0;
 	uint8_t *item = nullptr;
 	while ((item = static_cast<uint8_t *>(xRingbufferReceiveUpTo(audioSourceRingBuffer, &bytesRead, 0, SIZE_MAX))) != nullptr) {
 		vRingbufferReturnItem(audioSourceRingBuffer, item);
+	}
+	if (sRingbufMutex) {
+		xSemaphoreGive(sRingbufMutex);
 	}
 }
 #endif
@@ -232,7 +256,7 @@ static void gap_callback_interceptor(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_
 		}
 
 		bool requestRemoteName = false;
-		portENTER_CRITICAL_ISR(&scannedDevicesMux);
+		lockScannedDevices();
 		ScannedBluetoothDevice *existing = nullptr;
 		for (auto &d : scannedDevices) {
 			if (memcmp(d.address, bda, ESP_BD_ADDR_LEN) == 0) {
@@ -252,7 +276,7 @@ static void gap_callback_interceptor(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_
 				requestRemoteName = true;
 			}
 			existing->rssi = rssi;
-		} else {
+		} else if (scannedDevices.size() < MAX_SCANNED_BT_DEVICES) {
 			ScannedBluetoothDevice device;
 			const char *name = (strlen(ssid) > 0) ? ssid : "Unknown";
 			strncpy(device.name, name, ESP_BT_GAP_MAX_BDNAME_LEN);
@@ -262,9 +286,9 @@ static void gap_callback_interceptor(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_
 			scannedDevices.push_back(device);
 			requestRemoteName = (strlen(ssid) == 0);
 		}
-		portEXIT_CRITICAL_ISR(&scannedDevicesMux);
+		unlockScannedDevices();
 
-		// Keep stack calls outside the spinlock. This lookup is scoped to an
+		// Keep stack calls outside the mutex. This lookup is scoped to an
 		// active discovery scan and therefore uses the already installed interceptor.
 		if (requestRemoteName) {
 			esp_bt_gap_read_remote_name(bda);
@@ -278,7 +302,7 @@ static void gap_callback_interceptor(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_
 			resolvedName[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 
 			// Keep scan results up to date as before.
-			portENTER_CRITICAL_ISR(&scannedDevicesMux);
+			lockScannedDevices();
 			for (auto &d : scannedDevices) {
 				if (memcmp(d.address, param->read_rmt_name.bda, ESP_BD_ADDR_LEN) == 0) {
 					if (!isFriendlyPeerName(d.name) && isFriendlyPeerName(resolvedName)) {
@@ -288,30 +312,30 @@ static void gap_callback_interceptor(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_
 					break;
 				}
 			}
-			portEXIT_CRITICAL_ISR(&scannedDevicesMux);
+			unlockScannedDevices();
 		}
 
 		// Complete a targeted lookup only when the result belongs to exactly the
 		// peer we requested. This is independent from configured btDeviceName.
 		bool completesPeerLookup = false;
-		portENTER_CRITICAL_ISR(&peerNameLookupMux);
+		portENTER_CRITICAL(&peerNameLookupMux);
 		if (peerNameLookupPending
 			&& memcmp(peerNameLookupAddress, param->read_rmt_name.bda, ESP_BD_ADDR_LEN) == 0) {
 			memset(peerNameLookupAddress, 0, ESP_BD_ADDR_LEN);
 			peerNameLookupPending = false;
 			completesPeerLookup = true;
 		}
-		portEXIT_CRITICAL_ISR(&peerNameLookupMux);
+		portEXIT_CRITICAL(&peerNameLookupMux);
 
 		if (completesPeerLookup && success && isFriendlyPeerName(resolvedName)) {
 			// Cache only if that exact address is still the connected peer.
-			portENTER_CRITICAL_ISR(&cachedPeerAddressMux);
+			portENTER_CRITICAL(&cachedPeerAddressMux);
 			if (bluetoothSourceConnected
 				&& memcmp(cachedPeerAddress, param->read_rmt_name.bda, ESP_BD_ADDR_LEN) == 0) {
 				strncpy(cachedPeerName, resolvedName, ESP_BT_GAP_MAX_BDNAME_LEN);
 				cachedPeerName[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 			}
-			portEXIT_CRITICAL_ISR(&cachedPeerAddressMux);
+			portEXIT_CRITICAL(&cachedPeerAddressMux);
 		}
 
 		if (completesPeerLookup) {
@@ -422,7 +446,7 @@ void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
 		}
 
 		if (connected) {
-			AudioPlayer_SetupVolumeAndAmps();
+			sPendingAmpsSetup.store(true, std::memory_order_release);
 
 			// connect_to(address) does not reliably update ESP32-A2DP's
 			// get_last_peer_address(). Prefer the exact target selected by ESPuino;
@@ -434,7 +458,7 @@ void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
 			const bool hasTarget = Bluetooth_GetConnectionTarget(targetAddress, targetName, sizeof(targetName));
 			if (hasTarget) {
 				memcpy(peerAddress, targetAddress, ESP_BD_ADDR_LEN);
-			} else {
+			} else if (a2dp_source) {
 				memcpy(peerAddress, a2dp_source->get_last_peer_address(), ESP_BD_ADDR_LEN);
 			}
 
@@ -521,13 +545,13 @@ void connection_state_changed(esp_a2d_connection_state_t state, void *ptr) {
 				connectRetryPending = false;
 				connectRetryCount = 0;
 				Bluetooth_ClearConnectionTarget();
-				AudioPlayer_SetupVolumeAndAmps();
+				sPendingAmpsSetup.store(true, std::memory_order_release);
 			} else {
 				// A non-manual attempt either failed or a real connection dropped.
 				// Do not leave a stale auto-connect target behind for a future peer.
 				Bluetooth_ClearConnectionTarget();
 				if (wasConnected) {
-					AudioPlayer_SetupVolumeAndAmps();
+					sPendingAmpsSetup.store(true, std::memory_order_release);
 				}
 			}
 		}
@@ -607,6 +631,9 @@ int32_t get_data_channels(Frame *frame, int32_t channel_len) {
 	if (channel_len <= 0 || frame == NULL || audioSourceRingBuffer == NULL) {
 		return 0;
 	}
+	if (sRingbufMutex) {
+		xSemaphoreTake(sRingbufMutex, portMAX_DELAY);
+	}
 
 	const size_t bytes_per_frame = 2 * sizeof(int16_t); // ch1 + ch2, 16-bit each
 	const size_t bytes_needed = (size_t) channel_len * bytes_per_frame;
@@ -619,6 +646,9 @@ int32_t get_data_channels(Frame *frame, int32_t channel_len) {
 	vRingbufferGetInfo(audioSourceRingBuffer, NULL, NULL, NULL, NULL, &bytes_waiting);
 
 	if (bytes_waiting < bytes_needed) {
+		if (sRingbufMutex) {
+			xSemaphoreGive(sRingbufMutex);
+		}
 		memset(frame, 0, channel_len * sizeof(Frame));
 		return channel_len;
 	}
@@ -658,6 +688,9 @@ int32_t get_data_channels(Frame *frame, int32_t channel_len) {
 			break; // got the full amount in one contiguous chunk, no wrap
 		}
 		// else: short read == we hit the wrap boundary, loop once more
+	}
+	if (sRingbufMutex) {
+		xSemaphoreGive(sRingbufMutex);
 	}
 
 	if (samples_received < channel_len) {
@@ -722,9 +755,12 @@ void Bluetooth_VolumeChanged(int _newVolume) {
 		return;
 	}
 	uint8_t _volume = mapRounded(_newVolume, BLUETOOTH_A2DP_VOLUME_MIN, BLUETOOTH_A2DP_VOLUME_MAX, AUDIOPLAYER_VOLUME_MIN, AUDIOPLAYER_VOLUME_MAX);
+	if (_volume > AudioPlayer_GetMaxVolume()) {
+		_volume = AudioPlayer_GetMaxVolume();
+	}
 	if (AudioPlayer_GetCurrentVolume() != _volume) {
 		Log_Printf(LOGLEVEL_INFO, "Bluetooth => volume changed:  %d !", _volume);
-		AudioPlayer_SetVolume(_volume);
+		sPendingBtVolume.store(static_cast<int16_t>(_volume), std::memory_order_release);
 	}
 #endif
 }
@@ -771,12 +807,12 @@ void Bluetooth_StartScan() {
 		}
 	}
 
-	portENTER_CRITICAL(&scannedDevicesMux);
+	lockScannedDevices();
 	scannedDevices.clear();
 	if (wasConnected) {
 		scannedDevices.push_back(connectedDev);
 	}
-	portEXIT_CRITICAL(&scannedDevicesMux);
+	unlockScannedDevices();
 
 	// Publish the scan state before touching callback ownership. If a targeted
 	// remote-name result completes concurrently, it must see that the scan still
@@ -840,7 +876,7 @@ void Bluetooth_ConnectToAddress(esp_bd_addr_t address) {
 	// Capture the friendly name for this exact address while it is still present
 	// in the scan snapshot. Do not use the persisted btDeviceName as peer identity.
 	char selectedName[ESP_BT_GAP_MAX_BDNAME_LEN + 1] = {0};
-	portENTER_CRITICAL(&scannedDevicesMux);
+	lockScannedDevices();
 	for (const auto &d : scannedDevices) {
 		if (memcmp(d.address, address, ESP_BD_ADDR_LEN) == 0) {
 			if (isFriendlyPeerName(d.name)) {
@@ -850,7 +886,7 @@ void Bluetooth_ConnectToAddress(esp_bd_addr_t address) {
 			break;
 		}
 	}
-	portEXIT_CRITICAL(&scannedDevicesMux);
+	unlockScannedDevices();
 
 	if (selectedName[0] != '\0') {
 		btDeviceName = selectedName;
@@ -901,7 +937,7 @@ std::vector<ScannedBluetoothDevice> Bluetooth_GetScannedDevices() {
 				PromotePromoted
 			} promoteAction = PromoteNone;
 			char promoteName[ESP_BT_GAP_MAX_BDNAME_LEN + 1] = {0};
-			portENTER_CRITICAL(&scannedDevicesMux);
+			lockScannedDevices();
 			auto it = std::find_if(scannedDevices.begin(), scannedDevices.end(), [&](const ScannedBluetoothDevice &d) {
 				return memcmp(d.address, currentAddr, ESP_BD_ADDR_LEN) == 0;
 			});
@@ -913,6 +949,9 @@ std::vector<ScannedBluetoothDevice> Bluetooth_GetScannedDevices() {
 				strncpy(dev.name, displayName, ESP_BT_GAP_MAX_BDNAME_LEN);
 				dev.name[ESP_BT_GAP_MAX_BDNAME_LEN] = '\0';
 				dev.rssi = 0;
+				if (scannedDevices.size() >= MAX_SCANNED_BT_DEVICES) {
+					scannedDevices.pop_back();
+				}
 				scannedDevices.insert(scannedDevices.begin(), dev);
 				strlcpy(promoteName, dev.name, sizeof(promoteName));
 				promoteAction = PromoteInjected;
@@ -938,7 +977,7 @@ std::vector<ScannedBluetoothDevice> Bluetooth_GetScannedDevices() {
 					promoteAction = PromotePromoted;
 				}
 			}
-			portEXIT_CRITICAL(&scannedDevicesMux);
+			unlockScannedDevices();
 
 			if (promoteAction == PromoteInjected) {
 				char buf[18];
@@ -950,11 +989,10 @@ std::vector<ScannedBluetoothDevice> Bluetooth_GetScannedDevices() {
 		}
 	}
 
-	// Take a protected snapshot — the spinlock is held only for the duration of
-	// the copy (3 POD structs ≈ microseconds), then released before returning.
-	portENTER_CRITICAL(&scannedDevicesMux);
+	// Take a protected snapshot under the mutex (never disable interrupts across std::vector copy).
+	lockScannedDevices();
 	std::vector<ScannedBluetoothDevice> snapshot(scannedDevices);
-	portEXIT_CRITICAL(&scannedDevicesMux);
+	unlockScannedDevices();
 
 	Log_Printf(LOGLEVEL_INFO, "Bluetooth_GetScannedDevices => returning %u device(s)", snapshot.size());
 	return snapshot;
@@ -1001,7 +1039,7 @@ bool Bluetooth_GetConnectedSourceInfo(String &name, String &address) {
 		// A scan may have learned the name after the connection snapshot was
 		// created. Only accept a name associated with this exact MAC address.
 		char scannedName[ESP_BT_GAP_MAX_BDNAME_LEN + 1] = {0};
-		portENTER_CRITICAL(&scannedDevicesMux);
+		lockScannedDevices();
 		for (const auto &d : scannedDevices) {
 			if (memcmp(d.address, peerAddress, ESP_BD_ADDR_LEN) == 0 && isFriendlyPeerName(d.name)) {
 				strncpy(scannedName, d.name, ESP_BT_GAP_MAX_BDNAME_LEN);
@@ -1009,7 +1047,7 @@ bool Bluetooth_GetConnectedSourceInfo(String &name, String &address) {
 				break;
 			}
 		}
-		portEXIT_CRITICAL(&scannedDevicesMux);
+		unlockScannedDevices();
 		if (scannedName[0] != '\0') {
 			name = scannedName;
 		}
@@ -1029,13 +1067,20 @@ void Bluetooth_Init(void) {
 	Bluetooth_ClearConnectionTarget();
 	Bluetooth_CancelPeerNameLookup();
 	if (System_GetOperationMode() == OPMODE_BLUETOOTH_SINK) {
-		a2dp_sink = new BluetoothA2DPSink();
+		a2dp_sink = new (std::nothrow) BluetoothA2DPSink();
+		if (!a2dp_sink) {
+			Log_Println("Failed to create BluetoothA2DPSink object!", LOGLEVEL_ERROR);
+			return;
+		}
+		a2dp_sink->set_event_stack_size(6144);
 	#if (defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3))
 		i2s.setPins(I2S_BCLK, I2S_LRC, I2S_DOUT);
 		if (!i2s.begin(I2S_MODE_STD, 44100, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO, I2S_STD_SLOT_BOTH)) {
 			Log_Println("Failed to initialize I2S!", LOGLEVEL_ERROR);
-			while (1)
-				;
+			System_IndicateError();
+			delete a2dp_sink;
+			a2dp_sink = nullptr;
+			return;
 		}
 		a2dp_sink->set_output(i2s);
 	#else
@@ -1066,11 +1111,12 @@ void Bluetooth_Init(void) {
 	} else if (System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) {
 		audioSourceRingBuffer = nullptr;
 
-		a2dp_source = new BluetoothA2DPSource();
+		a2dp_source = new (std::nothrow) BluetoothA2DPSource();
 		if (!a2dp_source) {
 			Log_Println("Failed to create BluetoothA2DPSource object!", LOGLEVEL_ERROR);
 			return;
 		}
+		a2dp_source->set_event_stack_size(6144);
 
 		a2dp_source->set_auto_reconnect(true);
 		a2dp_source->set_ssp_enabled(true);
@@ -1125,6 +1171,14 @@ void Bluetooth_Exit(void) {
 
 void Bluetooth_Cyclic(void) {
 #ifdef BLUETOOTH_ENABLE
+	if (sPendingAmpsSetup.exchange(false, std::memory_order_acq_rel)) {
+		AudioPlayer_SetupVolumeAndAmps();
+	}
+	const int16_t btVol = sPendingBtVolume.exchange(-1, std::memory_order_acq_rel);
+	if (btVol >= 0) {
+		AudioPlayer_SetVolume(btVol);
+	}
+
 	// ── Handle pending manual connect (deferred from Bluetooth_ConnectToAddress) ──
 	bool doConnect = false;
 	esp_bd_addr_t connectAddress = {0};
@@ -1142,7 +1196,7 @@ void Bluetooth_Cyclic(void) {
 	}
 	portEXIT_CRITICAL(&pendingConnectMux);
 
-	if (doConnect) {
+	if (doConnect && a2dp_source) {
 		// A newly queued request supersedes any previous manual attempt. Keep these
 		// state transitions in the main Bluetooth cycle instead of the web task.
 		connectRetryPending = false;
@@ -1208,7 +1262,7 @@ void Bluetooth_Cyclic(void) {
 	}
 
 	// ── Handle connection retries ────────────────────────────────────────────
-	if (connectRetryPending && !bluetoothSourceConnected) {
+	if (connectRetryPending && !bluetoothSourceConnected && a2dp_source) {
 		if (millis() - connectRetryTimestamp >= CONNECT_RETRY_DELAY_MS) {
 			connectRetryPending = false;
 			if (connectRetryCount < CONNECT_MAX_RETRIES) {
@@ -1282,18 +1336,18 @@ void Bluetooth_SetVolume(const int32_t _newVolume) {
 #ifdef BLUETOOTH_ENABLE
 	if (_newVolume < int32_t(AUDIOPLAYER_VOLUME_MIN)) {
 		return;
-	} else if (_newVolume > AUDIOPLAYER_VOLUME_MAX) {
-		return;
-	} else {
-		const uint8_t volume = mapRounded(_newVolume, AUDIOPLAYER_VOLUME_MIN, AUDIOPLAYER_VOLUME_MAX, BLUETOOTH_A2DP_VOLUME_MIN, BLUETOOTH_A2DP_VOLUME_MAX);
-		if (a2dp_sink) {
-			a2dp_sink->set_volume(volume);
-			Bluetooth_VolumeChanged(volume);
-		} else if (a2dp_source) {
-			// Source mode bypasses AudioPlayer::Gain(), so the A2DP library
-			// must scale the outgoing raw PCM itself.
-			a2dp_source->set_volume(volume);
-		}
+	}
+	const int32_t maxAllowed = static_cast<int32_t>(AudioPlayer_GetMaxVolume());
+	const int32_t clamped = (_newVolume > maxAllowed) ? maxAllowed : _newVolume;
+	const uint8_t volume = mapRounded(clamped, AUDIOPLAYER_VOLUME_MIN, AUDIOPLAYER_VOLUME_MAX, BLUETOOTH_A2DP_VOLUME_MIN, BLUETOOTH_A2DP_VOLUME_MAX);
+	if (a2dp_sink) {
+		a2dp_sink->set_volume(volume);
+		AudioPlayer_SetCurrentVolume(static_cast<uint8_t>(clamped));
+		Web_SendWebsocketData(0, WebsocketCodeType::Volume);
+	} else if (a2dp_source) {
+		// Source mode bypasses AudioPlayer::Gain(), so the A2DP library
+		// must scale the outgoing raw PCM itself.
+		a2dp_source->set_volume(volume);
 	}
 #endif
 }
@@ -1316,16 +1370,29 @@ bool Bluetooth_Source_SendAudioData(const int16_t *outBuff, int16_t validSamples
 #ifdef BLUETOOTH_ENABLE
 	if ((System_GetOperationMode() == OPMODE_BLUETOOTH_SOURCE) && (a2dp_source) && bluetoothSourceConnected && (validSamples > 0)) {
 		if (audioSourceRingBuffer == nullptr) {
-			StaticRingbuffer_t *bufferStruct = (StaticRingbuffer_t *) heap_caps_malloc(sizeof(StaticRingbuffer_t), MALLOC_CAP_SPIRAM);
-			uint8_t *bufferStorage = (uint8_t *) heap_caps_malloc(AUDIO_SOURCE_RINGBUFFER_SIZE, MALLOC_CAP_SPIRAM);
+			if (sRingbufMutex) {
+				xSemaphoreTake(sRingbufMutex, portMAX_DELAY);
+			}
+			if (audioSourceRingBuffer == nullptr) {
+				StaticRingbuffer_t *bufferStruct = (StaticRingbuffer_t *) heap_caps_malloc(sizeof(StaticRingbuffer_t), MALLOC_CAP_SPIRAM);
+				uint8_t *bufferStorage = (uint8_t *) heap_caps_malloc(AUDIO_SOURCE_RINGBUFFER_SIZE, MALLOC_CAP_SPIRAM);
 
-			if (bufferStruct != NULL && bufferStorage != NULL) {
-				audioSourceRingBuffer = xRingbufferCreateStatic(AUDIO_SOURCE_RINGBUFFER_SIZE, RINGBUF_TYPE_BYTEBUF, bufferStorage, bufferStruct); // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
+				if (bufferStruct != NULL && bufferStorage != NULL) {
+					audioSourceRingBuffer = xRingbufferCreateStatic(AUDIO_SOURCE_RINGBUFFER_SIZE, RINGBUF_TYPE_BYTEBUF, bufferStorage, bufferStruct); // NOLINT(cppcoreguidelines-pro-type-cstyle-cast)
+				}
+				if (audioSourceRingBuffer == NULL) {
+					free(bufferStruct);
+					free(bufferStorage);
+					if (sRingbufMutex) {
+						xSemaphoreGive(sRingbufMutex);
+					}
+					Log_Println("Failed to create audioSourceRingBuffer!", LOGLEVEL_ERROR);
+					return false;
+				}
 				Log_Printf(LOGLEVEL_INFO, "Bluetooth => audioSourceRingBuffer created in PSRAM on demand (%d bytes, free heap: %u Bytes)", AUDIO_SOURCE_RINGBUFFER_SIZE, ESP.getFreeHeap());
 			}
-			if (audioSourceRingBuffer == NULL) {
-				Log_Println("Failed to create audioSourceRingBuffer!", LOGLEVEL_ERROR);
-				return false;
+			if (sRingbufMutex) {
+				xSemaphoreGive(sRingbufMutex);
 			}
 		}
 

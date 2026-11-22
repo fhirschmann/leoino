@@ -8,11 +8,13 @@
 #include "FTPPath.h"
 #include "FTPUser.h"
 
-#define FTP_CTRL_PORT     21
-#define FTP_USER_TIME_OUT 5
-#define FTP_CMD_SIZE      255 + 8 // max size of a command
-#define FTP_DIRNAME_SIZE  255 + 8 // max size of a directory name
-#define FTP_FILENAME_SIZE 255     // max size of a file name
+#define FTP_CTRL_PORT        21
+#define FTP_USER_TIME_OUT    5
+#define FTP_IDLE_TIMEOUT_MS  300000UL
+#define FTP_MAX_LINE_LENGTH  512
+#define FTP_CMD_SIZE         255 + 8 // max size of a command
+#define FTP_DIRNAME_SIZE     255 + 8 // max size of a directory name
+#define FTP_FILENAME_SIZE    255     // max size of a file name
 
 class FTPConnection {
 public:
@@ -24,6 +26,7 @@ public:
   bool handle();
 
   bool connected();
+  bool hasRecentActivity(unsigned long windowMs) const;
 
 private:
   enum ClientState {
@@ -41,6 +44,8 @@ private:
   String         _FilePath;
 
   String              _Line;
+  bool                _LineOverflow;
+  unsigned long       _LastActivityMs;
   std::vector<String> _LineSplited;
 
   std::list<FTPUser> &_UserList;

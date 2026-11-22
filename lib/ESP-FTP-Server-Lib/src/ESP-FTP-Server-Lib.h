@@ -22,6 +22,7 @@ public:
   void handle();
 
   size_t countConnections() const;
+  bool   hasActiveSession(unsigned long windowMs) const;
 
 private:
   WiFiServer _Server;

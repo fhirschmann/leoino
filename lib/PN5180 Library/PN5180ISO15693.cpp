@@ -130,9 +130,11 @@ ISO15693ErrorCode PN5180ISO15693::inventoryPoll(uint8_t *uid, uint8_t maxTags, u
   sendData(inventory, cmdLen, 0);                                  // 4. 5. 6. Idle/StopCom Command, Transceive Command, Inventory command
   
   for(uint8_t slot=0; slot<16; slot++){                                // 7. Loop to check 16 time slots for data
-    uint32_t rxStatus;
+    uint32_t rxStatus = 0;
     uint32_t irqStatus = getIRQStatus();
-    readRegister(RX_STATUS, &rxStatus);
+    if (!readRegister(RX_STATUS, &rxStatus)) {
+      return ISO15693_EC_UNKNOWN_ERROR;
+    }
     PN5180DEBUG(F("slot="));
     PN5180DEBUG(formatHex(slot));
     PN5180DEBUG(F(": "));
@@ -751,13 +753,18 @@ ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(const uint8_t *cmd, uint8
     }
   }
   
-  uint32_t rxStatus;
-  readRegister(RX_STATUS, &rxStatus);
+  uint32_t rxStatus = 0;
+  if (!readRegister(RX_STATUS, &rxStatus)) {
+    return EC_NO_CARD;
+  }
   
   PN5180DEBUG(F("RX-Status="));
   PN5180DEBUG(formatHex(rxStatus));
 
   uint16_t len = (uint16_t)(rxStatus & 0x000001ff);
+  if (len == 0) {
+    return EC_NO_CARD;
+  }
   
   PN5180DEBUG(", len=");
   PN5180DEBUG(len);
@@ -787,6 +794,9 @@ ISO15693ErrorCode PN5180ISO15693::issueISO15693Command(const uint8_t *cmd, uint8
 
   uint8_t responseFlags = (*resultPtr)[0];
   if (responseFlags & (1<<0)) { // error flag
+    if (len < 2) {
+      return ISO15693_EC_UNKNOWN_ERROR;
+    }
     uint8_t errorCode = (*resultPtr)[1];
     
     PN5180DEBUG("ERROR code=");

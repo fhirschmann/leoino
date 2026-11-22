@@ -4,6 +4,7 @@
 #include "Playstats.h"
 
 #include "Log.h"
+#include "MemX.h"
 #include "System.h"
 
 #include <string.h>
@@ -28,13 +29,25 @@ static uint32_t gLastSaveMs = 0;
 // and never do flash I/O while held.
 static portMUX_TYPE gStatsMux = portMUX_INITIALIZER_UNLOCKED;
 
+static StaticSemaphore_t sPrefsInitMutexBuf;
+static SemaphoreHandle_t sPrefsInitMutex = xSemaphoreCreateMutexStatic(&sPrefsInitMutexBuf);
+
 // Per-card play counters live in their own NVS namespace, keyed by the 12-digit tag id.
 static Preferences gPrefsCardCnt;
 static bool gCardCntReady = false;
 static void Playstats_CardCntInit(void) {
+	if (gCardCntReady) {
+		return;
+	}
+	if (sPrefsInitMutex) {
+		xSemaphoreTake(sPrefsInitMutex, portMAX_DELAY);
+	}
 	if (!gCardCntReady) {
 		gPrefsCardCnt.begin("rfidPlayCnt");
 		gCardCntReady = true;
+	}
+	if (sPrefsInitMutex) {
+		xSemaphoreGive(sPrefsInitMutex);
 	}
 }
 void Playstats_NoteCardPlay(const char *tagId) {
@@ -59,9 +72,18 @@ static constexpr uint32_t PLAYSTATS_MIN_VALID_EPOCH = 1577836800UL; // 2020-01-0
 static Preferences gPrefsCardSeen;
 static bool gCardSeenReady = false;
 static void Playstats_CardSeenInit(void) {
+	if (gCardSeenReady) {
+		return;
+	}
+	if (sPrefsInitMutex) {
+		xSemaphoreTake(sPrefsInitMutex, portMAX_DELAY);
+	}
 	if (!gCardSeenReady) {
 		gPrefsCardSeen.begin("rfidLastSeen");
 		gCardSeenReady = true;
+	}
+	if (sPrefsInitMutex) {
+		xSemaphoreGive(sPrefsInitMutex);
 	}
 }
 void Playstats_NoteCardSeen(const char *tagId) {
@@ -164,15 +186,21 @@ static void Playstats_AdvanceLocked(uint32_t today) {
 }
 
 void Playstats_Init(void) {
+	Playstats_CardCntInit();
+	Playstats_CardSeenInit();
+	constexpr size_t BLOB_SIZE = sizeof(uint32_t) * 2 + sizeof(gDays);
 	size_t got = gPrefsSettings.getBytesLength("playStats");
-	if (got == sizeof(uint32_t) /*magic*/ + sizeof(uint32_t) /*lastDay*/ + sizeof(gDays)) {
-		uint8_t buf[sizeof(uint32_t) * 2 + sizeof(gDays)];
-		gPrefsSettings.getBytes("playStats", buf, sizeof(buf));
-		uint32_t magic;
-		memcpy(&magic, buf, sizeof(magic));
-		if (magic == PLAYSTATS_MAGIC) {
-			memcpy(&gLastDay, buf + sizeof(uint32_t), sizeof(gLastDay));
-			memcpy(gDays, buf + sizeof(uint32_t) * 2, sizeof(gDays));
+	if (got == BLOB_SIZE) {
+		uint8_t *buf = static_cast<uint8_t *>(x_malloc(BLOB_SIZE));
+		if (buf) {
+			gPrefsSettings.getBytes("playStats", buf, BLOB_SIZE);
+			uint32_t magic = 0;
+			memcpy(&magic, buf, sizeof(magic));
+			if (magic == PLAYSTATS_MAGIC) {
+				memcpy(&gLastDay, buf + sizeof(uint32_t), sizeof(gLastDay));
+				memcpy(gDays, buf + sizeof(uint32_t) * 2, sizeof(gDays));
+			}
+			free(buf);
 		}
 	}
 	gLastSaveMs = millis();
@@ -202,13 +230,24 @@ void Playstats_AddSecond(void) {
 }
 
 void Playstats_Save(void) {
-	uint8_t buf[sizeof(uint32_t) * 2 + sizeof(gDays)];
-	uint32_t magic = PLAYSTATS_MAGIC;
-	// Snapshot the ring into a local buffer under the lock, then release before the NVS write — never
-	// do flash I/O inside a spinlock.
+	constexpr size_t BLOB_SIZE = sizeof(uint32_t) * 2 + sizeof(gDays);
 	taskENTER_CRITICAL(&gStatsMux);
 	if (!gDirty) {
 		taskEXIT_CRITICAL(&gStatsMux);
+		return;
+	}
+	taskEXIT_CRITICAL(&gStatsMux);
+
+	// Allocate snapshot buffer in PSRAM instead of 1,468 bytes on loopTask / async_tcp stack.
+	uint8_t *buf = static_cast<uint8_t *>(x_malloc(BLOB_SIZE));
+	if (!buf) {
+		return;
+	}
+	uint32_t magic = PLAYSTATS_MAGIC;
+	taskENTER_CRITICAL(&gStatsMux);
+	if (!gDirty) {
+		taskEXIT_CRITICAL(&gStatsMux);
+		free(buf);
 		return;
 	}
 	memcpy(buf, &magic, sizeof(magic));
@@ -217,7 +256,8 @@ void Playstats_Save(void) {
 	gDirty = false;
 	taskEXIT_CRITICAL(&gStatsMux);
 
-	gPrefsSettings.putBytes("playStats", buf, sizeof(buf));
+	gPrefsSettings.putBytes("playStats", buf, BLOB_SIZE);
+	free(buf);
 	gLastSaveMs = millis();
 }
 

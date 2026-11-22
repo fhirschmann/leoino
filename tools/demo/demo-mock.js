@@ -163,7 +163,7 @@
 			playlist: { sortMode: 0, recDepth: 2 },
 			battery: { warnLowVoltage: 3.4, indicatorLow: 3.3, indicatorHi: 4.2, criticalVoltage: 3.1, offsetVoltage: 0, shutdownOnCritical: false, warnSound: false, warnSoundOnce: false, warnSoundFile: "", voltageCheckInterval: 10 },
 			ftp: { username: "esp32", passwordSet: true, maxUserLength: 64, maxPwdLength: 64, enable: false },
-			webdav: { username: "esp32", password: "esp32", enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
+			webdav: { username: "esp32", passwordSet: false, enable: false, running: false, port: 80, maxUserLength: 31, maxPwdLength: 31 },
 			sync: { url: "", username: "", password: "", abortOnButton: true, deleteRemoved: false, rfidUrl: "", rfidPeers: "", rfidPeerKey: "", rfidLearn: true, backupUrl: "", backupAuto: false },
 			mqtt: { enable: false, clientID: "espuino-demo", deviceId: "espuino-demo", baseTopic: "espuino", server: "", username: "", passwordSet: false, port: 1883, maxUserLength: 64, maxPwdLength: 64, maxServerLength: 64, maxClientIdLength: 15, maxDeviceIdLength: 31, maxBaseTopicLength: 31 },
 			bluetooth: { deviceName: "ESPuino", pinCode: "" },

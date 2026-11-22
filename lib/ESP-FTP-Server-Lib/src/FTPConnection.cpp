@@ -21,7 +21,7 @@
 #include "ESP-FTP-Server-Lib.h"
 #include "common.h"
 
-FTPConnection::FTPConnection(const WiFiClient &Client, std::list<FTPUser> &UserList, FTPFilesystem &Filesystem) : _ClientState(Idle), _Client(Client), _Filesystem(Filesystem), _UserList(UserList), _AuthUsername(""), _PassiveServer(nullptr), _PassiveMode(false) {
+FTPConnection::FTPConnection(const WiFiClient &Client, std::list<FTPUser> &UserList, FTPFilesystem &Filesystem) : _ClientState(Idle), _Client(Client), _Filesystem(Filesystem), _LineOverflow(false), _LastActivityMs(millis()), _UserList(UserList), _AuthUsername(""), _PassiveServer(nullptr), _PassiveMode(false) {
   std::shared_ptr<FTPCommandTransfer> retr = std::shared_ptr<FTPCommandTransfer>(new RETR(&_Client, &_Filesystem, &_DataAddress, &_DataPort, &_PassiveServer, &_PassiveMode));
   std::shared_ptr<FTPCommandTransfer> stor = std::shared_ptr<FTPCommandTransfer>(new STOR(&_Client, &_Filesystem, &_DataAddress, &_DataPort, &_PassiveServer, &_PassiveMode));
 
@@ -80,6 +80,13 @@ bool FTPConnection::readUntilLineEnd() {
     if (c == '\r')
       continue; // Ignore carriage returns
     if (c == '\n') {
+      _LastActivityMs = millis();
+      if (_LineOverflow) {
+        _Line         = "";
+        _LineOverflow = false;
+        _Client.println("500 Line too long");
+        return false;
+      }
       int index_separator = _Line.indexOf(' ');
       if (index_separator != -1) {
         // Correctly split into Command and Arguments
@@ -92,7 +99,11 @@ bool FTPConnection::readUntilLineEnd() {
       return true;
     }
     if (c >= 32) {
-      _Line += c;
+      if (_Line.length() < FTP_MAX_LINE_LENGTH) {
+        _Line += c;
+      } else {
+        _LineOverflow = true;
+      }
     }
   }
   return false;
@@ -102,10 +113,18 @@ bool FTPConnection::handle() {
   if (!_Client.connected()) {
     return false;
   }
+  bool transferActive = false;
   for (std::shared_ptr<FTPCommandTransfer> cmd : _FTPCommandsTransfer) {
     if (cmd->trasferInProgress()) {
+      transferActive  = true;
+      _LastActivityMs = millis();
       cmd->workOnData();
     }
+  }
+  if (!transferActive && (millis() - _LastActivityMs > FTP_IDLE_TIMEOUT_MS)) {
+    _Client.println("421 Timeout");
+    _Client.stop();
+    return false;
   }
   if (!readUntilLineEnd()) {
     return true;
@@ -223,6 +242,15 @@ bool FTPConnection::handle() {
 
 bool FTPConnection::connected() {
   return _Client.connected();
+}
+
+bool FTPConnection::hasRecentActivity(unsigned long windowMs) const {
+  for (const std::shared_ptr<FTPCommandTransfer> &cmd : _FTPCommandsTransfer) {
+    if (cmd->trasferInProgress()) {
+      return true;
+    }
+  }
+  return (millis() - _LastActivityMs) <= windowMs;
 }
 
 // ESPuino fork: accept ANY username. The username is irrelevant - only the shared device

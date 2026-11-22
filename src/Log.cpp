@@ -27,7 +27,7 @@ void Log_Init(void) {
 	}
 }
 
-String getLoglevel(const uint8_t logLevel) {
+static const char *getLoglevel(const uint8_t logLevel) {
 	switch (logLevel) {
 		case LOGLEVEL_ERROR:
 			return "E";
@@ -48,14 +48,17 @@ String getLoglevel(const uint8_t logLevel) {
    If (SERIAL_LOGLEVEL <= _minLogLevel) message will be logged
 */
 void Log_Println(const char *_logBuffer, const uint8_t _minLogLevel) {
+	if (!_logBuffer) {
+		return;
+	}
 	if (SERIAL_LOGLEVEL >= _minLogLevel) {
 		uint32_t ctime = millis();
-		const String sLogLevel = getLoglevel(_minLogLevel);
-		Serial.printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+		const char *sLogLevel = getLoglevel(_minLogLevel);
+		Serial.printf("%s [%" PRIu32 "] ", sLogLevel, ctime);
 		Serial.println(_logBuffer);
 		if (Log_RingBuffer != nullptr) {
 			xSemaphoreTake(Log_RingMutex, portMAX_DELAY);
-			Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+			Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel, ctime);
 			Log_RingBuffer->println(_logBuffer);
 			xSemaphoreGive(Log_RingMutex);
 		}
@@ -64,11 +67,14 @@ void Log_Println(const char *_logBuffer, const uint8_t _minLogLevel) {
 
 /* Wrapper-function for serial-logging (without newline) */
 void Log_Print(const char *_logBuffer, const uint8_t _minLogLevel, bool printTimestamp) {
+	if (!_logBuffer) {
+		return;
+	}
 	if (SERIAL_LOGLEVEL >= _minLogLevel) {
 		const uint32_t ctime = millis();
-		const String sLogLevel = getLoglevel(_minLogLevel);
+		const char *sLogLevel = getLoglevel(_minLogLevel);
 		if (printTimestamp) {
-			Serial.printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+			Serial.printf("%s [%" PRIu32 "] ", sLogLevel, ctime);
 			Serial.print(_logBuffer);
 		} else {
 			Serial.print(_logBuffer);
@@ -76,7 +82,7 @@ void Log_Print(const char *_logBuffer, const uint8_t _minLogLevel, bool printTim
 		if (Log_RingBuffer != nullptr) {
 			xSemaphoreTake(Log_RingMutex, portMAX_DELAY);
 			if (printTimestamp) {
-				Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel.c_str(), ctime);
+				Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel, ctime);
 			}
 			Log_RingBuffer->print(_logBuffer);
 			xSemaphoreGive(Log_RingMutex);
@@ -85,23 +91,39 @@ void Log_Print(const char *_logBuffer, const uint8_t _minLogLevel, bool printTim
 }
 
 int Log_Printf(const uint8_t _minLogLevel, const char *format, ...) {
+	if (!format || SERIAL_LOGLEVEL < _minLogLevel) {
+		return 0;
+	}
 	char loc_buf[201]; // Allow a maximum buffer of 200 characters in a single log message
 
-	int len;
 	va_list arg;
 	va_start(arg, format);
-
-	// use the local buffer and trunctate string if it's larger
-	len = vsnprintf(loc_buf, sizeof(loc_buf), format, arg);
-
-	Log_Print(loc_buf, _minLogLevel, true);
-	if (len > sizeof(loc_buf) - 1) {
-		// long string was trunctated
-		Log_Print("...", _minLogLevel, false);
-	}
-	Log_Print("\n", _minLogLevel, false);
-
+	const int len = vsnprintf(loc_buf, sizeof(loc_buf), format, arg);
 	va_end(arg);
+	if (len < 0) {
+		return 0;
+	}
+
+	const bool truncated = static_cast<size_t>(len) > sizeof(loc_buf) - 1;
+	const uint32_t ctime = millis();
+	const char *sLogLevel = getLoglevel(_minLogLevel);
+	Serial.printf("%s [%" PRIu32 "] ", sLogLevel, ctime);
+	Serial.print(loc_buf);
+	if (truncated) {
+		Serial.print("...");
+	}
+	Serial.print("\n");
+
+	if (Log_RingBuffer != nullptr) {
+		xSemaphoreTake(Log_RingMutex, portMAX_DELAY);
+		Log_RingBuffer->printf("%s [%" PRIu32 "] ", sLogLevel, ctime);
+		Log_RingBuffer->print(loc_buf);
+		if (truncated) {
+			Log_RingBuffer->print("...");
+		}
+		Log_RingBuffer->print("\n");
+		xSemaphoreGive(Log_RingMutex);
+	}
 
 	return std::min<int>(len, sizeof(loc_buf) - 1);
 }

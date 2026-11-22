@@ -70,10 +70,14 @@ static bool tagIdToJSON(const String tagId, JsonObject entry) {
 }
 
 String tagIdToJsonStr(const char *key, const bool nameOnly) {
+	if (!key) {
+		return "";
+	}
 	if (nameOnly) {
 		return "\"" + String(key) + "\"";
 	} else {
-		JsonDocument doc;
+		SpiRamAllocator allocator;
+		JsonDocument doc(&allocator);
 		JsonObject entry = doc[key].to<JsonObject>();
 		if (!tagIdToJSON(key, entry)) {
 			return "";
@@ -150,7 +154,7 @@ void handleGetRFIDRequest(AsyncWebServerRequest *request) {
 	AsyncWebServerResponse *response = request->beginChunkedResponse("application/json",
 		[nvsKeys = std::move(nvsKeys), idsOnly, nvsIndex = size_t(0), started = false, sentAny = false, finished = false](uint8_t *buffer, size_t maxLen, size_t index) mutable -> size_t {
 			(void) index;
-			if (finished) {
+			if (finished || maxLen < 4) {
 				return 0;
 			}
 			maxLen = maxLen >> 1; // some sort of bug with actual size available, reduce the len
@@ -286,7 +290,11 @@ void handlePostRFIDRequest(AsyncWebServerRequest *request, JsonVariant &json) {
 	}
 	Web_DumpNvsToSd("rfidTags", backupFile); // Store backup-file every time when a new rfid-tag is programmed
 	// return the new/modified RFID assignment
-	AsyncJsonResponse *response = new AsyncJsonResponse(false);
+	PsramJsonResponse *response = new (std::nothrow) PsramJsonResponse(false);
+	if (!response) {
+		request->send(503);
+		return;
+	}
 	JsonObject obj = response->getRoot();
 	tagIdToJSON(tagId, obj);
 	response->setLength();

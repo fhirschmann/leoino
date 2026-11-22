@@ -26,8 +26,12 @@ TaskHandle_t rfidTaskHandle = NULL;
 
 void Rfid_Init(void) {
 #if defined(RFID_READER_TYPE_RUNTIME)
+	Rfid_ClearTaskLifecycleFlags();
 	RfidConfig_Init();
 	RfidReaderType readerType = RfidConfig_GetReaderType();
+	if (readerType == RfidReaderType::TYPE_NONE) {
+		return;
+	}
 	if ((readerType == RfidReaderType::TYPE_MFRC522_SPI) || (readerType == RfidReaderType::TYPE_MFRC522_I2C)) {
 		RfidMfrc522_Init(readerType);
 	} else {
@@ -74,7 +78,11 @@ void Rfid_Cyclic(void) {
 void Rfid_Exit(void) {
 #if defined(RFID_READER_TYPE_RUNTIME)
 	Log_Println("shutdown rfid-reader..", LOGLEVEL_NOTICE);
-	if (RfidConfig_GetReaderType() == RfidReaderType::TYPE_PN5180) {
+	const RfidReaderType readerType = RfidConfig_GetReaderType();
+	if (readerType == RfidReaderType::TYPE_NONE) {
+		return;
+	}
+	if (readerType == RfidReaderType::TYPE_PN5180) {
 		RfidPn5180_Exit();
 	} else {
 		RfidMfrc522_Exit();
@@ -86,7 +94,11 @@ void Rfid_Exit(void) {
 
 void Rfid_TaskReset(void) {
 #if defined(RFID_READER_TYPE_RUNTIME)
-	if (RfidConfig_GetReaderType() == RfidReaderType::TYPE_PN5180) {
+	const RfidReaderType readerType = RfidConfig_GetReaderType();
+	if (readerType == RfidReaderType::TYPE_NONE) {
+		return;
+	}
+	if (readerType == RfidReaderType::TYPE_PN5180) {
 		RfidPn5180_TaskReset();
 	} else {
 		RfidMfrc522_TaskReset();
@@ -96,7 +108,11 @@ void Rfid_TaskReset(void) {
 
 void Rfid_WakeupCheck(void) {
 #if defined(RFID_READER_TYPE_RUNTIME)
-	if (RfidConfig_GetReaderType() == RfidReaderType::TYPE_PN5180) {
+	const RfidReaderType readerType = RfidConfig_GetReaderType();
+	if (readerType == RfidReaderType::TYPE_NONE) {
+		return;
+	}
+	if (readerType == RfidReaderType::TYPE_PN5180) {
 		RfidPn5180_WakeupCheck();
 	} else {
 		RfidMfrc522_WakeupCheck();

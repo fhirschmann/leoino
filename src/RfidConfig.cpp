@@ -35,14 +35,16 @@ void RfidConfig_Init(void) {
 	if ((activeRfidReaderType == RfidReaderType::TYPE_AUTO_DETECT) || (RfidConfig_IsReaderAvailable(activeRfidReaderType) == false)) {
 		Log_Println("RFID: Auto-detecting reader type...", LOGLEVEL_INFO);
 		RfidReaderType detectedType = RfidConfig_AutoDetectReader();
-		if (detectedType != RfidReaderType::TYPE_AUTO_DETECT) { // valid reader detected
+		if (detectedType != RfidReaderType::TYPE_AUTO_DETECT && detectedType != RfidReaderType::TYPE_NONE) { // valid reader detected
 			activeRfidReaderType = detectedType;
 			// Save the detected type to NVS for future use
 			gPrefsRfid.putUChar("rfidReaderType", activeRfidReaderType);
 			Log_Printf(LOGLEVEL_INFO, "RFID: Detected reader type: %d", activeRfidReaderType);
 		} else {
-			Log_Println("RFID: Failed to auto-detect reader type, using default", LOGLEVEL_ERROR);
-			activeRfidReaderType = RfidReaderType::TYPE_PN5180; // Default to PN5180
+			// Do not persist TYPE_NONE so attaching a reader on a later boot still auto-detects cleanly,
+			// while avoiding a runaway SPI polling task when no reader is wired up on this boot.
+			Log_Println("RFID: No reader detected, disabling RFID polling for this boot", LOGLEVEL_NOTICE);
+			activeRfidReaderType = RfidReaderType::TYPE_NONE;
 		}
 	}
 
@@ -50,6 +52,7 @@ void RfidConfig_Init(void) {
 		activeRfidReaderType,
 		activeRfidReaderType == RfidReaderType::TYPE_MFRC522_SPI ? "MFRC522 (SPI)" : activeRfidReaderType == RfidReaderType::TYPE_MFRC522_I2C ? "MFRC522 (I2C)"
 			: activeRfidReaderType == RfidReaderType::TYPE_PN5180																			  ? "PN5180"
+			: activeRfidReaderType == RfidReaderType::TYPE_NONE																				  ? "None"
 																																			  : "Unknown");
 }
 
@@ -76,8 +79,8 @@ RfidReaderType RfidConfig_AutoDetectReader(void) {
 		return RfidReaderType::TYPE_MFRC522_I2C;
 	}
 
-	Log_Println("RFID: No reader detected", LOGLEVEL_ERROR);
-	return RfidReaderType::TYPE_AUTO_DETECT; // No reader detected
+	Log_Println("RFID: No reader detected", LOGLEVEL_NOTICE);
+	return RfidReaderType::TYPE_NONE; // No reader detected
 }
 
 bool IsValidMfrc522Version(byte version) {

@@ -30,11 +30,12 @@ prelude = r'''
 #include <vector>
 using String=std::string;using BaseType_t=int;
 constexpr int pdPASS=1,pdTRUE=1,portPRIVILEGE_BIT=0,portTICK_PERIOD_MS=1;
-constexpr int MALLOC_CAP_DEFAULT=0,MALLOC_CAP_INTERNAL=0;
+constexpr int MALLOC_CAP_DEFAULT=0,MALLOC_CAP_INTERNAL=0,ESP_OK=0;
 constexpr int LOGLEVEL_ERROR=0,LOGLEVEL_INFO=1,LOGLEVEL_DEBUG=2;
 const char *unableToAllocateMem="oom",*writingFile="write",*webTxCanceled="cancel",*fileWritten="done";
 void Log_Println(const char*,int){}template<class... T> void Log_Printf(T...){}
 void System_UpdateActivityTimer(){}void System_PauseTasksDuringUpload(bool){}
+int esp_task_wdt_status(void*){return ESP_OK;}void esp_task_wdt_reset(){}
 uint32_t millis(){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 void vTaskDelay(int n){std::this_thread::sleep_for(std::chrono::milliseconds(n));}
 int pdMS_TO_TICKS(int n){return n;}void vTaskDelete(void*){}
@@ -45,13 +46,14 @@ void xSemaphoreGive(Semaphore* s){std::lock_guard<std::mutex> l(s->m);s->ready=t
 int xSemaphoreTake(Semaphore* s,int n){std::unique_lock<std::mutex> l(s->m);if(!s->cv.wait_for(l,std::chrono::milliseconds(n),[&]{return s->ready;}))return 0;s->ready=false;return 1;}
 size_t allocLimit=SIZE_MAX;
 void* heap_caps_aligned_alloc(size_t a,size_t n,int){return failAlloc||n>allocLimit?nullptr:aligned_alloc(a,n);}
+void* x_malloc(size_t n){return failAlloc||n>allocLimit?nullptr:malloc(n);}
 char* x_strdup(const char* s){return failPath?nullptr:strdup(s);}
 std::thread worker;
 int xTaskCreatePinnedToCore(void(*fn)(void*),const char*,int,void* arg,int,void*,int){if(failTask)return 0;if(worker.joinable())worker.join();worker=std::thread(fn,arg);return 1;}
 struct AsyncWebParameter{String value() const{return "";}};
 struct AsyncWebServerRequest {
  void* _tempObject=nullptr;bool authorized=true;int status=0;std::function<void()> disconnected;
- ~AsyncWebServerRequest(){if(_tempObject)delete static_cast<int*>(_tempObject);}
+ ~AsyncWebServerRequest(){free(_tempObject);}
  bool hasParam(const char*){return false;}const AsyncWebParameter* getParam(const char*){return nullptr;}
  void send(int n){status=n;}void onDisconnect(std::function<void()> f){disconnected=f;}
 };

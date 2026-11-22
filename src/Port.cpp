@@ -288,19 +288,14 @@ void Port_MakeSomeChannelsOutputForShutdown(void) {
 	#endif
 
 	#ifdef POWER // Set as output to trigger mosfet/power-pin for powering peripherals. Hint: logic is inverted if INVERT_POWER is enabled.
+	Port_MarkOutput(POWER, OutputBitMaskInOutAsPerPort);
+		#ifdef INVERT_POWER
 	if (POWER >= 100 && POWER <= 107) {
-		#ifdef INVERT_POWER
 		OutputBitMaskLowHighAsPerPort[0] |= (1 << Port_ChannelToBit(POWER));
-		#else
-		OutputBitMaskInOutAsPerPort[0] &= ~(1 << Port_ChannelToBit(POWER));
-		#endif
 	} else if (POWER >= 108 && POWER <= 115) {
-		#ifdef INVERT_POWER
 		OutputBitMaskLowHighAsPerPort[1] |= (1 << Port_ChannelToBit(POWER));
-		#else
-		OutputBitMaskInOutAsPerPort[1] &= ~(1 << Port_ChannelToBit(POWER));
-		#endif
 	}
+		#endif
 	#endif
 
 	#ifdef BUTTONS_LED
@@ -310,19 +305,22 @@ void Port_MakeSomeChannelsOutputForShutdown(void) {
 	// Only change port-config if necessary (at least bitmask changed from base-default for one port)
 	if ((OutputBitMaskInOutAsPerPort[0] != portBaseValueBitMask) || (OutputBitMaskInOutAsPerPort[1] != portBaseValueBitMask)) {
 		I2cBusTwo_Lock();
+		// Program output latches BEFORE direction registers so active-low POWER stays driven HIGH
+		// (off) continuously without glitching low or floating Hi-Z during deep sleep.
+		i2cBusTwo.beginTransmission(expanderI2cAddress);
+		i2cBusTwo.write(0x02); // Pointer to configuration of output-channels (high/low)
+		i2cBusTwo.write(OutputBitMaskLowHighAsPerPort[0]); // port0
+		i2cBusTwo.write(OutputBitMaskLowHighAsPerPort[1]); // port1
+		i2cBusTwo.endTransmission();
+
 		i2cBusTwo.beginTransmission(expanderI2cAddress);
 		i2cBusTwo.write(0x06); // Pointer to configuration of input/output
 		for (uint8_t i = 0; i < portsToWrite; i++) {
 			i2cBusTwo.write(OutputBitMaskInOutAsPerPort[i]);
 		}
 		i2cBusTwo.endTransmission();
-
-		// Write low/high-config to all output-channels. Channels that are configured as input are silently/automatically ignored by PCA9555
-		i2cBusTwo.beginTransmission(expanderI2cAddress);
-		i2cBusTwo.write(0x02); // Pointer to configuration of output-channels (high/low)
-		i2cBusTwo.write(OutputBitMaskLowHighAsPerPort[0]); // port0
-		i2cBusTwo.write(OutputBitMaskLowHighAsPerPort[1]); // port1
-		i2cBusTwo.endTransmission();
+		Port_ExpanderPortsOutputChannelStatus[0] = OutputBitMaskLowHighAsPerPort[0];
+		Port_ExpanderPortsOutputChannelStatus[1] = OutputBitMaskLowHighAsPerPort[1];
 		I2cBusTwo_Unlock();
 	}
 }
@@ -399,12 +397,16 @@ void Port_ExpanderHandler(void) {
 
 // Make sure ports are read finally at shutdown in order to clear any active IRQs that could cause re-wakeup immediately
 void Port_Exit(void) {
+	#ifdef PE_INTERRUPT_PIN_ENABLE
+	detachInterrupt(digitalPinToInterrupt(PE_INTERRUPT_PIN));
+	Port_AllowReadFromPortExpander = false;
+	#endif
 	Port_MakeSomeChannelsOutputForShutdown();
 	I2cBusTwo_Lock();
 	i2cBusTwo.beginTransmission(expanderI2cAddress);
 	i2cBusTwo.write(0x00); // Pointer to input-registers...
-	i2cBusTwo.endTransmission();
-	i2cBusTwo.requestFrom(expanderI2cAddress, 2u); // ...and read its bytes
+	i2cBusTwo.endTransmission(false);
+	i2cBusTwo.requestFrom(expanderI2cAddress, 2u); // ...and read its bytes to de-assert PCA9555 INT#
 
 	if (i2cBusTwo.available() == 2) {
 		for (uint8_t i = 0; i < 2; i++) {

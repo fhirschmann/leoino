@@ -52,6 +52,7 @@ void Rfid_PreferenceLookupHandler(void) {
 
 	rfidStatus = xQueueReceive(gRfidCardQueue, &rfidTagId, 0);
 	if (rfidStatus == pdPASS) {
+		rfidTagId[cardIdStringSize - 1] = '\0';
 		System_UpdateActivityTimer();
 		snprintf(gCurrentRfidTagId, sizeof(gCurrentRfidTagId), "%s", rfidTagId);
 		Log_Printf(LOGLEVEL_INFO, "%s: %s", rfidTagReceived, gCurrentRfidTagId);
@@ -178,7 +179,8 @@ bool Rfid_ParseAssignment(const char *stored, char *fileOut, size_t fileLen, uin
 	strncpy(buf, stored, sizeof(buf) - 1);
 	buf[sizeof(buf) - 1] = '\0';
 	uint8_t i = 1;
-	for (char *token = strtok(buf, stringDelimiter); token != NULL; token = strtok(NULL, stringDelimiter), i++) {
+	char *saveptr = nullptr;
+	for (char *token = strtok_r(buf, stringDelimiter, &saveptr); token != NULL; token = strtok_r(NULL, stringDelimiter, &saveptr), i++) {
 		if (i == 1) {
 			if (fileOut && fileLen > 0) {
 				strncpy(fileOut, token, fileLen - 1);
@@ -290,10 +292,41 @@ bool Rfid_ConsumeLastTagReset() {
 extern TaskHandle_t rfidTaskHandle;
 #endif
 
+static std::atomic<bool> gRfidPauseRequested {false};
+static std::atomic<bool> gRfidPauseAck {false};
+static std::atomic<bool> gRfidExitRequested {false};
+
+bool Rfid_ShouldPauseTask(void) {
+	return gRfidPauseRequested.load(std::memory_order_acquire);
+}
+
+void Rfid_AckTaskPaused(bool paused) {
+	gRfidPauseAck.store(paused, std::memory_order_release);
+}
+
+bool Rfid_ShouldExitTask(void) {
+	return gRfidExitRequested.load(std::memory_order_acquire);
+}
+
+void Rfid_RequestTaskExit(void) {
+	gRfidExitRequested.store(true, std::memory_order_release);
+	gRfidPauseRequested.store(false, std::memory_order_release);
+}
+
+void Rfid_ClearTaskLifecycleFlags(void) {
+	gRfidPauseRequested.store(false, std::memory_order_relaxed);
+	gRfidPauseAck.store(false, std::memory_order_relaxed);
+	gRfidExitRequested.store(false, std::memory_order_relaxed);
+}
+
 void Rfid_TaskPause(void) {
 #if defined(RFID_READER_TYPE_RUNTIME)
 	if (rfidTaskHandle != NULL) {
-		vTaskSuspend(rfidTaskHandle);
+		gRfidPauseRequested.store(true, std::memory_order_release);
+		const uint32_t start = millis();
+		while (rfidTaskHandle != NULL && !gRfidPauseAck.load(std::memory_order_acquire) && (millis() - start < 300u)) {
+			vTaskDelay(pdMS_TO_TICKS(5));
+		}
 	}
 #endif
 }
@@ -301,7 +334,7 @@ void Rfid_TaskResume(void) {
 #if defined(RFID_READER_TYPE_RUNTIME)
 	if (rfidTaskHandle != NULL) {
 		Rfid_TaskReset(); // Reset state machine to initial state
-		vTaskResume(rfidTaskHandle);
 	}
+	gRfidPauseRequested.store(false, std::memory_order_release);
 #endif
 }

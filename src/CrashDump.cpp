@@ -6,12 +6,47 @@
 #include <esp_app_desc.h>
 #include <esp_core_dump.h>
 #include <esp_partition.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <sdkconfig.h>
 
 namespace {
 CrashDumpStatus s_status;
 const esp_partition_t *s_partition = nullptr;
 size_t s_imageOffset = 0;
+StaticSemaphore_t s_mutexStorage;
+SemaphoreHandle_t s_mutex = nullptr;
+portMUX_TYPE s_mutexInitMux = portMUX_INITIALIZER_UNLOCKED;
+
+class CrashDumpLock {
+public:
+	CrashDumpLock() {
+		portENTER_CRITICAL(&s_mutexInitMux);
+		SemaphoreHandle_t mtx = s_mutex;
+		portEXIT_CRITICAL(&s_mutexInitMux);
+		if (mtx == nullptr) {
+			SemaphoreHandle_t created = xSemaphoreCreateMutexStatic(&s_mutexStorage);
+			portENTER_CRITICAL(&s_mutexInitMux);
+			if (s_mutex == nullptr) {
+				s_mutex = created;
+			}
+			mtx = s_mutex;
+			portEXIT_CRITICAL(&s_mutexInitMux);
+		}
+		mMutex = mtx;
+		if (mMutex != nullptr) {
+			xSemaphoreTake(mMutex, portMAX_DELAY);
+		}
+	}
+	~CrashDumpLock() {
+		if (mMutex != nullptr) {
+			xSemaphoreGive(mMutex);
+		}
+	}
+
+private:
+	SemaphoreHandle_t mMutex = nullptr;
+};
 
 void refreshStatus(void) {
 	s_status = {};
@@ -73,6 +108,7 @@ void CrashDump_GetRunningElfSha256(char (&output)[65]) {
 }
 
 void CrashDump_Init(void) {
+	CrashDumpLock lock;
 	refreshStatus();
 	if (!s_status.partitionPresent) {
 		Log_Println("Core dump storage: partition missing", LOGLEVEL_ERROR);
@@ -90,6 +126,7 @@ const CrashDumpStatus &CrashDump_GetStatus(void) {
 }
 
 size_t CrashDump_Read(size_t offset, uint8_t *buffer, size_t length) {
+	CrashDumpLock lock;
 	if (!s_status.available || !s_partition || !buffer || (offset >= s_status.size)) {
 		return 0;
 	}
@@ -101,6 +138,7 @@ size_t CrashDump_Read(size_t offset, uint8_t *buffer, size_t length) {
 }
 
 bool CrashDump_Erase(void) {
+	CrashDumpLock lock;
 	if (!s_status.partitionPresent || (esp_core_dump_image_erase() != ESP_OK)) {
 		return false;
 	}

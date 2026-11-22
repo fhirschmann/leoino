@@ -563,17 +563,31 @@ real logger and pinned ring-buffer implementation with six writers and a reader 
 AddressSanitizer/UBSan (host g++ required); `python3 tools/test_espuino_helper.py` checks
 credential precedence, API authentication and private diagnostic downloads.
 
-The stability audit also hardens audio metadata/cover decoding, LED transfer ownership,
-and the SD upload worker. Non-finite volume inputs are clamped before LUT indexing;
-truncated title labels and incomplete/out-of-file cover segments are rejected safely.
-SPI/RMT timeouts retain ownership of in-flight buffers and retry pending frames. Uploads
-have one request owner, bounded chunk splitting, checked worker creation, safe disconnect
-handling and correct partial-write retries. Competing uploads return HTTP 409; raw bodies
-without multipart files return HTTP 400. Task statistics use bounded snapshots rather
-than an unchecked text buffer.
+The stability audit hardens networking, memory allocation, audio/Bluetooth concurrency,
+storage/sync workers, and peripheral lifecycles against heap corruption, watchdogs, stack
+overflows, and brownouts:
 
-Run the host fault simulations with `python3 tools/test_stability.py` and
-`python3 tools/test_upload_stability.py` (g++, ASan and UBSan). CI runs these plus the API
-helper tests. They execute production functions with simulated platform/file/transfer
-APIs; they do not emulate ESP32 timing, I2S, power delivery or physical encoder contacts.
-See [the audit evidence and limits](docs/stability-audit-2026-11.md).
+- **WebSocket & async JSON safety**: eliminates a 1-byte out-of-bounds write (`data[len] = 0`)
+  on incoming WebSocket frames, routes all WebSocket broadcasts and client cleanup onto
+  `async_tcp`, bounds `WS_DISCONNECT` close frames, and replaces upstream JSON body/response
+  handlers with `SafeJsonWebHandler` and `PsramJsonResponse` (pre-body authentication, bounded
+  chunked-body growth, PSRAM ASTs, and `SPIRAM`-with-DRAM-fallback allocation). WebDAV passwords
+  in `GET /settings` are masked via `passwordSet`.
+- **Internal DRAM headroom & ISR cache safety**: keeps small (`<= 256 B`) ISR-touched driver
+  allocations in internal DRAM (`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=256`) so NVS flash writes
+  never trigger cache-disabled ISR panics, while moving upload, WebDAV, FTP, MediaHub,
+  `/playstats`, and FATFS LFN buffers into PSRAM (~2x free internal DRAM on WROVER hardware).
+- **Boot & brownout hardening**: strips pre-`setup()` Wi-Fi radio bring-up from `HomeSpan`,
+  enables hardware brownout reset at Level 5 (~2.67 V), fixes PCA9555 shutdown output-latch
+  ordering, skips spawning the RFID task when auto-detect finds no reader (`TYPE_NONE`), and
+  replaces external `vTaskSuspend`/`vTaskDelete` calls with cooperative atomic handshakes.
+- **Audio, Bluetooth, storage & task stacks**: raises `ESP32-audioI2S`, `ipc`, `sys_evt`,
+  lwIP `tiT`, BT `btu`/`btc`, and `loopTask` stacks; guards `Audio::setTone`, MP3/PLS/M4A/cover
+  parsers, `WiFiSettings` NVS deserialization, and track metadata; narrows playlist-sync mutex
+  scope to local SD operations; and hardens SD upload, WebDAV, and FTP workers.
+
+Run the host ASan/UBSan fault simulations with `python3 tools/test_stability.py`,
+`python3 tools/test_upload_stability.py`, and `python3 tools/test_log_concurrency.py`, and run
+full dual-core Xtensa ESP32 firmware emulation (with PSRAM, FAT32 `SD_MMC`, and OpenCores
+Ethernet under live HTTP/WebSocket/WebDAV fuzzing) via `python3 tools/test_qemu_esp32.py`
+(`[env:qemu]`). See [the audit evidence and limits](docs/stability-audit-2026-11.md).

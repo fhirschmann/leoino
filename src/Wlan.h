@@ -1,8 +1,10 @@
 #pragma once
 
 #include <WString.h>
+#include <cstring>
 #include <functional>
 #include <optional>
+#include <vector>
 
 // Hostname rules, driven mainly by mDNS. The length is written down here and nowhere else: it
 // is published to both web interfaces, which cap their input field with it, while the character
@@ -38,19 +40,18 @@ struct WiFiSettings {
 
 		bool isValid() const { return addr != INADDR_NONE && subnet != INADDR_NONE; }
 
-		void serialize(uint32_t *blob) const {
-			blob[0] = addr;
-			blob[1] = subnet;
-			blob[2] = gateway;
-			blob[3] = dns1;
-			blob[4] = dns2;
+		void serialize(uint8_t *blob) const {
+			const uint32_t fields[numFields] = {uint32_t(addr), uint32_t(subnet), uint32_t(gateway), uint32_t(dns1), uint32_t(dns2)};
+			std::memcpy(blob, fields, sizeof(fields));
 		}
-		void deserialize(const uint32_t *blob) {
-			addr = blob[0];
-			subnet = blob[1];
-			gateway = blob[2];
-			dns1 = blob[3];
-			dns2 = blob[4];
+		void deserialize(const uint8_t *blob) {
+			uint32_t fields[numFields] = {};
+			std::memcpy(fields, blob, sizeof(fields));
+			addr = fields[0];
+			subnet = fields[1];
+			gateway = fields[2];
+			dns1 = fields[3];
+			dns2 = fields[4];
 		}
 	};
 
@@ -92,7 +93,7 @@ protected:
 	 * @brief Deserialize a String from a binary buffer
 	 * @see serializeString for further information
 	 */
-	void deserializeString(std::vector<uint8_t>::const_iterator &it, String &s);
+	bool deserializeString(std::vector<uint8_t>::const_iterator &it, std::vector<uint8_t>::const_iterator end, String &s);
 
 	/**
 	 * @brief Serialize a String into a binary buffer. Format: [bool:u8] + <numFields * u32>
@@ -111,7 +112,7 @@ protected:
 	 * @brief Deserialize a static IP confgiuration from a binary buffer
 	 * @see serializeStaticIp for further information
 	 */
-	void deserializeStaticIp(std::vector<uint8_t>::const_iterator &it, StaticIp &ip);
+	bool deserializeStaticIp(std::vector<uint8_t>::const_iterator &it, std::vector<uint8_t>::const_iterator end, StaticIp &ip);
 };
 
 void Wlan_Init(void);
@@ -134,6 +135,7 @@ bool Wlan_SetApPassword(String);
 uint32_t Wlan_GetApTimeoutMinutes(void);
 bool Wlan_SetApTimeoutMinutes(uint32_t);
 bool Wlan_IsConnected(void);
+bool Wlan_IsApMode(void);
 void Wlan_SetPowerSave(bool enabled);
 void Wlan_ToggleEnable(void);
 String Wlan_GetIpAddress(void);

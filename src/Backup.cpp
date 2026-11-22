@@ -324,9 +324,9 @@ void Backup_Trigger(void) {
 		return;
 	}
 	gBackupMsg.set("");
-	if (xTaskCreatePinnedToCore(backupTask, "backup", 16384, NULL, 1, NULL, 1) != pdPASS) {
+	if (xTaskCreatePinnedToCore(backupTask, "backup", 10240, NULL, 1, NULL, 1) != pdPASS) {
 		Net_ReleaseBgJob(); // task never started, so it can't release the slot -> do it here
-		gBackupStatus = 3; // couldn't spawn -> release the slot as failed
+		backupFail("out of memory");
 	}
 }
 

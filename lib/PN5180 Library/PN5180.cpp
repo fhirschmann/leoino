@@ -76,15 +76,15 @@ void PN5180::begin(int8_t sck, int8_t miso, int8_t mosi, int8_t ss) {
   if (ss >= 0) PN5180_NSS = ss; // ss was specified so override any NSS from class initialization
 
   pinMode(PN5180_NSS, OUTPUT);
-  pinMode(PN5180_BUSY, INPUT);
+  pinMode(PN5180_BUSY, INPUT_PULLUP);
   pinMode(PN5180_RST, OUTPUT);
 
   digitalWrite(PN5180_NSS, HIGH); // disable
   digitalWrite(PN5180_RST, HIGH); // no reset
 
-  if ((PN5180_SCK > 0) && (PN5180_MISO > 0) && (PN5180_MOSI > 0)) {
-    // start SPI with custom pins
-    PN5180_SPI.begin(PN5180_SCK, PN5180_MISO, PN5180_MOSI, PN5180_NSS);
+  if ((PN5180_SCK >= 0) && (PN5180_MISO >= 0) && (PN5180_MOSI >= 0)) {
+    // start SPI with custom pins (-1 for hardware SS since NSS is toggled manually)
+    PN5180_SPI.begin(PN5180_SCK, PN5180_MISO, PN5180_MOSI, -1);
     PN5180DEBUG(F("Custom SPI pinout: "));
     PN5180DEBUG(F("SS=")); PN5180DEBUG(PN5180_NSS);
     PN5180DEBUG(F(", MOSI=")); PN5180DEBUG(PN5180_MOSI);
@@ -226,10 +226,19 @@ bool PN5180::readRegister(uint8_t reg, uint32_t *value) {
   PN5180DEBUG_PRINTF(F("PN5180::readRegister(reg=0x%s, *value)"), formatHex(reg));
   PN5180DEBUG_PRINTLN();
   PN5180DEBUG_ENTER;
+  if (!value) {
+    PN5180DEBUG_EXIT;
+    return false;
+  }
+  *value = 0;
 
   uint8_t cmd[] = { PN5180_READ_REGISTER, reg };
 
-  transceiveCommand(cmd, sizeof(cmd), (uint8_t*)value, 4);
+  if (!transceiveCommand(cmd, sizeof(cmd), (uint8_t*)value, 4)) {
+    *value = 0;
+    PN5180DEBUG_EXIT;
+    return false;
+  }
 
   PN5180DEBUG(F("Register value=0x"));
   PN5180DEBUG(formatHex(*value));
@@ -596,9 +605,9 @@ bool PN5180::setRF_on() {
   
   PN5180DEBUG_PRINTLN(F("wait for RF field to set up (max 500ms)"));
   PN5180DEBUG_OFF;
-  while (0 == (TX_RFON_IRQ_STAT & getIRQStatus())) {   // wait for RF field to set up (max 500ms)
+  while (0 == (TX_RFON_IRQ_STAT & getIRQStatus())) {   // wait for RF field to set up
 	  delay(1);
-	  if (millis() - startedWaiting > 500) {
+	  if (millis() - startedWaiting > commandTimeout) {
 		  PN5180DEBUG_ON;
 		  PN5180DEBUG_PRINTLN(F("*** ERROR: Set RF ON timeout"));
 		  PN5180DEBUG_EXIT;
@@ -630,7 +639,7 @@ bool PN5180::setRF_off() {
   PN5180DEBUG_OFF;
   while (0 == (TX_RFOFF_IRQ_STAT & getIRQStatus())) {   // wait for RF field to shut down
 	  delay(1);
-	  if (millis() - startedWaiting > 500) {
+	  if (millis() - startedWaiting > commandTimeout) {
 		  PN5180DEBUG_ON;
 		  PN5180DEBUG_PRINTLN(F("*** ERROR: Set RF OFF timeout"));
 		  PN5180DEBUG_EXIT;
@@ -835,8 +844,11 @@ uint32_t PN5180::getIRQStatus() {
   PN5180DEBUG_ENTER;
 
   PN5180DEBUG_PRINTLN(F("Read IRQ-Status register..."));
-  uint32_t irqStatus;
-  readRegister(IRQ_STATUS, &irqStatus);
+  uint32_t irqStatus = 0;
+  if (!readRegister(IRQ_STATUS, &irqStatus)) {
+    PN5180DEBUG_EXIT;
+    return 0;
+  }
 
   PN5180DEBUG(F("IRQ-Status=0x"));
   PN5180DEBUG(formatHex(irqStatus));

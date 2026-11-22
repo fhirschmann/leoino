@@ -246,6 +246,18 @@ void RfidPn5180_Task(void *parameter) {
 	const bool lpcdEnabled = Rfid_Pn5180LpcdEnabled();
 
 	for (;;) {
+		if (Rfid_ShouldExitTask()) {
+			Rfid_AckTaskPaused(false);
+			rfidTaskHandle = NULL;
+			vTaskDelete(NULL);
+		}
+		if (Rfid_ShouldPauseTask()) {
+			Rfid_AckTaskPaused(true);
+			vTaskDelay(pdMS_TO_TICKS(10));
+			continue;
+		}
+		Rfid_AckTaskPaused(false);
+
 		if (rfidTaskResetRequested) {
 			memset(lastValidcardId, 0, sizeof(lastValidcardId));
 			memset(lastCardId, 0, sizeof(lastCardId));
@@ -267,14 +279,16 @@ void RfidPn5180_Task(void *parameter) {
 		if (lpcdEnabled && Rfid_GetLpcdShutdownStatus()) {
 			Rfid_EnableLpcd();
 			Rfid_SetLpcdShutdownStatus(false); // give feedback that execution is complete
-			while (true) {
-				vTaskDelay(portTICK_PERIOD_MS * 100u); // there's no way back if shutdown was initiated
+			while (!Rfid_ShouldExitTask()) {
+				vTaskDelay(portTICK_PERIOD_MS * 20u); // wait for RfidPn5180_Exit() to request task teardown
 			}
+			rfidTaskHandle = NULL;
+			vTaskDelete(NULL);
 		}
 		bool cardReceived = false;
 
 		if (RFID_PN5180_STATE_INIT == stateMachine) {
-			nfc14443.begin();
+			nfc14443.begin(RFID_SCK, RFID_MISO, RFID_MOSI, RFID_CS);
 			nfc14443.reset();
 			// Lower than the library default (500ms): transceiveCommand()'s BUSY-pin wait loops
 			// should normally resolve in well under this, so fail/retry faster if the chip is
@@ -523,15 +537,19 @@ bool RfidPn5180_IsCardApplied(void) {
 
 void RfidPn5180_Exit(void) {
 	Log_Println("shutdown PN5180..", LOGLEVEL_NOTICE);
-	if (Rfid_Pn5180LpcdEnabled()) {
+	if (Rfid_Pn5180LpcdEnabled() && rfidTaskHandle != NULL) {
 		Rfid_SetLpcdShutdownStatus(true);
-		while (Rfid_GetLpcdShutdownStatus()) { // Make sure init of LPCD is complete!
+		const uint32_t lpcdStart = millis();
+		while (Rfid_GetLpcdShutdownStatus() && (millis() - lpcdStart < 1500u)) { // Make sure init of LPCD is complete!
 			vTaskDelay(portTICK_PERIOD_MS * 10u);
 		}
 	}
 	if (rfidTaskHandle != NULL) {
-		vTaskDelete(rfidTaskHandle);
-		rfidTaskHandle = NULL;
+		Rfid_RequestTaskExit();
+		const uint32_t start = millis();
+		while (rfidTaskHandle != NULL && (millis() - start < 500u)) {
+			vTaskDelay(pdMS_TO_TICKS(10));
+		}
 	}
 }
 
@@ -541,7 +559,7 @@ void Rfid_EnableLpcd(void) {
 		return;
 	}
 	static PN5180 nfc(RFID_CS, RFID_BUSY, RFID_RST);
-	nfc.begin();
+	nfc.begin(RFID_SCK, RFID_MISO, RFID_MOSI, RFID_CS);
 	nfc.reset();
 	// show PN5180 reader version
 	uint8_t firmwareVersion[2];
